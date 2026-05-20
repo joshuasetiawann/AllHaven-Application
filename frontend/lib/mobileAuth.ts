@@ -47,6 +47,18 @@ export async function hydrateBearerToken(): Promise<void> {
   }
 }
 
+// Memoised one-time hydration. Every authenticated request awaits this before
+// reading the in-memory token, so a cold start can't fire API calls with no
+// Authorization header (which would 401 and bounce the user back to /login).
+// No-op (resolved) on web/desktop. setBearerToken/clearBearerToken keep memToken
+// correct afterwards, so memoising the first read is safe across login/logout.
+let hydration: Promise<void> | null = null;
+export function ensureBearerHydrated(): Promise<void> {
+  if (!BEARER_MODE) return Promise.resolve();
+  if (!hydration) hydration = hydrateBearerToken();
+  return hydration;
+}
+
 /** Persist the token (memory + native storage) after a successful login. */
 export async function setBearerToken(token: string): Promise<void> {
   memToken = token;
