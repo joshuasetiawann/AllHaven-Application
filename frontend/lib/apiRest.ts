@@ -6,6 +6,7 @@ import { clearAuth } from "@/lib/auth";
 import {
   BEARER_MODE,
   clearBearerToken,
+  ensureBearerHydrated,
   getBearerToken,
   setBearerToken,
 } from "@/lib/mobileAuth";
@@ -128,42 +129,63 @@ function handleUnauthorized(status: number): void {
   if (BEARER_MODE) void clearBearerToken();
 }
 
+// Abort any request that stalls past this, so the UI fails fast with a clear
+// message instead of spinning forever on a slow or dropped connection.
+const REQUEST_TIMEOUT_MS = 20000;
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method || "GET").toUpperCase();
+  // Mobile: make sure the persisted bearer token is loaded before the first
+  // call, so a cold start can't fire requests with no Authorization header.
+  if (BEARER_MODE) await ensureBearerHydrated();
   const { headers, credentials } = authFetchInit(method, {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
   });
 
-  let res: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers, credentials });
-  } catch {
-    throw new ApiException(
-      "Cannot reach the AllHaven API. Is the backend running?",
-      "NETWORK_ERROR",
-      0,
-    );
-  }
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers,
+        credentials,
+        signal: controller.signal,
+      });
+    } catch (err) {
+      const timedOut = err instanceof DOMException && err.name === "AbortError";
+      throw new ApiException(
+        timedOut
+          ? "The server took too long to respond. Check your connection and try again."
+          : "Cannot reach the AllHaven API. Is the backend running?",
+        timedOut ? "TIMEOUT" : "NETWORK_ERROR",
+        0,
+      );
+    }
 
-  let body: ApiEnvelope<T> | null = null;
-  try {
-    body = (await res.json()) as ApiEnvelope<T>;
-  } catch {
-    body = null;
-  }
+    let body: ApiEnvelope<T> | null = null;
+    try {
+      body = (await res.json()) as ApiEnvelope<T>;
+    } catch {
+      body = null;
+    }
 
-  if (!res.ok || body?.status === "error") {
-    handleUnauthorized(res.status);
-    throw new ApiException(
-      body?.message || `Request failed (${res.status})`,
-      body?.error_code || "HTTP_ERROR",
-      res.status,
-      body?.details,
-    );
-  }
+    if (!res.ok || body?.status === "error") {
+      handleUnauthorized(res.status);
+      throw new ApiException(
+        body?.message || `Request failed (${res.status})`,
+        body?.error_code || "HTTP_ERROR",
+        res.status,
+        body?.details,
+      );
+    }
 
-  return (body?.data ?? null) as T;
+    return (body?.data ?? null) as T;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 const json = (payload: unknown) => JSON.stringify(payload);

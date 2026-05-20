@@ -5,10 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
-import { Loading } from "@/components/ui/States";
-import { authApi } from "@/lib/api";
+import { ErrorState, Loading } from "@/components/ui/States";
+import { ApiException, authApi } from "@/lib/api";
 import { clearAuth, setStoredUser } from "@/lib/auth";
-import { hydrateBearerToken } from "@/lib/mobileAuth";
+import { ensureBearerHydrated } from "@/lib/mobileAuth";
 import { applyPrefs, loadPrefs } from "@/lib/prefs";
 import { DATA_MODE, getSupabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/format";
@@ -24,6 +24,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [ready, setReady] = useState<boolean>(() => authConfirmed);
+  // Non-null when the session check failed for a non-auth reason (network /
+  // timeout / server error). We show a retryable error instead of bouncing to
+  // /login — the user may well be logged in; the server was just unreachable.
+  const [authError, setAuthError] = useState<string | null>(null);
+  // Bumping this re-runs the session check (the Retry button).
+  const [authNonce, setAuthNonce] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   // User's explicit rail preference (persisted). Only takes effect at ≥xl,
   // where there's room for the full sidebar; below xl the rail is forced.
@@ -37,12 +43,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     applyPrefs(loadPrefs());
+    setAuthError(null);
     // Supabase mode (mobile): restore the persisted session before the first
     // API call so RLS-scoped queries succeed. Bearer mode (web/desktop): load
-    // the persisted bearer token into memory (no-op on web, cookie-authenticated).
+    // the persisted bearer token into memory (memoised; no-op on web, which
+    // authenticates via the session cookie).
     const hydrate = DATA_MODE
       ? getSupabase().then((sb) => sb.auth.getSession()).then(() => undefined)
-      : hydrateBearerToken();
+      : ensureBearerHydrated();
 
     hydrate
       .then(() => authApi.me())
@@ -52,16 +60,26 @@ export function AppShell({ children }: { children: ReactNode }) {
         authConfirmed = true;
         setReady(true);
       })
-      .catch(() => {
+      .catch((err) => {
         if (!active) return;
-        authConfirmed = false;
-        clearAuth();
-        router.replace("/login");
+        // Only a real 401 means the session is invalid → log in again. A network
+        // or timeout error does NOT (looks like "login never works"); surface it
+        // with a Retry instead of bouncing back to /login.
+        const status = err instanceof ApiException ? err.statusCode : -1;
+        if (status === 401) {
+          authConfirmed = false;
+          clearAuth();
+          router.replace("/login");
+        } else {
+          setAuthError(
+            err instanceof Error ? err.message : "Couldn't reach the server.",
+          );
+        }
       });
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [router, authNonce]);
 
   // Restore the persisted rail preference once on mount (guard for SSR).
   useEffect(() => {
@@ -99,8 +117,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loading label="Checking your session…" />
+      <div className="flex min-h-screen items-center justify-center p-6">
+        {authError ? (
+          <ErrorState message={authError} onRetry={() => setAuthNonce((n) => n + 1)} />
+        ) : (
+          <Loading label="Checking your session…" />
+        )}
       </div>
     );
   }
