@@ -73,8 +73,11 @@ def _should_skip_memory(user_msg: str) -> bool:
         return True
     if _GREETING_RE.match(text):
         return True
-    from app.services import ai_intent_router
+    from app.services import ai_intent_router, schedule_parser
 
+    # Routine/schedule requests belong to the calendar, never memory (spec rule).
+    if schedule_parser.parse_schedule(text) is not None:
+        return True
     intent = ai_intent_router.classify(text).intent
     return intent in (ai_intent_router.FINANCE, ai_intent_router.TASK, ai_intent_router.NOTE)
 
