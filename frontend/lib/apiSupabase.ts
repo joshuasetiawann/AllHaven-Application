@@ -827,7 +827,7 @@ function _pad2(n: number): string {
 /** Expand a create_routine_schedule payload into timed calendar_events across N days
  * (mobile analogue of backend _h_create_routine_schedule). Naive local ISO strings,
  * matching the existing mobile inserts so times aren't shifted by a timezone. */
-async function _executeScheduleProposal(payload: Record<string, unknown>): Promise<unknown> {
+async function _executeScheduleProposal(payload: Record<string, unknown>, proposalId: string): Promise<unknown> {
   const blocks = (payload.blocks as Array<Record<string, unknown>>) ?? [];
   if (!blocks.length) {
     throw new ApiException("Jadwal kosong — tidak ada kegiatan untuk dibuat.", "EMPTY_SCHEDULE", 422);
@@ -856,19 +856,27 @@ async function _executeScheduleProposal(payload: Record<string, unknown>): Promi
         all_day: false,
         time_period: b.time_period ?? null,
         repeat_rule: "once",
+        // Cross-device idempotency: same key the desktop stamps (backend
+        // _h_create_routine_schedule), one ordinal per event in day→block order, so a
+        // simultaneous approve on both devices converges to one set of events.
+        dedup_key: `${proposalId}:${items.length}`,
       });
     }
   }
   return routinesApi.createBatch(items);
 }
 
-/** Execute a proposal's write directly against Supabase, by tool name. */
-async function _executeProposal(tool: string, payload: Record<string, unknown>): Promise<unknown> {
-  if (tool.startsWith("create_transaction")) return financeApi.createTransaction(payload);
+/** Execute a proposal's write directly against Supabase, by tool name.
+ * proposalId stamps a cross-device dedup_key on the produced rows (transactions +
+ * calendar_events only — the two tables that have the column; see migration 0019).
+ * Mobile and desktop stamp the SAME "{proposalId}:{ordinal}", so a simultaneous
+ * double-approve converges to one row instead of duplicating. */
+async function _executeProposal(tool: string, payload: Record<string, unknown>, proposalId: string): Promise<unknown> {
+  if (tool.startsWith("create_transaction")) return financeApi.createTransaction({ ...payload, dedup_key: `${proposalId}:0` });
   if (tool.startsWith("create_task")) return tasksApi.create(payload);
   if (tool.startsWith("create_note")) return notesApi.create(payload as Partial<Note>);
-  if (tool === "create_routine_schedule") return _executeScheduleProposal(payload);
-  if (tool === "create_event" || tool === "create_routine") return routinesApi.create(payload);
+  if (tool === "create_routine_schedule") return _executeScheduleProposal(payload, proposalId);
+  if (tool === "create_event" || tool === "create_routine") return routinesApi.create({ ...payload, dedup_key: `${proposalId}:0` });
   if (tool === "create_automation") return automationsApi.create(payload);
   throw new ApiException(
     `Aksi "${tool.replace(/_/g, " ")}" hanya bisa di-approve dari aplikasi desktop.`,
@@ -898,7 +906,7 @@ async function supaApproveProposal(id: string): Promise<{ proposal: ToolProposal
   const row = claimedRows[0] as ToolProposal;
   let result: unknown;
   try {
-    result = await _executeProposal(row.tool_name, (row.tool_payload ?? {}) as Record<string, unknown>);
+    result = await _executeProposal(row.tool_name, (row.tool_payload ?? {}) as Record<string, unknown>, row.id);
   } catch (err) {
     // Mirror the backend: a failed approval becomes NEEDS_EDIT and stays visible.
     await sb.from("ai_tool_proposals").update({
