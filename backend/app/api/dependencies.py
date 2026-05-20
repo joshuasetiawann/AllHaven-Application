@@ -47,18 +47,36 @@ def _principal_for_user(db: Session, user_id: uuid.UUID) -> Principal:
     )
 
 
-def _principal_for_supabase_user(db: Session, supabase_user_id: uuid.UUID) -> Principal:
+def _principal_for_supabase_user(
+    db: Session, supabase_user_id: uuid.UUID, email: str | None = None
+) -> Principal:
     """Resolve a Supabase user id to its linked local account.
 
     The mobile app authenticates against Supabase, so its bearer token's ``sub`` is
     the Supabase user id. Profiles are linked to it via ``supabase_user_id`` (set on
-    desktop registration / the ``provision_me`` flow). An unlinked token is rejected.
+    desktop registration / the ``provision_me`` flow).
+
+    Fallback: if the link isn't set yet (e.g. the account was created on desktop
+    before the Supabase sync stamped the id), match on the token's *verified* email
+    claim and backfill the link so later requests resolve directly. Only an
+    as-yet-unlinked profile is adopted, so a profile already bound to a different
+    Supabase identity is never hijacked.
     """
     profile = (
         db.query(Profile)
         .filter(Profile.supabase_user_id == supabase_user_id)
         .one_or_none()
     )
+    if profile is None and email:
+        candidate = (
+            db.query(Profile)
+            .filter(Profile.email == email, Profile.supabase_user_id.is_(None))
+            .one_or_none()
+        )
+        if candidate is not None:
+            candidate.supabase_user_id = supabase_user_id
+            db.commit()
+            profile = candidate
     if profile is None:
         raise UnauthorizedError("No local account is linked to this Supabase user.")
     return _principal_for_user(db, profile.id)
@@ -102,7 +120,9 @@ def get_current_principal(
                 supabase_user_id = uuid.UUID(str(sb_subject))
             except (ValueError, TypeError) as exc:
                 raise UnauthorizedError("Invalid token.") from exc
-            return _principal_for_supabase_user(db, supabase_user_id)
+            return _principal_for_supabase_user(
+                db, supabase_user_id, email=sb_payload.get("email")
+            )
 
         raise UnauthorizedError("Invalid or expired token.")
 
