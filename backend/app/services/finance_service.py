@@ -184,7 +184,7 @@ def get_transaction(db: Session, principal: Principal, transaction_id: uuid.UUID
 
 
 def create_transaction(
-    db: Session, principal: Principal, data: TransactionCreate
+    db: Session, principal: Principal, data: TransactionCreate, dedup_key: str | None = None
 ) -> Transaction:
     category_name = _resolve_category_snapshot(db, principal, data.category_id)
     transaction = Transaction(
@@ -197,6 +197,8 @@ def create_transaction(
         category_name_snapshot=category_name,
         description=data.description,
         transaction_date=data.transaction_date,
+        # Cross-device idempotency stamp from an approved proposal (None for direct calls).
+        dedup_key=dedup_key,
     )
     db.add(transaction)
     db.flush()

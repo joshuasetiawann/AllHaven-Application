@@ -20,6 +20,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domain.sync_state import SyncState
@@ -149,6 +150,16 @@ def lww_apply(db: Session, spec: SyncSpec, row: dict) -> Optional[datetime]:
     existing = db.get(spec.model, pk) if pk is not None else None
 
     if existing is None:
+        # Cross-device idempotency: this PK is new here, but if the row carries a
+        # proposal-scoped dedup_key that ALREADY exists locally under a different PK,
+        # the other device produced the same entity from the same approval. Skip it so
+        # the two converge to one row instead of duplicating (the UNIQUE dedup_key index
+        # would otherwise raise mid-sync). See ai_tools_registry.approve_proposal.
+        dedup_key = kwargs.get("dedup_key")
+        if dedup_key and hasattr(spec.model, "dedup_key"):
+            twin = db.scalar(select(spec.model).where(spec.model.dedup_key == dedup_key).limit(1))
+            if twin is not None:
+                return None
         db.add(spec.model(**kwargs))
         return incoming_ts
 

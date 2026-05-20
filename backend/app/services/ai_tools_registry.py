@@ -17,6 +17,7 @@ Security model (enforced here, not trusted to the model):
 
 from __future__ import annotations
 
+import contextvars
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -24,6 +25,7 @@ from typing import Callable, Optional
 
 from pydantic import ValidationError
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import AppException, ConflictError, NotFoundError, ValidationAppError
@@ -33,6 +35,22 @@ from app.services import ai_settings_service
 from app.services.audit_service import write_audit
 
 MAX_LIST_ITEMS = 25  # keep tool results small enough for model context
+
+# Cross-device idempotency: while an approved proposal executes, this holds its id so
+# the create handlers can stamp produced rows with a proposal-scoped dedup_key
+# ("{proposal_id}:{ordinal}"). Identical on desktop + mobile, so the rare pre-sync
+# double-approve converges to one row (see approve_proposal + sync_engine.lww_apply).
+# None for direct (non-proposal) tool calls, which keep auto-generated PKs.
+_proposal_dedup: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "allhaven_proposal_dedup", default=None,
+)
+
+
+def _dedup_key(ordinal: int = 0) -> Optional[str]:
+    """Proposal-scoped dedup key for the n-th entity an approval produces, or None
+    when not executing inside an approval (direct call → ordinary unique PK)."""
+    pid = _proposal_dedup.get()
+    return f"{pid}:{ordinal}" if pid else None
 
 
 @dataclass(frozen=True)
@@ -371,6 +389,7 @@ def _h_create_event(db, principal, args) -> dict:
     if not str(args.get("start_at") or "").strip():
         today = _date.fromisoformat(time_payload()["date"])
         args = {**args, "start_at": datetime.combine(today, _time(9, 0))}
+    args = {**args, "dedup_key": _dedup_key()}
     event = calendar_service.create_event(db, principal, args)
     return {"event": _event(event)}
 
@@ -434,6 +453,9 @@ def _h_create_routine_schedule(db, principal, args) -> dict:
                 "all_day": False,
                 "time_period": block.get("time_period") or calendar_service._period_from_start(start_at),
                 "repeat_rule": "once",
+                # One ordinal per event so both devices stamp the SAME keys for this
+                # batch → cross-device dedup without blocking distinct events.
+                "dedup_key": _dedup_key(len(items)),
             })
 
     events = calendar_service.create_events_batch(db, principal, items)
@@ -516,7 +538,9 @@ def _h_create_transaction(db, principal, args) -> dict:
     args = dict(args or {})
     if not args.get("transaction_date"):
         args["transaction_date"] = time_payload()["date"]
-    txn = finance_service.create_transaction(db, principal, TransactionCreate(**args))
+    txn = finance_service.create_transaction(
+        db, principal, TransactionCreate(**args), dedup_key=_dedup_key(),
+    )
     return {"transaction": _txn(txn)}
 
 
@@ -1343,6 +1367,9 @@ def approve_proposal(db: Session, principal: Principal, proposal_id: uuid.UUID) 
     if spec is None:
         raise ValidationAppError(f"Tool '{proposal.tool_name}' no longer exists.")
 
+    # Stamp produced rows with a proposal-scoped dedup_key so a simultaneous approve on
+    # the other device (before executed_at syncs) converges to one row, not a duplicate.
+    dedup_token = _proposal_dedup.set(str(proposal.id))
     try:
         result = _execute(db, principal, spec, dict(proposal.tool_payload or {}))
     except ToolError as exc:
@@ -1355,6 +1382,17 @@ def approve_proposal(db: Session, principal: Principal, proposal_id: uuid.UUID) 
                     "approve_failed", {"proposal_id": str(proposal.id), "error": str(exc)})
         db.commit()
         raise ValidationAppError(f"Could not execute this action — {exc}. Fix the field and approve again.")
+    except IntegrityError:
+        # The produced entity's dedup_key already exists locally → the OTHER device ran
+        # this same approval and its row synced in before this proposal's executed_at
+        # did. Treat as already executed (no duplicate) rather than a 500.
+        db.rollback()
+        raise ConflictError(
+            "Aksi ini sudah dieksekusi di perangkat lain.",
+            error_code="ALREADY_EXECUTED",
+        )
+    finally:
+        _proposal_dedup.reset(dedup_token)
 
     proposal.status = "EXECUTED"
     proposal.error_message = None
