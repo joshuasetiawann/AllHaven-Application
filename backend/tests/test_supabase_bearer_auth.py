@@ -82,9 +82,12 @@ def test_supabase_token_authenticates_linked_user(client, db_session, supabase_c
     assert _get(client, token).status_code == 200
 
 
-def test_supabase_token_unlinked_user_rejected(client, db_session, supabase_configured):
-    _register(client)  # registered, but Profile.supabase_user_id left unset
-    token = _make_supabase_token(_SUPABASE_SECRET, _claims(uuid.uuid4()))
+def test_supabase_token_no_local_match_rejected(client, db_session, supabase_configured):
+    # A Supabase user with no matching local account (neither id nor email) is rejected.
+    _register(client)  # owner@example.com exists
+    token = _make_supabase_token(
+        _SUPABASE_SECRET, _claims(uuid.uuid4(), email="stranger@example.com")
+    )
     assert _get(client, token).status_code == 401
 
 
@@ -114,6 +117,27 @@ def test_supabase_disabled_when_secret_unset(client, db_session):
     _register(client)
     sb_id = _link_supabase_id(db_session)
     token = _make_supabase_token(_SUPABASE_SECRET, _claims(sb_id))
+    assert _get(client, token).status_code == 401
+
+
+def test_supabase_email_fallback_links_unlinked_profile(client, db_session, supabase_configured):
+    # Account exists locally but supabase_user_id is not set yet -> the verified
+    # email claim resolves it and the link is backfilled for next time.
+    _register(client)
+    sb_id = uuid.uuid4()
+    token = _make_supabase_token(_SUPABASE_SECRET, _claims(sb_id))
+    assert _get(client, token).status_code == 200
+    profile = db_session.query(Profile).filter(Profile.email == _EMAIL).one()
+    assert profile.supabase_user_id == sb_id
+
+
+def test_supabase_email_fallback_does_not_hijack_other_link(client, db_session, supabase_configured):
+    # A same-email profile already bound to a DIFFERENT Supabase id must not be adopted.
+    _register(client)
+    profile = db_session.query(Profile).filter(Profile.email == _EMAIL).one()
+    profile.supabase_user_id = uuid.uuid4()  # bound to someone else
+    db_session.commit()
+    token = _make_supabase_token(_SUPABASE_SECRET, _claims(uuid.uuid4()))  # new sub, same email
     assert _get(client, token).status_code == 401
 
 
