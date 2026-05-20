@@ -44,7 +44,6 @@ def _memory_count(db, principal) -> int:
 
 def _make_fake_plan(name: str, captured: list | None = None):
     """Return a fake runnable ChatPlan that records received messages."""
-    from app.services.ai_providers.base import ChatResult
 
     class FakeResult:
         ok = True
@@ -125,7 +124,15 @@ def test_debate_chat_forwards_section_key_to_build(auth_client, db_session, monk
 
     received_keys: list[str | None] = []
 
+    import app.services.ai_provider_router as _router
     import app.services.memory_context_builder as _mcb
+
+    # Use fake runnable plans so the happy path (where build() is called) is exercised.
+    monkeypatch.setattr(
+        _router,
+        "plan_chat",
+        lambda db, principal, pid: _make_fake_plan(f"Agent-{pid}"),
+    )
 
     original_build = _mcb.build
 
@@ -139,7 +146,7 @@ def test_debate_chat_forwards_section_key_to_build(auth_client, db_session, monk
         db_session,
         principal,
         message="Test forwarding",
-        provider_ids=["ollama", "openai"],
+        provider_ids=["openai", "anthropic"],
         section_key="finance",
     )
 
@@ -237,16 +244,107 @@ def test_debate_chat_injects_memory_context_into_opening_round(
 
     # Inspect opening-round calls: the user message content should contain the memory prefix.
     # In debate_chat, _run_round sends [{"role": "user", "content": prompt, "images": [...]}]
+    # Opening prompts contain the phrase "one of" (from _opening_prompt); rebuttal prompts do not.
     opening_contents = []
     for msgs in captured_messages:
         for m in msgs:
-            if m.get("role") == "user":
+            if m.get("role") == "user" and "one of" in m["content"]:
                 opening_contents.append(m["content"])
 
-    assert opening_contents, "Expected user messages to be passed to agents"
-    assert any("DebateTestUser" in c for c in opening_contents), (
-        f"Expected 'DebateTestUser' in opening-round prompts, got: {opening_contents!r}"
+    assert opening_contents, "Expected opening-round user messages to be passed to agents"
+
+    # With rounds=1 and two providers there should be one opening prompt per agent.
+    assert len(opening_contents) == 2, (
+        f"Expected exactly 2 opening prompts (one per agent), got {len(opening_contents)}: {opening_contents!r}"
     )
+
+    # EVERY opening prompt must carry the memory prefix — not just any one of them.
+    for prompt in opening_contents:
+        assert "DebateTestUser" in prompt, (
+            f"Expected 'DebateTestUser' in ALL opening-round prompts, missing from: {prompt!r}"
+        )
+        assert prompt.count("[AI Memory") == 1, (
+            f"Expected exactly one memory block in opening prompt, got {prompt.count('[AI Memory')}: {prompt!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Memory prefix appears ONLY in opening round, never in rebuttal/synthesis
+# ---------------------------------------------------------------------------
+
+
+def test_debate_chat_memory_prefix_only_in_opening_round(
+    auth_client, db_session, monkeypatch
+):
+    """Memory context is injected into opening-round prompts only.
+
+    With rounds=2 and two agents: there are 2 opening prompts + 2 rebuttal prompts +
+    1 synthesis prompt = 5 execute calls total. The memory block must appear exactly
+    2 times (once per opening prompt) and zero times in rebuttal/synthesis prompts.
+    """
+    principal = _principal(auth_client)
+
+    # Pre-seed a memory
+    memory_service.upsert_memory(
+        db_session,
+        principal,
+        category="Profile",
+        title="User name",
+        content="User's name is DebateTestUser.",
+        source="test",
+        sensitivity="LOW",
+        confidence=0.95,
+    )
+    db_session.commit()
+
+    captured_messages: list[list[dict]] = []
+
+    import app.services.ai_provider_router as _router
+
+    monkeypatch.setattr(
+        _router,
+        "plan_chat",
+        lambda db, principal, pid: _make_fake_plan(f"Agent-{pid}", captured_messages),
+    )
+
+    result = debate_chat(
+        db_session,
+        principal,
+        message="Do you know my name?",
+        provider_ids=["openai", "anthropic"],
+        rounds=2,
+    )
+    assert result["session_id"] is not None
+    assert captured_messages, "Expected plan.execute() to be called at least once"
+
+    # Collect ALL user-role prompt strings across every execute() call
+    all_user_prompts = [
+        m["content"]
+        for msgs in captured_messages
+        for m in msgs
+        if m.get("role") == "user"
+    ]
+
+    assert all_user_prompts, "Expected user prompts to be captured"
+
+    # Discriminate opening vs non-opening by the phrase used in _opening_prompt
+    opening_prompts = [p for p in all_user_prompts if "one of" in p]
+    non_opening_prompts = [p for p in all_user_prompts if "one of" not in p]
+
+    # Exactly one [AI Memory block per opening prompt (2 agents)
+    n_runnable = 2
+    total_memory_occurrences = sum(p.count("[AI Memory") for p in all_user_prompts)
+    assert total_memory_occurrences == n_runnable, (
+        f"Expected memory block in exactly {n_runnable} prompts (opening only), "
+        f"but total occurrences = {total_memory_occurrences}. "
+        f"Opening prompts: {opening_prompts!r}, non-opening: {non_opening_prompts!r}"
+    )
+
+    # Rebuttal/synthesis prompts must have zero memory blocks
+    for prompt in non_opening_prompts:
+        assert "[AI Memory" not in prompt, (
+            f"Memory block found in non-opening prompt: {prompt!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -322,8 +420,8 @@ def test_debate_chat_completes_even_when_schedule_extraction_raises(
 ):
     """If schedule_extraction itself raises, debate_chat() still returns normally.
 
-    This is the service-level guard test: monkeypatches the service function directly
-    to raise, confirming the try/except in debate_chat handles it.
+    This is the early-exit path: unconfigured providers produce n_runnable == 0 which
+    triggers the early-exit branch, confirming the try/except there handles it.
     """
     principal = _principal(auth_client)
 
@@ -345,3 +443,58 @@ def test_debate_chat_completes_even_when_schedule_extraction_raises(
     assert result is not None
     assert result.get("session_id") is not None
     assert result.get("responses") is not None
+
+
+def test_debate_chat_happy_path_guard_when_schedule_extraction_raises(
+    auth_client, db_session, monkeypatch
+):
+    """Happy-path guard: if schedule_extraction raises after a successful debate run,
+    debate_chat() still returns normally AND the run/messages are persisted.
+
+    This test exercises the try/except at the end of the happy path (after synthesis),
+    distinct from the early-exit guard. Uses fake runnable agents so the debate
+    actually runs through opening, rebuttal, and synthesis phases.
+    """
+    principal = _principal(auth_client)
+
+    import app.services.ai_provider_router as _router
+    import app.services.memory_extraction_service as _mes
+
+    monkeypatch.setattr(
+        _router,
+        "plan_chat",
+        lambda db, principal, pid: _make_fake_plan(f"Agent-{pid}"),
+    )
+
+    monkeypatch.setattr(
+        _mes,
+        "schedule_extraction",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("simulated extraction crash")),
+    )
+
+    result = debate_chat(
+        db_session,
+        principal,
+        message="Hello agents",
+        provider_ids=["openai", "anthropic"],
+        rounds=1,
+    )
+
+    # debate_chat returned normally despite extraction raising
+    assert result is not None
+    assert result.get("session_id") is not None
+    assert result.get("responses") is not None
+
+    # The run row must have been persisted (committed before extraction attempt)
+    from app.domain.ai import AiMultiAgentRun
+    from sqlalchemy import select
+
+    run_row = db_session.scalar(
+        select(AiMultiAgentRun).where(
+            AiMultiAgentRun.id == result["run"].id,
+        )
+    )
+    assert run_row is not None, "Run was not persisted even though extraction failed"
+    assert run_row.status in ("completed", "partial"), (
+        f"Expected run to be completed/partial, got: {run_row.status!r}"
+    )
