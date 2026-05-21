@@ -23,11 +23,22 @@ const TOKEN_KEY = "allhaven_bearer_token";
 // Synchronous source of truth for request() headers. Mirrors native storage.
 let memToken: string | null = null;
 
+type PreferencesApi = Pick<
+  typeof import("@capacitor/preferences").Preferences,
+  "get" | "set" | "remove"
+>;
+
 // Lazily load the native plugin only in mobile builds (keeps it out of the
-// desktop bundle entirely).
-async function preferences() {
+// desktop bundle entirely). Do not return the plugin object itself from an
+// async function: Capacitor web plugins expose a `then` trap, so promise
+// resolution treats the plugin as a thenable and throws `Preferences.then()`.
+async function preferences(): Promise<PreferencesApi> {
   const { Preferences } = await import("@capacitor/preferences");
-  return Preferences;
+  return {
+    get: Preferences.get.bind(Preferences),
+    set: Preferences.set.bind(Preferences),
+    remove: Preferences.remove.bind(Preferences),
+  };
 }
 
 /** Token for the Authorization header, or null. Synchronous (in-memory). */
