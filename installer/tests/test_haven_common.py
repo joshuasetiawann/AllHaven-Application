@@ -165,6 +165,58 @@ def test_ensure_env_files_mirrors_backend(tmp_path, monkeypatch):
     assert (tmp_path / "backend" / ".env").read_text(encoding="utf-8") == "BACKEND_PORT=8123\n"
 
 
+# --- backend venv validate / repair + alembic + DB-default (install.sh fixes) --- #
+
+
+def test_db_settings_are_default_distinguishes_custom():
+    assert hc.db_settings_are_default({}) is True                       # unset → safe
+    assert hc.db_settings_are_default({"DATABASE_URL": ""}) is True     # empty → safe
+    assert hc.db_settings_are_default(
+        {"DATABASE_URL": "postgresql+psycopg://allhaven:allhaven@localhost:5432/allhaven"}
+    ) is True                                                           # generated default
+    assert hc.db_settings_are_default(
+        {"DATABASE_URL": "postgresql+psycopg://me:secret@db.example.com:5432/prod"}
+    ) is False                                                          # custom → never touch
+    # Default form tracks a non-5432 POSTGRES_PORT.
+    assert hc.db_settings_are_default(
+        {"POSTGRES_PORT": "5433",
+         "DATABASE_URL": "postgresql+psycopg://allhaven:allhaven@localhost:5433/allhaven"}
+    ) is True
+
+
+def test_venv_alembic_argv_prefers_console_script(tmp_path, monkeypatch):
+    venv = tmp_path / ".venv"
+    (venv / "bin").mkdir(parents=True)
+    monkeypatch.setattr(hc, "venv_dir", lambda: venv)
+    monkeypatch.setattr(hc, "detect_os", lambda: "linux")
+    # No console script yet → fall back to "-m alembic" (never crashes).
+    argv = hc.venv_alembic_argv("upgrade", "head")
+    assert argv[-4:] == ["-m", "alembic", "upgrade", "head"]
+    # With the console script present → use it directly (the bug-free path).
+    script = venv / "bin" / "alembic"
+    script.write_text("#!/bin/sh\n", encoding="utf-8")
+    argv2 = hc.venv_alembic_argv("upgrade", "head")
+    assert argv2 == [str(script), "upgrade", "head"]
+    assert "-m" not in argv2  # NOT "python -m alembic"
+
+
+def test_backend_venv_broken_and_quarantine(tmp_path, monkeypatch):
+    venv = tmp_path / ".venv"
+    monkeypatch.setattr(hc, "venv_dir", lambda: venv)
+    monkeypatch.setattr(hc, "detect_os", lambda: "linux")
+    # Missing venv is NOT "broken" (it's just absent) and nothing to quarantine.
+    assert hc.backend_venv_broken() is False
+    assert hc.quarantine_broken_venv() is None
+    # A venv dir with no runnable python IS broken.
+    (venv / "bin").mkdir(parents=True)
+    assert hc.backend_venv_broken() is True
+    # Quarantine renames (never deletes) and the original path is freed.
+    moved = hc.quarantine_broken_venv()
+    assert moved is not None and moved.startswith(".venv.broken.")
+    assert (tmp_path / moved).exists()      # preserved, not deleted
+    assert not venv.exists()                 # original moved aside
+
+
 def test_ensure_dotenv_creates_with_secrets_and_mirrors(tmp_path, monkeypatch):
     (tmp_path / "backend").mkdir()
     (tmp_path / "frontend").mkdir()
