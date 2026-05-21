@@ -12,26 +12,28 @@ This guide is for non-technical users. You only need to **clone the repo** and
 | **Windows** | `START_HAVEN_WINDOWS.bat` | If Windows SmartScreen warns, click *More info → Run anyway*. |
 | **macOS** | `START_HAVEN_MAC.command` | First time: **right-click → Open** (or System Settings → Privacy & Security → *Open Anyway*). |
 | **Linux** | `./START_HAVEN_LINUX.sh` | If double-click doesn't run it, run it from a terminal. |
-| **Any terminal** | `./install.sh` or `npm run setup` | Same result — opens the wizard. |
+| **Any terminal** | `./install.sh` or `npm run setup` | Same result — installs in the terminal. |
 
 > Only **Python 3** is required to bootstrap. If it's missing, the launcher tells you
 > where to get it (<https://www.python.org/downloads/>) — on Windows tick **"Add
 > Python to PATH"**.
 
-**The terminal is just a bootstrapper.** It checks Python, starts a small local
-setup server, and **opens the Setup Wizard in your browser** at
-`http://127.0.0.1:7000`. From there, **everything happens in the wizard** — you don't
-configure Haven in the terminal. The Start step shows **live progress** (Docker image
-pull, `pip`, `npm`) so a first run never looks frozen.
+**Everything runs in the terminal.** The launcher checks Python, then installs and
+starts Haven with **live progress** — tool checks, `.env` (with backup), the Docker
+image pull, `pip`/`npm` installs, migrations, services, and finally opening the app in
+your browser. There is no separate website to configure.
 
-> **After setup**, the **Haven desktop shortcut** (or running the launcher again)
-> skips the wizard and just starts services + opens the app. Prefer a terminal-only
-> install? `HAVEN_SETUP_CLI=1 ./START_HAVEN_LINUX.sh`. Re-open the wizard anytime with
-> `HAVEN_FORCE_WIZARD=1`.
+> **After setup**, the **Haven desktop shortcut** (or running the launcher again) skips
+> the install and just starts services + opens the app. Re-run the installer anytime
+> with `HAVEN_FORCE_SETUP=1`. Prefer a browser-based wizard? It's optional:
+> `HAVEN_SETUP_WEB=1 ./START_HAVEN_LINUX.sh`.
 
 ---
 
-## 2. The wizard, step by step
+## 2. The steps (terminal installer, and the optional `HAVEN_SETUP_WEB=1` wizard)
+
+The default terminal installer runs these automatically with live output. The optional
+browser wizard (`HAVEN_SETUP_WEB=1`) presents the same steps as clickable screens:
 
 1. **Welcome** — what Haven will do. Docker is required.
 2. **Choose OS** — auto-detected; change it only to see the right Docker guidance.

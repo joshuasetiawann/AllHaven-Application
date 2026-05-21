@@ -11,6 +11,15 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.14.0] - 2026-06-11 — Terminal-only install (browser wizard now opt-in) + faster Docker check
+
+Detailed notes: [`docs/releases/v0.14.0.md`](docs/releases/v0.14.0.md)
+
+### Changed
+- **Install is terminal-only again.** `START_HAVEN_*`, `./install.sh`, and `npm run setup` now install & start Haven **entirely in the terminal** (the proven `haven_cli.py` flow, with live Docker/`pip`/`npm` progress). The browser Setup Wizard had recurring issues (the local setup server erroring on stop, and a slow Docker-detection step), so it is **no longer the default** — it remains available **opt-in** via `HAVEN_SETUP_WEB=1`.
+- **Launchers branch on setup state:** first run → terminal installer; already configured → start services + open the app (what the desktop shortcut uses). `HAVEN_FORCE_SETUP=1` re-runs the installer.
+- **Faster Docker check:** the daemon probe timeout dropped from 8s to **4s**, and the terminal path checks the daemon once (the web wizard's repeated multi-probe detection — the slow part — is no longer in the default flow).
+
 ## [0.13.0] - 2026-06-11 — GUI-first install: terminal bootstraps the Setup Wizard
 
 Detailed notes: [`docs/releases/v0.13.0.md`](docs/releases/v0.13.0.md)
