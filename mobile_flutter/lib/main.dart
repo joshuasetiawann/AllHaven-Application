@@ -782,7 +782,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
               ),
               const SizedBox(height: 16),
-              SectionHeader(title: 'Recent Transactions'),
+              const SectionHeader(title: 'Recent Transactions'),
               CardList(
                 children: data.recentTransactions.isEmpty
                     ? [const EmptyLine('No transactions yet')]
@@ -906,7 +906,7 @@ class StatCard extends StatelessWidget {
 }
 
 class GenericTablePage extends StatefulWidget {
-  GenericTablePage({super.key, required this.session, required this.spec});
+  const GenericTablePage({super.key, required this.session, required this.spec});
 
   factory GenericTablePage.tasks({required AppSession session}) {
     return GenericTablePage(
@@ -1198,7 +1198,7 @@ Future<Map<String, dynamic>?> showEditor(BuildContext context, TableSpec spec, M
                     for (final field in spec.fields) ...[
                       if (field.kind == FieldKind.select)
                         DropdownButtonFormField<String>(
-                          value: _selectValue(field.options, controllers[field.key]!.text),
+                          initialValue: _selectValue(field.options, controllers[field.key]!.text),
                           decoration: InputDecoration(labelText: field.label),
                           items: field.options.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
                           onChanged: (v) => controllers[field.key]!.text = v ?? '',
@@ -1807,7 +1807,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        SectionHeader(title: 'Settings'),
+        const SectionHeader(title: 'Settings'),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
