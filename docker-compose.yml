@@ -13,7 +13,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-allhaven}
       POSTGRES_DB: ${POSTGRES_DB:-allhaven}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Host port is configurable so a busy 5432 (e.g. a native PostgreSQL) doesn't
+      # block startup. POSTGRES_HOST_PORT overrides the host side; it defaults to
+      # POSTGRES_PORT, then 5432. The container always listens on 5432 internally.
+      - "${POSTGRES_HOST_PORT:-${POSTGRES_PORT:-5432}}:5432"
     volumes:
       - allhaven_pgdata:/var/lib/postgresql/data
     healthcheck:
