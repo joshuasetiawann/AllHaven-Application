@@ -118,6 +118,13 @@ jobs:
           path: frontend/dist/allhaven-mobile-debug.apk
           if-no-files-found: error
 
+      - name: Remove stale release APK assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete-asset mobile-latest app-debug.apk --repo "$GITHUB_REPOSITORY" --yes || true
+          gh release delete-asset mobile-latest allhaven-mobile-debug.apk --repo "$GITHUB_REPOSITORY" --yes || true
+
       - name: Publish to "mobile-latest" release (download link)
         uses: softprops/action-gh-release@v2
         with:
