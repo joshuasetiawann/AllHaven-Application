@@ -8,7 +8,7 @@
 
 _The AI proposes — a human approves every write action._
 
-[![Version](https://img.shields.io/badge/version-0.13.0%20·%20AllHaven%202.5-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.14.0%20·%20AllHaven%202.6-18E0D6?style=flat-square)](CHANGELOG.md)
 &nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 &nbsp;![Next.js 14](https://img.shields.io/badge/Next.js%2014-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 &nbsp;![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
@@ -24,11 +24,11 @@ _The AI proposes — a human approves every write action._
 > application (FastAPI + Next.js) that unifies tasks, notes, finance tracking, and a
 > **multi-agent AI** assistant — where **the AI proposes and humans approve** every write action.
 
-**Version:** **v0.13.0** — archive [`AllHaven 2.5`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
+**Version:** **v0.14.0** — archive [`AllHaven 2.6`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
 
 ### 🆕 What's new
 
-- **v0.13.0 — GUI-first install.** One terminal command bootstraps the **browser Setup Wizard**, which now does everything (OS/Docker checks, ports, `.env` with backup, **live install progress**, health, desktop shortcut, open app). The desktop shortcut starts services and opens Haven with no terminal. → [release notes](docs/releases/v0.13.0.md)
+- **v0.14.0 — Terminal-only install + faster Docker check.** Install & start run **entirely in the terminal** again (`START_HAVEN_*` / `./install.sh` / `npm run setup`), with live Docker/`pip`/`npm` progress. The browser wizard is now **opt-in** (`HAVEN_SETUP_WEB=1`); the Docker daemon check is quicker (4s). → [release notes](docs/releases/v0.14.0.md)
 - **v0.12.0 — App-wide AI tools with human approval.** AI Chat now connects to **every module** through a safe, allowlisted **Tool Registry** (35 tools): reads execute instantly, **writes always create a pending approval** you Approve/Edit/Reject in chat. Plus **6 OpenRouter agents**, **2 model slots per provider**, **up to 7 agents** with distinct roles, a **debate-flow visibility toggle**, and Settings → **AI Tools** / **AI Chat**. → [release notes](docs/releases/v0.12.0.md)
 - **v0.11.0 — Terminal installer + config sync.** The launchers now install & start Haven from the **terminal by default**, with live progress for the slow steps (Docker pull, `pip`, `npm`); `backend/.env` now mirrors the root `.env`; faster Docker check. Browser wizard via `HAVEN_SETUP_WEB=1`. → [release notes](docs/releases/v0.11.0.md)
 - **v0.10.0 — Reliable one-click startup + responsive menu.** Launch faithful to `allhaven.sh` (wait for PostgreSQL, migrations, health-gate, deps on first run) — fixing *"works manually but not from the app"* — plus the collapsible, responsive navigation. → [release notes](docs/releases/v0.10.0.md)
@@ -47,13 +47,11 @@ _The AI proposes — a human approves every write action._
 
 ---
 
-## 🚀 Easiest start — one command, then your browser
+## 🚀 Easiest start — one command in the terminal
 
-After cloning, run **one terminal command** — it's only a bootstrapper that opens the
-**Setup Wizard in your browser**, where everything else happens: OS & Docker checks,
-a Docker install guide if needed, port configuration, `.env` setup/update (with backup),
-**starting services with live progress**, a health check, a **desktop shortcut**, and
-opening the app.
+After cloning, run **one command**. Haven installs and starts **right in your terminal**,
+with live progress — checking tools, writing `.env` (with backup), pulling the database
+image, installing dependencies, running migrations, starting services, and opening the app.
 
 | Your OS | Run / double-click |
 |---------|--------------------|
@@ -65,7 +63,8 @@ opening the app.
 Only **Python 3** is needed to bootstrap. After setup, the **Haven desktop shortcut**
 (or the same launcher) starts services and opens the app — **no terminal needed**; if a
 service is down it starts it safely first. Manage services anytime in
-**Settings → System Control**. Prefer a terminal-only install? `HAVEN_SETUP_CLI=1`.
+**Settings → System Control**. _(An optional browser wizard is available with
+`HAVEN_SETUP_WEB=1`.)_
 
 📖 Full beginner walkthrough + troubleshooting: [`docs/DESKTOP_SETUP.md`](docs/DESKTOP_SETUP.md)
 

@@ -1,7 +1,7 @@
-// Cross-platform npm entrypoint for Haven. `npm run setup` / `npm run start`
-// resolve Python 3 (python3 → python) and run the matching installer script,
-// inheriting stdio so the terminal acts purely as a bootstrapper. The Setup
-// Wizard opens in the browser; the terminal is not where you configure Haven.
+// Cross-platform npm entrypoint for Haven. `npm run setup` installs & starts
+// Haven from THIS terminal (no website); `npm run start` just opens the app.
+// It resolves Python 3 (python3 → python) and runs the matching installer
+// script, inheriting stdio so the terminal is the only surface.
 "use strict";
 
 const { spawnSync } = require("child_process");
@@ -18,7 +18,8 @@ function hasCmd(cmd) {
 }
 
 const python = hasCmd("python3") ? "python3" : "python";
-const targets = { setup: "haven_setup.py", start: "haven_launch.py", cli: "haven_cli.py" };
+// setup = terminal installer (default); start = ensure+open; web = optional browser wizard.
+const targets = { setup: "haven_cli.py", start: "haven_launch.py", web: "haven_setup.py" };
 const which = process.argv[2] || "setup";
 const script = path.join(__dirname, targets[which] || targets.setup);
 
