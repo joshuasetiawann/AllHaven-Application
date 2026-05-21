@@ -303,6 +303,29 @@ def api_health() -> dict:
     return {"backend": backend, "frontend": frontend, "postgres": postgres}
 
 
+def api_setup_log(lines: int = 80) -> dict:
+    """Tail of the install/start logs (masked) so the wizard can show LIVE progress
+    during the slow first-run steps (Docker image pull, pip install, npm install)."""
+    chunks: list[str] = []
+    setup = hc.logs_dir() / "setup.log"
+    if setup.exists():
+        try:
+            tail = setup.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:]
+            if tail:
+                chunks.append("\n".join(tail))
+        except OSError:
+            pass
+    backend = hc.logs_dir() / "backend.log"
+    if backend.exists():
+        try:
+            btail = backend.read_text(encoding="utf-8", errors="replace").splitlines()[-24:]
+            if btail:
+                chunks.append("----- backend.log -----\n" + "\n".join(btail))
+        except OSError:
+            pass
+    return {"content": hc.mask_secrets("\n\n".join(chunks))[-6000:]}
+
+
 def api_shortcut() -> dict:
     frontend_port = _configured_or_default_port("frontend") or hc.default_port("frontend")
     app_url = f"http://localhost:{frontend_port}"
@@ -385,6 +408,8 @@ class _Handler(BaseHTTPRequestHandler):
                     return self._send_json(200, api_detect())
                 if path == "/api/health":
                     return self._send_json(200, api_health())
+                if path == "/api/setup/log":
+                    return self._send_json(200, api_setup_log())
                 return self._send_json(404, {"ok": False, "message": "Unknown endpoint."})
 
             return self._send_html(404, b"<h1>404</h1>")

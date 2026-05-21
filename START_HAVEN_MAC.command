@@ -28,13 +28,17 @@ if [ -z "$PY" ]; then
   exit 1
 fi
 
-# Default: terminal installer (shows live Docker/pip/npm progress, then starts &
-# opens the app). It is idempotent — first run installs everything, later runs just
-# start. Set HAVEN_SETUP_WEB=1 to use the browser-based wizard instead.
-if [ "${HAVEN_SETUP_WEB:-}" = "1" ]; then
-  echo "Launching the browser setup wizard (HAVEN_SETUP_WEB=1)…"
+# Bootstrapper only. First run (no .env) opens the browser Setup Wizard, where
+# ALL configuration happens; after setup it starts services and opens the app.
+#   HAVEN_FORCE_WIZARD=1  re-open the wizard even when already configured
+#   HAVEN_SETUP_CLI=1     use the terminal installer instead of the browser
+if [ "${HAVEN_SETUP_CLI:-}" = "1" ]; then
+  echo "Running the terminal installer (HAVEN_SETUP_CLI=1)…"
+  exec "$PY" "$ROOT/installer/haven_cli.py"
+elif [ "${HAVEN_FORCE_WIZARD:-}" = "1" ] || [ ! -f "$ROOT/.env" ]; then
+  echo "Opening the Haven Setup Wizard in your browser…"
   exec "$PY" "$ROOT/installer/haven_setup.py"
 else
-  echo "Starting Haven in this terminal (first run installs everything automatically)…"
-  exec "$PY" "$ROOT/installer/haven_cli.py"
+  echo "Starting Haven and opening the app…"
+  exec "$PY" "$ROOT/installer/haven_launch.py"
 fi

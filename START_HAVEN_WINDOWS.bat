@@ -26,13 +26,22 @@ if not defined PY (
   exit /b 1
 )
 
-REM Default: terminal installer (live Docker/pip/npm progress, then starts the app).
-REM Idempotent. Set HAVEN_SETUP_WEB=1 to use the browser-based wizard instead.
-if "%HAVEN_SETUP_WEB%"=="1" (
-  echo Launching the browser setup wizard ^(HAVEN_SETUP_WEB=1^)...
-  "%PY%" "%ROOT%installer\haven_setup.py"
-) else (
-  echo Starting Haven in this terminal ^(first run installs everything automatically^)...
+REM Bootstrapper only. First run (no .env) opens the browser Setup Wizard, where
+REM ALL configuration happens. After setup, it starts services and opens the app.
+REM   HAVEN_FORCE_WIZARD=1  re-open the wizard even when configured
+REM   HAVEN_SETUP_CLI=1     use the terminal installer instead of the browser
+if "%HAVEN_SETUP_CLI%"=="1" (
+  echo Running the terminal installer ^(HAVEN_SETUP_CLI=1^)...
   "%PY%" "%ROOT%installer\haven_cli.py"
+  goto :done
 )
+if "%HAVEN_FORCE_WIZARD%"=="1" goto :wizard
+if not exist "%ROOT%.env" goto :wizard
+echo Starting Haven and opening the app...
+"%PY%" "%ROOT%installer\haven_launch.py"
+goto :done
+:wizard
+echo Opening the Haven Setup Wizard in your browser...
+"%PY%" "%ROOT%installer\haven_setup.py"
+:done
 endlocal
