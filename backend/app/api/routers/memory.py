@@ -102,7 +102,7 @@ def clear_all_memories(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Delete ALL memories for this workspace regardless of status. Irreversible."""
+    """Soft-delete ALL memories for this workspace regardless of status."""
     count = memory_service.clear_all_memories(db, principal)
     sync_after_write(db, principal)
     return success_response({"deleted": count}, "All memories cleared")
