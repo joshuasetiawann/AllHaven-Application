@@ -590,6 +590,14 @@ def wait_for_port(port: int, host: str = "127.0.0.1", timeout: float = 60.0) -> 
 
 
 def wait_for_http(url: str, timeout: float = 60.0) -> bool:
+    """Poll ``url`` until it returns a real success (2xx), or time out.
+
+    urllib raises ``HTTPError`` (an ``OSError``) on 4xx/5xx and follows 3xx, so by
+    the time we read ``r.status`` it is already 2xx; the ``< 300`` bound keeps the
+    success condition honest (e.g. Next's dev "missing required error components"
+    placeholder is served as 404 → raises → we keep polling until the route's real
+    200, never accepting the placeholder).
+    """
     import time
     import urllib.request
 
@@ -597,7 +605,7 @@ def wait_for_http(url: str, timeout: float = 60.0) -> bool:
     while time.time() < deadline:
         try:
             with urllib.request.urlopen(url, timeout=3) as r:  # noqa: S310 (localhost)
-                if 200 <= r.status < 500:
+                if 200 <= r.status < 300:
                     return True
         except OSError:
             pass
