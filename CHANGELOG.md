@@ -11,6 +11,20 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [4.1.0] - 2026-06-27 — Dashboard chart, Notes edit, and memory correction
+
+Detailed notes: [`docs/v4/RELEASE_NOTES_v4.1.0.md`](docs/v4/RELEASE_NOTES_v4.1.0.md)
+
+- **Finance chart rendering fixed.** Cashflow charts now show visible bars with a stable baseline
+  and an honest empty-period state.
+- **Notes editing restored.** Existing notes can be opened, edited, saved, pinned, and cleared
+  without creating duplicate notes.
+- **AI Memory corrected.** Relationship facts such as "pacar saya Kelly" are stored as current
+  profile facts; noisy insult-like chat is not auto-learned; context keeps the newest single-value
+  profile fact so old contradictions do not confuse the model.
+- **Security maintenance.** Next.js upgraded to 15.5.19 and local CORS restricted to trusted
+  localhost/LAN/Tailscale/Capacitor origins.
+
 ## [4.0.0] - 2026-06-20 — Full Mobile Parity + Tailscale Bridge + Release-Grade Stability
 
 Detailed notes: [`docs/v4/RELEASE_NOTES_v4.0.0.md`](docs/v4/RELEASE_NOTES_v4.0.0.md) · plan: [`docs/v4/`](docs/v4/)
