@@ -34,7 +34,10 @@ if (isProd) {
 const nextConfig = isMobile
   ? {
       reactStrictMode: true,
-      // Static HTML/JS bundle for Capacitor (no Node server in the app).
+      // Static HTML/JS bundle for Capacitor (no Node server in the app). The static
+      // site lands in `out/` (Capacitor's webDir). NOTE: `build:mobile` deletes the
+      // throwaway `.next` afterward so an APK build never leaves an export build in
+      // `.next` that the web dev server would then serve with no CSS.
       output: "export",
       // Required by `output: export` (no Image Optimization server). The app
       // uses no next/image today; this keeps export safe if that changes.
