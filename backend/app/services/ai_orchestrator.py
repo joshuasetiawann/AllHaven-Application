@@ -84,6 +84,7 @@ def run_with_tools(
     message: str,
     session_id: Optional[uuid.UUID] = None,
     provider_id: Optional[str] = None,
+    extra_context: Optional[str] = None,
 ) -> dict:
     """Route one chat turn, with the tool loop when the provider supports it.
 
@@ -111,8 +112,13 @@ def run_with_tools(
 
     if not plan.supports_tool_loop:
         # Honest non-tool path (Ollama/Anthropic/Gemini/Blackbox today): plain chat
-        # with history; we never pretend tools ran.
-        result = plan.execute([*history, user_turn])
+        # with history; we never pretend tools ran. Memory context (extra_context)
+        # is prepended to the user turn since this path sends no system message.
+        if extra_context:
+            augmented_turn = {"role": "user", "content": f"{extra_context}\n\nUser: {message}"}
+        else:
+            augmented_turn = user_turn
+        result = plan.execute([*history, augmented_turn])
         if result.ok:
             return {**base, "ok": True, "configured": True, "blocked": False,
                     "content": result.content, "error": ""}
@@ -121,7 +127,10 @@ def run_with_tools(
                 "error": result.error}
 
     tools = ai_tools_registry.tool_definitions(db, principal)
-    convo: List[dict] = [{"role": "system", "content": SYSTEM_PROMPT}, *history, user_turn]
+    system_content = SYSTEM_PROMPT
+    if extra_context:
+        system_content = f"{SYSTEM_PROMPT}\n\n{extra_context}"
+    convo: List[dict] = [{"role": "system", "content": system_content}, *history, user_turn]
     tool_meta: List[dict] = []
     proposal_ids: List[str] = []
     result = None
