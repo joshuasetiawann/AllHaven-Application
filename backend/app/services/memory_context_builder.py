@@ -34,6 +34,11 @@ MAX_CONTENT_PER_MEMORY = 300
 MAX_BLOCK_CHARS = 3000  # ~750 tokens
 
 
+def as_prefix(extra_context: Optional[str]) -> str:
+    """Format a context block as a prompt prefix ('' when absent)."""
+    return f"{extra_context}\n\n" if extra_context else ""
+
+
 def _is_project_related(message: str) -> bool:
     msg_lower = message.lower()
     return any(kw in msg_lower for kw in _PROJECT_KEYWORDS)
