@@ -1,0 +1,43 @@
+# CoreOS local development services.
+# MVP enables PostgreSQL only. Optional services (n8n, Ollama) are documented
+# below but intentionally NOT enabled by default — they must never block backend
+# startup, and CoreOS never fakes a connected integration.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: coreos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-coreos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-coreos}
+      POSTGRES_DB: ${POSTGRES_DB:-coreos}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - coreos_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-coreos} -d ${POSTGRES_DB:-coreos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Optional, documented only (uncomment to opt in) ---
+  #
+  # n8n:
+  #   image: n8nio/n8n:latest
+  #   container_name: coreos-n8n
+  #   restart: unless-stopped
+  #   ports:
+  #     - "5678:5678"
+  #   environment:
+  #     - N8N_PORT=5678
+  #   volumes:
+  #     - coreos_n8n:/home/node/.n8n
+  #
+  # Ollama is expected to run on the host (do not reinstall or delete models).
+  # Point OLLAMA_BASE_URL at the host instance, e.g. http://localhost:11434
+
+volumes:
+  coreos_pgdata:
+  # coreos_n8n:
