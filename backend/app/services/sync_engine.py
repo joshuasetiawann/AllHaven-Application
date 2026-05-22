@@ -266,6 +266,34 @@ def _member_ids(db: Session, ws: uuid.UUID) -> list[uuid.UUID]:
     return [m.user_id for m in db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == ws).all()]
 
 
+# ---------------------------------------------------------------------------
+# Task 9: visible sync status
+# ---------------------------------------------------------------------------
+
+def last_sync_status(db: Session, ws: uuid.UUID) -> dict:
+    """Return a summary of watermark state for the given workspace.
+
+    Returns:
+        dict with:
+            configured (bool): True if any SyncState rows exist for this workspace.
+            tables (int): number of distinct table names with watermarks.
+            watermarks (list): each entry is {"table", "direction", "last_value"}.
+    """
+    rows = db.query(SyncState).filter(SyncState.workspace_id == ws).all()
+    return {
+        "configured": bool(rows),
+        "tables": len({r.table_name for r in rows}),
+        "watermarks": [
+            {
+                "table": r.table_name,
+                "direction": r.direction,
+                "last_value": r.last_value.isoformat() if r.last_value else None,
+            }
+            for r in rows
+        ],
+    }
+
+
 def sync_two_way(db: Session, principal) -> dict:
     """Incremental two-way sync: pull remote→local then push local→remote for all synced tables.
 
