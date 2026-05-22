@@ -7,10 +7,10 @@ money. Amounts are stored as NUMERIC for accuracy. Both tables are soft-deleted.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, Numeric, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -30,6 +30,7 @@ class FinanceCategory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     type: Mapped[str] = mapped_column(String(20), nullable=False)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Transaction(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -51,3 +52,4 @@ class Transaction(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     transaction_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

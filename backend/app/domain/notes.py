@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Boolean, String, Text
+from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, StringArray, TimestampMixin, UUIDPrimaryKeyMixin
@@ -23,3 +24,4 @@ class Note(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
