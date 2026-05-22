@@ -205,6 +205,7 @@ export const notesApi = {
       .from("notes")
       .select("*")
       .eq("is_deleted", false)
+      .order("is_pinned", { ascending: false })
       .order("updated_at", { ascending: false });
     if (error) throw toApiException(error);
     return (data ?? []) as Note[];
@@ -317,10 +318,10 @@ const financeCrud = {
       const nextYear = params.month === 12 ? params.year + 1 : params.year;
       const lastDayDate = new Date(nextYear, nextMonth - 1, 0);
       const lastDay = String(lastDayDate.getDate()).padStart(2, "0");
-      const endDate = `${params.year}-${mm.replace(mm, String(params.month).padStart(2, "0"))}-${lastDay}`;
+      const endDate = `${params.year}-${mm}-${lastDay}`;
       q = q.gte("transaction_date", startDate).lte("transaction_date", endDate);
     }
-    q = q.order("transaction_date", { ascending: false });
+    q = q.order("transaction_date", { ascending: false }).order("created_at", { ascending: false });
     if (params?.limit) q = q.limit(params.limit);
     if (params?.offset) q = q.range(params.offset, params.offset + (params.limit ?? 100) - 1);
     const { data, error } = await q;
@@ -331,12 +332,21 @@ const financeCrud = {
     const sb = await getSupabase();
     // currency defaults to "IDR" on the backend (DEFAULT_CURRENCY); stamp it so the
     // NOT-NULL constraint is satisfied when the caller omits it.
+    // Normalize to uppercase and trim to 3 chars to match backend `.upper()[:3]`.
     // type, amount, transaction_date are required caller-supplied fields.
+    const currency = ((payload.currency as string | undefined) ?? "IDR").toUpperCase().slice(0, 3);
+    // Resolve category_name_snapshot at write time so the label survives category deletion.
+    let category_name_snapshot: string | null = null;
+    if (payload.category_id != null) {
+      const cats = await financeCrud.listCategories();
+      category_name_snapshot = cats.find((c) => c.id === payload.category_id)?.name ?? null;
+    }
     const { data, error } = await sb
       .from("transactions")
       .insert({
-        currency: "IDR",
         ...payload,
+        currency,
+        category_name_snapshot,
         created_by: getAppUserId(),
         workspace_id: getWorkspaceId(),
       })
@@ -347,9 +357,20 @@ const financeCrud = {
   },
   updateTransaction: async (id: string, payload: Record<string, unknown>): Promise<Transaction> => {
     const sb = await getSupabase();
+    // Mirror backend: only touch category_name_snapshot when category_id is present in payload.
+    // If category_id is explicitly null, set snapshot to null; otherwise resolve from categories.
+    const extra: Record<string, unknown> = {};
+    if ("category_id" in payload) {
+      if (payload.category_id == null) {
+        extra.category_name_snapshot = null;
+      } else {
+        const cats = await financeCrud.listCategories();
+        extra.category_name_snapshot = cats.find((c) => c.id === payload.category_id)?.name ?? null;
+      }
+    }
     const { data, error } = await sb
       .from("transactions")
-      .update(payload)
+      .update({ ...payload, ...extra })
       .eq("id", id)
       .select("*")
       .single();
@@ -409,8 +430,9 @@ export const financeApi = {
   // Matches backend monthly_summary which calls range_summary with
   //   start = date(year, month, 1), end = date(year, month, last_day).
   summary: async (year: number, month: number, currency = "IDR"): Promise<FinanceSummary> => {
-    const txns = await financeCrud.listTransactions({ year, month, currency });
-    const agg = aggregateSummary(txns, currency);
+    const normalizedCurrency = currency.toUpperCase().slice(0, 3);
+    const txns = await financeCrud.listTransactions({ year, month, currency: normalizedCurrency });
+    const agg = aggregateSummary(txns, normalizedCurrency);
     return {
       year,
       month,
@@ -432,7 +454,7 @@ export const financeApi = {
     periodType?: string;
     currency?: string;
   }): Promise<FinanceReport> => {
-    const currency = payload.currency ?? "IDR";
+    const currency = (payload.currency ?? "IDR").toUpperCase().slice(0, 3);
     const txns = await financeCrud.listTransactions({
       start: payload.start,
       end: payload.end,
