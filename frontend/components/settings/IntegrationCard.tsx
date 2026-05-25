@@ -47,7 +47,7 @@ export function IntegrationCard({
   return (
     <Card hover className="flex h-full flex-col">
       <div className="flex items-start justify-between">
-        <span className="flex h-[38px] w-[38px] items-center justify-center rounded-[11px] bg-primary/12 text-primary-bright">
+        <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface-input text-primary">
           {icon}
         </span>
         <ConfigStatusBadge status={integration.status} />
@@ -62,7 +62,7 @@ export function IntegrationCard({
         {integration.last_verified_at ? <span>· verified {relativeTime(integration.last_verified_at)}</span> : null}
       </div>
 
-      <div className="mt-4 flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
         {integration.editable === false ? (
           <span className="text-[12px] text-content-subtle">Managed by system</span>
         ) : (
@@ -71,19 +71,14 @@ export function IntegrationCard({
             <span className="text-[12px] text-content-muted">{integration.enabled ? "Enabled" : "Disabled"}</span>
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+        <div className="flex items-center gap-1.5">
           {integration.configured ? (
             <Button variant="ghost" size="sm" onClick={test} loading={busy}>
               <Wifi size={14} /> Test
             </Button>
           ) : null}
           {integration.editable === false ? null : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onConfigure}
-              className="border-primary/30 bg-primary/10 font-semibold text-primary-bright hover:border-primary/50 hover:bg-primary/15 hover:text-primary-bright"
-            >
+            <Button variant="subtle" size="sm" onClick={onConfigure}>
               <Settings2 size={14} /> Configure
             </Button>
           )}

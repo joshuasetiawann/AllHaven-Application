@@ -14,29 +14,7 @@ import { ConfigStatusBadge } from "@/components/ui/meta";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { SecretInput } from "@/components/settings/SecretInput";
 import { aiApi, ApiException } from "@/lib/api";
-import { cn } from "@/lib/format";
-import type { AiProvider, ModelSlot } from "@/types";
-
-function providerBaseName(provider: AiProvider) {
-  if (provider.id.startsWith("openrouter_")) return provider.name;
-  const names: Record<string, string> = {
-    ollama: "Ollama",
-    openai: "GPT",
-    anthropic: "Claude",
-    gemini: "Gemini",
-    grok: "Grok",
-    blackbox: "Blackbox",
-    cursor: "Cursor",
-    deepseek: "DeepSeek",
-    qwen: "Qwen",
-  };
-  return names[provider.id] ?? provider.name.replace(/\s+Agent$/i, "");
-}
-
-function slotName(provider: AiProvider, slot: ModelSlot) {
-  if (provider.id.startsWith("openrouter_")) return provider.name;
-  return `${providerBaseName(provider)} ${slot.slot}`;
-}
+import type { AiProvider } from "@/types";
 
 export function AiProviderCard({
   provider,
@@ -94,7 +72,7 @@ export function AiProviderCard({
         privacy_mode: privacy,
       });
       onChange(updated);
-      setApiKey(""); // never keep the key in component state after saving
+      if (clearKey) setApiKey("");
     } catch (err) {
       setError(err instanceof ApiException ? err.message : "Save failed.");
     } finally {
@@ -118,12 +96,7 @@ export function AiProviderCard({
     <>
       <Card hover className="flex h-full flex-col">
         <div className="flex items-start justify-between">
-          <span
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-[9px]",
-              provider.external ? "bg-secondary/12 text-secondary-soft" : "bg-primary/12 text-primary-bright",
-            )}
-          >
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface-input text-primary">
             {icon}
           </span>
           <ConfigStatusBadge status={provider.status} />
@@ -151,30 +124,12 @@ export function AiProviderCard({
           {provider.default_model ? <span className="font-mono">· {provider.default_model}</span> : null}
         </div>
 
-        {provider.model_slots?.length ? (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {provider.model_slots.map((slot) => (
-              <span
-                key={slot.ref}
-                className={cn(
-                  "rounded-full border px-2 py-0.5 text-[10.5px]",
-                  slot.configured && slot.enabled
-                    ? "border-primary/30 bg-primary/10 text-primary"
-                    : "border-border bg-surface-input text-content-subtle",
-                )}
-              >
-                {slotName(provider, slot)}
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="mt-4 flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
           <div className="flex items-center gap-2">
             <Toggle checked={provider.enabled} onChange={toggle} disabled={busy === "toggle"} label="Enabled" />
             <span className="text-[12px] text-content-muted">{provider.enabled ? "Enabled" : "Disabled"}</span>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+          <div className="flex items-center gap-1.5">
             {provider.configured ? (
               <Button variant="ghost" size="sm" onClick={test} loading={busy === "test"}>
                 <Wifi size={14} /> Test
@@ -192,9 +147,8 @@ export function AiProviderCard({
         onClose={() => setOpen(false)}
         title={`Configure ${provider.name}`}
         description={provider.purpose}
-        size="lg"
         footer={
-          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex w-full items-center justify-between gap-2">
             {keyField && provider.secrets?.[keyField.key]?.configured ? (
               <Button variant="danger" size="sm" onClick={() => save(true)} loading={busy === "save"}>
                 Clear key
@@ -202,11 +156,11 @@ export function AiProviderCard({
             ) : (
               <span />
             )}
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button variant="ghost" onClick={test} loading={busy === "test"} className="w-full sm:w-auto">
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={test} loading={busy === "test"}>
                 <Wifi size={15} /> Test
               </Button>
-              <Button onClick={() => save(false)} loading={busy === "save"} className="w-full sm:w-auto">
+              <Button onClick={() => save(false)} loading={busy === "save"}>
                 Save
               </Button>
             </div>
@@ -226,7 +180,7 @@ export function AiProviderCard({
           </p>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
           {hasBaseUrl ? (
             <Input
               id="base_url"
@@ -260,148 +214,8 @@ export function AiProviderCard({
           </Select>
         </div>
 
-        <ModelSlotsSection provider={provider} onChange={onChange} />
-
-        <p className="mt-4 text-[11.5px] leading-relaxed text-content-subtle">
-          Keys are encrypted server-side and never returned. <strong className="font-medium text-content-muted">Online status
-          requires a successful Test Connection</strong> — a random or unverified key stays Configured or
-          becomes Error, never Online.
-        </p>
-        {error ? <p className="mt-2 text-[12.5px] text-danger">{error}</p> : null}
+        {error ? <p className="mt-4 text-[12.5px] text-danger">{error}</p> : null}
       </Modal>
     </>
-  );
-}
-
-// --- Model slots editor ----------------------------------------------------
-
-// Slot 1 follows the provider's default model and only its role is editable here.
-// Slot 2 (absent on OpenRouter agents - they are single-slot) gets its own model,
-// role, and enabled toggle.
-function ModelSlotsSection({
-  provider,
-  onChange,
-}: {
-  provider: AiProvider;
-  onChange: (updated: AiProvider) => void;
-}) {
-  const slots = provider.model_slots ?? [];
-  const slot1 = slots.find((s) => s.slot === 1);
-  const slot2 = slots.find((s) => s.slot === 2);
-
-  const [slot1Role, setSlot1Role] = useState(slot1?.role ?? "");
-  const [slot2Model, setSlot2Model] = useState(slot2?.model ?? "");
-  const [slot2Role, setSlot2Role] = useState(slot2?.role ?? "");
-  const [slot2Enabled, setSlot2Enabled] = useState(slot2?.enabled ?? false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Re-sync the form whenever the provider is updated (e.g. after a save).
-  useEffect(() => {
-    setSlot1Role(slot1?.role ?? "");
-    setSlot2Model(slot2?.model ?? "");
-    setSlot2Role(slot2?.role ?? "");
-    setSlot2Enabled(slot2?.enabled ?? false);
-    setError(null);
-  }, [slot1, slot2]);
-
-  if (!slot1) return null;
-
-  const save = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const payload: Partial<ModelSlot>[] = [{ slot: 1, role: slot1Role }];
-      if (slot2) payload.push({ slot: 2, model: slot2Model, role: slot2Role, enabled: slot2Enabled });
-      onChange(await aiApi.saveModelSlots(provider.provider_id, payload));
-    } catch (err) {
-      setError(err instanceof ApiException ? err.message : "Save failed.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="mt-5 border-t border-border pt-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h4 className="text-[13px] font-semibold text-content">Model slots</h4>
-          <p className="mt-0.5 text-[12px] text-content-muted">
-            Name the role each model plays in multi-agent chat.
-          </p>
-        </div>
-        <Button variant="ghost" size="sm" onClick={save} loading={busy}>
-          Save slots
-        </Button>
-      </div>
-
-      <div className="mt-3 space-y-3">
-        <div className="glass-tile px-3.5 py-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <span className="label-mono">{slotName(provider, slot1)}</span>
-              <Badge tone={slot1.configured ? "success" : "neutral"}>
-                {slot1.configured ? "Ready" : "Needs model"}
-              </Badge>
-            </div>
-            <span className="font-mono text-[11px] text-content-subtle">
-              {slot1.model || provider.default_model || "no model set"}
-            </span>
-          </div>
-          <div className="mt-2.5">
-            <Input
-              id={`${provider.id}-slot1-role`}
-              label="Role"
-              placeholder="Main Assistant"
-              value={slot1Role}
-              onChange={(e) => setSlot1Role(e.target.value)}
-            />
-          </div>
-          <p className="mt-1.5 text-[11.5px] text-content-subtle">
-            Slot 1 uses the default model field above.
-          </p>
-        </div>
-
-        {slot2 ? (
-          <div className="glass-tile px-3.5 py-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2">
-                <span className="label-mono">{slotName(provider, slot2)}</span>
-                <Badge tone={slot2.configured ? "success" : "neutral"}>
-                  {slot2.configured ? "Configured" : "Not configured"}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] text-content-muted">{slot2Enabled ? "Enabled" : "Disabled"}</span>
-                <Toggle checked={slot2Enabled} onChange={setSlot2Enabled} label="Slot 2 enabled" />
-              </div>
-            </div>
-            <div className="mt-2.5 space-y-3">
-              <Input
-                id={`${provider.id}-slot2-model`}
-                label="Model"
-                placeholder="model name"
-                value={slot2Model}
-                onChange={(e) => setSlot2Model(e.target.value)}
-              />
-              <Input
-                id={`${provider.id}-slot2-role`}
-                label="Role"
-                placeholder="Research / Analysis"
-                value={slot2Role}
-                onChange={(e) => setSlot2Role(e.target.value)}
-              />
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      {slot2 ? (
-        <p className="mt-2 text-[11.5px] leading-relaxed text-content-subtle">
-          Slot 2 lets one provider run two models. Select it in AI Chat as {slotName(provider, slot2)}.
-        </p>
-      ) : null}
-      {error ? <p className="mt-2 text-[12.5px] text-danger">{error}</p> : null}
-    </div>
   );
 }

@@ -115,10 +115,26 @@ export interface ToolProposal {
 }
 
 export type IntegrationStatusValue =
-  | "connected"
+  | "online"
   | "configured"
   | "not_configured"
-  | "error";
+  | "error"
+  | "disabled"
+  // legacy value kept for safety in status colour maps
+  | "connected";
+
+export interface FieldSpec {
+  key: string;
+  label: string;
+  secret: boolean;
+  required: boolean;
+  placeholder: string;
+}
+
+export interface SecretPreview {
+  configured: boolean;
+  preview: string;
+}
 
 export interface Integration {
   key: string;
@@ -126,4 +142,39 @@ export interface Integration {
   status: IntegrationStatusValue;
   configured: boolean;
   detail: string;
+  // Rich fields (present from the settings endpoints)
+  id?: string;
+  purpose?: string;
+  provider_type?: string;
+  group?: string;
+  editable?: boolean;
+  api_key_required?: boolean;
+  enabled?: boolean;
+  fields?: FieldSpec[];
+  public_config?: Record<string, string>;
+  secrets?: Record<string, SecretPreview>;
+  last_verified_at?: string | null;
+  last_error?: string | null;
+  source?: string;
+}
+
+export interface AiProvider {
+  id: string;
+  provider_id: string;
+  name: string;
+  purpose: string;
+  provider_type: string;
+  external: boolean;
+  api_key_required: boolean;
+  enabled: boolean;
+  status: IntegrationStatusValue;
+  configured: boolean;
+  detail: string;
+  default_model: string | null;
+  privacy_mode: string;
+  fields: FieldSpec[];
+  public_config: Record<string, string>;
+  secrets: Record<string, SecretPreview>;
+  last_verified_at: string | null;
+  last_error: string | null;
 }

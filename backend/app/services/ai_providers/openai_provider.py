@@ -12,5 +12,3 @@ class OpenAIProvider(OpenAICompatibleProvider):
     requires_api_key = True
     default_base_url = "https://api.openai.com/v1"
     default_model = "gpt-4.1-mini"
-    supports_image = True
-    supports_tools = True

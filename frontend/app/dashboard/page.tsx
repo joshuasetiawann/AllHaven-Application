@@ -14,6 +14,7 @@ import type { LucideIcon } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { ConfigStatusBadge, PriorityBadge } from "@/components/ui/meta";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { Loading, ErrorState, EmptyState } from "@/components/ui/States";
 import { financeApi, notesApi, settingsApi, tasksApi } from "@/lib/api";
@@ -199,7 +200,7 @@ export default function DashboardOverview() {
                       <StatusDot status={integration.status} pulse />
                       {integration.name}
                     </span>
-                    <span className="text-[12px] text-content-muted">{integration.detail}</span>
+                    <ConfigStatusBadge status={integration.status} />
                   </li>
                 ))}
               </ul>
