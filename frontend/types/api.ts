@@ -25,18 +25,3 @@ export interface AiProviderUpdatePayload {
 }
 
 export type PrivacyMode = "local_private" | "external_allowed" | "manual_provider";
-
-export interface GoogleScopeGroup {
-  id: string;
-  label: string;
-  scopes: string[];
-  sensitive: boolean;
-  default: boolean;
-  note: string;
-}
-
-export interface GoogleScopes {
-  default_scopes: string[];
-  catalog: GoogleScopeGroup[];
-  notes: string[];
-}

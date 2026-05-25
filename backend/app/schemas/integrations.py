@@ -16,7 +16,3 @@ class IntegrationUpdateRequest(BaseModel):
 
     public_config: Dict[str, str] = Field(default_factory=dict)
     secrets: Dict[str, str] = Field(default_factory=dict)
-
-
-class SupabaseConnectRequest(BaseModel):
-    password: str = Field(min_length=1)

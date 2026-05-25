@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Bot, Send, ShieldCheck, User, XCircle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { AlertTriangle, Bot, Lock, SendHorizonal, ShieldCheck, Sparkles, User, XCircle } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/States";
+import { ProviderSelector } from "@/components/ai/ProviderSelector";
+import { PrivacyModeBadge } from "@/components/ai/PrivacyModeBadge";
 import { aiApi, ApiException } from "@/lib/api";
 import { cn } from "@/lib/format";
-import type { ChatMessage, ToolProposal } from "@/types";
+import type { AiProvider, ChatMessage, ToolProposal } from "@/types";
 
 export default function AiChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -18,8 +21,15 @@ export default function AiChatPage() {
   const [sending, setSending] = useState(false);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [proposals, setProposals] = useState<ToolProposal[]>([]);
+  const [providers, setProviders] = useState<AiProvider[]>([]);
+  const [providerId, setProviderId] = useState<string>("ollama");
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+
+  const activeProvider = useMemo(
+    () => providers.find((p) => p.id === providerId),
+    [providers, providerId],
+  );
 
   const loadProposals = async () => {
     try {
@@ -29,8 +39,21 @@ export default function AiChatPage() {
     }
   };
 
+  const loadProviders = async () => {
+    try {
+      const res = await aiApi.listProviders();
+      setProviders(res.providers);
+      // Prefer the local Ollama agent by default; otherwise the first provider.
+      const preferred = res.providers.find((p) => p.id === "ollama") ?? res.providers[0];
+      if (preferred) setProviderId(preferred.id);
+    } catch {
+      /* non-blocking */
+    }
+  };
+
   useEffect(() => {
     void loadProposals();
+    void loadProviders();
   }, []);
 
   useEffect(() => {
@@ -56,7 +79,7 @@ export default function AiChatPage() {
     setInput("");
 
     try {
-      const result = await aiApi.chat(text, sessionId);
+      const result = await aiApi.chat(text, sessionId, providerId);
       setSessionId(result.session_id);
       setConfigured(result.ai_configured);
       setMessages((prev) => [...prev, result.reply]);
@@ -80,8 +103,8 @@ export default function AiChatPage() {
     <AppShell title="AI Chat" subtitle="AI proposes — humans approve every write action">
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <Card className="flex h-[calc(100vh-220px)] min-h-[480px] flex-col p-0">
-            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+          <Card padding="none" className="flex h-[calc(100vh-230px)] min-h-[460px] flex-col">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Bot size={17} />
@@ -89,17 +112,14 @@ export default function AiChatPage() {
                 <div className="leading-tight">
                   <p className="text-sm font-semibold text-content">CoreOS Assistant</p>
                   <p className="label-mono">
-                    {configured === null
-                      ? "Idle"
-                      : configured
-                        ? "Configured"
-                        : "Not configured"}
+                    {activeProvider ? activeProvider.detail : configured ? "Configured" : "Not configured"}
                   </p>
                 </div>
               </div>
-              <Badge tone={configured ? "primary" : "neutral"}>
-                {configured ? "Live mode off" : "Not configured"}
-              </Badge>
+              <div className="flex items-center gap-2">
+                {activeProvider ? <PrivacyModeBadge external={activeProvider.external} /> : null}
+                <ProviderSelector providers={providers} value={providerId} onChange={setProviderId} />
+              </div>
             </div>
 
             <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -146,9 +166,14 @@ export default function AiChatPage() {
               <div ref={endRef} />
             </div>
 
-            {error ? (
-              <p className="px-5 text-[12px] text-danger">{error}</p>
+            {activeProvider?.external ? (
+              <p className="mx-3 mb-1 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-warning">
+                <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                External AI may process your prompt. Do not send confidential data unless allowed.
+              </p>
             ) : null}
+
+            {error ? <p className="px-5 pb-1 text-[12px] text-danger">{error}</p> : null}
 
             <form onSubmit={send} className="flex items-center gap-2 border-t border-border p-3">
               <input
@@ -165,19 +190,44 @@ export default function AiChatPage() {
           </Card>
         </div>
 
-        <div className="space-y-6">
-          <Card className="border-primary/20">
-            <div className="flex items-start gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <ShieldCheck size={18} />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-content">Human-in-the-loop</p>
-                <p className="mt-1 text-[13px] leading-relaxed text-content-muted">
-                  AI suggestions require approval. Human approval required for write actions. The
-                  assistant can never create, update, or delete data on its own.
-                </p>
+        {/* Right rail */}
+        <div className="space-y-5">
+          <Card>
+            <CardHeader title="Assistant status" icon={<Bot size={18} />} />
+            <dl className="space-y-2.5 text-[13px]">
+              <div className="flex items-center justify-between">
+                <dt className="text-content-muted">Provider</dt>
+                <dd className="text-content">{activeProvider?.name ?? "—"}</dd>
               </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-content-muted">Status</dt>
+                <dd>
+                  <Badge tone={activeProvider?.configured ? "primary" : "neutral"}>
+                    {activeProvider?.detail ?? "Not configured"}
+                  </Badge>
+                </dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-content-muted">Mode</dt>
+                <dd className="text-content">Human-in-the-loop</dd>
+              </div>
+            </dl>
+            <Link
+              href="/dashboard/settings"
+              className="mt-3 inline-flex items-center gap-1 text-[13px] text-primary hover:underline"
+            >
+              Configure AI providers →
+            </Link>
+          </Card>
+
+          <Card>
+            <CardHeader title="Proposed tools" subtitle="Available when a model is configured" icon={<Sparkles size={18} />} />
+            <div className="flex flex-wrap gap-1.5">
+              {ALLOWED_TOOLS.map((tool) => (
+                <Badge key={tool} tone="secondary" className="font-mono">
+                  {tool}
+                </Badge>
+              ))}
             </div>
           </Card>
 

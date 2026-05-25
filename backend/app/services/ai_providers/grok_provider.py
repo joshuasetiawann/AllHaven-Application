@@ -12,5 +12,3 @@ class GrokProvider(OpenAICompatibleProvider):
     requires_api_key = True
     default_base_url = "https://api.x.ai/v1"
     default_model = "grok-2-latest"
-    supports_image = True
-    supports_tools = True

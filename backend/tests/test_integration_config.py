@@ -15,16 +15,16 @@ def _register(client, email):
 
 
 def test_missing_config_is_not_configured(auth_client):
-    data = auth_client.get(f"{API}/settings/integrations/n8n").json()["data"]
+    data = auth_client.get(f"{API}/settings/integrations/weather_api").json()["data"]
     assert data["status"] == "not_configured"
     assert data["configured"] is False
 
 
 def test_saving_secret_masks_and_never_returns_raw(auth_client):
-    secret = "n8n-supersecret-key-9999"
+    secret = "owm-supersecret-key-9999"
     resp = auth_client.put(
-        f"{API}/settings/integrations/n8n",
-        json={"public_config": {"base_url": "https://n8n.example.com"}, "secrets": {"api_key": secret}},
+        f"{API}/settings/integrations/weather_api",
+        json={"public_config": {"provider": "openweathermap"}, "secrets": {"api_key": secret}},
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -36,20 +36,19 @@ def test_saving_secret_masks_and_never_returns_raw(auth_client):
     assert secret not in json.dumps(body)
 
     # GET also never returns the raw secret.
-    got = auth_client.get(f"{API}/settings/integrations/n8n")
+    got = auth_client.get(f"{API}/settings/integrations/weather_api")
     assert secret not in json.dumps(got.json())
 
 
-def test_test_connection_unreachable_is_unavailable(auth_client):
-    # Unreachable n8n URL → cannot connect → status unavailable (never online).
+def test_test_connection_failure_sets_error(auth_client):
+    # Unreachable n8n URL → verification fails → status error.
     auth_client.put(
         f"{API}/settings/integrations/n8n",
         json={"public_config": {"base_url": "http://127.0.0.1:1"}, "secrets": {}},
     )
     resp = auth_client.post(f"{API}/settings/integrations/n8n/test")
     assert resp.status_code == 200, resp.text
-    assert resp.json()["data"]["status"] in ("unavailable", "error")
-    assert resp.json()["data"]["status"] != "online"
+    assert resp.json()["data"]["status"] == "error"
 
 
 def test_disable_sets_disabled(auth_client):
@@ -67,11 +66,11 @@ def test_disable_sets_disabled(auth_client):
 
 def test_clear_resets_to_not_configured(auth_client):
     auth_client.put(
-        f"{API}/settings/integrations/n8n",
-        json={"public_config": {"base_url": "https://n8n.example.com"}, "secrets": {"api_key": "abc12345"}},
+        f"{API}/settings/integrations/weather_api",
+        json={"public_config": {}, "secrets": {"api_key": "abc12345"}},
     )
-    auth_client.delete(f"{API}/settings/integrations/n8n")
-    data = auth_client.get(f"{API}/settings/integrations/n8n").json()["data"]
+    auth_client.delete(f"{API}/settings/integrations/weather_api")
+    data = auth_client.get(f"{API}/settings/integrations/weather_api").json()["data"]
     assert data["status"] == "not_configured"
     assert data["secrets"]["api_key"]["configured"] is False
 
@@ -91,12 +90,12 @@ def test_integrations_are_workspace_scoped(client):
     headers_b = {"Authorization": f"Bearer {token_b}"}
 
     client.put(
-        f"{API}/settings/integrations/n8n",
-        json={"public_config": {"base_url": "https://n8n.example.com"}, "secrets": {"api_key": "secret-a-123"}},
+        f"{API}/settings/integrations/weather_api",
+        json={"public_config": {}, "secrets": {"api_key": "secret-a-123"}},
         headers=headers_a,
     )
     # User B must not see user A's configuration.
-    data_b = client.get(f"{API}/settings/integrations/n8n", headers=headers_b).json()["data"]
+    data_b = client.get(f"{API}/settings/integrations/weather_api", headers=headers_b).json()["data"]
     assert data_b["status"] == "not_configured"
-    data_a = client.get(f"{API}/settings/integrations/n8n", headers=headers_a).json()["data"]
+    data_a = client.get(f"{API}/settings/integrations/weather_api", headers=headers_a).json()["data"]
     assert data_a["status"] == "configured"
