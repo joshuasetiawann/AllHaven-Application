@@ -17,7 +17,6 @@ export const notesApi = impl.notesApi;
 export const financeApi = impl.financeApi;
 export const calendarApi = impl.calendarApi;
 export const routinesApi = impl.routinesApi;
-export const weatherApi = impl.weatherApi;
 export const automationsApi = impl.automationsApi;
 // compute/file groups always come from REST (hidden on mobile in v3.7)
 export const aiApi = rest.aiApi;

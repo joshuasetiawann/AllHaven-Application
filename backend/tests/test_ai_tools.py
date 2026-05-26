@@ -35,7 +35,7 @@ def test_tools_endpoint_lists_registry(auth_client):
     # Modules span the whole app.
     modules = {t["module"] for t in data}
     assert {"time", "tasks", "calendar", "notes", "finance", "files",
-            "weather", "automation", "system", "memory", "ai_knowledge"}.issubset(modules)
+            "automation", "system", "memory", "ai_knowledge"}.issubset(modules)
 
 
 def test_section_tool_priorities_cover_core_modules(auth_client, db_session):

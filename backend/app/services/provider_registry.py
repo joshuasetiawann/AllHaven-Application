@@ -95,17 +95,6 @@ INTEGRATIONS: tuple[ProviderSpec, ...] = (
         ),
     ),
     ProviderSpec(
-        id="weather_api",
-        name="Weather API",
-        provider_type="weather",
-        purpose="Local weather and forecast context",
-        fields=(
-            FieldSpec("provider", "Provider", placeholder="openweathermap", default="openweathermap"),
-            FieldSpec("default_location", "Default location (optional)", placeholder="Jakarta"),
-            FieldSpec("api_key", "API key", secret=True, required=True),
-        ),
-    ),
-    ProviderSpec(
         id="drive_storage",
         name="Drive Storage",
         provider_type="storage",
