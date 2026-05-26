@@ -11,6 +11,28 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [3.2.0] - 2026-06-13 — AllHaven 3.2 repository hygiene and render skeletons
+
+Detailed notes: [`docs/releases/v3.2.0.md`](docs/releases/v3.2.0.md)
+
+AllHaven 3.2 tightens repository hygiene and adds polished render skeletons so
+page transitions no longer fall back to plain empty states while the app loads.
+
+### Added
+- **App-wide render skeletons.** Next.js route loading now shows a full application skeleton with sidebar, topbar, header, stat blocks, chart placeholders, and side panels.
+- **Dashboard-specific loader.** Dashboard routes get a denser skeleton layout that matches the app shell while pages hydrate or load.
+
+### Changed
+- `Skeleton` now accepts standard div attributes for more flexible responsive loader shapes.
+- Version metadata is synchronized across `VERSION`, package files, backend metadata, and the in-app `APP_VERSION`.
+
+### Removed
+- Local environment files were removed from the working tree while keeping safe templates (`.env.example`, `.env.prod.example`, `frontend/.env.local.example`) for fresh clones.
+
+### Archive
+- The `master` archive is clarified so the `0.1` through `1.3` line is treated as **CoreOS**.
+- `CoreOS 1.2` maps to semantic `v0.1.0`; `CoreOS 1.3` maps to semantic `v0.2.0`.
+
 ## [3.1.0] - 2026-06-13 — AllHaven 3.1 expanded AI agents and settings UX
 
 Detailed notes: [`docs/releases/v3.1.0.md`](docs/releases/v3.1.0.md)
