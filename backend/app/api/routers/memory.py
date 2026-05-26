@@ -20,6 +20,7 @@ from app.schemas.memory import (
     SuggestionOut,
 )
 from app.services import ai_settings_service, memory_service
+from app.services.local_first_sync import sync_after_write
 from app.services.memory_service import MAX_MEMORIES_PER_WORKSPACE
 
 router = APIRouter(prefix="/ai/memory", tags=["ai-memory"])
@@ -52,6 +53,7 @@ def create_memory(
     )
     db.commit()
     db.refresh(m)
+    sync_after_write(db, principal)
     return success_response(MemoryOut.model_validate(m), "Memory created")
 
 
@@ -91,6 +93,7 @@ def update_memory_settings(
 ) -> dict:
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     settings = ai_settings_service.set_memory_settings(db, principal, updates)
+    sync_after_write(db, principal)
     return success_response(MemorySettingsOut(**settings), "Memory settings saved")
 
 
@@ -101,6 +104,7 @@ def clear_all_memories(
 ) -> dict:
     """Delete ALL memories for this workspace regardless of status. Irreversible."""
     count = memory_service.clear_all_memories(db, principal)
+    sync_after_write(db, principal)
     return success_response({"deleted": count}, "All memories cleared")
 
 
@@ -134,6 +138,7 @@ def approve_suggestion(
     m = memory_service.approve_suggestion(db, principal, suggestion_id)
     db.commit()
     db.refresh(m)
+    sync_after_write(db, principal)
     return success_response(MemoryOut.model_validate(m), "Suggestion approved")
 
 
@@ -145,6 +150,7 @@ def reject_suggestion(
 ) -> dict:
     memory_service.reject_suggestion(db, principal, suggestion_id)
     db.commit()
+    sync_after_write(db, principal)
     return success_response({"id": str(suggestion_id)}, "Suggestion rejected")
 
 
@@ -161,6 +167,7 @@ def update_memory(
     )
     db.commit()
     db.refresh(m)
+    sync_after_write(db, principal)
     return success_response(MemoryOut.model_validate(m), "Memory updated")
 
 
@@ -172,6 +179,7 @@ def delete_memory(
 ) -> dict:
     memory_service.delete_memory(db, principal, memory_id)
     db.commit()
+    sync_after_write(db, principal)
     return success_response({"id": str(memory_id)}, "Memory deleted")
 
 
@@ -184,6 +192,7 @@ def enable_memory(
     m = memory_service.update_memory(db, principal, memory_id, enabled=True)
     db.commit()
     db.refresh(m)
+    sync_after_write(db, principal)
     return success_response(MemoryOut.model_validate(m), "Memory enabled")
 
 
@@ -196,4 +205,5 @@ def disable_memory(
     m = memory_service.update_memory(db, principal, memory_id, enabled=False)
     db.commit()
     db.refresh(m)
+    sync_after_write(db, principal)
     return success_response(MemoryOut.model_validate(m), "Memory disabled")

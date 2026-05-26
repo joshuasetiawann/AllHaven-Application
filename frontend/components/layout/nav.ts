@@ -47,4 +47,4 @@ export const MODULE_NAV: NavItem[] = [
 
 export const SETTINGS_NAV: NavItem = { href: "/dashboard/settings", label: "Settings", icon: Settings };
 
-export const APP_VERSION = "v3.3.1";
+export const APP_VERSION = "v3.4.0";
