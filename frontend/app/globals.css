@@ -359,3 +359,53 @@
     overflow: hidden;
   }
 }
+
+/* Mobile performance pass: Android WebView and phone GPUs stutter on stacked
+   backdrop filters + long-running glow animations. Keep the Aurora look, but
+   make touch/mobile surfaces cheaper to composite. */
+@media (max-width: 768px), (hover: none) and (pointer: coarse) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .aurora::before,
+  .aurora::after,
+  .aurora > i {
+    animation: none !important;
+    filter: blur(34px);
+    opacity: 0.52;
+    transform: translateZ(0);
+  }
+
+  .panel,
+  .panel-gradient {
+    box-shadow:
+      0 16px 38px -28px rgba(0, 0, 0, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  [class*="backdrop-blur"] {
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+  }
+
+  .panel-hover {
+    transition-property: border-color, background-color, box-shadow !important;
+  }
+
+  .panel-hover:hover {
+    transform: none !important;
+  }
+
+  .animate-fade-in,
+  .animate-scale-in,
+  .animate-slide-up {
+    animation-duration: 110ms !important;
+  }
+
+  .animate-pulse-glow {
+    animation: none !important;
+  }
+}
