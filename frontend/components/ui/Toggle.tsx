@@ -20,17 +20,15 @@ export function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border p-[2px] transition-all focus-ring",
-        checked
-          ? "border-transparent bg-[linear-gradient(90deg,rgb(var(--color-primary)),rgb(var(--color-secondary)))] shadow-toggle-on"
-          : "border-border bg-content/10",
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors focus-ring",
+        checked ? "border-primary/50 bg-primary/80" : "border-border bg-surface-high",
         disabled && "cursor-not-allowed opacity-50",
       )}
     >
       <span
         className={cn(
-          "inline-block h-5 w-5 transform rounded-full shadow transition-transform",
-          checked ? "translate-x-[18px] bg-white" : "translate-x-0 bg-[#8A93A6]",
+          "inline-block h-4 w-4 transform rounded-full bg-bg shadow transition-transform",
+          checked ? "translate-x-[22px]" : "translate-x-[3px]",
         )}
       />
     </button>
