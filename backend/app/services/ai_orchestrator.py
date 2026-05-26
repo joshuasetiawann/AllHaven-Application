@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.core.principal import Principal
 from app.domain.ai import ChatMessage
-from app.services import ai_local_answers, ai_provider_router, ai_tools_registry
+from app.services import ai_intent_router, ai_local_answers, ai_provider_router, ai_tools_registry
 from app.services.thinking import thinking_params
 
 MAX_TOOL_ROUNDS = 5
@@ -75,6 +75,59 @@ def _recent_history(db: Session, principal: Principal, session_id: Optional[uuid
     return history
 
 
+def _finance_proposal_turn(
+    db: Session,
+    principal: Principal,
+    intent: "ai_intent_router.IntentResult",
+    session_id: Optional[uuid.UUID],
+    user_message_id: Optional[uuid.UUID],
+    pid: str,
+) -> dict:
+    """Deterministically create a finance create_transaction PENDING proposal and
+    return a clear human-readable summary. No LLM call — money is recorded reliably,
+    never mis-routed to memory and never answered with a bare 'completed'."""
+    base = {"provider_id": pid, "tool_calls": [], "proposal_ids": []}
+
+    # Ask one short clarifying question when amount or type is genuinely unclear.
+    if intent.amount is None:
+        return {**base, "ok": True, "configured": True, "blocked": False,
+                "content": "Berapa nominalnya? Contoh: \"pengeluaran makan 50 ribu\" atau \"pendapatan 500 ribu\".",
+                "error": ""}
+    if intent.txn_type is None:
+        amt = ai_intent_router.format_rupiah(intent.amount)
+        return {**base, "ok": True, "configured": True, "blocked": False,
+                "content": f"{amt} ini pemasukan atau pengeluaran? Balas dengan jenisnya supaya saya buatkan drafnya.",
+                "error": ""}
+
+    outcome = ai_tools_registry.run_tool_call(
+        db, principal, "create_transaction",
+        {"type": intent.txn_type, "amount": intent.amount, "currency": intent.currency,
+         "description": intent.description, "category_id": None, "transaction_date": None},
+        session_id=session_id, message_id=user_message_id,
+    )
+    if outcome.get("status") != "pending_approval":
+        err = outcome.get("error") or "Maaf, draft transaksi tidak bisa dibuat sekarang."
+        return {**base, "ok": False, "configured": True, "blocked": False, "content": err, "error": err}
+
+    payload = outcome.get("payload") or {}
+    label = "pendapatan" if intent.txn_type == "INCOME" else "pengeluaran"
+    amt = ai_intent_router.format_rupiah(payload.get("amount", intent.amount))
+    desc = (payload.get("description") or intent.description or "").strip()
+    date = payload.get("transaction_date") or ""
+    content = (
+        f"Saya buatkan draft {label} {amt}"
+        + (f" untuk {desc}" if desc else "")
+        + (f" (tanggal {date})" if date else "")
+        + ". Silakan approve agar masuk ke Finance."
+    )
+    return {
+        **base, "ok": True, "configured": True, "blocked": False, "content": content, "error": "",
+        "tool_calls": [{"tool": "create_transaction", "status": "pending_approval",
+                        "summary": f"draft {label} {amt} · awaiting approval"}],
+        "proposal_ids": [outcome["proposal_id"]],
+    }
+
+
 def _tool_summary(outcome: dict) -> str:
     status = outcome.get("status")
     if status == "executed":
@@ -82,6 +135,22 @@ def _tool_summary(outcome: dict) -> str:
     if status == "pending_approval":
         return f"awaiting approval ({outcome.get('risk', '')})".strip()
     return (outcome.get("error") or "failed")[:140]
+
+
+def _fallback_text(tool_meta: List[dict], proposal_ids: List[str]) -> str:
+    """A specific, human-readable reply when the model returns empty text after
+    running tools — never a bare 'completed'."""
+    pending = [t for t in tool_meta if t.get("status") == "pending_approval"]
+    executed = [t for t in tool_meta if t.get("status") == "executed"]
+    parts: List[str] = []
+    if pending:
+        parts.append(
+            f"{len(pending)} aksi menunggu persetujuan — buka panel Pending actions untuk approve."
+        )
+    if executed:
+        names = ", ".join(t.get("tool", "").replace("_", " ") for t in executed[:3])
+        parts.append(f"Selesai menjalankan: {names}.")
+    return " ".join(parts) or "Tidak ada aksi yang perlu dijalankan."
 
 
 def run_with_tools(
@@ -117,6 +186,13 @@ def run_with_tools(
             "content": local["content"],
             "error": "",
         }
+    # Deterministic intent router (3.9): a money message ALWAYS becomes a finance
+    # proposal with a clear summary — never mis-routed to memory/general, never a
+    # bare "completed", and works even if no AI provider is configured.
+    intent = ai_intent_router.classify(message)
+    if intent.is_finance:
+        return _finance_proposal_turn(db, principal, intent, session_id, user_message_id, pid)
+
     if plan.status == "error" and not plan.runnable and plan.provider_name == pid:
         return {**base, "ok": False, "configured": False, "blocked": False,
                 "content": plan.message, "error": "unknown_provider"}
@@ -202,7 +278,7 @@ def run_with_tools(
     if result is not None and result.ok:
         content = result.content
         if not (content or "").strip() and tool_meta:
-            content = "I ran the requested tools — see the activity above."
+            content = _fallback_text(tool_meta, proposal_ids)
         return {**base, "ok": True, "configured": True, "blocked": False,
                 "content": content, "error": ""}
     error = result.error if result is not None else "no response"
