@@ -186,12 +186,26 @@ def main() -> int:
     except OSError as exc:
         _say(f"  frontend: {hc.mask_secrets(str(exc))}")
     if hc.wait_for_port(fe_port, timeout=120):
-        # `next dev` compiles routes on first request. The port opens before that
-        # first compile finishes, so opening the browser immediately can paint an
-        # unstyled page (CSS still building). Warm up the landing route and wait for
-        # a real 200 so the stylesheet is built BEFORE we open the browser.
-        _say("  Frontend is up; warming up the first build (so styles are ready)…")
-        hc.wait_for_http(f"http://127.0.0.1:{fe_port}/login", timeout=120)
+        # `next dev` compiles each route LAZILY on its first request, and the port
+        # opens before that first compile finishes. If the browser hits a route that
+        # is still compiling, Next serves its dev placeholder ("missing required error
+        # components, refreshing…", a 404 page that self-reloads) and paints unstyled
+        # while CSS builds. So warm up the exact routes we hand the user — waiting for
+        # a real 200 on each (wait_for_http returns True only on a 2xx) — BEFORE
+        # opening the browser. Warm "/" FIRST: it is the URL we open, and its first
+        # request also triggers the heavy initial app compile; then warm the routes
+        # the user clicks next so navigation is instant.
+        # (Previously only "/login" was warmed while the browser opened "/", so the
+        # landing route always raced its first compile → the recurring placeholder.)
+        _say("  Frontend is up; warming up the first build (routes + styles)…")
+        landing_ready = hc.wait_for_http(f"http://127.0.0.1:{fe_port}/", timeout=120)
+        for path in ("/login", "/dashboard"):
+            hc.wait_for_http(f"http://127.0.0.1:{fe_port}{path}", timeout=60)
+        if not landing_ready:
+            # Rare: the first compile didn't finish in time. Open anyway, but make the
+            # self-healing placeholder expected instead of alarming.
+            _say("  The first build is taking longer than usual. If the page shows a brief")
+            _say('  "refreshing…" message, it reloads itself once the build finishes.')
     else:
         _say("  Frontend not up yet (the first build can take a minute). Recent frontend log:")
         _say(_tail_log("frontend") or "    (no frontend log yet)")
