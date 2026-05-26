@@ -34,3 +34,6 @@ Thumbs.db
 
 # Runtime / app data (Drive uploads, local file storage)
 var/
+
+# v4 release artifacts (ZIPs/APK kept local, not committed)
+release/
