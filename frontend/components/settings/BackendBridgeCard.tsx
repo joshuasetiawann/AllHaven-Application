@@ -44,6 +44,7 @@ const SOURCE_LABEL: Record<BackendUrlSource, string> = {
   env: "Built-in default (from the app build)",
   derived: "Same host as this page :8000",
   fallback: "localhost fallback",
+  not_configured: "Backend Bridge not configured",
 };
 
 /**
@@ -71,7 +72,7 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
     setSource(getApiBaseUrlSource());
     setHasOverride(Boolean(override));
     setDraft(override);
-    setStatus(override ? "configured" : "unknown");
+    setStatus(override ? "configured" : getApiBaseUrl() ? "unknown" : "not_configured");
   }, []);
 
   const refreshActive = () => {
@@ -123,7 +124,7 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
     clearBackendOverride();
     setDraft("");
     refreshActive();
-    setStatus("unknown");
+    setStatus(getApiBaseUrl() ? "unknown" : "not_configured");
     setResult(null);
     setLastCheckedAt(null);
   };
