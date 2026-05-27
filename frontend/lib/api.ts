@@ -205,6 +205,12 @@ export const aiApi = {
       method: "POST",
       body: json({ message, provider_ids: providerIds, session_id: sessionId || null, rounds }),
     }),
+  // Run the reasoning council (Analyst -> Critic -> Synthesizer + quality gate).
+  reasonChat: (message: string, providerIds: string[], sessionId?: string, mode: "fast" | "balanced" | "deep" = "balanced") =>
+    request<MultiChatResponse>("/ai/chat/reason", {
+      method: "POST",
+      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, mode }),
+    }),
   getRun: (runId: string) => request<MultiChatResponse>(`/ai/runs/${runId}`),
   listProposals: () => request<ToolProposal[]>("/ai/proposals"),
   rejectProposal: (id: string) =>
