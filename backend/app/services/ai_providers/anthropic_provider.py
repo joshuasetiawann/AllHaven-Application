@@ -38,7 +38,10 @@ class AnthropicProvider(AIProvider):
         code, _, err = safe_request("GET", f"{API_BASE}/models", headers=self._headers(key))
         return interpret_http(code, err)
 
-    def chat(self, public: dict, secrets: dict, messages: list[dict], model: Optional[str] = None) -> ChatResult:
+    def chat(
+        self, public: dict, secrets: dict, messages: list[dict],
+        model: Optional[str] = None, params: Optional[dict] = None,
+    ) -> ChatResult:
         key = secrets.get("api_key")
         if not key:
             return ChatResult(False, error="API key not set")
@@ -46,7 +49,10 @@ class AnthropicProvider(AIProvider):
         # Anthropic uses a top-level system param + user/assistant messages.
         system = next((m["content"] for m in messages if m.get("role") == "system"), None)
         convo = [m for m in messages if m.get("role") in ("user", "assistant")]
-        payload = {"model": chosen, "max_tokens": 1024, "messages": convo}
+        payload: dict = {"model": chosen, "max_tokens": (params or {}).get("max_tokens") or 1024, "messages": convo}
+        for k in ("temperature", "top_p"):
+            if params and params.get(k) is not None:
+                payload[k] = params[k]
         if system:
             payload["system"] = system
         code, body, err = safe_request(
