@@ -2,19 +2,30 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Bot, Brain, Crown, Cpu, Eye, ImageOff, ImagePlus, Layers, Loader2, PanelLeft, SendHorizonal, Sparkles, Swords, User, X } from "lucide-react";
+import { AlertTriangle, Bot, Brain, Crown, Cpu, Eye, Handshake, ImageOff, ImagePlus, Layers, Loader2, PanelLeft, SendHorizonal, Sparkles, Swords, User, Wrench, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Toggle } from "@/components/ui/Toggle";
 import { ConversationSidebar } from "@/components/ai/ConversationSidebar";
-import { MultiAgentSelector } from "@/components/ai/MultiAgentSelector";
+import { MAX_AGENTS, MultiAgentSelector } from "@/components/ai/MultiAgentSelector";
 import { AgentResponseCard, type AgentCardData } from "@/components/ai/AgentResponseCard";
 import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
+import { PendingActionsPanel } from "@/components/ai/PendingActionsPanel";
 import { aiApi, ApiException } from "@/lib/api";
 import { cn } from "@/lib/format";
-import type { AgentResponseStatus, AiProvider, ChatGroup, ChatMessage, ChatSession, ThinkingMode } from "@/types";
+import type { AgentResponseStatus, AiChatSettings, AiProvider, ChatGroup, ChatMessage, ChatSession, ThinkingMode } from "@/types";
 
 type ChatMode = "parallel" | "debate" | "reason";
+
+// Map the persisted default_mode onto this page's modes ("single" = the
+// one-agent parallel flow — there is no separate single-agent mode UI).
+const MODE_FROM_SETTING: Record<AiChatSettings["default_mode"], ChatMode> = {
+  single: "parallel",
+  parallel: "parallel",
+  debate: "debate",
+  reasoning: "reason",
+};
 
 const THINKING_MODES: ThinkingMode[] = ["fast", "balance", "thinking", "deep"];
 
@@ -33,6 +44,7 @@ function toCard(m: ChatMessage): AgentCardData {
     error_message: completed ? null : m.content,
     latency_ms: (meta.latency_ms as number) ?? null,
     external: Boolean(meta.external),
+    role: (meta.role as string) ?? null,
   };
 }
 
@@ -41,6 +53,21 @@ function imagesOf(m: ChatMessage): string[] {
   const imgs = ((m.meta ?? {}) as Record<string, unknown>).images;
   return Array.isArray(imgs) ? (imgs as string[]) : [];
 }
+
+// AI tool calls recorded on an assistant message's metadata.
+type ToolCallMeta = { tool: string; status: string; summary?: string };
+
+function toolCallsOf(m: ChatMessage): ToolCallMeta[] {
+  const calls = ((m.meta ?? {}) as Record<string, unknown>).tool_calls;
+  return Array.isArray(calls) ? (calls as ToolCallMeta[]) : [];
+}
+
+// Honest tool-activity chip styling per outcome (mirrors Badge tones).
+const TOOL_CHIP: Record<string, { cls: string; label: string }> = {
+  executed: { cls: "border-success/30 bg-success/10 text-success", label: "executed" },
+  pending_approval: { cls: "border-warning/30 bg-warning/10 text-warning", label: "pending approval" },
+  error: { cls: "border-danger/30 bg-danger/10 text-danger", label: "error" },
+};
 
 const MAX_IMAGES = 4;
 
@@ -107,17 +134,27 @@ export default function AiChatPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const [chatSettings, setChatSettings] = useState<AiChatSettings | null>(null);
+  const [proposalRefresh, setProposalRefresh] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const providerById = useMemo(() => Object.fromEntries(providers.map((p) => [p.id, p])), [providers]);
-  const anyExternal = selected.some((id) => providerById[id]?.external);
-  const anyLocal = selected.some((id) => providerById[id] && !providerById[id]!.external);
+  // Selected values are slot refs ("anthropic#2" = slot 2); the provider id is the part before "#".
+  const providerOfRef = (ref: string) => providerById[ref.split("#")[0]];
+  const anyExternal = selected.some((ref) => providerOfRef(ref)?.external);
+  const anyLocal = selected.some((ref) => { const p = providerOfRef(ref); return p && !p.external; });
   // Image attached but one or more selected models can't read images (vision).
-  const visionMissing = images.length > 0 && selected.some((id) => providerById[id] && !providerById[id]!.capabilities?.image);
+  const visionMissing = images.length > 0 && selected.some((ref) => { const p = providerOfRef(ref); return p && !p.capabilities?.image; });
   const visionOk = images.length > 0 && !visionMissing;
   const activeSession = sessions.find((s) => s.id === activeId) || null;
   const thread = useMemo(() => buildThread(messages), [messages]);
+  const showDebateFlow = chatSettings?.show_debate_flow !== false;
+  const showToolActivity = chatSettings?.show_tool_activity !== false;
+  const threadHasDebate = useMemo(
+    () => thread.some((t) => t.kind === "round" || (t.kind === "final" && Boolean(((t.message.meta ?? {}) as Record<string, unknown>).debate))),
+    [thread],
+  );
 
   const refreshSessions = async () => {
     try { setSessions(await aiApi.listSessions()); } catch { /* non-blocking */ }
@@ -136,13 +173,29 @@ export default function AiChatPage() {
         if (pref) setSelected((cur) => (cur.length ? cur : [pref.id]));
       })
       .catch(() => {});
+    // Chat behavior settings: debate-flow/tool-activity visibility + default mode.
+    aiApi.getChatSettings()
+      .then((s) => {
+        setChatSettings(s);
+        setMode(MODE_FROM_SETTING[s.default_mode] ?? "parallel");
+      })
+      .catch(() => {});
   }, []);
 
   // Load the active conversation's messages.
   useEffect(() => {
     if (!activeId) { setMessages([]); return; }
     let on = true;
-    aiApi.listMessages(activeId).then((m) => on && setMessages(m)).catch(() => on && setMessages([]));
+    aiApi.listMessages(activeId)
+      .then((m) => {
+        if (!on) return;
+        setMessages(m);
+        // Replies that filed tool proposals mean the pending-actions list changed.
+        if (m.some((x) => { const ids = ((x.meta ?? {}) as Record<string, unknown>).proposal_ids; return Array.isArray(ids) && ids.length > 0; })) {
+          setProposalRefresh((n) => n + 1);
+        }
+      })
+      .catch(() => on && setMessages([]));
     return () => { on = false; };
   }, [activeId]);
 
@@ -201,6 +254,19 @@ export default function AiChatPage() {
     await aiApi.deleteGroup(g.id).catch(() => {});
     void refreshGroups();
     void refreshSessions();
+  };
+
+  // Flip debate-flow visibility optimistically; revert with the API error if the save fails.
+  const toggleDebateFlow = async (next: boolean) => {
+    if (!chatSettings) return;
+    const prev = chatSettings;
+    setChatSettings({ ...prev, show_debate_flow: next });
+    try {
+      setChatSettings(await aiApi.setChatSettings({ show_debate_flow: next }));
+    } catch (err) {
+      setChatSettings(prev);
+      setError(err instanceof ApiException ? err.message : "Could not update chat settings.");
+    }
   };
 
   // --- image attachments ---
@@ -276,6 +342,8 @@ export default function AiChatPage() {
       setSending(false);
       setPendingUser(null);
       setPendingImages([]);
+      // The reply may have filed tool proposals — refresh the pending-actions panel.
+      setProposalRefresh((n) => n + 1);
     }
   };
 
@@ -283,9 +351,11 @@ export default function AiChatPage() {
   const renderBubble = (m: ChatMessage) => {
     const isUser = m.role === "user";
     const provider = (m.meta?.provider_name as string) || null;
+    const agentRole = !isUser ? ((m.meta?.role as string) || null) : null;
     const status = (m.meta?.status as string) || "";
     const isError = !isUser && status && status !== "completed";
     const imgs = isUser ? imagesOf(m) : [];
+    const toolCalls = !isUser && showToolActivity ? toolCallsOf(m) : [];
     return (
       <div className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
         <span className={cn(
@@ -296,7 +366,10 @@ export default function AiChatPage() {
         </span>
         <div className="min-w-0 max-w-[82%]">
           {provider && !isUser ? (
-            <p className="mb-0.5 text-[10.5px] font-medium uppercase tracking-wide text-content-subtle">{provider}</p>
+            <p className="mb-0.5 flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-content-subtle">
+              {provider}
+              {agentRole ? <Badge tone="neutral" className="normal-case tracking-normal">{agentRole}</Badge> : null}
+            </p>
           ) : null}
           <div className={cn(
             "rounded-xl border px-3.5 py-2.5 text-sm leading-relaxed",
@@ -318,12 +391,46 @@ export default function AiChatPage() {
               <MarkdownMessage content={m.content} />
             )}
           </div>
+          {toolCalls.length ? (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {toolCalls.map((tc, i) => {
+                const chip = TOOL_CHIP[tc.status] ?? { cls: "border-border bg-surface-high text-content-muted", label: tc.status.replace(/_/g, " ") };
+                return (
+                  <span
+                    key={i}
+                    title={tc.summary || undefined}
+                    className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10.5px] font-medium", chip.cls)}
+                  >
+                    <Wrench size={10} /> {tc.tool.replace(/_/g, " ")} · {chip.label}
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       </div>
     );
   };
 
-  const renderFinal = (m: ChatMessage) => {
+  // Compact summary shown instead of the full debate transcript, e.g. "5 agents · 2 rounds collaborated".
+  const collabLine = (m: ChatMessage): string | null => {
+    const meta = (m.meta ?? {}) as Record<string, unknown>;
+    let agents = Number(meta.n_agents ?? 0);
+    let rounds = Number(meta.rounds ?? 0);
+    if (!agents || !rounds) {
+      const turns = messages.filter((x) => {
+        const xm = (x.meta ?? {}) as Record<string, unknown>;
+        return Boolean(xm.debate) && !xm.debate_final && xm.run_id === meta.run_id;
+      });
+      if (!agents) agents = new Set(turns.map((x) => String(((x.meta ?? {}) as Record<string, unknown>).provider_id ?? ""))).size;
+      if (!rounds) rounds = turns.reduce((max, x) => Math.max(max, Number(((x.meta ?? {}) as Record<string, unknown>).round ?? 1)), 0);
+    }
+    if (!agents && !rounds) return null;
+    const agentPart = agents > 0 ? `${agents} agent${agents === 1 ? "" : "s"}` : "Agents";
+    return rounds > 0 ? `${agentPart} · ${rounds} round${rounds === 1 ? "" : "s"} collaborated` : `${agentPart} collaborated`;
+  };
+
+  const renderFinal = (m: ChatMessage, collapsed = false) => {
     const meta = (m.meta ?? {}) as Record<string, unknown>;
     const status = (meta.status as string) || "completed";
     const ok = status === "completed";
@@ -374,7 +481,7 @@ export default function AiChatPage() {
             <span>hallucination risk {Math.round(Number(quality.hallucination_risk) * 100)}%</span>
           </div>
         ) : null}
-        {!isReasoning && ok && nRounds ? (
+        {!isReasoning && ok && nRounds && !collapsed ? (
           <p className="mt-2 text-[10.5px] text-content-subtle">
             From {nAgents ?? "the"} agents across {nRounds} round{nRounds > 1 ? "s" : ""} of debate.
           </p>
@@ -490,6 +597,16 @@ export default function AiChatPage() {
                   Debug
                 </button>
               ) : null}
+              {(mode === "debate" || threadHasDebate) && chatSettings ? (
+                <label className="flex shrink-0 items-center gap-1.5 text-[12px] text-content-muted">
+                  <Toggle
+                    checked={chatSettings.show_debate_flow}
+                    onChange={(next) => void toggleDebateFlow(next)}
+                    label="Show debate flow"
+                  />
+                  Show debate flow
+                </label>
+              ) : null}
               {anyLocal ? <Badge tone="success"><Cpu size={11} className="mr-1 inline" /> Local AI</Badge> : null}
               {anyExternal ? <Badge tone="warning"><AlertTriangle size={11} className="mr-1 inline" /> External AI</Badge> : null}
             </div>
@@ -516,7 +633,7 @@ export default function AiChatPage() {
                 </span>
                 <p className="text-[15px] font-semibold text-content">Start a conversation</p>
                 <p className="mt-1 max-w-md text-[13px] text-content-muted">
-                  Pick 1–3 agents and ask anything. In <span className="font-medium text-content">Parallel</span> mode each
+                  Pick 1–{MAX_AGENTS} agents and ask anything. In <span className="font-medium text-content">Parallel</span> mode each
                   agent answers independently; in <span className="font-medium text-content">Debate</span> mode they critique
                   each other across rounds and one synthesizes the best final answer. AllHaven never fabricates AI output.
                 </p>
@@ -525,6 +642,8 @@ export default function AiChatPage() {
               <>
                 {thread.map((item) => {
                   if (item.kind === "round") {
+                    // Debate flow hidden: skip the per-round transcript (display filter only — nothing is deleted).
+                    if (!showDebateFlow) return null;
                     return (
                       <div key={item.key} className="space-y-2">
                         <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-content-subtle">
@@ -551,7 +670,21 @@ export default function AiChatPage() {
                       </div>
                     );
                   }
-                  if (item.kind === "final") return <div key={item.key}>{renderFinal(item.message)}</div>;
+                  if (item.kind === "final") {
+                    const fmeta = (item.message.meta ?? {}) as Record<string, unknown>;
+                    const collapsed = !showDebateFlow && Boolean(fmeta.debate);
+                    const collab = collapsed ? collabLine(item.message) : null;
+                    return (
+                      <div key={item.key} className={collab ? "space-y-1.5" : undefined}>
+                        {collab ? (
+                          <p className="flex items-center gap-1.5 text-[11px] text-content-subtle">
+                            <Handshake size={12} className="text-primary" /> {collab}
+                          </p>
+                        ) : null}
+                        {renderFinal(item.message, collapsed)}
+                      </div>
+                    );
+                  }
                   return <div key={item.key}>{renderBubble(item.message)}</div>;
                 })}
 
@@ -583,6 +716,9 @@ export default function AiChatPage() {
             )}
             <div ref={endRef} />
           </div>
+
+          {/* Pending actions: AI-proposed writes awaiting human approval. */}
+          <PendingActionsPanel refreshKey={proposalRefresh} />
 
           {/* Input */}
           {anyExternal ? (
