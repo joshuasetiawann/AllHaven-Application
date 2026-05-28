@@ -266,11 +266,12 @@ class AllHavenAssetServer {
 
   String _resolveAssetPath(Uri uri) {
     final safePath = _normalizePath(_stripRscSuffix(uri.path));
-    final wantsRsc = _isRscRequest(uri);
+    final routePath = _stripRoutePayloadSuffix(safePath);
+    final wantsRsc = _isRscRequest(uri) || _isRoutePayloadRequest(safePath);
     final candidates = <String>[
-      if (wantsRsc) ..._routeIndexCandidates(safePath, 'txt'),
+      if (wantsRsc) ..._routeIndexCandidates(routePath, 'txt'),
       safePath,
-      ..._routeIndexCandidates(safePath, 'html'),
+      ..._routeIndexCandidates(routePath, 'html'),
       _indexPath,
     ];
 
@@ -289,6 +290,16 @@ class AllHavenAssetServer {
 
   String _stripRscSuffix(String path) {
     return path.endsWith('.rsc') ? path.substring(0, path.length - 4) : path;
+  }
+
+  bool _isRoutePayloadRequest(String path) {
+    return path.endsWith('.txt') && !path.endsWith('/index.txt');
+  }
+
+  String _stripRoutePayloadSuffix(String path) {
+    return _isRoutePayloadRequest(path)
+        ? path.substring(0, path.length - 4)
+        : path;
   }
 
   List<String> _routeIndexCandidates(String safePath, String extension) {
