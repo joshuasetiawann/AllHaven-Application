@@ -75,6 +75,10 @@ Stop / Restart, change ports, and view logs.
 
 ![AI providers and models](docs/assets/ai-models.svg)
 
+![Settings → AI Providers — nine providers, each on its latest model](docs/assets/screenshot-ai-providers.png)
+
+<sub><b>Settings → AI Providers</b> — configure all nine (Ollama local + GPT, Claude, Gemini, Grok, Blackbox, and three OpenRouter slots), each on its latest default model. Keys are stored server-side and shown masked; enable/disable and Test Connection per provider.</sub>
+
 ![Multi-agent AI chat](docs/assets/screenshot-ai-chat.png)
 
 <sub>Multi-agent chat — pick 1–3 agents and run them in <b>Parallel</b>, <b>Debate</b>, or <b>Reasoning</b>. Honest status; the AI never fabricates output.</sub>
