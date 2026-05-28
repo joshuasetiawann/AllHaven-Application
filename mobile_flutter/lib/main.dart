@@ -1,0 +1,338 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.black,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.black,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
+
+  final server = AllHavenAssetServer();
+  final baseUri = await server.start();
+  runApp(AllHavenApp(baseUri: baseUri, server: server));
+}
+
+class AllHavenApp extends StatelessWidget {
+  const AllHavenApp({super.key, required this.baseUri, required this.server});
+
+  final Uri baseUri;
+  final AllHavenAssetServer server;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'AllHaven',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF070B10),
+      ),
+      home: AllHavenWebShell(baseUri: baseUri, server: server),
+    );
+  }
+}
+
+class AllHavenWebShell extends StatefulWidget {
+  const AllHavenWebShell({
+    super.key,
+    required this.baseUri,
+    required this.server,
+  });
+
+  final Uri baseUri;
+  final AllHavenAssetServer server;
+
+  @override
+  State<AllHavenWebShell> createState() => _AllHavenWebShellState();
+}
+
+class _AllHavenWebShellState extends State<AllHavenWebShell> {
+  late final WebViewController _controller;
+  var _progress = 0;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFF070B10))
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onProgress: (progress) {
+            if (mounted) {
+              setState(() => _progress = progress);
+            }
+          },
+          onPageStarted: (_) {
+            if (mounted) {
+              setState(() => _error = null);
+            }
+          },
+          onWebResourceError: (error) {
+            if (error.isForMainFrame == false) {
+              return;
+            }
+            if (mounted) {
+              setState(() => _error = error.description);
+            }
+          },
+        ),
+      )
+      ..loadRequest(widget.baseUri);
+  }
+
+  @override
+  void dispose() {
+    unawaited(widget.server.stop());
+    super.dispose();
+  }
+
+  Future<void> _handleBack() async {
+    if (await _controller.canGoBack()) {
+      await _controller.goBack();
+      return;
+    }
+    await SystemNavigator.pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          unawaited(_handleBack());
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Stack(
+            children: [
+              WebViewWidget(controller: _controller),
+              if (_progress < 100)
+                const Positioned.fill(child: _AllHavenLoadingCover()),
+              if (_error != null)
+                Positioned.fill(
+                  child: _AllHavenErrorCover(
+                    message: _error!,
+                    onRetry: () => _controller.reload(),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AllHavenLoadingCover extends StatelessWidget {
+  const _AllHavenLoadingCover();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Color(0xFF070B10),
+      child: Center(
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Color(0xFF25D8D0),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AllHavenErrorCover extends StatelessWidget {
+  const _AllHavenErrorCover({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(0xFF070B10),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'AllHaven gagal dimuat',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF9AA5B1)),
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF25D8D0),
+                  foregroundColor: const Color(0xFF071012),
+                ),
+                onPressed: onRetry,
+                child: const Text('Muat ulang'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AllHavenAssetServer {
+  static const _assetRoot = 'assets/allhaven';
+  static const _indexPath = '/index.html';
+
+  HttpServer? _server;
+  Set<String>? _assetKeys;
+
+  Future<Uri> start() async {
+    _assetKeys = await _loadAssetKeys();
+    _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    unawaited(_serveRequests(_server!));
+    return Uri.parse('http://${_server!.address.host}:${_server!.port}/');
+  }
+
+  Future<void> stop() async {
+    await _server?.close(force: true);
+    _server = null;
+  }
+
+  Future<void> _serveRequests(HttpServer server) async {
+    await for (final request in server) {
+      unawaited(_handleRequest(request));
+    }
+  }
+
+  Future<void> _handleRequest(HttpRequest request) async {
+    final response = request.response;
+    response.headers
+      ..set(HttpHeaders.accessControlAllowOriginHeader, '*')
+      ..set(HttpHeaders.cacheControlHeader, 'public, max-age=31536000');
+
+    if (request.method == 'OPTIONS') {
+      response.statusCode = HttpStatus.noContent;
+      await response.close();
+      return;
+    }
+
+    final assetPath = _resolveAssetPath(request.uri.path);
+    try {
+      final data = await rootBundle.load(assetPath);
+      response.headers.contentType = _contentType(assetPath);
+      response.contentLength = data.lengthInBytes;
+      response.add(data.buffer.asUint8List());
+    } on FlutterError {
+      response.statusCode = HttpStatus.notFound;
+      response.headers.contentType = ContentType.text;
+      response.write('Not found');
+    } finally {
+      await response.close();
+    }
+  }
+
+  String _resolveAssetPath(String rawPath) {
+    final safePath = _normalizePath(rawPath);
+    final candidates = <String>[
+      safePath,
+      safePath.endsWith('/') ? '${safePath}index.html' : '$safePath/index.html',
+      _indexPath,
+    ];
+
+    for (final candidate in candidates) {
+      final assetPath = '$_assetRoot$candidate';
+      if (_assetKeys?.contains(assetPath) ?? false) {
+        return assetPath;
+      }
+    }
+    return '$_assetRoot$_indexPath';
+  }
+
+  String _normalizePath(String rawPath) {
+    var path = Uri.decodeComponent(rawPath);
+    if (path.isEmpty || path == '/') {
+      return _indexPath;
+    }
+    if (!path.startsWith('/')) {
+      path = '/$path';
+    }
+    if (path.contains('..')) {
+      return _indexPath;
+    }
+    return path;
+  }
+
+  Future<Set<String>> _loadAssetKeys() async {
+    final manifest = await rootBundle.loadString('AssetManifest.json');
+    final decoded = jsonDecode(manifest);
+    if (decoded is Map<String, dynamic>) {
+      return decoded.keys.toSet();
+    }
+    return const <String>{};
+  }
+
+  ContentType _contentType(String assetPath) {
+    final lower = assetPath.toLowerCase();
+    if (lower.endsWith('.html')) {
+      return ContentType.html;
+    }
+    if (lower.endsWith('.js') || lower.endsWith('.mjs')) {
+      return ContentType('application', 'javascript', charset: 'utf-8');
+    }
+    if (lower.endsWith('.css')) {
+      return ContentType('text', 'css', charset: 'utf-8');
+    }
+    if (lower.endsWith('.json') || lower.endsWith('.map')) {
+      return ContentType.json;
+    }
+    if (lower.endsWith('.svg')) {
+      return ContentType('image', 'svg+xml');
+    }
+    if (lower.endsWith('.png')) {
+      return ContentType('image', 'png');
+    }
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+      return ContentType('image', 'jpeg');
+    }
+    if (lower.endsWith('.webp')) {
+      return ContentType('image', 'webp');
+    }
+    if (lower.endsWith('.ico')) {
+      return ContentType('image', 'x-icon');
+    }
+    if (lower.endsWith('.woff2')) {
+      return ContentType('font', 'woff2');
+    }
+    if (lower.endsWith('.wasm')) {
+      return ContentType('application', 'wasm');
+    }
+    return ContentType.binary;
+  }
+}
