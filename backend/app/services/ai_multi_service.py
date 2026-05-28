@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import NotFoundError, ValidationAppError
 from app.core.principal import Principal
 from app.domain.ai import (
+    DEFAULT_AGENT_ROLES,
     MAX_AGENTS_PER_RUN,
     AiAgentResponse,
     AiMultiAgentRun,
@@ -155,9 +156,31 @@ def multi_chat(
     db.add(run)
     db.flush()
 
-    # Resolve every provider on this thread (DB reads only).
+    # Resolve every provider on this thread (DB reads only). Ids may be agent
+    # refs like "anthropic#2" selecting a provider's secondary model slot.
     plans = {pid: ai_provider_router.plan_chat(db, principal, pid) for pid in ids}
-    messages = [{"role": "user", "content": message, "images": images or []}]
+    # Each of the (up to 7) agents gets a distinct role: the slot's configured
+    # role when set, otherwise the default for its selection position.
+    roles: dict[str, tuple[str, str]] = {}
+    for index, pid in enumerate(ids):
+        default_name, default_task = DEFAULT_AGENT_ROLES[index % len(DEFAULT_AGENT_ROLES)]
+        plan_role = (plans[pid].slot_role or "").strip()
+        roles[pid] = (plan_role or default_name, default_task)
+    base_user = {"role": "user", "content": message, "images": images or []}
+
+    def _messages_for(pid: str) -> list[dict]:
+        role_name, role_task = roles[pid]
+        if len(ids) == 1:
+            return [base_user]  # single agent: no role framing needed
+        return [
+            {"role": "system", "content": (
+                f"You are the {role_name} agent in a team of {len(ids)} AI agents answering "
+                f"the same request. Your job: {role_task} Answer from that perspective — "
+                "be specific and concrete, no generic filler, and be honest about uncertainty."
+            )},
+            base_user,
+        ]
+
     params = thinking_params(thinking_mode)
     has_images = bool(images)
 
@@ -167,7 +190,8 @@ def multi_chat(
     outcomes: dict[str, dict] = {}
     if runnable:
         with ThreadPoolExecutor(max_workers=len(runnable)) as pool:
-            futures = {pool.submit(_run_one, p, messages, params, has_images): pid for pid, p in runnable.items()}
+            futures = {pool.submit(_run_one, p, _messages_for(pid), params, has_images): pid
+                       for pid, p in runnable.items()}
             for future, pid in list(futures.items()):
                 try:
                     outcomes[pid] = future.result(timeout=AGENT_TIMEOUT_SECONDS)
@@ -203,7 +227,7 @@ def multi_chat(
             content=content,
             error_message=error,
             latency_ms=latency,
-            meta={"external": plan.external},
+            meta={"external": plan.external, "role": roles[pid][0], "n_agents": len(ids)},
         )
         db.add(row)
         responses.append(row)
@@ -223,6 +247,8 @@ def multi_chat(
                     "latency_ms": latency,
                     "external": plan.external,
                     "multi": True,
+                    "role": roles[pid][0],
+                    "n_agents": len(ids),
                 },
             )
         )

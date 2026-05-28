@@ -32,10 +32,10 @@ def _patch(monkeypatch, plans):
     monkeypatch.setattr(router_mod, "plan_chat", lambda db, principal, pid: plans[pid])
 
 
-def test_reason_rejects_more_than_three_agents(auth_client):
+def test_reason_rejects_more_than_seven_agents(auth_client):
     resp = auth_client.post(
         f"{API}/ai/chat/reason",
-        json={"message": "hi", "provider_ids": ["openai", "anthropic", "gemini", "grok"]},
+        json={"message": "hi", "provider_ids": ["openai", "anthropic", "gemini", "grok", "blackbox", "openrouter_1", "openrouter_2", "openrouter_3"]},
     )
     assert resp.status_code == 422, resp.text
 

@@ -23,6 +23,9 @@ class ChatResult:
     ok: bool
     content: str = ""
     error: str = ""
+    # Native tool/function calls requested by the model, normalized to
+    # [{"id": str, "name": str, "arguments": str(JSON)}]. None for plain replies.
+    tool_calls: Optional[list] = None
 
 
 # Generation parameters (temperature, top_p, penalties, max_tokens) the Reasoning
@@ -258,25 +261,47 @@ class OpenAICompatibleProvider(AIProvider):
     def chat(
         self, public: dict, secrets: dict, messages: list[dict],
         model: Optional[str] = None, params: Optional[dict] = None,
+        tools: Optional[list] = None,
     ) -> ChatResult:
         key = secrets.get("api_key")
         if not key:
             return ChatResult(False, error="API key not set")
         chosen = model or public.get("default_model") or self.default_model
-        payload_messages = [
-            {"role": m.get("role", "user"), "content": openai_message_content(m)} for m in messages
-        ]
+        payload_messages = []
+        for m in messages:
+            pm: dict = {"role": m.get("role", "user"), "content": openai_message_content(m)}
+            # Tool-call plumbing (assistant tool_calls echo + tool results).
+            if m.get("tool_calls"):
+                pm["tool_calls"] = m["tool_calls"]
+            if m.get("tool_call_id"):
+                pm["tool_call_id"] = m["tool_call_id"]
+            payload_messages.append(pm)
+        payload: dict = {"model": chosen, "messages": payload_messages, **openai_gen_params(params)}
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
         code, body, err = safe_request(
             "POST",
             f"{self.base_url(public)}/chat/completions",
             headers=self._headers(key),
-            json={"model": chosen, "messages": payload_messages, **openai_gen_params(params)},
+            json=payload,
+            timeout=30.0 if tools else DEFAULT_TIMEOUT,
         )
         if err:
             return ChatResult(False, error=network_error_message(err))
         if code == 200 and body:
             try:
-                return ChatResult(True, content=body["choices"][0]["message"]["content"])
+                msg = body["choices"][0]["message"]
+                calls = []
+                for tc in msg.get("tool_calls") or []:
+                    fn = (tc or {}).get("function") or {}
+                    if fn.get("name"):
+                        calls.append({
+                            "id": tc.get("id") or "",
+                            "name": fn["name"],
+                            "arguments": fn.get("arguments") or "{}",
+                        })
+                return ChatResult(True, content=msg.get("content") or "", tool_calls=calls or None)
             except (KeyError, IndexError, TypeError):
                 return ChatResult(False, error="the provider returned an unexpected response")
         return ChatResult(False, error=chat_error_message(code, body))

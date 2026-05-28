@@ -125,6 +125,12 @@ class Settings(BaseSettings):
     OPENROUTER_2_DEFAULT_MODEL: str = ""
     OPENROUTER_3_API_KEY: str = ""
     OPENROUTER_3_DEFAULT_MODEL: str = ""
+    OPENROUTER_4_API_KEY: str = ""
+    OPENROUTER_4_DEFAULT_MODEL: str = ""
+    OPENROUTER_5_API_KEY: str = ""
+    OPENROUTER_5_DEFAULT_MODEL: str = ""
+    OPENROUTER_6_API_KEY: str = ""
+    OPENROUTER_6_DEFAULT_MODEL: str = ""
 
     @property
     def drive_storage_path(self) -> str:

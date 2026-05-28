@@ -15,7 +15,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, JSONType, StringArray, TimestampMixin, UUIDPrimaryKeyMixin
 
-PROPOSAL_STATUSES = ("PENDING", "REJECTED", "EXPIRED")
+PROPOSAL_STATUSES = ("PENDING", "REJECTED", "EXPIRED", "EXECUTED")
 RISK_LEVELS = ("LOW", "MEDIUM", "HIGH")
 
 # Multi-agent run statuses (the run aggregates per-agent results).
@@ -25,7 +25,19 @@ AGENT_RESPONSE_STATUSES = (
     "queued", "running", "completed", "error", "not_configured", "disabled", "blocked",
     "unsupported",  # provider can't process an attached image (no vision)
 )
-MAX_AGENTS_PER_RUN = 3
+MAX_AGENTS_PER_RUN = 7
+
+# Default role per selection position in a multi-agent run. Each of the (up to 7)
+# agents gets a distinct job; slot-level role overrides take precedence.
+DEFAULT_AGENT_ROLES = (
+    ("Main Assistant", "Understand the user's request and produce the primary answer."),
+    ("Planner", "Break the request into concrete steps and propose a plan."),
+    ("Research / Context", "Surface relevant facts, context, and data the others may miss."),
+    ("Technical / Coder", "Handle code, architecture, debugging, and implementation detail."),
+    ("Critic / Risk", "Find mistakes, risks, security issues, and weak assumptions."),
+    ("Product / UX", "Improve usability, product logic, clarity, and user experience."),
+    ("Synthesizer", "Merge everything into one polished, decisive final answer."),
+)
 
 
 class ChatGroup(UUIDPrimaryKeyMixin, TimestampMixin, Base):
