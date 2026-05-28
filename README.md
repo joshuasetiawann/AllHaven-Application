@@ -3,7 +3,7 @@
 ![AllHaven Command Center](docs/assets/banner.svg)
 
 # AllHaven Command Center
- 
+
 **A modular, local-first AI command center for personal &amp; company productivity.**
 
 _The AI acts fast, but risky writes still need human approval._
