@@ -54,3 +54,45 @@ def get_service_credentials(
     url = settings.SUPABASE_URL or ""
     key = settings.SUPABASE_SERVICE_ROLE_KEY or ""
     return (url or None, key or None)
+
+
+def create_user(
+    url: str,
+    service_role_key: str,
+    *,
+    email: str,
+    password: str,
+    full_name: Optional[str],
+) -> Optional[str]:
+    """Create a Supabase Auth user via GoTrue admin. Returns the new user id, or None.
+
+    Best-effort: never raises, never logs the key/password.
+    """
+    payload = {
+        "email": email,
+        "password": password,
+        "email_confirm": True,
+        "user_metadata": {"full_name": full_name} if full_name else {},
+    }
+    req = urllib.request.Request(
+        f"{url.rstrip('/')}/auth/v1/admin/users",
+        data=json.dumps(payload).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "apikey": service_role_key,
+            "Authorization": f"Bearer {service_role_key}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode())
+        sb_id = body.get("id")
+        return str(sb_id) if sb_id else None
+    except urllib.error.HTTPError as exc:
+        # 422 user_already_exists is non-fatal (idempotent re-provision).
+        log.debug("Supabase create_user HTTP %s", exc.code)
+        return None
+    except Exception as exc:  # pragma: no cover - network defensive
+        log.debug("Supabase create_user failed: %s", type(exc).__name__)
+        return None
