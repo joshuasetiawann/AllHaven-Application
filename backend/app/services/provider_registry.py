@@ -264,14 +264,59 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
             FieldSpec("base_url", "Base URL (optional)", placeholder="https://openrouter.ai/api/v1"),
         ),
     ),
+    ProviderSpec(
+        id="openrouter_4",
+        name="OpenRouter Agent 4",
+        provider_type="api_key",
+        purpose="OpenRouter model marketplace (slot 4)",
+        external=True,
+        api_key_required=True,
+        default_model="",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-or-…"),
+            FieldSpec("default_model", "Default model", placeholder="e.g. anthropic/claude-3.5-haiku"),
+            FieldSpec("base_url", "Base URL (optional)", placeholder="https://openrouter.ai/api/v1"),
+        ),
+    ),
+    ProviderSpec(
+        id="openrouter_5",
+        name="OpenRouter Agent 5",
+        provider_type="api_key",
+        purpose="OpenRouter model marketplace (slot 5)",
+        external=True,
+        api_key_required=True,
+        default_model="",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-or-…"),
+            FieldSpec("default_model", "Default model", placeholder="e.g. deepseek/deepseek-chat"),
+            FieldSpec("base_url", "Base URL (optional)", placeholder="https://openrouter.ai/api/v1"),
+        ),
+    ),
+    ProviderSpec(
+        id="openrouter_6",
+        name="OpenRouter Agent 6",
+        provider_type="api_key",
+        purpose="OpenRouter model marketplace (slot 6)",
+        external=True,
+        api_key_required=True,
+        default_model="",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-or-…"),
+            FieldSpec("default_model", "Default model", placeholder="e.g. qwen/qwen-2.5-72b-instruct"),
+            FieldSpec("base_url", "Base URL (optional)", placeholder="https://openrouter.ai/api/v1"),
+        ),
+    ),
 )
 
-# AI providers that share an adapter class with a base provider id (e.g. the three
+# AI providers that share an adapter class with a base provider id (e.g. the six
 # OpenRouter slots all use the OpenRouter adapter).
 ADAPTER_ALIASES = {
     "openrouter_1": "openrouter",
     "openrouter_2": "openrouter",
     "openrouter_3": "openrouter",
+    "openrouter_4": "openrouter",
+    "openrouter_5": "openrouter",
+    "openrouter_6": "openrouter",
 }
 
 _INTEGRATIONS_BY_ID = {p.id: p for p in INTEGRATIONS}
