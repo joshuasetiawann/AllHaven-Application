@@ -38,8 +38,9 @@ function newId(): string {
 // link a mutation could spin forever with no feedback. Race every user-facing write
 // against a timeout that rejects with an AbortError-shaped error (→ toApiException maps
 // it to code 'TIMEOUT', statusCode 0, so the UI shows "connection slow, try again" and
-// the button returns to idle instead of freezing). A write that actually succeeded
-// server-side is reconciled by the next poll (the atomic claim keeps it idempotent).
+// the button returns to idle instead of freezing). On a timed-out APPROVAL the proposal
+// is reset to PENDING with a "verify first" note (see supaApproveProposal) rather than
+// left mid-claim, so it is never stranded; the user re-approves after checking.
 async function withTimeout<T>(p: PromiseLike<T>, ms = 18000): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -991,12 +992,21 @@ async function supaApproveProposal(id: string): Promise<{ proposal: ToolProposal
         .eq("id", id).select(_PROPOSAL_COLS).single();
       return { proposal: (done ?? row) as ToolProposal, result: {} };
     }
-    // Genuine failure: mirror the backend — NEEDS_EDIT so it stays visible and fixable.
+    // ALWAYS move the row out of the APPROVED claim so it can never strand as a zombie
+    // (APPROVED isn't in the open list, so it would vanish from mobile AND block desktop).
+    // On a TIMEOUT the write may actually have succeeded server-side, so send it back to
+    // PENDING (a clean, retryable state) and ask the user to verify before re-approving —
+    // safer than NEEDS_EDIT, which reads as a hard error. A genuine failure → NEEDS_EDIT
+    // so the error stays visible and fixable.
+    const timedOut = ex.code === "TIMEOUT";
+    const recoverMsg = timedOut
+      ? "Koneksi lambat saat menjalankan aksi. Cek dulu apakah datanya sudah masuk (Finance/Calendar); kalau belum, approve lagi."
+      : ex.message.slice(0, 500);
     await sb.from("ai_tool_proposals").update({
-      status: "NEEDS_EDIT",
-      error_message: ex.message.slice(0, 500),
+      status: timedOut ? "PENDING" : "NEEDS_EDIT",
+      error_message: recoverMsg,
     }).eq("id", id);
-    throw ex;
+    throw timedOut ? new ApiException(recoverMsg, "TIMEOUT", 0) : ex;
   }
   const { data: updated, error: uErr } = await sb
     .from("ai_tool_proposals")
