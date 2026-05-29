@@ -21,6 +21,18 @@ import { ApiException } from "@/lib/apiRest";
 import { getSupabase, getWorkspaceId, setWorkspaceId, getAppUserId, setAppUserId } from "@/lib/supabaseClient";
 import { toApiException } from "@/lib/supabaseError";
 
+// Every write is workspace-scoped. Until the post-login bootstrap (loadMe) sets
+// the workspace + app user, an insert would send null workspace_id/created_by and
+// fail Supabase RLS with an opaque error. Surface a clear, actionable one instead.
+function requireScope(): { workspace_id: string; created_by: string } {
+  const workspace_id = getWorkspaceId();
+  const created_by = getAppUserId();
+  if (!workspace_id || !created_by) {
+    throw new ApiException("You're not signed in. Please sign in again.", "NOT_AUTHENTICATED", 401);
+  }
+  return { workspace_id, created_by };
+}
+
 async function loadMe(): Promise<Me> {
   const sb = await getSupabase();
   const { data: auth, error: ae } = await sb.auth.getUser();
@@ -129,7 +141,7 @@ export const tasksApi = {
     const sb = await getSupabase();
     const { data, error } = await sb
       .from("tasks")
-      .insert({ status: "TODO", priority: "NORMAL", ...payload, workspace_id: getWorkspaceId(), created_by: getAppUserId() })
+      .insert({ status: "TODO", priority: "NORMAL", ...payload, ...requireScope() })
       .select("id")
       .single();
     if (error) throw toApiException(error);
@@ -175,7 +187,7 @@ export const tasksApi = {
     const nextPosition = positions.length ? Math.max(...positions) + 1 : 0;
     const { error } = await sb
       .from("task_checklist_items")
-      .insert({ task_id: id, title, position: nextPosition, workspace_id: getWorkspaceId(), created_by: getAppUserId() });
+      .insert({ task_id: id, title, position: nextPosition, ...requireScope() });
     if (error) throw toApiException(error);
     return fetchTask(id);
   },
@@ -222,8 +234,7 @@ export const notesApi = {
         is_pinned: false,
         tags: [],
         ...payload,
-        created_by: getAppUserId(),
-        workspace_id: getWorkspaceId(),
+        ...requireScope(),
       })
       .select("*")
       .single();
@@ -282,8 +293,7 @@ const financeCrud = {
       .from("finance_categories")
       .insert({
         ...payload,
-        created_by: getAppUserId(),
-        workspace_id: getWorkspaceId(),
+        ...requireScope(),
       })
       .select("*")
       .single();
@@ -324,8 +334,13 @@ const financeCrud = {
       q = q.gte("transaction_date", startDate).lte("transaction_date", endDate);
     }
     q = q.order("transaction_date", { ascending: false }).order("created_at", { ascending: false });
-    if (params?.limit) q = q.limit(params.limit);
-    if (params?.offset) q = q.range(params.offset, params.offset + (params.limit ?? 100) - 1);
+    // range() already encodes offset+limit; use it for pagination, else plain
+    // limit(). Combining both double-applies the bound and drops rows.
+    if (params?.offset) {
+      q = q.range(params.offset, params.offset + (params.limit ?? 100) - 1);
+    } else if (params?.limit) {
+      q = q.limit(params.limit);
+    }
     const { data, error } = await q;
     if (error) throw toApiException(error);
     return (data ?? []) as Transaction[];
@@ -349,8 +364,7 @@ const financeCrud = {
         ...payload,
         currency,
         category_name_snapshot,
-        created_by: getAppUserId(),
-        workspace_id: getWorkspaceId(),
+        ...requireScope(),
       })
       .select("*")
       .single();
@@ -411,7 +425,7 @@ function aggregateSummary(txns: Transaction[], currency: string): {
     const amt = Number(t.amount) || 0;
     if (t.type === "INCOME") {
       total_income += amt;
-    } else {
+    } else if (t.type === "EXPENSE") {
       total_expense += amt;
     }
   }
@@ -514,8 +528,7 @@ async function calCreate(payload: Record<string, unknown>): Promise<CalendarEven
       // Caller payload wins over the above defaults:
       ...payload,
       // Stamp tenancy columns last so callers cannot override them:
-      workspace_id: getWorkspaceId(),
-      created_by: getAppUserId(),
+      ...requireScope(),
     })
     .select("*")
     .single();
@@ -581,8 +594,7 @@ export const routinesApi = {
       repeat_rule: "once",
       is_deleted: false,
       ...e,
-      workspace_id: getWorkspaceId(),
-      created_by: getAppUserId(),
+      ...requireScope(),
     }));
     const { data, error } = await sb.from("calendar_events").insert(rows).select("*");
     if (error) throw toApiException(error);
@@ -659,8 +671,7 @@ export const automationsApi = {
         // Caller payload wins:
         ...payload,
         // Tenancy columns last — cannot be overridden:
-        workspace_id: getWorkspaceId(),
-        created_by: getAppUserId(),
+        ...requireScope(),
       })
       .select("*")
       .single();
@@ -710,8 +721,7 @@ export const weatherApi = {
         // Required caller-supplied field:
         name,
         // Tenancy columns last:
-        workspace_id: getWorkspaceId(),
-        created_by: getAppUserId(),
+        ...requireScope(),
       })
       .select("*")
       .single();

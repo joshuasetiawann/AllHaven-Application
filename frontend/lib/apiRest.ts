@@ -130,8 +130,11 @@ function handleUnauthorized(status: number): void {
 }
 
 // Abort any request that stalls past this, so the UI fails fast with a clear
-// message instead of spinning forever on a slow or dropped connection.
-const REQUEST_TIMEOUT_MS = 20000;
+// message instead of spinning forever on a slow or dropped connection. Mobile
+// (bearer build) talks to Supabase for data; the REST groups it still calls
+// (AI, settings, drive, …) point at an optional backend that's often
+// unreachable from the phone — fail those fast so they don't freeze the UI.
+const REQUEST_TIMEOUT_MS = BEARER_MODE ? 6000 : 20000;
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method || "GET").toUpperCase();
