@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Toggle } from "@/components/ui/Toggle";
 import { Modal } from "@/components/ui/Modal";
+import { useAppDialog } from "@/components/ui/AppDialog";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { automationsApi, n8nApi, ApiException } from "@/lib/api";
 import { cn } from "@/lib/format";
@@ -49,6 +50,7 @@ function FlowStatus({ active, activeLabel = "Active", pausedLabel = "Paused" }: 
 }
 
 export default function AutomationsPage() {
+  const dialog = useAppDialog();
   const [automations, setAutomations] = useState<Automation[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -146,6 +148,14 @@ export default function AutomationsPage() {
   };
 
   const remove = async (a: Automation) => {
+    const ok = await dialog.confirm({
+      title: "Anda yakin ingin menghapus?",
+      message: `Hapus automation "${a.name}"?`,
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      tone: "danger",
+    });
+    if (!ok) return;
     setAutomations((prev) => prev?.filter((x) => x.id !== a.id) ?? prev);
     try {
       await automationsApi.remove(a.id);

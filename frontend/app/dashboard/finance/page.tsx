@@ -25,6 +25,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { BarChart } from "@/components/ui/BarChart";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { useToast } from "@/components/ui/Toast";
+import { useAppDialog } from "@/components/ui/AppDialog";
 import { financeApi, ApiException } from "@/lib/api";
 import { cn, formatCompactCurrency, formatCurrency, formatDate, monthLabel } from "@/lib/format";
 import type { FinanceCategory, FinanceReport, FinanceType, Transaction } from "@/types";
@@ -85,6 +86,7 @@ const isInRange = (dateValue: string, start: string, end: string) =>
 
 export default function FinancePage() {
   const toast = useToast();
+  const dialog = useAppDialog();
   const [mode, setMode] = useState<ReportMode>("month");
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const period = useMemo(() => periodFor(mode, anchorDate), [mode, anchorDate]);
@@ -240,6 +242,14 @@ export default function FinancePage() {
   };
 
   const removeTransaction = async (txn: Transaction) => {
+    const ok = await dialog.confirm({
+      title: "Anda yakin ingin menghapus?",
+      message: `Hapus transaksi "${txn.description || txn.category_name_snapshot || txn.type}"?`,
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      tone: "danger",
+    });
+    if (!ok) return;
     setTransactions((prev) => prev?.filter((t) => t.id !== txn.id) ?? prev);
     setRecentTransactions((prev) => prev.filter((t) => t.id !== txn.id));
     try {
@@ -271,6 +281,14 @@ export default function FinancePage() {
   };
 
   const removeCategory = async (category: FinanceCategory) => {
+    const ok = await dialog.confirm({
+      title: "Anda yakin ingin menghapus?",
+      message: `Hapus kategori "${category.name}"?`,
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      tone: "danger",
+    });
+    if (!ok) return;
     setCategories((prev) => prev.filter((c) => c.id !== category.id));
     try {
       await financeApi.removeCategory(category.id);
