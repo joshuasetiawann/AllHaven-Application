@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
+import { useAppDialog } from "@/components/ui/AppDialog";
 import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { isBackendUnreachable } from "@/lib/connection";
 import { driveApi, ApiException } from "@/lib/api";
@@ -49,6 +50,7 @@ function fileVisual(filename: string): { icon: typeof FileText; tile: string } {
 }
 
 export default function DrivePage() {
+  const dialog = useAppDialog();
   const [files, setFiles] = useState<DriveFile[] | null>(null);
   const [config, setConfig] = useState<DriveConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +121,14 @@ export default function DrivePage() {
   };
 
   const handleDelete = async (file: DriveFile) => {
+    const ok = await dialog.confirm({
+      title: "Anda yakin ingin menghapus?",
+      message: `Hapus file "${file.filename}"?`,
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      tone: "danger",
+    });
+    if (!ok) return;
     setActionError(null);
     setBusyId(file.id);
     setFiles((prev) => prev?.filter((f) => f.id !== file.id) ?? prev);
