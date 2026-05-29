@@ -1,9 +1,10 @@
 import type { Config } from "tailwindcss";
 
 /**
- * CoreOS design system — "Command Center" premium dark theme.
- * Near-black canvas, refined teal-cyan primary, muted-purple secondary,
- * hairline borders, restrained glass panels. Tuned to the provided screens.
+ * CoreOS design system.
+ * Tokens are derived from the Stitch "CoreOS Command Center" design:
+ * a matte "Deep Night" palette, electric-cyan primary, muted-royal secondary,
+ * 1px hairline borders, and subtle glass panels.
  */
 const config: Config = {
   content: [
@@ -14,39 +15,34 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        bg: {
-          DEFAULT: "#0A0C10", // app canvas (near-black, slight blue)
-          deep: "#070809",
-        },
+        bg: "#0B0E14", // Level 0 background (Deep Night)
         surface: {
-          DEFAULT: "#10151C", // panels
-          raised: "#161C25", // hover / raised
-          high: "#1B2330", // active nav, chips
-          input: "#0B0F15", // inputs darker than panels
+          DEFAULT: "#161B22", // Level 1 panels
+          raised: "#1C2128", // hover / raised
+          high: "#21262D",
+          input: "#0B0E14", // inputs are darker than panels
         },
         border: {
-          DEFAULT: "#1F2730", // hairline
-          strong: "#2C3744",
+          DEFAULT: "#30363D", // hairline
+          strong: "#3D444D",
         },
         primary: {
-          DEFAULT: "#18E0D6", // signature teal-cyan
-          dim: "#12C2BA",
-          bright: "#54EEE6",
-          fg: "#04201F", // text on primary
+          DEFAULT: "#00F5FF", // electric cyan
+          dim: "#00DCE5",
+          fg: "#00282B", // text on primary
         },
         secondary: {
-          DEFAULT: "#8B5CF6", // muted royal purple
-          soft: "#C4B5FD",
+          DEFAULT: "#8A2BE2", // muted royal
+          soft: "#DCB8FF",
         },
         content: {
-          DEFAULT: "#E6EAF1", // primary text
-          muted: "#8B96A7", // secondary text
-          subtle: "#5C6877", // tertiary / metadata
+          DEFAULT: "#E1E2EB", // on-surface
+          muted: "#9AA7B2", // on-surface-variant
+          subtle: "#6E7681",
         },
-        success: "#34D399",
-        warning: "#FBBF24",
-        danger: "#F87171",
-        info: "#38BDF8",
+        success: "#3FB950",
+        warning: "#D29922",
+        danger: "#F85149",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
@@ -54,38 +50,30 @@ const config: Config = {
         mono: ["Geist Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       borderRadius: {
-        sm: "0.25rem",
-        DEFAULT: "0.375rem",
-        md: "0.5rem",
-        lg: "0.625rem",
-        xl: "0.875rem",
-        "2xl": "1.125rem",
+        sm: "0.125rem",
+        DEFAULT: "0.25rem",
+        md: "0.375rem",
+        lg: "0.5rem",
+        xl: "0.75rem",
       },
       boxShadow: {
-        glow: "0 0 0 1px rgba(24,224,214,0.08), 0 10px 40px rgba(0,0,0,0.45)",
-        "glow-primary": "0 0 24px rgba(24,224,214,0.35)",
-        panel: "0 1px 0 0 rgba(255,255,255,0.02) inset, 0 12px 40px -12px rgba(0,0,0,0.6)",
+        glow: "0 0 0 1px rgba(0,245,255,0.05), 0 8px 30px rgba(0,0,0,0.35)",
+      },
+      backdropBlur: {
+        panel: "12px",
       },
       keyframes: {
         "fade-in": {
-          "0%": { opacity: "0", transform: "translateY(6px)" },
+          "0%": { opacity: "0", transform: "translateY(4px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
-        },
-        "scale-in": {
-          "0%": { opacity: "0", transform: "scale(0.97)" },
-          "100%": { opacity: "1", transform: "scale(1)" },
         },
         "pulse-soft": {
           "0%, 100%": { opacity: "1" },
-          "50%": { opacity: "0.35" },
-        },
-        shimmer: {
-          "100%": { transform: "translateX(100%)" },
+          "50%": { opacity: "0.4" },
         },
       },
       animation: {
-        "fade-in": "fade-in 0.25s ease-out",
-        "scale-in": "scale-in 0.16s ease-out",
+        "fade-in": "fade-in 0.2s ease-out",
         "pulse-soft": "pulse-soft 2s ease-in-out infinite",
       },
     },

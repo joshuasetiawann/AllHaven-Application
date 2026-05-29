@@ -1,11 +1,10 @@
 import { cn } from "@/lib/format";
 import type { IntegrationStatusValue } from "@/types";
 
-const colorByStatus: Record<string, string> = {
+const colorByStatus: Record<IntegrationStatusValue, string> = {
   connected: "bg-success",
   configured: "bg-primary",
   not_configured: "bg-content-subtle",
-  unavailable: "bg-content-subtle",
   error: "bg-danger",
 };
 
@@ -14,18 +13,16 @@ export function StatusDot({
   pulse = false,
   className,
 }: {
-  status: IntegrationStatusValue | string;
+  status: IntegrationStatusValue;
   pulse?: boolean;
   className?: string;
 }) {
-  const color = colorByStatus[status] ?? "bg-content-subtle";
-  const live = status === "connected" || status === "configured";
   return (
     <span className={cn("relative inline-flex h-2.5 w-2.5", className)}>
-      {pulse && live ? (
-        <span className={cn("absolute inline-flex h-full w-full animate-pulse-soft rounded-full opacity-60", color)} />
+      {pulse && status === "connected" ? (
+        <span className="absolute inline-flex h-full w-full animate-pulse-soft rounded-full bg-success/60" />
       ) : null}
-      <span className={cn("relative inline-flex h-2.5 w-2.5 rounded-full", color)} />
+      <span className={cn("relative inline-flex h-2.5 w-2.5 rounded-full", colorByStatus[status])} />
     </span>
   );
 }

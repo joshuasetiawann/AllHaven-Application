@@ -1,45 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ListTodo, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ListTodo, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Modal } from "@/components/ui/Modal";
-import { Tabs } from "@/components/ui/Tabs";
-import { PriorityBadge, TaskStatusLabel } from "@/components/ui/meta";
-import { ErrorState, Loading, EmptyState } from "@/components/ui/States";
+import { Loading, ErrorState, EmptyState } from "@/components/ui/States";
 import { tasksApi, ApiException } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { Task, TaskPriority, TaskStatus } from "@/types";
 
-const PRIORITIES: TaskPriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
 const STATUSES: TaskStatus[] = ["TODO", "IN_PROGRESS", "DONE"];
+const PRIORITIES: TaskPriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
 
-const priorityDot: Record<TaskPriority, string> = {
-  URGENT: "bg-danger",
-  HIGH: "bg-warning",
-  NORMAL: "bg-info",
-  LOW: "bg-content-subtle",
-};
+const selectClass =
+  "h-9 rounded-md border border-border bg-surface-input px-2 text-[13px] text-content focus:border-primary focus:outline-none";
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<string>("ALL");
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [aiBanner, setAiBanner] = useState(true);
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    priority: "NORMAL" as TaskPriority,
-    due_at: "",
-  });
+  const [form, setForm] = useState({ title: "", description: "", priority: "NORMAL" as TaskPriority, due_at: "" });
 
   const load = async () => {
     setError(null);
@@ -53,21 +39,6 @@ export default function TasksPage() {
   useEffect(() => {
     void load();
   }, []);
-
-  const counts = useMemo(() => {
-    const all = tasks ?? [];
-    return {
-      ALL: all.length,
-      TODO: all.filter((t) => t.status === "TODO").length,
-      IN_PROGRESS: all.filter((t) => t.status === "IN_PROGRESS").length,
-      DONE: all.filter((t) => t.status === "DONE").length,
-    };
-  }, [tasks]);
-
-  const filtered = useMemo(() => {
-    if (!tasks) return [];
-    return tab === "ALL" ? tasks : tasks.filter((t) => t.status === tab);
-  }, [tasks, tab]);
 
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -108,191 +79,100 @@ export default function TasksPage() {
   };
 
   return (
-    <AppShell>
-      <PageHeader
-        title="Active Commands"
-        subtitle="Manage your high-priority operational tasks."
-        actions={
-          <Button onClick={() => setOpen(true)}>
-            <Plus size={16} /> Create Task
-          </Button>
-        }
-      />
-
-      {/* Honest AI banner (no fake suggestions) */}
-      {aiBanner ? (
-        <Card className="mb-5 border-primary/20" padding="md">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
-                <Sparkles size={18} />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-content">AI scheduling assistant</p>
-                <p className="mt-0.5 text-[13px] text-content-muted">
-                  When a local model is configured, AI can propose schedules here. AI suggestions
-                  require approval — nothing is applied automatically.
-                </p>
-              </div>
-            </div>
-            <Button variant="ghost" size="sm" onClick={() => setAiBanner(false)}>
-              Dismiss
-            </Button>
-          </div>
-        </Card>
-      ) : null}
-
-      <Tabs
-        className="mb-4"
-        value={tab}
-        onChange={setTab}
-        items={[
-          { value: "ALL", label: "All Tasks", count: counts.ALL },
-          { value: "TODO", label: "Todo", count: counts.TODO },
-          { value: "IN_PROGRESS", label: "In Progress", count: counts.IN_PROGRESS },
-          { value: "DONE", label: "Done", count: counts.DONE },
-        ]}
-      />
+    <AppShell title="Tasks" subtitle="Workspace-scoped, soft-deleted, and audited">
+      <div className="mb-5 flex items-center justify-between">
+        <p className="text-[13px] text-content-muted">
+          {tasks ? `${tasks.length} task${tasks.length === 1 ? "" : "s"}` : "—"}
+        </p>
+        <Button onClick={() => setOpen(true)}>
+          <Plus size={16} /> New task
+        </Button>
+      </div>
 
       {error ? (
         <ErrorState message={error} onRetry={load} />
       ) : !tasks ? (
         <Loading />
-      ) : filtered.length === 0 ? (
+      ) : tasks.length === 0 ? (
         <EmptyState
-          title={tab === "ALL" ? "No tasks yet" : "Nothing here"}
-          description={tab === "ALL" ? "Create your first task to start tracking work." : "No tasks in this view."}
+          title="No tasks yet"
+          description="Create your first task to start tracking work."
           icon={<ListTodo size={20} />}
           action={
-            tab === "ALL" ? (
-              <Button onClick={() => setOpen(true)}>
-                <Plus size={16} /> Create Task
-              </Button>
-            ) : undefined
+            <Button onClick={() => setOpen(true)}>
+              <Plus size={16} /> New task
+            </Button>
           }
         />
       ) : (
-        <Card padding="none" className="overflow-hidden">
-          {/* Desktop table */}
-          <table className="hidden w-full md:table">
-            <thead>
-              <tr className="border-b border-border text-left">
-                {["Task Name", "Priority", "Due Date", "Status", ""].map((h) => (
-                  <th key={h} className="px-5 py-3 text-[11px] font-medium uppercase tracking-wide text-content-subtle">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((task) => (
-                <tr key={task.id} className="border-b border-border/60 last:border-0 hover:bg-surface-raised/40">
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2.5">
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${priorityDot[task.priority]}`} />
-                      <span className={task.status === "DONE" ? "text-content-subtle line-through" : "text-content"}>
-                        {task.title}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <PriorityBadge priority={task.priority} />
-                  </td>
-                  <td className="px-5 py-3.5 text-[13px] text-content-muted">{formatDate(task.due_at)}</td>
-                  <td className="px-5 py-3.5">
-                    <select
-                      value={task.status}
-                      onChange={(e) => changeStatus(task, e.target.value as TaskStatus)}
-                      className="cursor-pointer rounded-md border border-transparent bg-transparent text-[13px] text-content hover:border-border focus:border-primary/60 focus:outline-none"
-                    >
-                      {STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {s.replace("_", " ")}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => remove(task)}
-                      className="text-content-subtle transition-colors hover:text-danger"
-                      aria-label="Delete task"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Mobile cards */}
-          <ul className="divide-y divide-border md:hidden">
-            {filtered.map((task) => (
-              <li key={task.id} className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className={task.status === "DONE" ? "text-content-subtle line-through" : "text-content"}>
-                      {task.title}
-                    </p>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <PriorityBadge priority={task.priority} />
-                      <span className="text-[12px] text-content-subtle">{formatDate(task.due_at)}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => remove(task)}
-                    className="text-content-subtle hover:text-danger"
-                    aria-label="Delete task"
+        <div className="space-y-2.5">
+          {tasks.map((task) => (
+            <Card key={task.id} hover className="flex items-center justify-between gap-4 p-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p
+                    className={
+                      "truncate text-sm font-medium " +
+                      (task.status === "DONE" ? "text-content-subtle line-through" : "text-content")
+                    }
                   >
-                    <Trash2 size={15} />
-                  </button>
+                    {task.title}
+                  </p>
+                  <Badge
+                    tone={
+                      task.priority === "URGENT"
+                        ? "danger"
+                        : task.priority === "HIGH"
+                          ? "warning"
+                          : "neutral"
+                    }
+                  >
+                    {task.priority}
+                  </Badge>
                 </div>
-                <div className="mt-3">
-                  <Select value={task.status} onChange={(e) => changeStatus(task, e.target.value as TaskStatus)}>
-                    {STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s.replace("_", " ")}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      {/* Stat tiles (real counts) */}
-      {tasks && tasks.length > 0 ? (
-        <div className="mt-5 grid grid-cols-3 gap-4">
-          <Card padding="sm">
-            <p className="label-mono">Total</p>
-            <p className="mt-1 text-2xl font-semibold text-content">{counts.ALL}</p>
-          </Card>
-          <Card padding="sm">
-            <p className="label-mono">In progress</p>
-            <p className="mt-1 text-2xl font-semibold text-info">{counts.IN_PROGRESS}</p>
-          </Card>
-          <Card padding="sm">
-            <p className="label-mono">Completed</p>
-            <p className="mt-1 text-2xl font-semibold text-success">{counts.DONE}</p>
-          </Card>
+                {task.description ? (
+                  <p className="mt-1 truncate text-[13px] text-content-muted">{task.description}</p>
+                ) : null}
+                {task.due_at ? (
+                  <p className="mt-1 label-mono">Due {formatDate(task.due_at)}</p>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <select
+                  className={selectClass}
+                  value={task.status}
+                  onChange={(e) => changeStatus(task, e.target.value as TaskStatus)}
+                >
+                  {STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {status.replace("_", " ")}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => remove(task)}
+                  className="text-content-subtle transition-colors hover:text-danger"
+                  aria-label="Delete task"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </Card>
+          ))}
         </div>
-      ) : null}
+      )}
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Create task"
-        description="Add a new operational task to your workspace."
+        title="New task"
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button form="task-form" type="submit" loading={saving} disabled={!form.title.trim()}>
-              Create task
+            <Button form="task-form" type="submit" disabled={saving || !form.title.trim()}>
+              {saving ? "Saving…" : "Create task"}
             </Button>
           </>
         }
@@ -314,18 +194,20 @@ export default function TasksPage() {
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
           <div className="grid grid-cols-2 gap-3">
-            <Select
-              id="priority"
-              label="Priority"
-              value={form.priority}
-              onChange={(e) => setForm({ ...form, priority: e.target.value as TaskPriority })}
-            >
-              {PRIORITIES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </Select>
+            <div className="space-y-1.5">
+              <label className="block text-[13px] font-medium text-content-muted">Priority</label>
+              <select
+                className={selectClass + " w-full"}
+                value={form.priority}
+                onChange={(e) => setForm({ ...form, priority: e.target.value as TaskPriority })}
+              >
+                {PRIORITIES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
             <Input
               id="due_at"
               label="Due date"
