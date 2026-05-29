@@ -66,6 +66,10 @@ const config: Config = {
         "glow-primary": "0 0 24px rgba(24,224,214,0.35)",
         panel: "0 1px 0 0 rgba(255,255,255,0.02) inset, 0 12px 40px -12px rgba(0,0,0,0.6)",
       },
+      transitionTimingFunction: {
+        // Soft, premium ease-out (easeOutExpo-ish) used across micro-interactions.
+        soft: "cubic-bezier(0.16, 1, 0.3, 1)",
+      },
       keyframes: {
         "fade-in": {
           "0%": { opacity: "0", transform: "translateY(6px)" },
@@ -74,6 +78,21 @@ const config: Config = {
         "scale-in": {
           "0%": { opacity: "0", transform: "scale(0.97)" },
           "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        // Dropdown / popover entrance (anchor with origin-top).
+        pop: {
+          "0%": { opacity: "0", transform: "scale(0.96) translateY(-4px)" },
+          "100%": { opacity: "1", transform: "scale(1) translateY(0)" },
+        },
+        // Route / page content entrance.
+        "page-in": {
+          "0%": { opacity: "0", transform: "translateY(8px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        // Bottom-anchored entrance (pending-action panel, toasts).
+        "slide-up": {
+          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
         },
         "pulse-soft": {
           "0%, 100%": { opacity: "1" },
@@ -84,8 +103,11 @@ const config: Config = {
         },
       },
       animation: {
-        "fade-in": "fade-in 0.25s ease-out",
-        "scale-in": "scale-in 0.16s ease-out",
+        "fade-in": "fade-in 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+        "scale-in": "scale-in 0.16s cubic-bezier(0.16, 1, 0.3, 1)",
+        pop: "pop 0.16s cubic-bezier(0.16, 1, 0.3, 1)",
+        "page-in": "page-in 0.24s cubic-bezier(0.16, 1, 0.3, 1)",
+        "slide-up": "slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
         "pulse-soft": "pulse-soft 2s ease-in-out infinite",
       },
     },
