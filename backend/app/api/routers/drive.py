@@ -17,6 +17,13 @@ from app.services import drive_service as svc
 
 router = APIRouter(prefix="/drive", tags=["drive"])
 
+# Content types a browser could render/execute inline. We serve them as a plain
+# download (octet-stream + attachment) so an uploaded .html/.svg can't run.
+_RISKY_CONTENT_TYPES = {
+    "text/html", "application/xhtml+xml", "image/svg+xml",
+    "text/xml", "application/xml", "application/javascript", "text/javascript",
+}
+
 
 @router.get("/files")
 def list_files(
@@ -50,7 +57,9 @@ def download_file(
     db: Session = Depends(get_db),
 ) -> FileResponse:
     row, abs_path = svc.resolve_path(db, principal, file_id)
-    return FileResponse(abs_path, filename=row.filename, media_type=row.content_type)
+    # Force download and neutralize active types to prevent inline XSS.
+    media = "application/octet-stream" if row.content_type in _RISKY_CONTENT_TYPES else row.content_type
+    return FileResponse(abs_path, filename=row.filename, media_type=media, content_disposition_type="attachment")
 
 
 @router.delete("/files/{file_id}")
