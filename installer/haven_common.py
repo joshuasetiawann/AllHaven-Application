@@ -458,3 +458,91 @@ def venv_python() -> str:
     import sys
 
     return sys.executable
+
+
+# --------------------------------------------------------------------------- #
+# Launch helpers (faithful to allhaven.sh, which is the proven manual flow)
+# --------------------------------------------------------------------------- #
+
+# Managed app services bind all interfaces (matching allhaven.sh) so the app is
+# reachable at localhost AND on the LAN, and so a localhost->::1 (IPv6) lookup
+# can't miss an IPv4-only bind. The AGENT itself stays 127.0.0.1-only.
+APP_BIND_HOST = "0.0.0.0"
+
+
+def enriched_env() -> dict:
+    """``os.environ`` with PATH augmented for GUI launches.
+
+    Double-clicked launchers often start with a minimal PATH, so node/npm/docker
+    aren't found even though they work in a terminal. Prepend the backend venv bin
+    and append the usual tool locations.
+    """
+    env = dict(os.environ)
+    extra_back = [
+        "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin",
+        "/opt/homebrew/bin", "/opt/homebrew/sbin", "/snap/bin",
+        str(Path.home() / ".local" / "bin"),
+    ]
+    venv_bin = repo_root() / "backend" / ".venv" / ("Scripts" if detect_os() == "windows" else "bin")
+    parts = (env.get("PATH", "") or "").split(os.pathsep)
+    parts = [p for p in parts if p]
+    if venv_bin.exists() and str(venv_bin) not in parts:
+        parts.insert(0, str(venv_bin))
+    for p in extra_back:
+        if p not in parts:
+            parts.append(p)
+    env["PATH"] = os.pathsep.join(parts)
+    return env
+
+
+def ensure_env_files() -> dict:
+    """Create ``frontend/.env.local`` from its example if missing (Next.js reads it
+    for the API base URL). The backend reads the repo-root ``.env`` directly via an
+    absolute path, so no per-folder copy is needed (and copying would risk staleness).
+
+    Returns ``{"created": [...]}`` — file names only, never any values.
+    """
+    created: list[str] = []
+    root = repo_root()
+    fe_local = root / "frontend" / ".env.local"
+    fe_example = root / "frontend" / ".env.local.example"
+    if not fe_local.exists() and fe_example.exists():
+        fe_local.write_text(fe_example.read_text(encoding="utf-8"), encoding="utf-8")
+        created.append("frontend/.env.local")
+    return {"created": created}
+
+
+def backend_setup_ok() -> bool:
+    venv = repo_root() / "backend" / ".venv"
+    return (venv / "bin" / "python").exists() or (venv / "Scripts" / "python.exe").exists()
+
+
+def frontend_setup_ok() -> bool:
+    return (repo_root() / "frontend" / "node_modules").is_dir()
+
+
+def wait_for_port(port: int, host: str = "127.0.0.1", timeout: float = 60.0) -> bool:
+    import time
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if port_in_use(port, host):
+            return True
+        time.sleep(1.0)
+    return False
+
+
+def wait_for_http(url: str, timeout: float = 60.0) -> bool:
+    import time
+    import urllib.request
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=3) as r:  # noqa: S310 (localhost)
+                if 200 <= r.status < 500:
+                    return True
+        except OSError:
+            pass
+        time.sleep(1.0)
+    return False
