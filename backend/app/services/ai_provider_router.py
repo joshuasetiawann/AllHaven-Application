@@ -263,7 +263,7 @@ def set_enabled(db: Session, principal: Principal, provider_id: str, enabled: bo
 
 
 def resolve_default_provider(db: Session, principal: Principal) -> str:
-    default = settings.AI_DEFAULT_PROVIDER or "ollama"
+    default = ai_policy_service.default_provider(db, principal)
     return default if get_ai_provider_spec(default) else "ollama"
 
 
