@@ -25,6 +25,7 @@ from app.services import ai_policy_service
 from app.services import config_common as cc
 from app.services.ai_providers.anthropic_provider import AnthropicProvider
 from app.services.ai_providers.base import AIProvider
+from app.services.ai_providers.blackbox_provider import BlackboxProvider
 from app.services.ai_providers.gemini_provider import GeminiProvider
 from app.services.ai_providers.grok_provider import GrokProvider
 from app.services.ai_providers.ollama_provider import OllamaProvider
@@ -40,6 +41,7 @@ ADAPTERS: dict[str, AIProvider] = {
     "anthropic": AnthropicProvider(),
     "gemini": GeminiProvider(),
     "grok": GrokProvider(),
+    "blackbox": BlackboxProvider(),
     "openrouter": OpenRouterProvider(),
 }
 
@@ -54,6 +56,7 @@ def _env_public(spec: ProviderSpec) -> dict:
         "anthropic": {"default_model": settings.ANTHROPIC_DEFAULT_MODEL},
         "gemini": {"default_model": settings.GEMINI_DEFAULT_MODEL},
         "grok": {"default_model": settings.GROK_DEFAULT_MODEL},
+        "blackbox": {"default_model": settings.BLACKBOX_DEFAULT_MODEL},
         "openrouter": {"default_model": settings.OPENROUTER_DEFAULT_MODEL},
     }
     return {k: v for k, v in mapping.get(spec.id, {}).items() if is_configured_value(v)}
@@ -65,6 +68,7 @@ def _env_secrets(spec: ProviderSpec) -> dict:
         "anthropic": {"api_key": settings.ANTHROPIC_API_KEY},
         "gemini": {"api_key": settings.GEMINI_API_KEY},
         "grok": {"api_key": settings.GROK_API_KEY},
+        "blackbox": {"api_key": settings.BLACKBOX_API_KEY},
         "openrouter": {"api_key": settings.OPENROUTER_API_KEY},
     }
     return {k: v for k, v in mapping.get(spec.id, {}).items() if is_configured_value(v)}

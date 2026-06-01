@@ -33,6 +33,7 @@ GROUP_BY_TYPE = {
     "auth_storage": "auth_storage",
     "calendar": "calendar",
     "weather": "weather",
+    "storage": "storage",
 }
 
 
@@ -153,6 +154,13 @@ def _verify(db: Session, spec: ProviderSpec, public: dict, secrets: dict) -> tup
         if public.get("client_id") and public.get("redirect_uri"):
             return "configured", "OAuth verification not implemented in MVP"
         return "error", "client_id and redirect_uri are required"
+
+    if pid == "drive_storage":
+        # Local storage is available; file-upload wiring is not enabled yet.
+        provider = (public.get("provider") or "local").lower()
+        if provider == "local":
+            return "configured", "Local storage selected; file upload wiring not enabled yet"
+        return "configured", "Configured; verification not implemented for this provider"
 
     if pid == "weather_api":
         key = secrets.get("api_key") or ""
