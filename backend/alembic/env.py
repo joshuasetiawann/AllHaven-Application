@@ -18,7 +18,13 @@ import app.domain  # noqa: F401
 from app.domain.base import Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Alembic stores options via configparser, whose interpolation treats `%` as a
+# special character — a URL-encoded password (e.g. `%40` for `@`, common in
+# Supabase connection strings) would raise "invalid interpolation syntax". Escape
+# `%` -> `%%` for storage; the migrations connect using settings.DATABASE_URL
+# directly (run_migrations_offline/online below), where SQLAlchemy percent-decodes
+# it. No-op for URLs without `%` (the local default).
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
