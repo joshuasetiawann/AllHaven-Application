@@ -29,7 +29,6 @@ import { DesktopBridgePanel } from "@/components/settings/DesktopBridgePanel";
 import { BackendBridgeCard } from "@/components/settings/BackendBridgeCard";
 import { APP_VERSION } from "@/components/layout/nav";
 import { SetupRequiredState } from "@/components/SetupRequiredState";
-import { isBackendUnreachable } from "@/lib/connection";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toggle } from "@/components/ui/Toggle";
@@ -93,7 +92,10 @@ export default function SettingsPage() {
   const [integrations, setIntegrations] = useState<Integration[] | null>(null);
   const [providers, setProviders] = useState<AiProvider[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [setupNeeded, setSetupNeeded] = useState(false);
+  // First load attempt finished (success OR degraded). The page renders its tabs once
+  // this is true; backend-dependent tabs show a per-tab connect-state if their data is
+  // null, so a down Backend Bridge never blanks the whole Settings page.
+  const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("tools");
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [configuring, setConfiguring] = useState<Integration | null>(null);
@@ -156,31 +158,29 @@ export default function SettingsPage() {
 
   const load = async () => {
     setError(null);
-    setSetupNeeded(false);
-    try {
-      const [meRes, integrationsRes, providersRes, policyRes] = await Promise.all([
-        authApi.me().catch(() => null),
-        settingsApi.integrations(),
-        aiApi.listProviders(),
-        aiApi.getPolicy().catch(() => null),
-      ]);
-      if (policyRes) {
-        setAllowExternal(policyRes.allow_external);
-        setDefaultProvider(policyRes.default_provider);
-      }
-      if (meRes) {
-        setProfileForm({
-          full_name: meRes.user.full_name ?? "",
-          workspace_name: meRes.workspace.name ?? "",
-        });
-      }
-      setMe(meRes);
-      setIntegrations(integrationsRes.integrations);
-      setProviders(providersRes.providers);
-    } catch (err) {
-      if (isBackendUnreachable(err)) setSetupNeeded(true);
-      else setError(err instanceof Error ? err.message : "Failed to load settings.");
+    // Each call degrades to null on its own instead of one failure rejecting the whole
+    // batch — so a down Backend Bridge leaves Appearance (device-local) and the
+    // reconnect card usable rather than blanking the page (Promise.all → allSettled-ish).
+    const [meRes, integrationsRes, providersRes, policyRes] = await Promise.all([
+      authApi.me().catch(() => null),
+      settingsApi.integrations().catch(() => null),
+      aiApi.listProviders().catch(() => null),
+      aiApi.getPolicy().catch(() => null),
+    ]);
+    if (policyRes) {
+      setAllowExternal(policyRes.allow_external);
+      setDefaultProvider(policyRes.default_provider);
     }
+    if (meRes) {
+      setProfileForm({
+        full_name: meRes.user.full_name ?? "",
+        workspace_name: meRes.workspace.name ?? "",
+      });
+    }
+    setMe(meRes);
+    setIntegrations(integrationsRes?.integrations ?? null);
+    setProviders(providersRes?.providers ?? null);
+    setLoaded(true);
   };
 
   useEffect(() => {
@@ -259,21 +259,13 @@ export default function SettingsPage() {
         </div>
       ) : null}
 
-      {setupNeeded ? (
-        // Backend unreachable: this is exactly when the user needs to fix the
-        // connection, so surface the Backend Bridge config above the setup state.
-        <>
-          <BackendBridgeCard onConnected={load} />
-          <SetupRequiredState
-            feature="Settings & Integrations"
-            needs="backend"
-            reason="Integrations and AI-provider settings live on the backend (secrets stay server-side). Connect to the backend to configure them."
-            onRetry={load}
-          />
-        </>
-      ) : error ? (
-        <ErrorState message={error} onRetry={load} />
-      ) : !integrations || !providers ? (
+      {error ? (
+        <div className="mb-4">
+          <ErrorState message={error} onRetry={() => { setError(null); void load(); }} />
+        </div>
+      ) : null}
+
+      {!loaded ? (
         <Loading />
       ) : (
         <div key={tab} className="animate-fade-in">
@@ -281,24 +273,34 @@ export default function SettingsPage() {
             <>
               <BackendBridgeCard onConnected={load} />
               <DesktopBridgePanel />
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {integrations.map((integration) => (
-                  <IntegrationCard
-                    key={integration.key}
-                    integration={integration}
-                    icon={(() => {
-                      const Icon = INTEGRATION_ICONS[integration.key] ?? Plug;
-                      return <Icon size={18} />;
-                    })()}
-                    onConfigure={() => setConfiguring(integration)}
-                    onChange={updateIntegration}
-                  />
-                ))}
-              </div>
+              {integrations ? (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {integrations.map((integration) => (
+                    <IntegrationCard
+                      key={integration.key}
+                      integration={integration}
+                      icon={(() => {
+                        const Icon = INTEGRATION_ICONS[integration.key] ?? Plug;
+                        return <Icon size={18} />;
+                      })()}
+                      onConfigure={() => setConfiguring(integration)}
+                      onChange={updateIntegration}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <SetupRequiredState
+                  feature="Connected Tools"
+                  needs="backend"
+                  reason="Integrations live on the backend (secrets stay server-side). Connect via the Backend Bridge above to configure them — Appearance settings work without it."
+                  onRetry={load}
+                />
+              )}
             </>
           ) : null}
 
           {tab === "ai" ? (
+            providers ? (
             <>
               <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Card className="py-3">
@@ -411,6 +413,17 @@ export default function SettingsPage() {
                 </div>
               </section>
             </>
+            ) : (
+              <>
+                <BackendBridgeCard onConnected={load} />
+                <SetupRequiredState
+                  feature="AI Providers"
+                  needs="backend"
+                  reason="AI-provider configuration lives on the backend. Connect via the Backend Bridge to manage providers — Appearance settings work without it."
+                  onRetry={load}
+                />
+              </>
+            )
           ) : null}
 
           {tab === "ai-tools" ? <AiToolsPanel /> : null}
@@ -576,9 +589,9 @@ export default function SettingsPage() {
               </Card>
 
               <GoogleOAuthCard
-                google={integrations.find((i) => i.key === "google")}
+                google={integrations?.find((i) => i.key === "google")}
                 onConfigure={() => {
-                  const g = integrations.find((i) => i.key === "google");
+                  const g = integrations?.find((i) => i.key === "google");
                   if (g) setConfiguring(g);
                 }}
                 onChange={updateIntegration}
