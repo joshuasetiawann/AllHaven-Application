@@ -11,6 +11,27 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [3.0.0] - 2026-06-13 — AllHaven 3.0 launch-ready AI workspace
+
+Detailed notes: [`docs/releases/v3.0.0.md`](docs/releases/v3.0.0.md)
+
+A launch-focused AllHaven 3.0 release: app-wide layout refinement, stronger AI
+Knowledge access, user preferences, and in-app decision popups.
+
+### Changed
+- **Sidebar polish.** Clear Workspace/Modules hierarchy, stronger active states, icon wells, refined badges, a premium New Command button, and a cleaner profile/footer area.
+- **Top navigation polish.** Search, local AI status, settings, avatar, and approval notifications now share the same compact visual language.
+- **Command palette polish.** The search overlay now matches the topbar/sidebar style, with clearer active rows and icon treatment.
+- **Shared UI polish.** Cards, buttons, icon buttons, inputs, panel shadows, hover states, and page headers now have more consistent spacing, radius, borders, and focus behavior.
+- **Dashboard polish.** The dashboard now opens with a tighter workspace summary, quick links to Approvals and AI Chat, cleaner stat tiles, and better responsive grid behavior.
+- **AI Knowledge availability.** Every chat mode/model now receives a light AI Knowledge inventory and can retrieve relevant indexed chunks, including Fast mode.
+- **User preferences.** Settings now exposes language, dark/light theme, and accent color controls that apply across the app shell and AI response instructions.
+- **In-app decision popups.** Browser `alert`/`confirm`/`prompt` calls for chat, memory, knowledge, and alarms are replaced with AllHaven modals/toasts.
+
+### Fixed
+- Synchronized version metadata across `VERSION`, root package, frontend package/lockfile, backend package metadata, and the in-app `APP_VERSION`.
+- Local date/time answers now respect the selected language when they bypass an AI provider.
+
 ## [0.17.0] - 2026-06-13 — AI Workspace, Knowledge, finance reports & direct memory
 
 Detailed notes: [`docs/releases/v0.17.0.md`](docs/releases/v0.17.0.md)

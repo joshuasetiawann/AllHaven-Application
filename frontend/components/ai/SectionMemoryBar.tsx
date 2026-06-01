@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Brain, Check, ChevronDown, Eraser, FolderGit2, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { useAppDialog } from "@/components/ui/AppDialog";
 import { SECTIONS, projectSectionKey, resolveSection } from "@/lib/sections";
 import {
   clearAllMemories,
@@ -31,6 +32,7 @@ export function SectionMemoryBar({
   onMemoryChange?: () => void;
   groups?: ChatGroup[];
 }) {
+  const dialog = useAppDialog();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [version, setVersion] = useState(0); // bump to re-read memory after edits
@@ -86,8 +88,14 @@ export function SectionMemoryBar({
     notify();
   };
 
-  const clearAll = () => {
-    if (!window.confirm("Clear ALL locally saved section memory? This cannot be undone.")) return;
+  const clearAll = async () => {
+    const ok = await dialog.confirm({
+      title: "Clear all local section memory?",
+      message: "This removes all locally saved section memory on this device. This cannot be undone.",
+      confirmLabel: "Clear all",
+      tone: "danger",
+    });
+    if (!ok) return;
     clearAllMemories();
     notify();
     setEditOpen(false);
