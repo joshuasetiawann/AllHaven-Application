@@ -152,3 +152,35 @@ def test_policy_sets_default_provider(auth_client):
     resp = auth_client.post(f"{API}/ai/chat", json={"message": "hi"})
     data = resp.json()["data"]
     assert data["provider_id"] == "anthropic"
+
+
+def test_network_block_is_unavailable_not_key_rejected():
+    # An egress/allowlist proxy block must be reported honestly as "unavailable",
+    # never as a provider auth rejection.
+    from app.services.ai_providers.base import interpret_http, network_error_message
+
+    res = interpret_http(403, "NETWORK_POLICY_BLOCK: Host not in allowlist")
+    assert res.status == "unavailable"
+    assert "network policy" in res.message.lower()
+    # A genuine 403 from the provider is still an error (key rejected).
+    assert interpret_http(403, "").status == "error"
+    # Chat-path message is honest about the network restriction.
+    msg = network_error_message("NETWORK_POLICY_BLOCK: Host not in allowlist")
+    assert "network policy" in msg.lower() and "api key" not in msg.lower().split("not your ")[0]
+
+
+def test_provider_test_reports_network_block(auth_client, monkeypatch):
+    import app.services.ai_providers.base as base
+
+    monkeypatch.setattr(
+        base, "safe_request",
+        lambda *a, **k: (403, None, "NETWORK_POLICY_BLOCK: Host not in allowlist"),
+    )
+    auth_client.put(
+        f"{API}/ai/providers/openai",
+        json={"secrets": {"api_key": "sk-real-looking-1"}, "enabled": True},
+    )
+    resp = auth_client.post(f"{API}/ai/providers/openai/test")
+    data = resp.json()["data"]
+    assert data["status"] == "unavailable"
+    assert "network policy" in (data["last_error"] or "").lower()
