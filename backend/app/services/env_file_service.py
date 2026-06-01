@@ -33,18 +33,13 @@ ALLOWED_ENV_KEYS = {
     "GEMINI_API_KEY", "GEMINI_DEFAULT_MODEL",
     "GROK_API_KEY", "GROK_DEFAULT_MODEL",
     "BLACKBOX_API_KEY", "BLACKBOX_DEFAULT_MODEL",
-    "CURSOR_API_KEY", "CURSOR_DEFAULT_MODEL", "CURSOR_BASE_URL",
-    "DEEPSEEK_API_KEY", "DEEPSEEK_DEFAULT_MODEL",
-    "QWEN_API_KEY", "QWEN_DEFAULT_MODEL",
     "OPENROUTER_1_API_KEY", "OPENROUTER_1_DEFAULT_MODEL",
     "OPENROUTER_2_API_KEY", "OPENROUTER_2_DEFAULT_MODEL",
     "OPENROUTER_3_API_KEY", "OPENROUTER_3_DEFAULT_MODEL",
-    "OPENROUTER_4_API_KEY", "OPENROUTER_4_DEFAULT_MODEL",
-    "OPENROUTER_5_API_KEY", "OPENROUTER_5_DEFAULT_MODEL",
-    "OPENROUTER_6_API_KEY", "OPENROUTER_6_DEFAULT_MODEL",
     "N8N_BASE_URL", "N8N_API_KEY",
-    "SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_URL", "SUPABASE_ANON_KEY",
     "GOOGLE_CALENDAR_CLIENT_ID", "GOOGLE_CALENDAR_CLIENT_SECRET", "GOOGLE_CALENDAR_REDIRECT_URI",
+    "WEATHER_API_KEY", "WEATHER_PROVIDER",
     "DRIVE_STORAGE_PROVIDER",
     "AI_DEFAULT_PROVIDER", "AI_ALLOW_EXTERNAL_PROVIDERS", "AI_DEFAULT_PRIVACY_MODE",
 }
@@ -134,10 +129,7 @@ def sync_env(updates: Dict[str, str]) -> dict:
 _AI_PREFIX = {
     "openai": "OPENAI", "anthropic": "ANTHROPIC", "gemini": "GEMINI",
     "grok": "GROK", "blackbox": "BLACKBOX",
-    "cursor": "CURSOR",
-    "deepseek": "DEEPSEEK", "qwen": "QWEN",
     "openrouter_1": "OPENROUTER_1", "openrouter_2": "OPENROUTER_2", "openrouter_3": "OPENROUTER_3",
-    "openrouter_4": "OPENROUTER_4", "openrouter_5": "OPENROUTER_5", "openrouter_6": "OPENROUTER_6",
 }
 
 
@@ -157,23 +149,18 @@ def map_ai_provider_updates(provider_id: str, public: dict, secrets: dict) -> Di
         out[f"{prefix}_API_KEY"] = secrets.get("api_key", "")
     if "default_model" in public:
         out[f"{prefix}_DEFAULT_MODEL"] = public.get("default_model", "")
-    if provider_id == "cursor" and "base_url" in public:
-        out["CURSOR_BASE_URL"] = public.get("base_url", "")
     return out
 
 
 _INTEGRATION_MAP = {
     "n8n": {"base_url": "N8N_BASE_URL", "api_key": "N8N_API_KEY"},
-    "supabase": {
-        "url": "SUPABASE_URL",
-        "anon_key": "SUPABASE_ANON_KEY",
-        "service_role_key": "SUPABASE_SERVICE_ROLE_KEY",
-    },
+    "supabase": {"url": "SUPABASE_URL", "anon_key": "SUPABASE_ANON_KEY"},
     "google_calendar": {
         "client_id": "GOOGLE_CALENDAR_CLIENT_ID",
         "client_secret": "GOOGLE_CALENDAR_CLIENT_SECRET",
         "redirect_uri": "GOOGLE_CALENDAR_REDIRECT_URI",
     },
+    "weather_api": {"api_key": "WEATHER_API_KEY", "provider": "WEATHER_PROVIDER"},
     "drive_storage": {"provider": "DRIVE_STORAGE_PROVIDER"},
     "ollama": {"base_url": "OLLAMA_BASE_URL", "default_model": "OLLAMA_DEFAULT_MODEL"},
 }

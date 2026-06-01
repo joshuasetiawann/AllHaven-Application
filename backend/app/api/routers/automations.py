@@ -13,7 +13,6 @@ from app.core.principal import Principal
 from app.core.responses import success_response
 from app.schemas.automations import AutomationCreate, AutomationOut, AutomationUpdate
 from app.services import automation_service as svc
-from app.services.local_first_sync import sync_after_write
 
 router = APIRouter(prefix="/automations", tags=["automations"])
 
@@ -34,7 +33,6 @@ def create_automation(
     db: Session = Depends(get_db),
 ) -> dict:
     row = svc.create_automation(db, principal, payload.model_dump())
-    sync_after_write(db, principal)
     return success_response(AutomationOut.model_validate(row), "Automation created")
 
 
@@ -46,7 +44,6 @@ def update_automation(
     db: Session = Depends(get_db),
 ) -> dict:
     row = svc.update_automation(db, principal, automation_id, payload.model_dump(exclude_unset=True))
-    sync_after_write(db, principal)
     return success_response(AutomationOut.model_validate(row), "Automation updated")
 
 
@@ -57,5 +54,4 @@ def delete_automation(
     db: Session = Depends(get_db),
 ) -> dict:
     svc.delete_automation(db, principal, automation_id)
-    sync_after_write(db, principal)
     return success_response({"id": str(automation_id)}, "Automation deleted")

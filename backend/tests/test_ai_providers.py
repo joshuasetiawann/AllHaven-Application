@@ -8,8 +8,12 @@ from tests.conftest import API
 def test_provider_list_has_five_apis_plus_ollama(auth_client):
     data = auth_client.get(f"{API}/ai/providers").json()["data"]["providers"]
     ids = {p["id"] for p in data}
-    assert {"openai", "anthropic", "gemini", "grok", "openrouter", "ollama"}.issubset(ids)
-    assert len(data) == 6
+    # Five single external providers + three OpenRouter slots + local Ollama.
+    assert {
+        "openai", "anthropic", "gemini", "grok", "blackbox",
+        "openrouter_1", "openrouter_2", "openrouter_3", "ollama",
+    }.issubset(ids)
+    assert len(data) == 9
     ollama = next(p for p in data if p["id"] == "ollama")
     assert ollama["external"] is False
     assert ollama["api_key_required"] is False
@@ -111,10 +115,10 @@ def test_random_key_does_not_become_online_openrouter(auth_client, monkeypatch):
 
     monkeypatch.setattr(orp, "safe_request", lambda *a, **k: (401, {"error": "no auth"}, ""))
     auth_client.put(
-        f"{API}/ai/providers/openrouter",
+        f"{API}/ai/providers/openrouter_1",
         json={"secrets": {"api_key": "sk-or-random"}, "enabled": True},
     )
-    resp = auth_client.post(f"{API}/ai/providers/openrouter/test")
+    resp = auth_client.post(f"{API}/ai/providers/openrouter_1/test")
     assert resp.json()["data"]["status"] == "error"
 
 
@@ -123,10 +127,10 @@ def test_openrouter_valid_key_online_when_mocked(auth_client, monkeypatch):
 
     monkeypatch.setattr(orp, "safe_request", lambda *a, **k: (200, {"data": {}}, ""))
     auth_client.put(
-        f"{API}/ai/providers/openrouter",
+        f"{API}/ai/providers/openrouter_1",
         json={"secrets": {"api_key": "sk-or-valid"}, "enabled": True},
     )
-    resp = auth_client.post(f"{API}/ai/providers/openrouter/test")
+    resp = auth_client.post(f"{API}/ai/providers/openrouter_1/test")
     assert resp.json()["data"]["status"] == "online"
 
 
