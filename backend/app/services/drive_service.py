@@ -22,7 +22,7 @@ from app.core.exceptions import NotFoundError, ValidationAppError
 from app.core.principal import Principal
 from app.domain.files import DriveFile
 
-MAX_FILE_BYTES = max(1, int(settings.DRIVE_MAX_UPLOAD_MB)) * 1024 * 1024
+MAX_FILE_BYTES = 25 * 1024 * 1024  # 25 MB MVP cap
 
 
 def _storage_root() -> Path:
@@ -60,19 +60,11 @@ def _get(db: Session, principal: Principal, file_id: uuid.UUID) -> DriveFile:
     return row
 
 
-def upload_limit_bytes() -> int:
-    return int(MAX_FILE_BYTES)
-
-
-def upload_limit_mb() -> int:
-    return max(1, int(upload_limit_bytes() / (1024 * 1024)))
-
-
 def save_file(db: Session, principal: Principal, *, filename: str, content_type: str, data: bytes) -> DriveFile:
     if not data:
         raise ValidationAppError("Uploaded file is empty.")
-    if len(data) > upload_limit_bytes():
-        raise ValidationAppError(f"File exceeds the configured {upload_limit_mb()} MB limit.")
+    if len(data) > MAX_FILE_BYTES:
+        raise ValidationAppError("File exceeds the 25 MB limit.")
 
     root = _storage_root()
     ws_dir = (root / str(principal.workspace_id)).resolve()

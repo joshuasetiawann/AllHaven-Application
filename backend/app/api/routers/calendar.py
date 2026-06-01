@@ -15,7 +15,6 @@ from app.core.principal import Principal
 from app.core.responses import success_response
 from app.schemas.calendar import CalendarEventCreate, CalendarEventOut, CalendarEventUpdate
 from app.services import calendar_service as svc
-from app.services.local_first_sync import sync_after_write
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
 
@@ -38,7 +37,6 @@ def create_event(
     db: Session = Depends(get_db),
 ) -> dict:
     event = svc.create_event(db, principal, payload.model_dump())
-    sync_after_write(db, principal)
     return success_response(CalendarEventOut.model_validate(event), "Event created")
 
 
@@ -50,7 +48,6 @@ def update_event(
     db: Session = Depends(get_db),
 ) -> dict:
     event = svc.update_event(db, principal, event_id, payload.model_dump(exclude_unset=True))
-    sync_after_write(db, principal)
     return success_response(CalendarEventOut.model_validate(event), "Event updated")
 
 
@@ -61,5 +58,4 @@ def delete_event(
     db: Session = Depends(get_db),
 ) -> dict:
     svc.delete_event(db, principal, event_id)
-    sync_after_write(db, principal)
     return success_response({"id": str(event_id)}, "Event deleted")

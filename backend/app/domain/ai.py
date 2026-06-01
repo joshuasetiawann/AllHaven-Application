@@ -10,13 +10,21 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, Text, func
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.domain.base import GUID, Base, JSONType, TimestampMixin, UUIDPrimaryKeyMixin
+from app.domain.base import GUID, Base, JSONType, StringArray, TimestampMixin, UUIDPrimaryKeyMixin
 
 PROPOSAL_STATUSES = ("PENDING", "REJECTED", "EXPIRED")
 RISK_LEVELS = ("LOW", "MEDIUM", "HIGH")
+
+# Multi-agent run statuses (the run aggregates per-agent results).
+MULTI_RUN_STATUSES = ("running", "completed", "partial", "error", "empty")
+# Per-agent response statuses (honest: blocked/not_configured/disabled are real).
+AGENT_RESPONSE_STATUSES = (
+    "queued", "running", "completed", "error", "not_configured", "disabled", "blocked",
+)
+MAX_AGENTS_PER_RUN = 3
 
 
 class ChatSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -37,6 +45,38 @@ class ChatMessage(UUIDPrimaryKeyMixin, Base):
     # Column name is "metadata" but the attribute is "meta" ("metadata" is reserved
     # by SQLAlchemy's declarative API).
     meta: Mapped[dict | None] = mapped_column("metadata", JSONType, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class AiMultiAgentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A single user message fanned out to up to 3 AI agents concurrently."""
+
+    __tablename__ = "ai_multi_agent_runs"
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
+    session_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
+    user_message_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    provider_ids: Mapped[list[str]] = mapped_column(StringArray, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
+    created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
+
+
+class AiAgentResponse(UUIDPrimaryKeyMixin, Base):
+    """One agent's result within a multi-agent run. A failure here is isolated."""
+
+    __tablename__ = "ai_agent_responses"
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
+    run_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
+    provider_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    provider_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    meta: Mapped[dict | None] = mapped_column("metadata", JSONType, nullable=True, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

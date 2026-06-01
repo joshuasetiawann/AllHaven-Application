@@ -204,10 +204,26 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
         ),
     ),
     ProviderSpec(
-        id="openrouter",
-        name="OpenRouter Agent",
+        id="blackbox",
+        name="Blackbox Agent",
         provider_type="api_key",
-        purpose="OpenRouter model marketplace",
+        purpose="Blackbox AI models",
+        external=True,
+        api_key_required=True,
+        default_model="blackbox-default",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True),
+            FieldSpec("default_model", "Default model", placeholder="blackbox-default"),
+            FieldSpec("base_url", "Base URL (optional)", placeholder="https://api.blackbox.ai/v1"),
+        ),
+    ),
+    # Three independent OpenRouter agents, each with its own key + default model,
+    # so users can run several OpenRouter-backed models side by side.
+    ProviderSpec(
+        id="openrouter_1",
+        name="OpenRouter Agent 1",
+        provider_type="api_key",
+        purpose="OpenRouter model marketplace (slot 1)",
         external=True,
         api_key_required=True,
         default_model="openai/gpt-4.1-mini",
@@ -216,7 +232,41 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
             FieldSpec("default_model", "Default model", placeholder="openai/gpt-4.1-mini"),
         ),
     ),
+    ProviderSpec(
+        id="openrouter_2",
+        name="OpenRouter Agent 2",
+        provider_type="api_key",
+        purpose="OpenRouter model marketplace (slot 2)",
+        external=True,
+        api_key_required=True,
+        default_model="anthropic/claude-sonnet-4",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-or-…"),
+            FieldSpec("default_model", "Default model", placeholder="anthropic/claude-sonnet-4"),
+        ),
+    ),
+    ProviderSpec(
+        id="openrouter_3",
+        name="OpenRouter Agent 3",
+        provider_type="api_key",
+        purpose="OpenRouter model marketplace (slot 3)",
+        external=True,
+        api_key_required=True,
+        default_model="google/gemini-2.0-flash",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-or-…"),
+            FieldSpec("default_model", "Default model", placeholder="google/gemini-2.0-flash"),
+        ),
+    ),
 )
+
+# AI providers that share an adapter class with a base provider id (e.g. the three
+# OpenRouter slots all use the OpenRouter adapter).
+ADAPTER_ALIASES = {
+    "openrouter_1": "openrouter",
+    "openrouter_2": "openrouter",
+    "openrouter_3": "openrouter",
+}
 
 _INTEGRATIONS_BY_ID = {p.id: p for p in INTEGRATIONS}
 _AI_PROVIDERS_BY_ID = {p.id: p for p in AI_PROVIDERS}

@@ -60,10 +60,20 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = ""
     OLLAMA_DEFAULT_MODEL: str = ""
     N8N_BASE_URL: str = ""
+    N8N_API_KEY: str = ""
     SUPABASE_URL: str = ""
     SUPABASE_ANON_KEY: str = ""
     GOOGLE_CALENDAR_CLIENT_ID: str = ""
+    GOOGLE_CALENDAR_CLIENT_SECRET: str = ""
+    GOOGLE_CALENDAR_REDIRECT_URI: str = ""
     WEATHER_API_KEY: str = ""
+    WEATHER_PROVIDER: str = ""
+    DRIVE_STORAGE_PROVIDER: str = ""
+    # Local Drive storage root for uploaded file bytes (metadata lives in the DB).
+    DRIVE_STORAGE_DIR: str = ""
+    # Override the .env mirror path (tests point this at a temp file so the real
+    # repo .env is never touched).
+    ENV_SYNC_PATH: str = ""
 
     # --- Google OAuth foundation (login + scoped API access) ---
     GOOGLE_CLIENT_ID: str = ""
@@ -87,8 +97,33 @@ class Settings(BaseSettings):
     GEMINI_DEFAULT_MODEL: str = ""
     GROK_API_KEY: str = ""
     GROK_DEFAULT_MODEL: str = ""
+    BLACKBOX_API_KEY: str = ""
+    BLACKBOX_DEFAULT_MODEL: str = ""
+    # Legacy single OpenRouter key (kept for backward compatibility).
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_DEFAULT_MODEL: str = ""
+    # Three independent OpenRouter agent slots.
+    OPENROUTER_1_API_KEY: str = ""
+    OPENROUTER_1_DEFAULT_MODEL: str = ""
+    OPENROUTER_2_API_KEY: str = ""
+    OPENROUTER_2_DEFAULT_MODEL: str = ""
+    OPENROUTER_3_API_KEY: str = ""
+    OPENROUTER_3_DEFAULT_MODEL: str = ""
+
+    @property
+    def drive_storage_path(self) -> str:
+        """Absolute Drive storage root (defaults to <repo>/var/drive)."""
+        return self.DRIVE_STORAGE_DIR or str(_REPO_ROOT / "var" / "drive")
+
+    @property
+    def env_file_path(self) -> str:
+        """Absolute path of the .env that web Settings may mirror to."""
+        return self.ENV_SYNC_PATH or str(_REPO_ROOT / ".env")
+
+    @property
+    def is_local_env(self) -> bool:
+        """True in local/development mode, where writing back to .env is allowed."""
+        return (self.APP_ENV or "").strip().lower() in ("local", "dev", "development")
 
     @property
     def cors_origins(self) -> List[str]:

@@ -18,9 +18,12 @@ from app.core.database import get_db
 from app.core.principal import Principal
 from app.core.responses import success_response
 from app.schemas.ai import (
+    AgentResponseOut,
     ChatRequest,
     ChatResponse,
     MessageOut,
+    MultiChatRequest,
+    MultiChatResponse,
     ProposalOut,
     SessionCreate,
     SessionOut,
@@ -28,7 +31,7 @@ from app.schemas.ai import (
 from pydantic import BaseModel
 
 from app.schemas.ai_providers import AiProviderUpdateRequest
-from app.services import ai_policy_service, ai_provider_router, ai_service
+from app.services import ai_multi_service, ai_policy_service, ai_provider_router, ai_service
 
 
 class AiPolicyUpdate(BaseModel):
@@ -186,6 +189,42 @@ def chat(
         blocked=result.get("blocked", False),
     )
     return success_response(data, "Message processed")
+
+
+def _multi_view(result: dict) -> MultiChatResponse:
+    return MultiChatResponse(
+        run_id=result["run"].id,
+        session_id=result["session_id"],
+        status=result["run"].status,
+        agent_responses=[AgentResponseOut.model_validate(r) for r in result["responses"]],
+    )
+
+
+@router.post("/chat/multi")
+def chat_multi(
+    payload: MultiChatRequest,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Fan one message out to up to 3 agents concurrently and persist the run."""
+    result = ai_multi_service.multi_chat(
+        db,
+        principal,
+        message=payload.message,
+        provider_ids=payload.provider_ids,
+        session_id=payload.session_id,
+    )
+    return success_response(_multi_view(result), "Multi-agent run processed")
+
+
+@router.get("/runs/{run_id}")
+def get_run(
+    run_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    result = ai_multi_service.get_run(db, principal, run_id)
+    return success_response(_multi_view(result), "Multi-agent run")
 
 
 @router.get("/proposals")

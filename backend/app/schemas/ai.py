@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -43,6 +43,33 @@ class ChatResponse(BaseModel):
     ai_configured: bool
     provider_id: Optional[str] = None
     blocked: bool = False
+
+
+class MultiChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=8000)
+    session_id: Optional[uuid.UUID] = None
+    # 1–3 agents. >3 fails validation (HTTP 422: "Maximum 3 agents per run").
+    provider_ids: List[str] = Field(min_length=1, max_length=3)
+
+
+class AgentResponseOut(ORMModel):
+    id: uuid.UUID
+    run_id: uuid.UUID
+    provider_id: str
+    provider_name: str
+    status: str
+    content: Optional[str] = None
+    error_message: Optional[str] = None
+    latency_ms: Optional[int] = None
+    meta: Optional[dict] = None
+    created_at: datetime
+
+
+class MultiChatResponse(BaseModel):
+    run_id: uuid.UUID
+    session_id: uuid.UUID
+    status: str
+    agent_responses: List[AgentResponseOut]
 
 
 class ProposalOut(ORMModel):
