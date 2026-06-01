@@ -138,3 +138,13 @@ def test_blackbox_never_online_from_test(auth_client):
     )
     resp = auth_client.post(f"{API}/ai/providers/blackbox/test")
     assert resp.json()["data"]["status"] == "configured"
+
+
+def test_policy_sets_default_provider(auth_client):
+    pol = auth_client.put(f"{API}/ai/policy", json={"default_provider": "anthropic"})
+    assert pol.json()["data"]["default_provider"] == "anthropic"
+    # Chat with no provider_id uses the workspace default (anthropic = external,
+    # blocked by default) — proving the default is applied.
+    resp = auth_client.post(f"{API}/ai/chat", json={"message": "hi"})
+    data = resp.json()["data"]
+    assert data["provider_id"] == "anthropic"
