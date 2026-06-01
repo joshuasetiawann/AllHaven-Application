@@ -36,8 +36,18 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
 
-    # CORS — restricted to known frontend origins.
-    if settings.cors_origins:
+    # CORS. Auth is via the Authorization header (no cookies), so when allowing
+    # any origin we set allow_credentials=False (required by the CORS spec).
+    # Local/dev (or BACKEND_CORS_ALLOW_ALL) → reachable from any LAN device.
+    if settings.BACKEND_CORS_ALLOW_ALL or settings.is_local_env:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origin_regex=".*",
+            allow_credentials=False,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    elif settings.cors_origins:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=settings.cors_origins,

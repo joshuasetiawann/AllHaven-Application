@@ -163,11 +163,17 @@ cmd_run() {
   trap cleanup EXIT INT TERM
 
   sleep 3
+  LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
   c_green "Backend up. Open the app at:  http://localhost:${FRONTEND_PORT}"
-  c_warn  "Tip: use http://localhost (not 127.0.0.1) so the API CORS matches."
-  c_blue "Starting frontend (dev)… press Ctrl+C to stop everything."
+  if [ -n "$LAN_IP" ]; then
+    c_green "On other devices (same Wi-Fi):  http://${LAN_IP}:${FRONTEND_PORT}"
+    c_warn  "The API base auto-follows the host, so phones/tablets just work — no rebuild."
+  fi
+  c_warn  "Tip: use http://localhost (not 127.0.0.1) on this machine."
+  c_blue "Starting frontend (dev, reachable on your LAN)… press Ctrl+C to stop everything."
   cd "$ROOT/frontend"
-  npm run dev
+  # -H 0.0.0.0 makes the dev server reachable from other devices on the network.
+  npm run dev -- -H 0.0.0.0 -p "${FRONTEND_PORT}"
 }
 
 cmd_stop() {
