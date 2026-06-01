@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   Bot,
+  Box,
   Boxes,
   Calendar,
   Cloud,
@@ -10,6 +11,7 @@ import {
   Cpu,
   Database,
   Globe,
+  HardDrive,
   Network,
   Plug,
   ShieldCheck,
@@ -42,6 +44,7 @@ const INTEGRATION_ICONS: Record<string, LucideIcon> = {
   supabase: Cloud,
   google_calendar: Calendar,
   weather_api: CloudSun,
+  drive_storage: HardDrive,
 };
 
 const AI_ICONS: Record<string, LucideIcon> = {
@@ -50,6 +53,7 @@ const AI_ICONS: Record<string, LucideIcon> = {
   anthropic: Bot,
   gemini: Sparkles,
   grok: Zap,
+  blackbox: Box,
   openrouter: Network,
 };
 
