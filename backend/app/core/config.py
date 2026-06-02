@@ -100,6 +100,11 @@ class Settings(BaseSettings):
     # Supabase) reach desktop-only Backend Bridge features (Settings, n8n, Ollama,
     # system). Empty = Supabase bearer auth disabled.
     SUPABASE_JWT_SECRET: str = ""
+    # Interval (seconds) for the background two-way Supabase sync loop. The
+    # per-write trigger only fires on desktop writes; this loop also pulls
+    # phone-side Supabase changes while the desktop is idle and retries failed
+    # pushes. 0 disables the scheduler. No-op when Supabase isn't configured.
+    SYNC_INTERVAL_SECONDS: int = 15
     GOOGLE_CALENDAR_CLIENT_ID: str = ""
     GOOGLE_CALENDAR_CLIENT_SECRET: str = ""
     GOOGLE_CALENDAR_REDIRECT_URI: str = ""
