@@ -11,6 +11,44 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [3.7.0] - 2026-06-19 — AllHaven 3.7 two-way Supabase sync + mobile-on-Supabase
+
+Detailed notes: [`docs/releases/v3.7.0.md`](docs/releases/v3.7.0.md)
+
+AllHaven 3.7 introduces a **two-way incremental sync engine** between local
+Postgres and Supabase (Last-Write-Wins by `updated_at`, soft-delete tombstones,
+echo-suppression) and a **mobile Supabase data layer** so the Android APK talks
+directly to Supabase with no AllHaven backend in the path. Mobile login switches
+to Supabase Auth; existing users can link via a new "Connect to Supabase" button
+in Settings.
+
+### Added
+- **Two-way incremental sync.** Background loop merges local Postgres ↔ Supabase
+  by `updated_at` watermark (LWW). Deleted rows travel as soft-delete tombstones
+  (`deleted_at`). Sync health visible at `GET /settings/sync/status`. Replaces
+  the one-way mirror from 3.4.
+- **Mobile Supabase data layer.** New client-side data access objects for Tasks,
+  Notes, Finance, Calendar, Routines, Automations, Weather locations, and the
+  Dashboard query Supabase PostgREST directly. Selected at build time via
+  `NEXT_PUBLIC_DATA_MODE=supabase`.
+- **Supabase Auth on mobile.** Mobile login authenticates with Supabase Auth;
+  web/desktop keep cookie + bearer. New signups provisioned in Supabase via
+  service-role on creation; existing users connect via `POST /settings/supabase/connect`.
+- **Database migrations 0010 – 0015.** `deleted_at` soft-delete columns (0010);
+  `profiles.supabase_user_id` identity mapping (0011); DB-authoritative
+  `updated_at` trigger (0012); Supabase RLS with `app_user_id()` /
+  `is_member()` helpers (0013, env-guarded); `workspace_members` RLS hardening
+  — SELECT-own-row only, writes restricted to service_role (0014); `sync_state`
+  watermark table (0015).
+
+### Fixed
+- **Login / dashboard timeout.** Session check and dashboard fetch now time out
+  instead of spinning forever when the backend is stalled or unreachable.
+- **Checklist item soft-delete.** Deleting a checklist item on desktop writes
+  `deleted_at` instead of hard-removing the row, preventing sync resurrection.
+- **Checklist item ordering.** Items sorted by `position` on desktop maintain the
+  same order after a sync round-trip to mobile.
+
 ## [3.6.0] - 2026-06-17 — AllHaven 3.6 privacy cleanup
 
 Detailed notes: [`docs/releases/v3.6.0.md`](docs/releases/v3.6.0.md)
