@@ -15,7 +15,9 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "geolocation=(), microphone=(), camera=()" },
+  // Voice input uses the browser speech recognizer, which needs microphone
+  // access on this same origin. Keep location/camera disabled.
+  { key: "Permissions-Policy", value: "geolocation=(), microphone=(self), camera=()" },
 ];
 
 // CSP only in production: dev needs 'unsafe-eval' for Fast Refresh/HMR, which we
