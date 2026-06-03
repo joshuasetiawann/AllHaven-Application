@@ -4,18 +4,24 @@
 import { clearAuth, getToken } from "@/lib/auth";
 import type {
   AiProvider,
+  Automation,
   AuthToken,
+  CalendarEvent,
   ChatMessage,
   ChatResponse,
   ChatSession,
+  DriveFile,
   FinanceCategory,
   FinanceSummary,
   Integration,
   Me,
+  MultiChatResponse,
   Note,
   Task,
   ToolProposal,
   Transaction,
+  WeatherCurrent,
+  WeatherLocation,
 } from "@/types";
 import type { AiProviderUpdatePayload, GoogleScopes } from "@/types/api";
 
@@ -155,6 +161,13 @@ export const aiApi = {
       method: "POST",
       body: json({ message, session_id: sessionId || null, provider_id: providerId || null }),
     }),
+  // Fan a message out to up to 3 agents concurrently.
+  multiChat: (message: string, providerIds: string[], sessionId?: string) =>
+    request<MultiChatResponse>("/ai/chat/multi", {
+      method: "POST",
+      body: json({ message, provider_ids: providerIds, session_id: sessionId || null }),
+    }),
+  getRun: (runId: string) => request<MultiChatResponse>(`/ai/runs/${runId}`),
   listProposals: () => request<ToolProposal[]>("/ai/proposals"),
   rejectProposal: (id: string) =>
     request<ToolProposal>(`/ai/proposals/${id}/reject`, { method: "POST" }),
@@ -178,6 +191,7 @@ export interface AiPolicy {
   default_provider: string;
   default_privacy_mode: string;
   env_default: boolean;
+  env_sync?: import("@/types").EnvSync;
 }
 
 // --- Settings ---
@@ -207,4 +221,68 @@ export const googleApi = {
       `/auth/google/login${include && include.length ? `?include=${include.join(",")}` : ""}`,
     ),
   disconnect: () => request<Integration>("/settings/google/disconnect", { method: "POST" }),
+};
+
+// --- Calendar ---
+export const calendarApi = {
+  list: () => request<CalendarEvent[]>("/calendar/events"),
+  create: (payload: Record<string, unknown>) =>
+    request<CalendarEvent>("/calendar/events", { method: "POST", body: json(payload) }),
+  update: (id: string, payload: Record<string, unknown>) =>
+    request<CalendarEvent>(`/calendar/events/${id}`, { method: "PUT", body: json(payload) }),
+  remove: (id: string) =>
+    request<{ id: string }>(`/calendar/events/${id}`, { method: "DELETE" }),
+};
+
+// --- Drive (file upload uses multipart, not JSON) ---
+export const driveApi = {
+  list: () => request<DriveFile[]>("/drive/files"),
+  upload: async (file: File): Promise<DriveFile> => {
+    const token = getToken();
+    const form = new FormData();
+    form.append("file", file);
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE_URL}/drive/files`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: form,
+      });
+    } catch {
+      throw new ApiException("Cannot reach the CoreOS API. Is the backend running?", "NETWORK_ERROR", 0);
+    }
+    const body = (await res.json().catch(() => null)) as ApiEnvelope<DriveFile> | null;
+    if (!res.ok || body?.status === "error") {
+      if (res.status === 401) clearAuth();
+      throw new ApiException(body?.message || `Upload failed (${res.status})`, body?.error_code || "HTTP_ERROR", res.status);
+    }
+    return body?.data as DriveFile;
+  },
+  downloadUrl: (id: string) => `${API_BASE_URL}/drive/files/${id}/download`,
+  remove: (id: string) => request<{ id: string }>(`/drive/files/${id}`, { method: "DELETE" }),
+};
+
+// --- Automations ---
+export const automationsApi = {
+  list: () => request<Automation[]>("/automations"),
+  create: (payload: Record<string, unknown>) =>
+    request<Automation>("/automations", { method: "POST", body: json(payload) }),
+  update: (id: string, payload: Record<string, unknown>) =>
+    request<Automation>(`/automations/${id}`, { method: "PUT", body: json(payload) }),
+  remove: (id: string) =>
+    request<{ id: string }>(`/automations/${id}`, { method: "DELETE" }),
+};
+
+// --- Weather ---
+export const weatherApi = {
+  listLocations: () => request<WeatherLocation[]>("/weather/locations"),
+  addLocation: (name: string, isDefault = false) =>
+    request<WeatherLocation>("/weather/locations", {
+      method: "POST",
+      body: json({ name, is_default: isDefault }),
+    }),
+  removeLocation: (id: string) =>
+    request<{ id: string }>(`/weather/locations/${id}`, { method: "DELETE" }),
+  current: (location?: string) =>
+    request<WeatherCurrent>(`/weather/current${location ? `?location=${encodeURIComponent(location)}` : ""}`),
 };

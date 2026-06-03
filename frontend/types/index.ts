@@ -112,6 +112,101 @@ export interface ChatResponse {
   ai_configured: boolean;
 }
 
+// Status of mirroring web settings to the local .env file.
+export interface EnvSync {
+  status: "success" | "failed" | "skipped";
+  message: string;
+  keys: string[];
+  backup: string | null;
+}
+
+export type AgentResponseStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "error"
+  | "not_configured"
+  | "disabled"
+  | "blocked";
+
+export interface AgentResponse {
+  id: string;
+  run_id: string;
+  provider_id: string;
+  provider_name: string;
+  status: AgentResponseStatus;
+  content: string | null;
+  error_message: string | null;
+  latency_ms: number | null;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface MultiChatResponse {
+  run_id: string;
+  session_id: string;
+  status: "running" | "completed" | "partial" | "error" | "empty";
+  agent_responses: AgentResponse[];
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  start_at: string;
+  end_at: string | null;
+  all_day: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DriveFile {
+  id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Automation {
+  id: string;
+  name: string;
+  description: string | null;
+  trigger_type: string;
+  action_type: string;
+  config: Record<string, unknown>;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WeatherLocation {
+  id: string;
+  name: string;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface WeatherCurrent {
+  status:
+    | "ok"
+    | "setup_required"
+    | "no_location"
+    | "unsupported_provider"
+    | "unavailable"
+    | "error";
+  detail?: string;
+  location: string | null;
+  temp_c?: number;
+  feels_like_c?: number;
+  humidity?: number;
+  description?: string;
+  icon?: string;
+  wind_speed?: number;
+}
+
 export interface ToolProposal {
   id: string;
   tool_name: string;
@@ -165,6 +260,7 @@ export interface Integration {
   last_verified_at?: string | null;
   last_error?: string | null;
   source?: string;
+  env_sync?: EnvSync;
 }
 
 export interface AiProvider {
@@ -186,4 +282,5 @@ export interface AiProvider {
   secrets: Record<string, SecretPreview>;
   last_verified_at: string | null;
   last_error: string | null;
+  env_sync?: EnvSync;
 }
