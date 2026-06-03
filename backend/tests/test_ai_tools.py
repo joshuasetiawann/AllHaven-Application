@@ -220,7 +220,9 @@ def test_approve_with_invalid_payload_fails_honestly(auth_client, db_session):
     db_session.commit()
     resp = auth_client.post(f"{API}/ai/proposals/{outcome['proposal_id']}/approve")
     assert resp.status_code == 422
-    assert "execution failed" in resp.json()["message"].lower()
+    # Honest failure: clear it could not run, names the field, stays fixable.
+    message = resp.json()["message"].lower()
+    assert "could not execute" in message and "title" in message
 
 
 def test_tool_definitions_export_openai_format(auth_client, db_session):
