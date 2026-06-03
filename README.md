@@ -4,11 +4,11 @@
 
 # AllHaven Mobile Branch
 
-**Android APK workspace for AllHaven 4.1.**
+**Android APK workspace for AllHaven 4.2.**
 
 This branch is for the mobile build. It keeps the AllHaven UI and feature model, but documents and defaults the project around the Android APK, Supabase mobile data, and the optional desktop Backend Bridge for local services such as Ollama and n8n.
 
-[![Version](https://img.shields.io/badge/mobile-4.1.0-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/mobile-4.2.0-18E0D6?style=flat-square)](CHANGELOG.md)
 ![Android](https://img.shields.io/badge/Android-APK-3DDC84?style=flat-square&logo=android&logoColor=white)
 ![Capacitor](https://img.shields.io/badge/Capacitor-8-119EFF?style=flat-square&logo=capacitor&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-mobile%20data-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
@@ -28,6 +28,8 @@ This branch is for the mobile build. It keeps the AllHaven UI and feature model,
 | `mobile` | Android APK and mobile-focused workflow branch. |
 
 This branch is not the archive branch and should not be flattened into `master`. It may share most application code with `main`, because the APK is built from the same React/Next.js UI, but its README and workflow are mobile-first.
+
+**Current release:** `v4.2.0` (Aurora Glass UI, AI-brain completion & security hardening) — see the [4.2 release notes](docs/v4/RELEASE_NOTES_v4.2.0.md).
 
 ---
 
@@ -201,7 +203,7 @@ That does not mean the APK is broken. Ollama and n8n are desktop-local services.
 
 - [Mobile APK guide](docs/MOBILE.md)
 - [Tailscale setup](docs/v4/TAILSCALE_SETUP.md)
-- [Release notes 4.1](docs/v4/RELEASE_NOTES_v4.1.0.md)
+- [Release notes 4.2](docs/v4/RELEASE_NOTES_v4.2.0.md)
 - [Desktop setup](docs/DESKTOP_SETUP.md)
 
 ---

@@ -26,6 +26,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
+# Non-login shells launched by VS Code/agents often miss per-user Node installs.
+# Keep the launcher self-sufficient when Node lives under ~/.local/node.
+if [ -n "${NVM_BIN:-}" ] && [ -d "$NVM_BIN" ]; then
+  PATH="$NVM_BIN:$PATH"
+fi
+if [ -d "$HOME/.local/node/bin" ]; then
+  PATH="$HOME/.local/node/bin:$PATH"
+fi
+export PATH
+
 PID_DIR="$ROOT/.allhaven-pids"
 LOG_DIR="$ROOT/var/logs"
 VENV_PY="$ROOT/backend/.venv/bin/python"
@@ -36,6 +46,14 @@ c_warn()  { printf '\033[0;33m%s\033[0m\n' "$1"; }
 c_err()   { printf '\033[0;31m%s\033[0m\n' "$1" >&2; }
 
 need() { command -v "$1" >/dev/null 2>&1; }
+
+backend_venv_ok() {
+  [ -x "$VENV_PY" ] && "$VENV_PY" -c "import alembic, fastapi, sqlalchemy, uvicorn" >/dev/null 2>&1
+}
+
+ensure_backend_ready() {
+  backend_venv_ok || setup_backend
+}
 
 require_tools() {
   local missing=0
@@ -98,6 +116,25 @@ print(" ".join(sorted(pids, key=int)))
 PY
 }
 
+_host_pids_on_port() {  # _host_pids_on_port <port> -> host listener pids (Flatpak/VS Code)
+  local port="$1"
+  need flatpak-spawn || return 0
+  flatpak-spawn --host sh -s -- "$port" <<'SH' 2>/dev/null || true
+port="$1"
+pids=""
+if command -v ss >/dev/null 2>&1; then
+  pids="$(ss -ltnpH "( sport = :$port )" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u || true)"
+fi
+if [ -z "$pids" ] && command -v lsof >/dev/null 2>&1; then
+  pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+fi
+if [ -z "$pids" ] && command -v fuser >/dev/null 2>&1; then
+  pids="$(fuser "$port/tcp" 2>/dev/null | tr -s ' ' '\n' | grep -E '^[0-9]+$' | sort -u || true)"
+fi
+printf '%s' "$pids"
+SH
+}
+
 _pids_on_port() {  # _pids_on_port <port> -> listening pids, one per line
   local port="$1" pids=""
   if need ss; then
@@ -112,16 +149,50 @@ _pids_on_port() {  # _pids_on_port <port> -> listening pids, one per line
   if [ -z "$pids" ]; then
     pids="$(_pids_on_port_py "$port" || true)"
   fi
-  printf '%s' "$pids"
+  {
+    printf '%s\n' "$pids"
+    _host_pids_on_port "$port" || true
+  } | tr -s ' ' '\n' | grep -E '^[0-9]+$' | sort -u || true
 }
 
 _port_busy() { [ -n "$(_pids_on_port "$1")" ]; }
+
+_wait_port_free() {  # _wait_port_free <port> [seconds]
+  local port="$1" timeout="${2:-8}" end
+  end=$((SECONDS + timeout))
+  while _port_busy "$port"; do
+    [ "$SECONDS" -ge "$end" ] && return 1
+    sleep 0.5
+  done
+}
+
+_host_kill_pid() {  # _host_kill_pid <pid> — stop a host pid from Flatpak shells
+  local pid="$1"
+  need flatpak-spawn || return 1
+  flatpak-spawn --host sh -s -- "$pid" <<'SH' 2>/dev/null || true
+pid="$1"
+case "$pid" in ''|*[!0-9]*) exit 0 ;; esac
+children() { pgrep -P "$1" 2>/dev/null || true; }
+kill_tree() {
+  p="$1"
+  for c in $(children "$p"); do kill_tree "$c"; done
+  kill -TERM "$p" 2>/dev/null || true
+}
+kill_tree "$pid"
+sleep 1
+if kill -0 "$pid" 2>/dev/null; then
+  for c in $(children "$pid"); do kill -KILL "$c" 2>/dev/null || true; done
+  kill -KILL "$pid" 2>/dev/null || true
+fi
+SH
+}
 
 _free_port() {  # _free_port <port> — stop any listener (process group, then pid)
   local port="$1" pid
   for pid in $(_pids_on_port "$port"); do
     [[ "$pid" =~ ^[0-9]+$ ]] || continue
     kill -- -"$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+    _host_kill_pid "$pid" || true
   done
 }
 
@@ -231,13 +302,17 @@ ensure_postgres() {
 setup_backend() {
   c_blue "Setting up backend (venv + dependencies)…"
   cd "$ROOT/backend"
+  if [ -d .venv ] && [ ! -x .venv/bin/python ]; then
+    mv .venv ".venv.broken.$(date +%s)"
+  fi
   [ -d .venv ] || python3 -m venv .venv
   # shellcheck disable=SC1091
   source .venv/bin/activate
+  python -m ensurepip --upgrade >/dev/null 2>&1 || true
   python -m pip install --upgrade pip >/dev/null
-  pip install -r requirements.txt
+  python -m pip install -r requirements.txt
   c_blue "Applying database migrations (alembic upgrade head)…"
-  alembic upgrade head
+  python -m alembic upgrade head
   deactivate
   cd "$ROOT"
   c_green "Backend ready."
@@ -275,6 +350,7 @@ _start_bg() {  # _start_bg <name> <port> <command...>
   mkdir -p "$PID_DIR" "$LOG_DIR"
   if _is_running "$name"; then c_warn "$name already running (pid $(cat "$PID_DIR/$name.pid"))."; return 0; fi
   _free_port "$port"   # clear any stale/wedged server squatting on the port
+  _wait_port_free "$port" || c_warn "$name port :$port is still busy; trying to start anyway."
   setsid "$@" >"$LOG_DIR/$name.log" 2>&1 < /dev/null &
   echo $! > "$PID_DIR/$name.pid"
   c_green "$name started (pid $!) — logs: $LOG_DIR/$name.log"
@@ -321,11 +397,12 @@ cmd_run() {
   require_tools
   ensure_env
   ensure_postgres
-  [ -d "$ROOT/backend/.venv" ] || setup_backend
+  ensure_backend_ready
   [ -d "$ROOT/frontend/node_modules" ] || setup_frontend
 
   mkdir -p "$PID_DIR" "$LOG_DIR"
   _free_port "$BACKEND_PORT"   # clear a wedged backend before we bind
+  _wait_port_free "$BACKEND_PORT" || c_warn "backend port :$BACKEND_PORT is still busy; trying to start anyway."
 
   c_blue "Starting backend on http://localhost:${BACKEND_PORT} …"
   ( cd "$ROOT/backend" && source .venv/bin/activate \
@@ -353,6 +430,7 @@ cmd_run() {
   c_warn  "Tip: use http://localhost (not 127.0.0.1) on this machine."
   c_blue "Starting frontend (dev, reachable on your LAN)… press Ctrl+C to stop everything."
   _free_port "$FRONTEND_PORT"   # clear a wedged frontend before we bind
+  _wait_port_free "$FRONTEND_PORT" || c_warn "frontend port :$FRONTEND_PORT is still busy; trying to start anyway."
   cd "$ROOT/frontend"
   npm run dev -- -H 0.0.0.0 -p "${FRONTEND_PORT}"
 }
@@ -362,7 +440,7 @@ cmd_run() {
 # -----------------------------------------------------------------------------
 cmd_start() {
   require_tools; ensure_env; ensure_postgres
-  [ -d "$ROOT/backend/.venv" ] || setup_backend
+  ensure_backend_ready
   [ -d "$ROOT/frontend/node_modules" ] || setup_frontend
   start_backend_bg
   start_agent_bg
@@ -402,6 +480,7 @@ cmd_restart() {
     backend|be)
       ensure_postgres
       c_blue "Restarting backend on :${BACKEND_PORT}…"
+      ensure_backend_ready
       _stop_one backend; _free_port "$BACKEND_PORT"; sleep 1; start_backend_bg ;;
     frontend|fe|front)
       c_blue "Restarting frontend on :${FRONTEND_PORT}…"

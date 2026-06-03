@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.principal import Principal
 from app.domain.ai import ChatMessage
 from app.domain.ai_memory import AiConversationSummary
+from app.services import ai_intent_router
 from app.services.thinking import normalize_thinking
 
 
@@ -99,7 +100,10 @@ def _wants_knowledge(message: str, section_key: str, budget: ContextBudget) -> b
     lower = (message or "").lower()
     if budget.knowledge_chunks <= 0:
         return False
-    return section_key == "ai_knowledge" or any(t in lower for t in _KNOWLEDGE_TRIGGERS) or bool(lower.strip())
+    if section_key == "ai_knowledge" or any(t in lower for t in _KNOWLEDGE_TRIGGERS):
+        return True
+    # Substantive messages may retrieve; smalltalk ("halo", "makasih") never does.
+    return bool(lower.strip()) and not ai_intent_router.is_simple_message(message)
 
 
 def build(
@@ -117,6 +121,9 @@ def build(
 
     key = (section_key or "general").strip() or "general"
     budget = _budget(thinking_mode)
+    # Smalltalk gets a compact packet: style/language/section only — no summary,
+    # memory, snippet, or knowledge blocks (and none of their side effects).
+    simple_input = ai_intent_router.is_simple_message(message)
     blocks: list[str] = []
     meta = {
         "section_key": key,
@@ -129,6 +136,7 @@ def build(
         "used_memory": False,
         "used_knowledge": False,
         "knowledge_sources": [],
+        "simple_input": simple_input,
         "response_language": response_language or "id",
         # Chips: hide get-time/date (shown only if actually called) so they don't clutter
         # every message (3.9: "don't show get current time/date tools unless needed").
@@ -145,35 +153,36 @@ def build(
     if meta["active_tools"]:
         blocks.append("Active tool priority: " + ", ".join(meta["active_tools"][:18]))
 
-    summary = _summary(db, principal, session_id)
-    if summary and normalize_thinking(thinking_mode) in ("thinking", "deep"):
-        blocks.append("[Conversation Summary]")
-        blocks.append(summary[:1800])
+    if not simple_input:
+        summary = _summary(db, principal, session_id)
+        if summary and normalize_thinking(thinking_mode) in ("thinking", "deep"):
+            blocks.append("[Conversation Summary]")
+            blocks.append(summary[:1800])
 
-    memory_block = memory_context_builder.build(db, principal, message, key)
-    if memory_block:
-        meta["used_memory"] = True
-        blocks.append(memory_block)
+        memory_block = memory_context_builder.build(db, principal, message, key)
+        if memory_block:
+            meta["used_memory"] = True
+            blocks.append(memory_block)
 
-    if budget.include_old_search:
-        snippets = []
-        for row in _recent_messages(db, principal, session_id, budget.recent_messages):
-            if row.role in ("user", "assistant") and row.content:
-                snippets.append(f"{row.role}: {row.content[:260]}")
-        if snippets:
-            blocks.append("[Recent Conversation Snippets]")
-            blocks.append("\n".join(snippets[-12:]))
+        if budget.include_old_search:
+            snippets = []
+            for row in _recent_messages(db, principal, session_id, budget.recent_messages):
+                if row.role in ("user", "assistant") and row.content:
+                    snippets.append(f"{row.role}: {row.content[:260]}")
+            if snippets:
+                blocks.append("[Recent Conversation Snippets]")
+                blocks.append("\n".join(snippets[-12:]))
 
-    overview = knowledge_service.knowledge_overview(db, principal)
-    if overview:
-        blocks.append(overview)
+        overview = knowledge_service.knowledge_overview(db, principal)
+        if overview:
+            blocks.append(overview)
 
-    if _wants_knowledge(message, key, budget):
-        knowledge_block, sources = knowledge_service.retrieve_context(db, principal, message, limit=budget.knowledge_chunks or 2)
-        if knowledge_block:
-            meta["used_knowledge"] = True
-            meta["knowledge_sources"] = sources
-            blocks.append(knowledge_block)
+        if _wants_knowledge(message, key, budget):
+            knowledge_block, sources = knowledge_service.retrieve_context(db, principal, message, limit=budget.knowledge_chunks or 2)
+            if knowledge_block:
+                meta["used_knowledge"] = True
+                meta["knowledge_sources"] = sources
+                blocks.append(knowledge_block)
 
     blocks.append("[Tool and approval rules]")
     blocks.append("Read tools may run automatically. Most write/destructive tools create pending actions first; low-risk memory writes may save directly. Never claim pending actions are saved until approved.")

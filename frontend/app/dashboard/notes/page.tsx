@@ -5,14 +5,40 @@ import { ArrowLeft, Pencil, Pin, Plus, Search, Sparkles, StickyNote, Trash2 } fr
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { notesApi, ApiException } from "@/lib/api";
-import { cn, formatDateTime } from "@/lib/format";
+import { cn, formatDateTime, relativeTime } from "@/lib/format";
 import type { Note } from "@/types";
+
+/* Aurora category tints — cyan (work-ish), violet (ideas-ish), green (personal-ish). */
+const TAG_TINTS = [
+  {
+    pill: "border-primary/30 bg-primary/10 text-primary-bright",
+    tile: "bg-primary/10 text-primary-bright",
+  },
+  {
+    pill: "border-secondary/30 bg-secondary/10 text-secondary-soft",
+    tile: "bg-secondary/15 text-secondary-soft",
+  },
+  {
+    pill: "border-success/30 bg-success/10 text-success-soft",
+    tile: "bg-success/10 text-success-soft",
+  },
+] as const;
+
+function tagTint(tag?: string) {
+  if (!tag) return TAG_TINTS[0];
+  const t = tag.toLowerCase();
+  if (/work|project|meeting|client|finance|report/.test(t)) return TAG_TINTS[0];
+  if (/idea|inspir|brainstorm|design|draft/.test(t)) return TAG_TINTS[1];
+  if (/personal|health|home|life|family/.test(t)) return TAG_TINTS[2];
+  let sum = 0;
+  for (let i = 0; i < t.length; i += 1) sum += t.charCodeAt(i);
+  return TAG_TINTS[sum % TAG_TINTS.length];
+}
 
 export default function NotesPage() {
   const [notes, setNotes] = useState<Note[] | null>(null);
@@ -125,13 +151,18 @@ export default function NotesPage() {
     setMobileReader(true);
   };
 
+  const tagChips = Array.from(new Set((notes ?? []).flatMap((n) => n.tags))).slice(0, 4);
+  const activeQuery = query.trim().toLowerCase();
+
   return (
     <AppShell>
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-content sm:text-[28px]">Notes &amp; Knowledge</h1>
-          <p className="mt-1 text-[13.5px] text-content-muted">
-            {notes ? `${notes.length} entries` : "Your knowledge base"}
+          <h1 className="text-2xl font-semibold tracking-[-0.02em] text-content sm:text-[30px]">Notes</h1>
+          <p className="mt-2 text-[13.5px] text-content-muted">
+            {notes
+              ? `${notes.length} entries — searchable and local-first.`
+              : "Your thoughts, meeting notes, and captured ideas — searchable and local-first."}
           </p>
         </div>
         <Button onClick={startCreate} className="w-full sm:w-auto">
@@ -155,72 +186,147 @@ export default function NotesPage() {
           }
         />
       ) : (
-        <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-          {/* List */}
-          <div className={cn("space-y-3", mobileReader && "hidden lg:block")}>
-            <Input
-              leftIcon={<Search size={15} />}
-              placeholder="Search notes, tags…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <div className="custom-scrollbar max-h-[calc(100svh-210px)] space-y-2.5 overflow-y-auto pr-1 lg:max-h-[calc(100vh-230px)]">
+        <div>
+          {/* Board: search + tag chips + masonry */}
+          <div className={cn(mobileReader && "hidden")}>
+            <div className="mb-[18px] flex flex-wrap items-center gap-2.5">
+              <div className="w-full min-w-[240px] flex-1 sm:max-w-[420px]">
+                <Input
+                  leftIcon={<Search size={15} />}
+                  placeholder="Search notes…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+              {tagChips.length > 0 ? (
+                <div className="inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-md border border-border bg-white/[0.03] p-[3px]">
+                  <button
+                    onClick={() => setQuery("")}
+                    className={cn(
+                      "rounded-sm border px-3 py-1.5 text-[12.5px] transition-colors",
+                      !activeQuery
+                        ? "border-primary/30 bg-gradient-to-r from-primary/20 to-secondary/10 font-semibold text-content"
+                        : "border-transparent text-content-muted hover:text-content",
+                    )}
+                  >
+                    All
+                  </button>
+                  {tagChips.map((tag) => (
+                    <button
+                      key={tag}
+                      onClick={() => setQuery(tag)}
+                      className={cn(
+                        "whitespace-nowrap rounded-sm border px-3 py-1.5 text-[12.5px] transition-colors",
+                        activeQuery === tag.toLowerCase()
+                          ? "border-primary/30 bg-gradient-to-r from-primary/20 to-secondary/10 font-semibold text-content"
+                          : "border-transparent text-content-muted hover:text-content",
+                      )}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="columns-1 gap-4 md:columns-2 xl:columns-3">
               {filtered.map((note) => (
                 <button
                   key={note.id}
                   onClick={() => openNote(note.id)}
                   className={cn(
-                    "w-full rounded-xl border p-4 text-left transition-colors",
-                    note.id === selectedId
-                      ? "border-primary/40 bg-primary/5"
-                      : "border-border bg-surface/60 hover:border-border-strong hover:bg-surface-raised/60",
+                    "panel-hover mb-4 block w-full break-inside-avoid p-[18px] text-left",
+                    note.is_pinned ? "panel-gradient" : "panel",
+                    note.id === selectedId && "border-primary/40",
                   )}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="truncate text-sm font-semibold text-content">{note.title}</h3>
-                    {note.is_pinned ? <Pin size={13} className="shrink-0 text-primary" fill="currentColor" /> : null}
+                  <div className="mb-2.5 flex items-center justify-between gap-2">
+                    {note.is_pinned ? (
+                      <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-primary-bright">
+                        <Pin size={12} fill="currentColor" /> Pinned
+                      </span>
+                    ) : (
+                      <span
+                        className={cn(
+                          "flex h-7 w-7 items-center justify-center rounded-[9px]",
+                          tagTint(note.tags[0]).tile,
+                        )}
+                      >
+                        <StickyNote size={14} />
+                      </span>
+                    )}
                   </div>
+                  <h3 className="break-words text-[15px] font-semibold text-content">{note.title}</h3>
                   {note.content ? (
-                    <p className="mt-1 line-clamp-2 text-[12.5px] text-content-muted">{note.content}</p>
+                    <p className="mt-2 line-clamp-3 text-[12.5px] leading-[1.6] text-content-muted">
+                      {note.content}
+                    </p>
                   ) : null}
-                  {note.tags.length > 0 ? (
-                    <div className="mt-2.5 hidden flex-wrap gap-1.5 sm:flex">
-                      {note.tags.slice(0, 3).map((tag) => (
-                        <Badge key={tag} tone="secondary">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : null}
+                  <div className="mt-3 flex items-center gap-2">
+                    {note.tags.length > 0 ? (
+                      <div className="hidden min-w-0 flex-wrap gap-1.5 sm:flex">
+                        {note.tags.slice(0, 3).map((tag) => (
+                          <span
+                            key={tag}
+                            className={cn(
+                              "rounded-full border px-2.5 py-0.5 text-[10.5px]",
+                              tagTint(tag).pill,
+                            )}
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <span className="ml-auto shrink-0 text-[11px] text-content-faint">
+                      {relativeTime(note.updated_at)}
+                    </span>
+                  </div>
                 </button>
               ))}
-              {filtered.length === 0 ? (
-                <p className="py-6 text-center text-[13px] text-content-muted">No notes match &quot;{query}&quot;.</p>
-              ) : null}
             </div>
+            {filtered.length === 0 ? (
+              <p className="py-6 text-center text-[13px] text-content-muted">No notes match &quot;{query}&quot;.</p>
+            ) : null}
           </div>
 
           {/* Reader */}
-          <Card className={cn("min-h-[400px]", !mobileReader && "hidden lg:block")} padding="lg">
+          <Card
+            className={cn("mx-auto min-h-[400px] w-full max-w-3xl", !mobileReader && "hidden")}
+            padding="lg"
+          >
             {selected ? (
               <div className="animate-fade-in">
                 <button
                   onClick={() => setMobileReader(false)}
-                  className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-content-muted hover:text-content lg:hidden"
+                  className="mb-5 inline-flex items-center gap-1.5 text-[13px] text-content-muted transition-colors hover:text-primary-bright"
                 >
-                  <ArrowLeft size={15} /> Back to list
+                  <ArrowLeft size={15} /> All notes
                 </button>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
-                    <p className="font-mono text-[11px] uppercase tracking-widest text-content-subtle">
-                      Knowledge entry
+                    <p
+                      className={cn(
+                        "label-mono inline-flex items-center gap-1.5",
+                        selected.is_pinned && "text-primary-bright",
+                      )}
+                    >
+                      {selected.is_pinned ? (
+                        <>
+                          <Pin size={11} fill="currentColor" /> Pinned note
+                        </>
+                      ) : (
+                        "Note entry"
+                      )}
                     </p>
-                    <h2 className="mt-1 break-words text-xl font-semibold tracking-tight text-content">{selected.title}</h2>
+                    <h2 className="mt-1.5 break-words text-xl font-semibold tracking-tight text-content">
+                      {selected.title}
+                    </h2>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <button
                       onClick={() => startEdit(selected)}
-                      className="rounded-md border border-border p-2 text-content-subtle transition-colors hover:border-primary/40 hover:text-primary"
+                      className="rounded-[10px] border border-border bg-white/[0.03] p-2 text-content-subtle transition-colors hover:border-primary/40 hover:text-primary-bright"
                       aria-label="Edit note"
                     >
                       <Pencil size={15} />
@@ -228,8 +334,10 @@ export default function NotesPage() {
                     <button
                       onClick={() => togglePin(selected)}
                       className={cn(
-                        "rounded-md border border-border p-2 transition-colors hover:border-border-strong",
-                        selected.is_pinned ? "text-primary" : "text-content-subtle hover:text-content",
+                        "rounded-[10px] border p-2 transition-colors",
+                        selected.is_pinned
+                          ? "border-primary/40 bg-primary/10 text-primary-bright"
+                          : "border-border bg-white/[0.03] text-content-subtle hover:border-border-strong hover:text-content",
                       )}
                       aria-label="Pin note"
                     >
@@ -237,7 +345,7 @@ export default function NotesPage() {
                     </button>
                     <button
                       onClick={() => remove(selected)}
-                      className="rounded-md border border-border p-2 text-content-subtle transition-colors hover:border-danger/40 hover:text-danger"
+                      className="rounded-[10px] border border-border bg-white/[0.03] p-2 text-content-subtle transition-colors hover:border-danger/40 hover:text-danger"
                       aria-label="Delete note"
                     >
                       <Trash2 size={15} />
@@ -248,9 +356,12 @@ export default function NotesPage() {
                 {selected.tags.length > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {selected.tags.map((tag) => (
-                      <Badge key={tag} tone="secondary">
+                      <span
+                        key={tag}
+                        className={cn("rounded-full border px-2.5 py-0.5 text-[10.5px]", tagTint(tag).pill)}
+                      >
                         {tag}
-                      </Badge>
+                      </span>
                     ))}
                   </div>
                 ) : null}
@@ -270,7 +381,7 @@ export default function NotesPage() {
                   <button
                     disabled
                     title="AI is not configured in this MVP"
-                    className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border border-secondary/30 bg-secondary/10 px-2.5 py-1.5 text-[12px] text-secondary-soft opacity-70"
+                    className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-[10px] border border-secondary/30 bg-secondary/10 px-2.5 py-1.5 text-[12px] text-secondary-soft opacity-70"
                   >
                     <Sparkles size={13} /> Summarize (AI not configured)
                   </button>
@@ -279,7 +390,7 @@ export default function NotesPage() {
             ) : (
               <EmptyState
                 title="Select a note"
-                description="Choose an entry from the list to read it here."
+                description="Choose an entry from the board to read it here."
                 icon={<StickyNote size={20} />}
               />
             )}
@@ -332,7 +443,7 @@ export default function NotesPage() {
           <Input
             id="tags"
             label="Tags (comma-separated)"
-            placeholder="architecture, security"
+            placeholder="work, ideas"
             value={form.tags}
             onChange={(e) => setForm({ ...form, tags: e.target.value })}
           />

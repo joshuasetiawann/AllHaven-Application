@@ -39,13 +39,13 @@ export function AgentResponseCard({ data }: { data: AgentCardData }) {
   const needsSetup = data.status === "not_configured" || data.status === "disabled" || data.status === "blocked";
 
   return (
-    <div className="flex min-w-0 flex-col rounded-xl border border-border bg-surface-input">
+    <div className="glass-tile flex min-w-0 flex-col">
       <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <span className="grad-primary flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-primary-fg shadow-[0_0_14px_rgb(var(--color-primary)/0.3)]">
             <Bot size={13} />
           </span>
-          <span className="truncate text-[13px] font-medium text-content">{data.provider_name}</span>
+          <span className="truncate font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-content">{data.provider_name}</span>
           {data.role ? <Badge tone="neutral" className="shrink-0">{data.role}</Badge> : null}
           {data.external ? <Globe size={12} className="shrink-0 text-warning" aria-label="External" /> : null}
         </div>
@@ -81,7 +81,7 @@ export function AgentResponseCard({ data }: { data: AgentCardData }) {
       </div>
 
       {data.latency_ms != null && data.status === "completed" ? (
-        <p className="px-3 pb-2 text-[10.5px] text-content-subtle">{data.latency_ms} ms</p>
+        <p className="px-3 pb-2 font-mono text-[10.5px] text-content-faint">{data.latency_ms} ms</p>
       ) : null}
     </div>
   );

@@ -1,6 +1,6 @@
 """Tests for memory_context_builder: composing memories into a compact context block.
 
-Covers: settings gate (auto-learning off → None), always-include categories,
+Covers: memory recall with auto-learning on/off, always-include categories,
 keyword-gated Projects inclusion, section-key category mapping, message keyword
 search, dedup across selection sources, mark-used side effects, per-memory
 content capping, and whole-block truncation.
@@ -37,13 +37,15 @@ def test_build_returns_none_when_no_memories(auth_client, db_session):
     assert memory_context_builder.build(db_session, principal, "hello there") is None
 
 
-def test_build_returns_none_when_auto_learning_disabled(auth_client, db_session):
+def test_build_still_recalls_existing_memories_when_auto_learning_disabled(auth_client, db_session):
     principal = _principal(auth_client)
     _create(db_session, principal, category="Profile", title="Name", content="Joshua")
     ai_settings_service.set_memory_settings(
         db_session, principal, {"auto_learning_enabled": False}
     )
-    assert memory_context_builder.build(db_session, principal, "hello there") is None
+    block = memory_context_builder.build(db_session, principal, "hello there")
+    assert block is not None
+    assert "Joshua" in block
 
 
 # --- always-include categories ---------------------------------------------------

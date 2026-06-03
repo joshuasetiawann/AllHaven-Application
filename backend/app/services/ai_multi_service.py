@@ -32,6 +32,7 @@ from app.domain.ai import (
 from app.services import ai_local_answers, ai_provider_router
 from app.services.ai_provider_router import ChatPlan
 from app.services.ai_service import _auto_title
+from app.services.reasoning import quality
 from app.services.thinking import thinking_params
 
 # Hard ceiling per agent network call (seconds). Adapters also set their own
@@ -276,7 +277,9 @@ def multi_chat(
     # A schedule request must also become ONE deterministic proposal (not N free-form
     # agents echoing "completed"), so routine planning works in multi-agent mode too.
     is_schedule = schedule_parser.parse_schedule(message) is not None
-    if runnable and (is_finance or is_schedule or (len(ids) == 1 and not has_images)):
+    # Smalltalk ("halo") gets ONE warm reply — never a fan-out to N agents.
+    is_simple = not has_images and ai_intent_router.is_simple_message(message)
+    if runnable and (is_finance or is_schedule or is_simple or (len(ids) == 1 and not has_images)):
         # The main UI's one-agent Parallel mode should behave like real AI Chat:
         # history + context + safe tool loop + pending actions.
         pid = next(iter(runnable.keys()))
@@ -293,6 +296,7 @@ def multi_chat(
             "latency_ms": None,
             "tool_calls": orchestrated.get("tool_calls") or [],
             "proposal_ids": orchestrated.get("proposal_ids") or [],
+            "quality": orchestrated.get("quality"),
         }
     elif runnable:
         with ThreadPoolExecutor(max_workers=len(runnable)) as pool:
@@ -314,13 +318,21 @@ def multi_chat(
         plan = plans[pid]
         tool_calls: list[dict] = []
         proposal_ids: list[str] = []
+        quality_meta: Optional[dict] = None
         if pid in outcomes:
             oc = outcomes[pid]
             status, content, error, latency = oc["status"], oc["content"], oc["error"], oc["latency_ms"]
             tool_calls = oc.get("tool_calls") or []
             proposal_ids = oc.get("proposal_ids") or []
+            quality_meta = oc.get("quality")
             if status == "completed":
                 completed += 1
+                # Fan-out agents run without the tool loop; score their replies so
+                # weak/irrelevant answers are flagged instead of persisted silently.
+                if quality_meta is None and content:
+                    score = quality.score_response(message, content)
+                    if score.is_low():
+                        quality_meta = score.to_meta()
         elif has_images and plan.runnable and not plan.supports_image:
             # Configured + enabled, but can't read the attached image.
             status, content, error, latency = "unsupported", None, UNSUPPORTED_IMAGE_MSG, None
@@ -337,7 +349,8 @@ def multi_chat(
             content=content,
             error_message=error,
             latency_ms=latency,
-            meta={"external": plan.external, "role": roles[pid][0], "n_agents": len(ids)},
+            meta={"external": plan.external, "role": roles[pid][0], "n_agents": len(ids),
+                  **({"quality": quality_meta} if quality_meta else {})},
         )
         db.add(row)
         responses.append(row)
@@ -363,6 +376,7 @@ def multi_chat(
                     **context_meta,
                     **({"tool_calls": tool_calls} if tool_calls else {}),
                     **({"proposal_ids": proposal_ids} if proposal_ids else {}),
+                    **({"quality": quality_meta} if quality_meta else {}),
                 },
             )
         )

@@ -12,13 +12,17 @@ import {
   Globe,
   HardDrive,
   Languages,
+  Lock,
+  MessagesSquare,
   Network,
   Palette,
   Plug,
   ShieldCheck,
   Sparkles,
   SunMoon,
+  Terminal,
   Workflow,
+  Wrench,
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -32,7 +36,6 @@ import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toggle } from "@/components/ui/Toggle";
-import { Tabs } from "@/components/ui/Tabs";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -218,22 +221,52 @@ export default function SettingsPage() {
       <PageHeader
         title="Command Center Settings"
         subtitle="Configure integrations, AI providers, and privacy — credentials are stored securely server-side."
-        actions={<Badge tone="secondary">AllHaven {APP_VERSION}</Badge>}
+        actions={
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 font-mono text-[11px] tracking-[0.06em] text-primary-bright">
+            <ShieldCheck size={13} /> AllHaven {APP_VERSION}
+          </span>
+        }
       />
 
-      <Tabs
-        className="mb-5"
-        value={tab}
-        onChange={setTab}
-        items={[
-          { value: "tools", label: "Connected Tools", count: integrations?.length },
-          { value: "ai", label: "AI Providers", count: providers?.length },
-          { value: "ai-tools", label: "AI Tools" },
-          { value: "ai-chat", label: "AI Chat" },
-          { value: "privacy", label: "Privacy & Safety" },
-          { value: "system", label: "System Control" },
-        ]}
-      />
+      <div className="custom-scrollbar mb-6 flex gap-1 overflow-x-auto border-b border-border pb-0.5">
+        {[
+          { value: "tools", label: "Connected Tools", icon: Plug, count: integrations?.length },
+          { value: "ai", label: "AI Providers", icon: Bot, count: providers?.length },
+          { value: "ai-tools", label: "AI Tools", icon: Wrench },
+          { value: "ai-chat", label: "AI Chat", icon: MessagesSquare },
+          { value: "privacy", label: "Privacy & Safety", icon: Lock },
+          { value: "system", label: "System Control", icon: Terminal },
+        ].map((item) => {
+          const active = tab === item.value;
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => setTab(item.value)}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-2 rounded-t-[11px] border border-b-0 px-[15px] py-[11px] text-[13px] transition-colors focus-ring",
+                active
+                  ? "border-primary/30 bg-[linear-gradient(180deg,rgb(var(--color-primary)/0.16),rgb(var(--color-secondary)/0.06))] font-semibold text-content"
+                  : "border-transparent text-content-muted hover:text-content",
+              )}
+            >
+              <Icon size={15} />
+              {item.label}
+              {typeof item.count === "number" ? (
+                <span
+                  className={cn(
+                    "rounded-full px-[7px] py-px text-[10.5px]",
+                    active ? "bg-primary/15 text-primary-bright" : "bg-surface-high text-content-subtle",
+                  )}
+                >
+                  {item.count}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
 
       {envSync ? (
         <div
@@ -302,30 +335,33 @@ export default function SettingsPage() {
           {tab === "ai" ? (
             providers ? (
             <>
-              <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Card className="py-3">
+              <div className="mb-[18px] grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="glass-tile p-4">
                   <p className="label-mono">Configured</p>
-                  <p className="mt-1 text-2xl font-semibold text-content">{configuredAi}/{providers.length}</p>
-                </Card>
-                <Card className="py-3">
+                  <p className="mt-2 text-2xl font-semibold text-content">
+                    {configuredAi}
+                    <span className="text-[15px] text-content-subtle">/{providers.length}</span>
+                  </p>
+                </div>
+                <div className="glass-tile p-4">
                   <p className="label-mono">Online</p>
-                  <p className="mt-1 text-2xl font-semibold text-success">{onlineAi}</p>
-                </Card>
-                <Card className="py-3">
+                  <p className="mt-2 text-2xl font-semibold text-success-soft">{onlineAi}</p>
+                </div>
+                <div className="glass-tile p-4">
                   <p className="label-mono">Enabled</p>
-                  <p className="mt-1 text-2xl font-semibold text-primary">{enabledAi}</p>
-                </Card>
-                <Card className="py-3">
+                  <p className="mt-2 text-2xl font-semibold text-primary-bright">{enabledAi}</p>
+                </div>
+                <div className="glass-tile p-4">
                   <p className="label-mono">Selectable slots</p>
-                  <p className="mt-1 text-2xl font-semibold text-content">{selectableSlots}</p>
-                </Card>
+                  <p className="mt-2 text-2xl font-semibold text-content">{selectableSlots}</p>
+                </div>
               </div>
 
-              <Card className="mb-5 border-primary/20">
+              <Card gradient className="mb-5">
                 <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
+                      <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] bg-warning/12 text-warning">
                         <Globe size={18} />
                       </span>
                       <div>
@@ -490,9 +526,9 @@ export default function SettingsPage() {
                   </Select>
                 </div>
 
-                <div className="mt-4 rounded-xl border border-border bg-surface-input/45 p-3">
-                  <div className="mb-2 flex items-start gap-2">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-primary">
+                <div className="glass-tile mt-4 p-3.5">
+                  <div className="mb-2.5 flex items-start gap-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-secondary/12 text-secondary-soft">
                       <Palette size={15} />
                     </span>
                     <div>
@@ -522,12 +558,12 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="mt-4 grid gap-2 text-[12.5px] text-content-muted sm:grid-cols-2">
-                  <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-input px-3 py-2">
-                    <Languages size={14} className="mt-0.5 text-primary" />
+                  <div className="glass-tile flex items-start gap-2 rounded-lg px-3 py-2">
+                    <Languages size={14} className="mt-0.5 text-primary-bright" />
                     <span>{LANGUAGE_OPTIONS.find((o) => o.value === prefs.language)?.helper}</span>
                   </div>
-                  <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-input px-3 py-2">
-                    <SunMoon size={14} className="mt-0.5 text-primary" />
+                  <div className="glass-tile flex items-start gap-2 rounded-lg px-3 py-2">
+                    <SunMoon size={14} className="mt-0.5 text-primary-bright" />
                     <span>{THEME_OPTIONS.find((o) => o.value === prefs.theme)?.helper}</span>
                   </div>
                 </div>
@@ -550,20 +586,20 @@ export default function SettingsPage() {
                 </ul>
               </Card>
 
-              <Card className="lg:col-span-3 border-primary/15">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <ShieldCheck size={20} />
+              <Card gradient className="lg:col-span-3">
+                <div className="flex items-start gap-3.5">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-primary/12 text-primary-bright">
+                    <ShieldCheck size={19} />
                   </span>
                   <div>
                     <p className="text-sm font-semibold text-content">AI privacy &amp; safety</p>
-                    <ul className="mt-2 space-y-1.5 text-[13px] text-content-muted">
-                      <li className="flex items-center gap-2"><Cpu size={14} className="text-success" /> Default privacy mode: <span className="text-content">Local Private</span></li>
-                      <li className="flex items-center gap-2"><Boxes size={14} className="text-primary" /> AI suggestions require approval. Human approval required for write actions.</li>
-                      <li className="flex items-center gap-2"><Globe size={14} className="text-warning" /> Confidential data is never sent to external providers unless you allow external mode.</li>
+                    <ul className="mt-2.5 space-y-2 text-[12.5px] text-content-muted">
+                      <li className="flex items-center gap-2"><Cpu size={14} className="shrink-0 text-success-soft" /> Default privacy mode: <span className="text-content">Local Private</span></li>
+                      <li className="flex items-center gap-2"><Boxes size={14} className="shrink-0 text-primary-bright" /> AI suggestions require approval. Human approval required for write actions.</li>
+                      <li className="flex items-center gap-2"><Globe size={14} className="shrink-0 text-warning" /> Confidential data is never sent to external providers unless you allow external mode.</li>
                     </ul>
 
-                    <div className="mt-4 flex flex-col gap-3 rounded-lg border border-border bg-surface-input px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="glass-tile mt-4 flex flex-col gap-3 px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="sm:pr-3">
                         <p className="text-sm text-content">Allow external AI providers</p>
                         <p className="text-[12.5px] text-content-muted">

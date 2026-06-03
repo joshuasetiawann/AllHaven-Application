@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Cpu, Workflow, Globe, ShieldCheck, ShieldAlert, Smartphone } from "lucide-react";
+import { Cpu, Workflow, Globe, MonitorSmartphone, ShieldCheck, ShieldAlert, Smartphone } from "lucide-react";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { getApiBaseUrl } from "@/lib/api";
@@ -41,11 +41,12 @@ export function DesktopBridgePanel() {
   return (
     <Card className="mb-5" padding="lg">
       <CardHeader
+        icon={<MonitorSmartphone size={16} />}
         title="Desktop Bridge & Deployment"
         subtitle="How mobile reaches desktop-local services (Ollama, n8n). API providers and Supabase data don't need it."
       />
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-[12.5px] text-content-muted">Deployment mode:</span>
+        <span className="label-mono">Deployment mode</span>
         <Badge tone="primary">{PROFILE_LABEL[profile] ?? profile}</Badge>
       </div>
 
@@ -79,9 +80,9 @@ export function DesktopBridgePanel() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-border bg-surface-input/40 p-3.5">
+      <div className="glass-tile mt-4 p-3.5">
         <p className="flex items-center gap-1.5 text-[13px] font-semibold text-content">
-          <Smartphone size={15} className="text-primary" /> Connect from mobile (Private mode)
+          <Smartphone size={15} className="text-primary-bright" /> Connect from mobile (Private mode)
         </p>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-[12.5px] text-content-muted">
           <li>Install Tailscale on the desktop and the phone; sign both into the same tailnet.</li>

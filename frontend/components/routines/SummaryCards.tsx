@@ -18,18 +18,18 @@ function StatCard({
   title?: string;
 }) {
   const toneRing: Record<string, string> = {
-    primary: "border-primary/25 text-primary",
-    info: "border-info/25 text-info",
-    secondary: "border-secondary/25 text-secondary-soft",
-    success: "border-success/25 text-success",
-    warning: "border-warning/25 text-warning",
-    muted: "border-border text-content-muted",
+    primary: "bg-primary/[0.12] text-primary-bright",
+    info: "bg-info/[0.12] text-info",
+    secondary: "bg-secondary/[0.12] text-secondary-soft",
+    success: "bg-success/[0.12] text-success-soft",
+    warning: "bg-warning/[0.12] text-warning",
+    muted: "border border-border bg-surface-input/60 text-content-muted",
   };
   return (
     <div className="panel panel-hover flex items-center gap-3 p-4" title={title}>
       <span
         className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-surface-input/60",
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px]",
           toneRing[tone],
         )}
       >
