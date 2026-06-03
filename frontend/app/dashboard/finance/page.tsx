@@ -230,7 +230,7 @@ export default function FinancePage() {
               <CardHeader title="Weekly spend" subtitle={monthLabel(year, month)} icon={<Wallet size={18} />} />
               <BarChart data={weeklyBars} height={140} />
               <p className="mt-4 border-t border-border pt-3 text-[12px] text-content-subtle">
-                CoreOS tracks cashflow. It does not provide financial advice.
+                AllHaven tracks cashflow. It does not provide financial advice.
               </p>
             </Card>
           </div>
