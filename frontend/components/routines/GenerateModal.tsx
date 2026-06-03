@@ -175,7 +175,7 @@ export function GenerateModal({
           {notice ? <Notice notice={notice} /> : null}
 
           <div>
-            <p className="mb-2 text-[12px] font-medium uppercase tracking-wide text-content-muted">Time of day</p>
+            <p className="label-mono mb-2">Time of day</p>
             <div className="grid grid-cols-3 gap-2">
               {PERIODS.map((item) => {
                 const Icon = item.Icon;
@@ -186,9 +186,9 @@ export function GenerateModal({
                     type="button"
                     onClick={() => setPeriod(item.key)}
                     className={cn(
-                      "flex h-10 items-center justify-center gap-1.5 rounded-lg border text-sm font-medium transition-colors focus-ring",
+                      "flex h-10 items-center justify-center gap-1.5 rounded-md border text-sm font-medium transition-colors focus-ring",
                       active
-                        ? "border-primary/55 bg-primary text-primary-fg"
+                        ? "grad-primary border-transparent font-semibold text-primary-fg shadow-btn-primary"
                         : "border-border bg-surface-input/45 text-content-muted hover:border-border-strong hover:text-content",
                     )}
                   >
@@ -200,7 +200,7 @@ export function GenerateModal({
           </div>
 
           <div>
-            <label htmlFor="ai-routine-prompt" className="mb-2 block text-[12px] font-medium uppercase tracking-wide text-content-muted">
+            <label htmlFor="ai-routine-prompt" className="label-mono mb-2 block">
               What should this routine cover?
             </label>
             <textarea
@@ -210,7 +210,7 @@ export function GenerateModal({
               placeholder="e.g. A focused study block, a workout, and a short break before dinner."
               rows={4}
               disabled={phase === "loading"}
-              className="w-full resize-y rounded-lg border border-border bg-surface-input px-3 py-2 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60"
+              className="w-full resize-y rounded-md border border-border bg-surface-input px-3 py-2 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60"
             />
             <p className="mt-1.5 text-[12px] text-content-subtle">
               AI uses your open tasks and existing routines on this date as context.
@@ -218,8 +218,8 @@ export function GenerateModal({
           </div>
 
           {phase === "loading" ? (
-            <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-input/40 px-3 py-2.5 text-sm text-content-muted">
-              <Wand2 size={16} className="animate-pulse-soft text-primary" />
+            <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/[0.06] px-3 py-2.5 text-sm text-content-muted">
+              <Wand2 size={16} className="animate-pulse-soft text-primary-bright" />
               Drafting your routines…
             </div>
           ) : null}
@@ -241,7 +241,7 @@ export function GenerateModal({
               />
             ))
           ) : (
-            <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-[13px] text-content-muted">
+            <div className="rounded-md border border-dashed border-border bg-surface-input/25 px-4 py-6 text-center text-[13px] text-content-muted">
               No drafts left. Go back to generate again.
             </div>
           )}
@@ -257,7 +257,7 @@ function Notice({ notice }: { notice: { status: RoutineGenerateStatus | "save_er
     ? "border-warning/35 bg-warning/10 text-warning"
     : "border-danger/35 bg-danger/10 text-danger";
   return (
-    <div className={cn("flex items-start gap-2 rounded-lg border px-3 py-2.5 text-[13px]", tone)}>
+    <div className={cn("flex items-start gap-2 rounded-md border px-3 py-2.5 text-[13px]", tone)}>
       <AlertTriangle size={15} className="mt-0.5 shrink-0" />
       <div className="min-w-0">
         <p>{notice.message}</p>
@@ -286,14 +286,14 @@ function DraftCard({
   onRemove: () => void;
 }) {
   return (
-    <div className="animate-fade-in space-y-2 rounded-xl border border-border bg-surface-input/40 p-3">
+    <div className="glass-tile animate-fade-in space-y-2 p-3">
       <div className="flex items-center gap-2">
         <input
           value={draft.title}
           onChange={(event) => onChange({ title: event.target.value })}
           placeholder="Routine title"
           disabled={disabled}
-          className="h-9 w-full rounded-lg border border-border bg-surface-input px-3 text-sm font-medium text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60"
+          className="h-9 w-full rounded-md border border-border bg-surface-input px-3 text-sm font-medium text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60"
         />
         <button
           onClick={onRemove}
@@ -311,14 +311,14 @@ function DraftCard({
           onChange={(event) => onChange({ start_at: event.target.value })}
           aria-label="Start time"
           disabled={disabled}
-          className="h-9 rounded-lg border border-border bg-surface-input px-3 text-sm text-content focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60"
+          className="h-9 rounded-md border border-border bg-surface-input px-3 text-sm text-content focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60"
         />
         <select
           value={draft.repeat_rule}
           onChange={(event) => onChange({ repeat_rule: event.target.value as RepeatRule })}
           aria-label="Repeat"
           disabled={disabled}
-          className="h-9 rounded-lg border border-border bg-surface-input px-3 text-sm text-content focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60"
+          className="h-9 rounded-md border border-border bg-surface-input px-3 text-sm text-content focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60"
         >
           {REPEAT_OPTIONS.map((option) => (
             <option key={option.key} value={option.key}>
@@ -332,7 +332,7 @@ function DraftCard({
         onChange={(event) => onChange({ location: event.target.value })}
         placeholder="Location (optional)"
         disabled={disabled}
-        className="h-9 w-full rounded-lg border border-border bg-surface-input px-3 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60"
+        className="h-9 w-full rounded-md border border-border bg-surface-input px-3 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-60"
       />
       {draft.description ? (
         <p className="line-clamp-2 text-[12px] text-content-subtle">{draft.description}</p>

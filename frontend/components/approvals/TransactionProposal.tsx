@@ -78,8 +78,8 @@ export function transactionPayloadErrors(payload: Record<string, unknown>): stri
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 py-1">
-      <dt className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-content-subtle">{label}</dt>
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <dt className="shrink-0 font-mono text-[10.5px] uppercase tracking-[0.08em] text-content-subtle">{label}</dt>
       <dd className="min-w-0 break-words text-right text-[13px] text-content">{children}</dd>
     </div>
   );
@@ -90,12 +90,17 @@ export function TransactionSummary({ payload }: { payload: Record<string, unknow
   const v = readTransaction(payload);
   const isExpense = v.type === "EXPENSE";
   return (
-    <dl className="mt-2 divide-y divide-border/60 rounded-lg border border-border bg-bg/40 px-3 py-1.5">
+    <dl className="glass-tile mt-1 divide-y divide-border/50 rounded-md px-3.5 py-1.5">
       <Row label="Type">
-        <Badge tone={isExpense ? "danger" : "success"}>{v.type || "—"}</Badge>
+        <Badge
+          tone={isExpense ? "danger" : "success"}
+          className="text-[10px] font-semibold uppercase tracking-[0.05em]"
+        >
+          {v.type || "—"}
+        </Badge>
       </Row>
       <Row label="Amount">
-        <span className={isExpense ? "text-danger" : "text-success"}>
+        <span className={isExpense ? "font-medium text-danger" : "font-medium text-success-soft"}>
           {v.amount !== null ? formatCurrency(v.amount, v.currency) : "—"}
         </span>
       </Row>
@@ -177,7 +182,7 @@ export function TransactionEditForm({
         onChange={(e) => set({ description: e.target.value })}
       />
       {errors.length > 0 ? (
-        <ul className="space-y-1 text-[12px] text-danger">
+        <ul className="space-y-1 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">
           {errors.map((msg) => (
             <li key={msg}>• {msg}</li>
           ))}

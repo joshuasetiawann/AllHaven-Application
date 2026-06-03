@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, MessagesSquare, SlidersHorizontal } from "lucide-react";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -75,7 +75,11 @@ export function AiChatBehaviorPanel() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Chat defaults" subtitle="Applied when you open a new AI chat." />
+          <CardHeader
+            icon={<MessagesSquare size={16} />}
+            title="Chat behavior"
+            subtitle="Defaults applied when you open a new AI chat."
+          />
           <div className="space-y-4">
             <Select
               label="Default mode"
@@ -117,7 +121,11 @@ export function AiChatBehaviorPanel() {
         </Card>
 
         <Card>
-          <CardHeader title="Behavior" subtitle="How the assistant acts during a chat." />
+          <CardHeader
+            icon={<SlidersHorizontal size={16} />}
+            title="Behavior"
+            subtitle="How the assistant acts during a chat."
+          />
           <ul className="divide-y divide-border">
             <li className="flex items-center justify-between gap-3 py-3.5">
               <div>

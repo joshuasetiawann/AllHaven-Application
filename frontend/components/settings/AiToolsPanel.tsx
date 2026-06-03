@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ShieldCheck, Wrench } from "lucide-react";
+import { PenLine, Search, Wrench } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Toggle } from "@/components/ui/Toggle";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { aiApi, ApiException } from "@/lib/api";
+import { cn } from "@/lib/format";
 import type { AiTool } from "@/types";
 
 // Known module display order; anything new from the backend registry is appended after.
@@ -20,6 +21,13 @@ const RISK_TONE: Record<AiTool["risk"], "neutral" | "warning" | "danger"> = {
   LOW: "neutral",
   MEDIUM: "warning",
   HIGH: "danger",
+};
+
+// Risk-tinted icon tile recipe for each tool row.
+const RISK_TILE: Record<AiTool["risk"], string> = {
+  LOW: "bg-success/12 text-success-soft",
+  MEDIUM: "bg-warning/12 text-warning",
+  HIGH: "bg-danger/12 text-danger",
 };
 
 export function AiToolsPanel() {
@@ -77,16 +85,16 @@ export function AiToolsPanel() {
 
   return (
     <div className="space-y-4">
-      <Card padding="md" className="border-primary/15">
-        <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <ShieldCheck size={18} />
+      <Card gradient padding="md">
+        <div className="flex items-start gap-3.5">
+          <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] bg-primary/12 text-primary-bright">
+            <Wrench size={18} />
           </span>
           <div>
-            <p className="text-sm font-semibold text-content">AI tool registry</p>
-            <p className="mt-0.5 text-[13px] text-content-muted">
-              Write actions always create a pending approval — the AI never executes them silently.
-              HIGH-risk tools require approval even if approvals are relaxed.
+            <p className="text-sm font-semibold text-content">AI Tools</p>
+            <p className="mt-0.5 text-[12.5px] text-content-muted">
+              Capabilities agents may call. Write actions always create a pending approval — the AI never
+              executes them silently. HIGH-risk tools require approval even if approvals are relaxed.
             </p>
           </div>
         </div>
@@ -103,17 +111,27 @@ export function AiToolsPanel() {
                 {tools
                   .filter((t) => t.module === module)
                   .map((tool) => (
-                    <li key={tool.name} className="flex items-center justify-between gap-3 py-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="font-mono text-[13px] text-content">{tool.name}</p>
-                          <Badge tone={tool.access === "write" ? "primary" : "neutral"}>{tool.access}</Badge>
-                          <Badge tone={RISK_TONE[tool.risk]}>{tool.risk}</Badge>
-                          {tool.access === "write" || tool.approval_required ? (
-                            <Badge tone="info">Approval required</Badge>
-                          ) : null}
+                    <li key={tool.name} className="flex items-center justify-between gap-3 py-[13px]">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span
+                          className={cn(
+                            "flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px]",
+                            RISK_TILE[tool.risk],
+                          )}
+                        >
+                          {tool.access === "write" ? <PenLine size={16} /> : <Search size={16} />}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="font-mono text-[13px] text-content">{tool.name}</p>
+                            <Badge tone={tool.access === "write" ? "primary" : "neutral"}>{tool.access}</Badge>
+                            <Badge tone={RISK_TONE[tool.risk]}>{tool.risk}</Badge>
+                            {tool.access === "write" || tool.approval_required ? (
+                              <Badge tone="info">Approval required</Badge>
+                            ) : null}
+                          </div>
+                          <p className="mt-0.5 text-[12.5px] text-content-muted">{tool.description}</p>
                         </div>
-                        <p className="mt-0.5 text-[12.5px] text-content-muted">{tool.description}</p>
                       </div>
                       <Toggle
                         checked={tool.enabled}

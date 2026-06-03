@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ExternalLink, Info, Pencil, Plus, RefreshCw, Trash2, Workflow, Zap } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -15,6 +14,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { automationsApi, n8nApi, ApiException } from "@/lib/api";
+import { cn } from "@/lib/format";
 import type { Automation, N8nWorkflow, N8nWorkflowList } from "@/types";
 
 const TRIGGER_TYPES = ["manual", "schedule", "webhook", "event"];
@@ -33,6 +33,20 @@ const emptyForm: AutomationForm = {
   trigger_type: "manual",
   action_type: "notify",
 };
+
+function FlowStatus({ active, activeLabel = "Active", pausedLabel = "Paused" }: { active: boolean; activeLabel?: string; pausedLabel?: string }) {
+  return active ? (
+    <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-success-soft">
+      <span className="h-1.5 w-1.5 rounded-full bg-success shadow-[0_0_8px_rgb(var(--color-success))]" />
+      {activeLabel}
+    </span>
+  ) : (
+    <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-content-subtle">
+      <span className="h-1.5 w-1.5 rounded-full bg-content-faint" />
+      {pausedLabel}
+    </span>
+  );
+}
 
 export default function AutomationsPage() {
   const [automations, setAutomations] = useState<Automation[] | null>(null);
@@ -142,22 +156,30 @@ export default function AutomationsPage() {
 
   return (
     <AppShell>
-      <PageHeader
-        title="Automations"
-        subtitle="Draft workflow definitions for your workspace."
-        actions={
+      {/* Header — Aurora spec: H1 + MVP pill + subtitle + New flow */}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-semibold tracking-[-0.02em] text-content sm:text-[30px]">Automations</h1>
+            <Badge tone="warning" className="font-semibold">MVP</Badge>
+          </div>
+          <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-content-muted">
+            Trigger-based flows. Live workflows run in n8n — drafts here never execute.
+          </p>
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           <Button onClick={openCreate}>
-            <Plus size={16} /> New automation
+            <Plus size={16} /> New flow
           </Button>
-        }
-      />
+        </div>
+      </div>
 
       {/* Live workflows from the connected n8n instance. */}
       <section className="mb-7">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-semibold text-content">Your n8n workflows</h2>
-            <p className="text-[12.5px] text-content-muted">Live from your connected n8n — toggle active state or open in n8n.</p>
+            <h2 className="text-[15px] font-semibold text-content">Your n8n workflows</h2>
+            <p className="mt-0.5 text-[12.5px] text-content-muted">Live from your connected n8n — toggle active state or open in n8n.</p>
           </div>
           <Button variant="ghost" size="sm" onClick={loadN8n}>
             <RefreshCw size={14} /> Refresh
@@ -172,43 +194,51 @@ export default function AutomationsPage() {
               <p className="text-[13px] text-content-muted">No workflows in n8n yet. Create one in n8n, then Refresh.</p>
             </Card>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="flex flex-col gap-3.5">
               {n8n.workflows.map((w) => (
-                <Card key={w.id}>
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-primary">
-                      <Workflow size={18} />
-                    </span>
-                    <Toggle checked={w.active} onChange={() => toggleWorkflow(w)} label="Activate workflow" />
-                  </div>
-                  <h3 className="mt-3 truncate text-sm font-semibold text-content" title={w.name}>{w.name}</h3>
-                  <div className="mt-2">
-                    <Badge tone={w.active ? "success" : "neutral"}>{w.active ? "Active" : "Inactive"}</Badge>
-                  </div>
-                  <div className="mt-4 flex items-center justify-end border-t border-border pt-3">
+                <Card
+                  key={w.id}
+                  padding="none"
+                  hover
+                  className={cn("flex flex-wrap items-center gap-4 px-5 py-[18px]", !w.active && "opacity-70")}
+                >
+                  <span
+                    className={cn(
+                      "flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-md",
+                      w.active
+                        ? "bg-[rgb(var(--color-primary)/0.12)] text-primary-bright"
+                        : "bg-content/5 text-content-muted",
+                    )}
+                  >
+                    <Workflow size={20} />
+                  </span>
+                  <div className="min-w-[200px] flex-1">
+                    <p className="truncate text-sm font-semibold text-content" title={w.name}>{w.name}</p>
                     <a
                       href={`${n8n.base_url}/workflow/${w.id}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-[12.5px] text-primary hover:underline"
+                      className="mt-0.5 inline-flex items-center gap-1.5 text-[12.5px] text-primary-bright hover:underline"
                     >
                       Open in n8n <ExternalLink size={13} />
                     </a>
                   </div>
+                  <FlowStatus active={w.active} pausedLabel="Inactive" />
+                  <Toggle checked={w.active} onChange={() => toggleWorkflow(w)} label="Activate workflow" />
                 </Card>
               ))}
             </div>
           )
         ) : (
           <Card padding="md" className={n8n.status === "not_configured" || n8n.status === "no_api_key" ? "" : "border-warning/30"}>
-            <div className="flex items-start gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/12 text-warning">
-                <Info size={18} />
+            <div className="flex items-start gap-3.5">
+              <span className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-md bg-warning/12 text-warning">
+                <Info size={20} />
               </span>
               <div>
                 <p className="text-sm font-semibold text-content">n8n not ready</p>
                 <p className="mt-0.5 text-[13px] text-content-muted">{n8n.message}</p>
-                <Link href="/dashboard/settings" className="mt-1 inline-block text-[12.5px] text-primary hover:underline">
+                <Link href="/dashboard/settings" className="mt-1 inline-block text-[12.5px] text-primary-bright hover:underline">
                   Open Settings → Connected Tools →
                 </Link>
               </div>
@@ -217,11 +247,11 @@ export default function AutomationsPage() {
         )}
       </section>
 
-      <h2 className="mb-3 text-sm font-semibold text-content">Local drafts</h2>
+      <h2 className="mb-3 text-[15px] font-semibold text-content">Local drafts</h2>
       <Card className="mb-5 border-warning/20" padding="md">
-        <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/12 text-warning">
-            <Info size={18} />
+        <div className="flex items-start gap-3.5">
+          <span className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-md bg-warning/12 text-warning">
+            <Info size={20} />
           </span>
           <div>
             <p className="text-sm font-semibold text-content">Local draft definitions</p>
@@ -239,41 +269,45 @@ export default function AutomationsPage() {
         <Loading />
       ) : automations.length === 0 ? (
         <EmptyState
-          title="No automations yet"
-          description="Create a draft automation definition to plan your workflows."
+          title="No flows yet"
+          description="Create a draft flow definition to plan your workflows."
           icon={<Workflow size={20} />}
           action={
             <Button onClick={openCreate}>
-              <Plus size={16} /> New automation
+              <Plus size={16} /> New flow
             </Button>
           }
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="flex flex-col gap-3.5">
           {automations.map((a) => (
-            <Card key={a.id} hover>
-              <div className="flex items-start justify-between">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface-input text-primary">
-                  <Zap size={18} />
-                </span>
-                <Toggle
-                  checked={a.enabled}
-                  onChange={() => toggleEnabled(a)}
-                  label="Enable automation"
-                />
+            <Card
+              key={a.id}
+              padding="none"
+              hover
+              className={cn("flex flex-wrap items-center gap-4 px-5 py-[18px]", !a.enabled && "opacity-70")}
+            >
+              <span
+                className={cn(
+                  "flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-md",
+                  a.enabled
+                    ? "bg-[rgb(var(--color-primary)/0.12)] text-primary-bright"
+                    : "bg-content/5 text-content-muted",
+                )}
+              >
+                <Zap size={20} />
+              </span>
+              <div className="min-w-[200px] flex-1">
+                <p className="text-sm font-semibold text-content">{a.name}</p>
+                <p className="mt-0.5 text-[12.5px] text-content-muted">
+                  {a.trigger_type || "—"} → {a.action_type || "—"}
+                  {a.description ? <span className="text-content-subtle"> · {a.description}</span> : null}
+                </p>
               </div>
-              <h3 className="mt-3 text-sm font-semibold text-content">{a.name}</h3>
-              {a.description ? (
-                <p className="mt-1 line-clamp-2 text-[12.5px] text-content-muted">{a.description}</p>
-              ) : null}
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                <Badge tone="neutral">Trigger: {a.trigger_type || "—"}</Badge>
-                <Badge tone="neutral">Action: {a.action_type || "—"}</Badge>
-                <Badge tone={a.enabled ? "success" : "neutral"}>
-                  {a.enabled ? "Enabled" : "Disabled"}
-                </Badge>
-              </div>
-              <div className="mt-4 flex items-center justify-end gap-1.5 border-t border-border pt-3">
+              <Badge tone="neutral">Draft</Badge>
+              <FlowStatus active={a.enabled} activeLabel="Enabled" pausedLabel="Disabled" />
+              <Toggle checked={a.enabled} onChange={() => toggleEnabled(a)} label="Enable automation" />
+              <div className="flex shrink-0 items-center gap-1.5">
                 <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
                   <Pencil size={14} /> Edit
                 </Button>
@@ -293,8 +327,8 @@ export default function AutomationsPage() {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title={editing ? "Edit automation" : "New automation"}
-        description="Define a draft automation. Nothing runs automatically in the MVP."
+        title={editing ? "Edit flow" : "New flow"}
+        description="Define a draft flow. Nothing runs automatically in the MVP."
         size="lg"
         footer={
           <>
@@ -302,7 +336,7 @@ export default function AutomationsPage() {
               Cancel
             </Button>
             <Button form="automation-form" type="submit" loading={saving} disabled={!form.name.trim()}>
-              {editing ? "Save changes" : "Create automation"}
+              {editing ? "Save changes" : "Create flow"}
             </Button>
           </>
         }
@@ -319,7 +353,7 @@ export default function AutomationsPage() {
           <Textarea
             id="description"
             label="Description"
-            placeholder="What should this automation do?"
+            placeholder="What should this flow do?"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />

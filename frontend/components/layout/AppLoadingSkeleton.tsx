@@ -5,7 +5,7 @@ type LoadingScope = "app" | "dashboard";
 
 function RailSkeleton() {
   return (
-    <aside className="hidden h-screen w-[80px] shrink-0 border-r border-border bg-bg-deep/92 p-4 md:flex xl:w-[280px] xl:p-5">
+    <aside className="hidden h-screen w-[80px] shrink-0 border-r border-white/[0.07] bg-[linear-gradient(180deg,rgba(14,16,30,0.72),rgba(8,9,16,0.72))] p-4 backdrop-blur-[18px] md:flex xl:w-[280px] xl:p-5">
       <div className="flex w-full flex-col gap-6">
         <div className="flex items-center gap-3">
           <Skeleton className="h-10 w-10 rounded-xl" />
@@ -34,12 +34,12 @@ function RailSkeleton() {
 
 function TopbarSkeleton() {
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-bg/85 px-3 py-3 backdrop-blur-xl sm:px-5 lg:px-8">
+    <header className="sticky top-0 z-20 border-b border-white/[0.07] bg-[rgb(var(--color-bg)/0.55)] px-3 py-3 backdrop-blur-[16px] sm:px-5 lg:px-8">
       <div className="mx-auto flex max-w-[1480px] items-center gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface-input text-content-muted md:hidden">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.035] text-content-muted md:hidden">
           <Menu size={18} />
         </span>
-        <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-surface-input px-3 sm:max-w-lg">
+        <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full border border-white/[0.09] bg-white/[0.035] px-4 sm:max-w-[560px]">
           <Search size={16} className="text-content-subtle" />
           <Skeleton className="h-4 flex-1" />
         </div>
@@ -56,7 +56,7 @@ function PageContentSkeleton({ scope }: { scope: LoadingScope }) {
 
   return (
     <main className="mx-auto w-full max-w-[1480px] animate-page-in px-3 py-4 sm:px-5 sm:py-5 lg:px-8 lg:py-7">
-      <div className="mb-7 flex flex-col gap-4 border-b border-border/70 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="mb-7 flex flex-col gap-4 border-b border-white/[0.07] pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex gap-2">
             <Skeleton className="h-6 w-20 rounded-full" />
@@ -75,7 +75,7 @@ function PageContentSkeleton({ scope }: { scope: LoadingScope }) {
         <section className="space-y-5 xl:col-span-2">
           <div className="panel-gradient p-5">
             <div className="mb-5 flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary-bright">
                 <Bot size={18} />
               </span>
               <div className="flex-1 space-y-2">
@@ -85,7 +85,7 @@ function PageContentSkeleton({ scope }: { scope: LoadingScope }) {
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="rounded-xl border border-border bg-surface-input/65 p-4">
+                <div key={index} className="glass-tile p-4">
                   <Skeleton className="mb-3 h-7 w-7 rounded-lg" />
                   <Skeleton className="mb-3 h-3 w-20" />
                   <Skeleton className="h-7 w-24" />
@@ -97,7 +97,7 @@ function PageContentSkeleton({ scope }: { scope: LoadingScope }) {
           <div className="panel p-5">
             <Skeleton className="mb-4 h-5 w-40" />
             <Skeleton className="mb-4 h-10 w-56" />
-            <div className="flex h-48 items-end gap-3 border-b border-border pb-3">
+            <div className="flex h-48 items-end gap-3 border-b border-white/[0.07] pb-3">
               {[42, 68, 54, 80, 60].map((height, index) => (
                 <Skeleton
                   key={index}

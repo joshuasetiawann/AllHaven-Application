@@ -149,10 +149,7 @@ def build(
     section_key: Optional[str] = None,
 ) -> Optional[str]:
     """Return a memory context block string, or None if no relevant memories exist."""
-    from app.services import ai_settings_service, memory_service
-
-    if not ai_settings_service.is_memory_auto_learning_enabled(db, principal):
-        return None
+    from app.services import memory_service
 
     selected: list[AiMemory] = []
     seen_ids: set = set()
