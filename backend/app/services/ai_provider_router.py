@@ -307,15 +307,19 @@ class ChatPlan:
     # 'queued' (runnable) | 'blocked' | 'not_configured' | 'disabled' | 'error'
     status: str
     message: str = ""
-    _runner: Optional[Callable[[list[dict]], "object"]] = field(default=None, repr=False)
+    _runner: Optional[Callable[..., "object"]] = field(default=None, repr=False)
 
     @property
     def runnable(self) -> bool:
         return self.status == "queued"
 
-    def execute(self, messages: list[dict]):
-        """Run the network call. Returns a ChatResult. Thread-safe."""
-        return self._runner(messages)
+    def execute(self, messages: list[dict], params: Optional[dict] = None):
+        """Run the network call. Returns a ChatResult. Thread-safe.
+
+        ``params`` carries generation settings (temperature/top_p/…) from the
+        Reasoning Quality Layer; adapters forward the subset their API supports.
+        """
+        return self._runner(messages, params)
 
 
 def plan_chat(db: Session, principal: Principal, provider_id: Optional[str] = None) -> ChatPlan:
@@ -356,8 +360,8 @@ def plan_chat(db: Session, principal: Principal, provider_id: Optional[str] = No
             f"The '{spec.name}' provider is configured but disabled. Enable it in Settings to use it.",
         )
 
-    def _run(messages: list[dict]):
-        return adapter.chat(public, secrets, messages, model=model)
+    def _run(messages: list[dict], params: Optional[dict] = None):
+        return adapter.chat(public, secrets, messages, model=model, params=params)
 
     return ChatPlan(pid, spec.name, spec.external, True, True, "queued", "", _run)
 
