@@ -4,10 +4,6 @@
 // Compute/file groups (ai/memory/knowledge/drive/system/n8n/google/settings) are NOT
 // ported in 3.7 — re-export the REST impl (they are hidden on mobile UI).
 export {
-  calendarApi,
-  routinesApi,
-  weatherApi,
-  automationsApi,
   aiApi,
   memoryApi,
   knowledgeApi,
@@ -471,5 +467,265 @@ export const financeApi = {
       balance: agg.balance,
       transaction_count: agg.transaction_count,
     };
+  },
+};
+
+// ─── Task 7: calendarApi + routinesApi (both backed by calendar_events) ───────
+//
+// NOT NULL columns in calendar_events with no server default (must be stamped):
+//   workspace_id      → getWorkspaceId()
+//   created_by        → getAppUserId()
+//   title             → required caller-supplied field
+//   start_at          → required caller-supplied field
+//   all_day           → Boolean, default=False in ORM / CalendarEventCreate default=False
+//   repeat_rule       → String(16), default="once" in ORM / CalendarEventCreate default="once"
+//   is_deleted        → Boolean, default=False in ORM — Postgres has column default; stamp anyway
+//
+// calendar_events HAS is_deleted → list filters is_deleted=false; remove is soft-delete.
+
+import type { CalendarEvent, RoutineGenerateResult, RoutineSyncInfo } from "@/types";
+
+async function calList(): Promise<CalendarEvent[]> {
+  const sb = await getSupabase();
+  const { data, error } = await sb
+    .from("calendar_events")
+    .select("*")
+    .eq("is_deleted", false)
+    .order("start_at", { ascending: true });
+  if (error) throw toApiException(error);
+  return (data ?? []) as CalendarEvent[];
+}
+
+async function calCreate(payload: Record<string, unknown>): Promise<CalendarEvent> {
+  const sb = await getSupabase();
+  const { data, error } = await sb
+    .from("calendar_events")
+    .insert({
+      // Defaults for NOT NULL columns without server default (ORM/schema defaults):
+      all_day: false,
+      repeat_rule: "once",
+      is_deleted: false,
+      // Caller payload wins over the above defaults:
+      ...payload,
+      // Stamp tenancy columns last so callers cannot override them:
+      workspace_id: getWorkspaceId(),
+      created_by: getAppUserId(),
+    })
+    .select("*")
+    .single();
+  if (error) throw toApiException(error);
+  return data as CalendarEvent;
+}
+
+async function calUpdate(id: string, payload: Record<string, unknown>): Promise<CalendarEvent> {
+  const sb = await getSupabase();
+  const { data, error } = await sb
+    .from("calendar_events")
+    .update(payload)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw toApiException(error);
+  return data as CalendarEvent;
+}
+
+async function calRemove(id: string): Promise<{ id: string }> {
+  const sb = await getSupabase();
+  const { error } = await sb
+    .from("calendar_events")
+    .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw toApiException(error);
+  return { id };
+}
+
+export const calendarApi = {
+  list: calList,
+  create: calCreate,
+  update: calUpdate,
+  remove: calRemove,
+};
+
+export const routinesApi = {
+  list: (params?: { start?: string; end?: string }): Promise<CalendarEvent[]> => {
+    // On Supabase the routines table doesn't exist separately — we query calendar_events
+    // directly (the REST 404-fallback target IS this table).
+    // start/end date filtering is applied when provided.
+    return (async () => {
+      const sb = await getSupabase();
+      let q = sb
+        .from("calendar_events")
+        .select("*")
+        .eq("is_deleted", false);
+      if (params?.start) q = q.gte("start_at", params.start);
+      if (params?.end) q = q.lte("start_at", params.end);
+      q = q.order("start_at", { ascending: true });
+      const { data, error } = await q;
+      if (error) throw toApiException(error);
+      return (data ?? []) as CalendarEvent[];
+    })();
+  },
+  create: calCreate,
+  update: calUpdate,
+  remove: calRemove,
+  createBatch: async (items: Record<string, unknown>[]): Promise<CalendarEvent[]> => {
+    const sb = await getSupabase();
+    const rows = items.map((e) => ({
+      all_day: false,
+      repeat_rule: "once",
+      is_deleted: false,
+      ...e,
+      workspace_id: getWorkspaceId(),
+      created_by: getAppUserId(),
+    }));
+    const { data, error } = await sb.from("calendar_events").insert(rows).select("*");
+    if (error) throw toApiException(error);
+    return (data ?? []) as CalendarEvent[];
+  },
+  // AI generation requires the backend secret — unavailable in the mobile Supabase-direct mode.
+  generate: async (_payload: {
+    prompt: string;
+    date: string;
+    period: string;
+    use_context?: boolean;
+  }): Promise<RoutineGenerateResult> => {
+    throw new ApiException(
+      "Routine generation runs on the desktop app",
+      "UNAVAILABLE_ON_MOBILE",
+      501,
+      null,
+    );
+  },
+  // In Supabase mode we ARE syncing directly — report as active.
+  syncStatus: async (): Promise<RoutineSyncInfo> => ({
+    status: "active",
+    configured: true,
+  }),
+};
+
+// ─── Task 8: automationsApi + weatherApi ─────────────────────────────────────
+//
+// NOT NULL columns in automations with no server default (must be stamped):
+//   workspace_id   → getWorkspaceId()
+//   created_by     → getAppUserId()
+//   name           → required caller-supplied field
+//   trigger_type   → String, default="manual" in ORM / AutomationCreate default="manual"
+//   action_type    → String, default="noop" in ORM / AutomationCreate default="noop"
+//   config         → JSONType, default=dict in ORM / AutomationCreate default_factory=dict
+//   enabled        → Boolean, default=False in ORM — NOT in AutomationCreate (caller cannot set at create)
+//   is_deleted     → Boolean, default=False in ORM — Postgres column default; stamp defensively
+//
+// automations HAS is_deleted → list filters is_deleted=false; remove is soft-delete.
+//
+// NOT NULL columns in weather_locations with no server default (must be stamped):
+//   workspace_id → getWorkspaceId()
+//   created_by   → getAppUserId()
+//   name         → required caller-supplied field
+//   is_default   → Boolean, default=False in ORM / WeatherLocationCreate default=False
+//
+// weather_locations has NO is_deleted column → list has NO is_deleted filter;
+// removeLocation is a HARD DELETE.
+
+import type { Automation, WeatherLocation, WeatherCurrent } from "@/types";
+
+export const automationsApi = {
+  list: async (): Promise<Automation[]> => {
+    const sb = await getSupabase();
+    const { data, error } = await sb
+      .from("automations")
+      .select("*")
+      .eq("is_deleted", false)
+      .order("created_at", { ascending: false });
+    if (error) throw toApiException(error);
+    return (data ?? []) as Automation[];
+  },
+  create: async (payload: Record<string, unknown>): Promise<Automation> => {
+    const sb = await getSupabase();
+    const { data, error } = await sb
+      .from("automations")
+      .insert({
+        // Defaults for NOT NULL columns (ORM/schema defaults stamped before payload):
+        trigger_type: "manual",
+        action_type: "noop",
+        config: {},
+        enabled: false,
+        is_deleted: false,
+        // Caller payload wins:
+        ...payload,
+        // Tenancy columns last — cannot be overridden:
+        workspace_id: getWorkspaceId(),
+        created_by: getAppUserId(),
+      })
+      .select("*")
+      .single();
+    if (error) throw toApiException(error);
+    return data as Automation;
+  },
+  update: async (id: string, payload: Record<string, unknown>): Promise<Automation> => {
+    const sb = await getSupabase();
+    const { data, error } = await sb
+      .from("automations")
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error) throw toApiException(error);
+    return data as Automation;
+  },
+  remove: async (id: string): Promise<{ id: string }> => {
+    const sb = await getSupabase();
+    const { error } = await sb
+      .from("automations")
+      .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw toApiException(error);
+    return { id };
+  },
+};
+
+export const weatherApi = {
+  listLocations: async (): Promise<WeatherLocation[]> => {
+    const sb = await getSupabase();
+    // weather_locations has NO is_deleted column — no filter applied.
+    const { data, error } = await sb
+      .from("weather_locations")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (error) throw toApiException(error);
+    return (data ?? []) as WeatherLocation[];
+  },
+  addLocation: async (name: string, isDefault = false): Promise<WeatherLocation> => {
+    const sb = await getSupabase();
+    const { data, error } = await sb
+      .from("weather_locations")
+      .insert({
+        // Defaults before payload so caller can override is_default:
+        is_default: isDefault,
+        // Required caller-supplied field:
+        name,
+        // Tenancy columns last:
+        workspace_id: getWorkspaceId(),
+        created_by: getAppUserId(),
+      })
+      .select("*")
+      .single();
+    if (error) throw toApiException(error);
+    return data as WeatherLocation;
+  },
+  // Hard delete — weather_locations has no is_deleted column.
+  removeLocation: async (id: string): Promise<{ id: string }> => {
+    const sb = await getSupabase();
+    const { error } = await sb.from("weather_locations").delete().eq("id", id);
+    if (error) throw toApiException(error);
+    return { id };
+  },
+  // Live weather requires a backend API secret — unavailable in mobile Supabase-direct mode.
+  current: async (_location?: string): Promise<WeatherCurrent> => {
+    throw new ApiException(
+      "Live weather runs on the desktop app",
+      "UNAVAILABLE_ON_MOBILE",
+      501,
+      null,
+    );
   },
 };
