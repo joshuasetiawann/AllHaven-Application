@@ -37,14 +37,15 @@ export function BarChart({
   const max = Math.max(1, ...data.map((d) => d.value));
   const hasValues = data.some((d) => d.value > 0);
   return (
-    <div className={cn("flex items-end gap-2", className)} style={{ height }}>
+    <div className={cn("relative flex gap-2", className)} style={{ height }}>
+      <div className="pointer-events-none absolute inset-x-0 bottom-5 border-t border-border/80" />
       {data.map((bar, index) => {
         // Floor only non-empty bars, so genuinely-zero buckets render flat
         // instead of uniform stubs that look like a static placeholder.
         const pct = bar.value > 0 ? Math.max(6, Math.round((bar.value / max) * 100)) : 0;
         const isPeak = highlightPeak && hasValues && bar.value === max;
         return (
-          <div key={bar.label} className="flex flex-1 flex-col items-center justify-end gap-1.5">
+          <div key={bar.label} className="relative flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
             {formatValue && bar.value > 0 ? (
               <span
                 className={cn(
@@ -55,11 +56,15 @@ export function BarChart({
                 {formatValue(bar.value)}
               </span>
             ) : null}
-            <div className="flex w-full flex-1 items-end">
+            <div className="flex min-h-0 w-full flex-1 items-end">
               <div
                 className={cn(
-                  "w-full rounded-t-md transition-[height] duration-700 ease-out",
-                  isPeak ? "bg-primary shadow-glow-primary" : "bg-surface-high",
+                  "min-h-0 w-full rounded-t-md transition-[height] duration-700 ease-out",
+                  bar.value > 0
+                    ? isPeak
+                      ? "bg-primary shadow-glow-primary"
+                      : "bg-primary/45"
+                    : "bg-transparent",
                 )}
                 style={{
                   height: grown ? `${pct}%` : "0%",
@@ -72,6 +77,11 @@ export function BarChart({
           </div>
         );
       })}
+      {!hasValues ? (
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[11px] text-content-subtle">
+          No activity in this period
+        </div>
+      ) : null}
     </div>
   );
 }
