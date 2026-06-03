@@ -42,5 +42,5 @@ build/app/outputs/flutter-apk/app-debug.apk
 Rebuild the frontend mobile export, then copy `frontend/out` into
 `mobile_flutter/assets/allhaven` before building the APK.
 
-The current bundled export is AllHaven v4.1.0 with Supabase data mode and bearer
+The current bundled export is AllHaven v4.2.0 with Supabase data mode and bearer
 auth enabled for mobile.
