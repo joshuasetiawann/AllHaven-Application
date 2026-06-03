@@ -135,7 +135,11 @@ export type AgentResponseStatus =
   | "error"
   | "not_configured"
   | "disabled"
-  | "blocked";
+  | "blocked"
+  | "unsupported";
+
+// Thinking Mode controls reasoning depth + sampling (separate from chat mode).
+export type ThinkingMode = "fast" | "balance" | "thinking" | "deep";
 
 export interface AgentResponse {
   id: string;
@@ -279,6 +283,7 @@ export interface AiProvider {
   provider_type: string;
   external: boolean;
   api_key_required: boolean;
+  capabilities?: { text: boolean; image: boolean; tools: boolean };
   enabled: boolean;
   status: IntegrationStatusValue;
   configured: boolean;

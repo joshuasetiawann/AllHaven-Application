@@ -293,6 +293,7 @@ def chat_multi(
         provider_ids=payload.provider_ids,
         session_id=payload.session_id,
         images=payload.images,
+        thinking_mode=payload.thinking_mode,
     )
     return success_response(_multi_view(result), "Multi-agent run processed")
 
@@ -312,6 +313,7 @@ def chat_debate(
         session_id=payload.session_id,
         rounds=payload.rounds,
         images=payload.images,
+        thinking_mode=payload.thinking_mode,
     )
     return success_response(_multi_view(result), "Debate run processed")
 
@@ -329,7 +331,7 @@ def chat_reason(
         message=payload.message,
         provider_ids=payload.provider_ids,
         session_id=payload.session_id,
-        mode=payload.mode,
+        thinking_mode=payload.thinking_mode,
         images=payload.images,
     )
     return success_response(_multi_view(result), "Reasoning run processed")
