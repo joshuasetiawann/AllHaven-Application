@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.common import ORMModel
 
@@ -20,11 +20,29 @@ class MemoryCreate(BaseModel):
     content: str = Field(min_length=1)
     sensitivity: MemorySensitivity = "LOW"
 
+    @field_validator("title", "content")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        stripped = (value or "").strip()
+        if not stripped:
+            raise ValueError("This field cannot be blank.")
+        return stripped
+
 
 class MemoryUpdate(BaseModel):
     title: Optional[str] = Field(default=None, max_length=200)
     content: Optional[str] = None
     category: Optional[MemoryCategory] = None
+
+    @field_validator("title", "content")
+    @classmethod
+    def strip_optional_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("This field cannot be blank.")
+        return stripped
 
 
 class MemoryOut(ORMModel):
