@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import urllib.error
 import urllib.request
 import uuid
@@ -172,3 +173,50 @@ def connect(db: Session, principal, password: str) -> dict:
             profile.supabase_user_id = sb_id
             db.commit()
     return {"connected": bool(sb_id)}
+
+
+def sync_password_now(db: Session, *, user_id, email: str, full_name, password: str) -> Optional[str]:
+    """Keep one identity across desktop + mobile: ensure the Supabase Auth user
+    exists, its password matches the desktop password, and the profile is linked.
+    Returns the Supabase user id (or None). Best-effort — never raises. Synchronous
+    core (the login path calls the async wrapper below so it never blocks)."""
+    try:
+        from app.domain.users import Profile
+
+        url, key = get_service_credentials(db, workspace_id=None)
+        if not url or not key:
+            return None
+        profile = db.get(Profile, user_id)
+        existing = profile.supabase_user_id if profile is not None else None
+        if existing:
+            existing = str(existing)
+            # Already linked → just keep the password in lock-step (one admin call).
+            _set_user_password(url, key, existing, password)
+            return existing
+        # Not linked yet → create (idempotent) + link.
+        sb_id = create_user(url, key, email=email, password=password, full_name=full_name)
+        if sb_id and profile is not None:
+            profile.supabase_user_id = sb_id
+            db.commit()
+        return sb_id
+    except Exception:  # pragma: no cover - best-effort; must never affect login
+        log.debug("Supabase password sync skipped")
+        return None
+
+
+def sync_password_async(user_id, email: str, full_name, password: str) -> None:
+    """Fire-and-forget the password sync on a daemon thread (opens its own session)
+    so a successful login returns immediately."""
+    def _worker() -> None:
+        from app.core.database import SessionLocal
+
+        db = SessionLocal()
+        try:
+            sync_password_now(db, user_id=user_id, email=email, full_name=full_name, password=password)
+        finally:
+            db.close()
+
+    try:
+        threading.Thread(target=_worker, daemon=True).start()
+    except Exception:  # pragma: no cover - defensive
+        pass
