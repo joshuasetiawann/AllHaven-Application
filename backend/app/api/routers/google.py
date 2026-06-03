@@ -34,7 +34,7 @@ def google_scopes(principal: Principal = Depends(get_current_principal)) -> dict
                 "One Google login authenticates the user (openid, email, profile).",
                 "Each Google app/API needs its own scope and explicit user consent.",
                 "Sensitive/restricted scopes may require Google app verification in production.",
-                "CoreOS requests minimal scopes by default and never Gmail by default.",
+                "AllHaven requests minimal scopes by default and never Gmail by default.",
             ],
         },
         "Google OAuth scopes",
@@ -88,7 +88,7 @@ def google_callback(
             border-radius:14px;padding:28px 32px;max-width:420px;text-align:center}}
             h1{{color:{color};font-size:18px}}a{{color:#18E0D6}}</style></head>
             <body><div class="card"><h1>{title}</h1><p>{message}</p>
-            <p><a href="/dashboard/settings">Back to CoreOS settings</a></p></div></body></html>""",
+            <p><a href="/dashboard/settings">Back to AllHaven settings</a></p></div></body></html>""",
             status_code=200 if ok else 400,
         )
 

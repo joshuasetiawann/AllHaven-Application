@@ -33,6 +33,9 @@ def _master_key() -> bytes:
 
 def _subkeys() -> tuple[bytes, bytes]:
     master = _master_key()
+    # NOTE: these domain-separation labels are intentionally kept as-is across the
+    # AllHaven rebrand. They are internal (never user-facing); changing them would
+    # change the derived keystream and make existing encrypted secrets undecryptable.
     enc_key = hashlib.sha256(b"coreos-enc\x00" + master).digest()
     mac_key = hashlib.sha256(b"coreos-mac\x00" + master).digest()
     return enc_key, mac_key

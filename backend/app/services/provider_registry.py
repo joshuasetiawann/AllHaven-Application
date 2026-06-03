@@ -112,7 +112,7 @@ INTEGRATIONS: tuple[ProviderSpec, ...] = (
         purpose="File storage (local or Supabase)",
         fields=(
             FieldSpec("provider", "Provider", placeholder="local", default="local"),
-            FieldSpec("bucket", "Bucket / folder (optional)", placeholder="coreos-files"),
+            FieldSpec("bucket", "Bucket / folder (optional)", placeholder="allhaven-files"),
         ),
     ),
     ProviderSpec(

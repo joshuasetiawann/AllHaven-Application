@@ -22,7 +22,7 @@ export default function LandingPage() {
         </div>
 
         <h1 className="max-w-3xl text-balance text-4xl font-semibold tracking-tight text-content sm:text-6xl">
-          CoreOS <span className="text-primary">Command Center</span>
+          AllHaven <span className="text-primary">Command Center</span>
         </h1>
         <p className="mt-6 max-w-xl text-balance text-[15px] leading-relaxed text-content-muted sm:text-base">
           A premium, modular AI command center for personal and company productivity. Tasks, notes,

@@ -1,6 +1,6 @@
 """Local automation definitions (workspace-scoped, MVP).
 
-Definitions persist but are never executed by CoreOS in the MVP — they are
+Definitions persist but are never executed by AllHaven in the MVP — they are
 disabled-safe drafts. n8n connection status is reported honestly via Settings.
 """
 
@@ -25,7 +25,7 @@ class Automation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     trigger_type: Mapped[str] = mapped_column(String(60), nullable=False, default="manual")
     action_type: Mapped[str] = mapped_column(String(60), nullable=False, default="noop")
     config: Mapped[dict] = mapped_column(JSONType, default=dict, nullable=False)
-    # Definitions are created disabled-safe; CoreOS does not execute them.
+    # Definitions are created disabled-safe; AllHaven does not execute them.
     enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

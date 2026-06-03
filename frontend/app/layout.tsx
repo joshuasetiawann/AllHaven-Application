@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CoreOS Command Center",
+  title: "AllHaven Command Center",
   description: "Modular AI command center for personal and company productivity.",
 };
 
