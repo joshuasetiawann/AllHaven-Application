@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
+  RefreshCw,
   SlidersHorizontal,
   Trash2,
   Wallet,
@@ -24,7 +25,7 @@ import { BarChart } from "@/components/ui/BarChart";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { useToast } from "@/components/ui/Toast";
 import { financeApi, ApiException } from "@/lib/api";
-import { cn, formatCurrency, formatDate, monthLabel } from "@/lib/format";
+import { cn, formatCompactCurrency, formatCurrency, formatDate, monthLabel } from "@/lib/format";
 import type { FinanceCategory, FinanceReport, FinanceType, Transaction } from "@/types";
 
 type ReportMode = "month" | "week";
@@ -106,6 +107,8 @@ export default function FinancePage() {
   });
   const [catForm, setCatForm] = useState({ name: "", type: "EXPENSE" as FinanceType });
 
+  const [refreshing, setRefreshing] = useState(false);
+
   const load = async () => {
     setError(null);
     try {
@@ -121,6 +124,15 @@ export default function FinancePage() {
       setReport(rep);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load finance data.");
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -275,6 +287,9 @@ export default function FinancePage() {
         subtitle={`Cashflow report - ${period.label}`}
         actions={
           <>
+            <Button variant="ghost" loading={refreshing} onClick={handleRefresh}>
+              <RefreshCw size={15} /> Refresh
+            </Button>
             <Button variant="ghost" onClick={() => setCatOpen(true)}>
               <SlidersHorizontal size={15} /> Categories
             </Button>
@@ -489,7 +504,11 @@ export default function FinancePage() {
                 subtitle={period.label}
                 icon={<Wallet size={18} />}
               />
-              <BarChart data={trendBars} height={140} />
+              <BarChart
+                data={trendBars}
+                height={140}
+                formatValue={(v) => formatCompactCurrency(v, report?.currency ?? "IDR")}
+              />
               <p className="mt-4 border-t border-border pt-3 text-[12px] text-content-subtle">
                 AllHaven tracks cashflow. It does not provide financial advice.
               </p>
