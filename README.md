@@ -1,15 +1,28 @@
-# AllHaven Command Center
+<div align="center">
 
-A modular **AI command center dashboard** for personal and company productivity.
+# 🛡️ AllHaven Command Center
 
-> AllHaven is **not** an operating system. It is a local-first web application (FastAPI + Next.js)
-> that combines tasks, notes, finance tracking, and an AI assistant — where **the AI proposes and
-> humans approve** every write action.
+**A modular, local-first AI command center for personal &amp; company productivity.**
 
-This repository is a complete, runnable **local MVP**.
+_The AI proposes — a human approves every write action._
 
-**Version:** **v0.11.0** — archive `AllHaven 2.3` · full history: [`CHANGELOG.md`](CHANGELOG.md)
-· how versions work: [`docs/VERSIONING.md`](docs/VERSIONING.md) · per-release notes: [`docs/releases/`](docs/releases/)
+[![Version](https://img.shields.io/badge/version-0.11.0%20·%20AllHaven%202.3-18E0D6?style=flat-square)](CHANGELOG.md)
+&nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
+&nbsp;![Next.js 14](https://img.shields.io/badge/Next.js%2014-000000?style=flat-square&logo=nextdotjs&logoColor=white)
+&nbsp;![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
+&nbsp;![© 2026 Joshua Setiawan](https://img.shields.io/badge/©%202026-Joshua%20Setiawan-555?style=flat-square)
+
+[**Quick start**](#-easiest-start--one-click) · [What's new](#-whats-new) · [Documentation](docs/) · [Changelog](CHANGELOG.md)
+
+</div>
+
+---
+
+> **AllHaven is _not_ an operating system.** It's a complete, runnable, local-first web
+> application (FastAPI + Next.js) that unifies tasks, notes, finance tracking, and a
+> **multi-agent AI** assistant — where **the AI proposes and humans approve** every write action.
+
+**Version:** **v0.11.0** — archive [`AllHaven 2.3`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
 
 ### 🆕 What's new
 
@@ -260,3 +273,16 @@ For a reliable one-shot local build, password hashing (PBKDF2-HMAC-SHA256) and J
 are implemented with the Python standard library in `backend/app/core/security.py`. They are
 isolated behind the auth boundary and documented as replaceable by bcrypt / Supabase Auth in
 production (see `docs/SECURITY_MODEL.md`).
+
+---
+
+## 📄 License &amp; Copyright
+
+**© 2026 Joshua Setiawan. All rights reserved.**
+
+AllHaven Command Center — its source code, design, and documentation — is the
+intellectual property of **Joshua Setiawan**. See [`LICENSE`](LICENSE) for terms.
+
+<div align="center">
+<sub>Built with FastAPI · Next.js · PostgreSQL — crafted by <b>Joshua Setiawan</b> · © 2026</sub>
+</div>
