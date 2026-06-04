@@ -30,7 +30,7 @@ import type { FinanceSummary, Integration, Note, Task, Transaction } from "@/typ
 interface Data {
   tasks: Task[];
   notes: Note[];
-  summary: FinanceSummary;
+  summary: FinanceSummary | null;
   transactions: Transaction[];
   integrations: Integration[];
 }
@@ -57,22 +57,43 @@ export default function DashboardOverview() {
 
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Sections that failed to load while others succeeded (shown as a banner, not
+  // a full-screen error) — one slow/failing call no longer blanks the dashboard.
+  const [failures, setFailures] = useState<string[]>([]);
 
   const load = async () => {
     setError(null);
     setData(null);
-    try {
-      const [tasks, notes, summary, transactions, integrations] = await Promise.all([
-        tasksApi.list(),
-        notesApi.list(),
-        financeApi.summary(year, month),
-        financeApi.listTransactions({ year, month }),
-        settingsApi.integrations(),
-      ]);
-      setData({ tasks, notes, summary, transactions, integrations: integrations.integrations });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load dashboard.");
+    setFailures([]);
+    const [tasksR, notesR, summaryR, txR, integR] = await Promise.allSettled([
+      tasksApi.list(),
+      notesApi.list(),
+      financeApi.summary(year, month),
+      financeApi.listTransactions({ year, month }),
+      settingsApi.integrations(),
+    ]);
+    const all = [tasksR, notesR, summaryR, txR, integR];
+    // Everything failed → almost certainly a connectivity problem; show one
+    // clear, retryable error rather than an empty dashboard.
+    if (all.every((r) => r.status === "rejected")) {
+      const reason = (all.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason;
+      setError(reason instanceof Error ? reason.message : "Failed to load dashboard.");
+      return;
     }
+    const failed: string[] = [];
+    if (tasksR.status === "rejected") failed.push("tasks");
+    if (notesR.status === "rejected") failed.push("notes");
+    if (summaryR.status === "rejected") failed.push("cashflow");
+    if (txR.status === "rejected") failed.push("transactions");
+    if (integR.status === "rejected") failed.push("integrations");
+    setData({
+      tasks: tasksR.status === "fulfilled" ? tasksR.value : [],
+      notes: notesR.status === "fulfilled" ? notesR.value : [],
+      summary: summaryR.status === "fulfilled" ? summaryR.value : null,
+      transactions: txR.status === "fulfilled" ? txR.value : [],
+      integrations: integR.status === "fulfilled" ? integR.value.integrations : [],
+    });
+    setFailures(failed);
   };
 
   useEffect(() => {
@@ -137,7 +158,18 @@ export default function DashboardOverview() {
       ) : !data ? (
         <Loading label="Loading your command center…" />
       ) : (
-        <div className="grid gap-5 xl:grid-cols-3">
+        <>
+          {failures.length > 0 ? (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-[13px]">
+              <span className="text-content-muted">
+                Couldn&apos;t load: {failures.join(", ")}.
+              </span>
+              <button onClick={load} className="font-medium text-primary hover:underline">
+                Retry
+              </button>
+            </div>
+          ) : null}
+          <div className="grid gap-5 xl:grid-cols-3">
           {/* Left column */}
           <div className="space-y-5 xl:col-span-2">
             <Card gradient padding="lg">
@@ -156,39 +188,52 @@ export default function DashboardOverview() {
                 <MiniStat
                   icon={Wallet}
                   label="Txns / month"
-                  value={String(data.summary.transaction_count)}
+                  value={data.summary ? String(data.summary.transaction_count) : "—"}
                 />
               </div>
             </Card>
 
             <Card>
               <CardHeader title="Monthly cashflow" icon={<Wallet size={18} />} />
-              <p className="font-mono text-[11px] uppercase tracking-widest text-content-subtle">
-                Current balance
-              </p>
-              <p className="mt-1 text-3xl font-semibold tracking-tight text-content">
-                {formatCurrency(data.summary.balance, data.summary.currency)}
-              </p>
+              {data.summary ? (
+                <>
+                  <p className="font-mono text-[11px] uppercase tracking-widest text-content-subtle">
+                    Current balance
+                  </p>
+                  <p className="mt-1 text-3xl font-semibold tracking-tight text-content">
+                    {formatCurrency(data.summary.balance, data.summary.currency)}
+                  </p>
+                </>
+              ) : (
+                <p className="py-2 text-[13px] text-content-muted">
+                  Cashflow couldn&apos;t be loaded.{" "}
+                  <button onClick={load} className="font-medium text-primary hover:underline">
+                    Retry
+                  </button>
+                </p>
+              )}
               <div className="mt-5">
                 <BarChart data={weeklyBars} />
               </div>
-              <div className="mt-4 flex flex-col gap-2 border-t border-border pt-3 text-[13px] sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6">
-                <span className="text-content-muted">
-                  Income{" "}
-                  <span className="font-medium text-success">
-                    {formatCurrency(data.summary.total_income, data.summary.currency)}
+              {data.summary ? (
+                <div className="mt-4 flex flex-col gap-2 border-t border-border pt-3 text-[13px] sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6">
+                  <span className="text-content-muted">
+                    Income{" "}
+                    <span className="font-medium text-success">
+                      {formatCurrency(data.summary.total_income, data.summary.currency)}
+                    </span>
                   </span>
-                </span>
-                <span className="text-content-muted">
-                  Expense{" "}
-                  <span className="font-medium text-danger">
-                    {formatCurrency(data.summary.total_expense, data.summary.currency)}
+                  <span className="text-content-muted">
+                    Expense{" "}
+                    <span className="font-medium text-danger">
+                      {formatCurrency(data.summary.total_expense, data.summary.currency)}
+                    </span>
                   </span>
-                </span>
-                <span className="text-[12px] text-content-subtle sm:ml-auto">
-                  AllHaven tracks cashflow. It does not provide financial advice.
-                </span>
-              </div>
+                  <span className="text-[12px] text-content-subtle sm:ml-auto">
+                    AllHaven tracks cashflow. It does not provide financial advice.
+                  </span>
+                </div>
+              ) : null}
             </Card>
 
             <Card className="border-primary/20">
@@ -278,6 +323,7 @@ export default function DashboardOverview() {
             </Card>
           </div>
         </div>
+        </>
       )}
     </AppShell>
   );
