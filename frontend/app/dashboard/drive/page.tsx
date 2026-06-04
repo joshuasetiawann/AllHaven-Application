@@ -68,9 +68,7 @@ export default function DrivePage() {
     setActionError(null);
     setBusyId(file.id);
     try {
-      const res = await fetch(driveApi.downloadUrl(file.id), { credentials: "include" });
-      if (!res.ok) throw new ApiException(`Download failed (${res.status})`, "HTTP_ERROR", res.status);
-      const blob = await res.blob();
+      const blob = await driveApi.download(file.id);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
