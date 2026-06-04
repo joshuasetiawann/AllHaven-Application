@@ -3,9 +3,14 @@
 import { useEffect, useState } from "react";
 import {
   Bot,
+  Box,
+  Boxes,
   Calendar,
   CloudSun,
   Database,
+  Globe,
+  HardDrive,
+  Network,
   Plug,
   RefreshCw,
   Workflow,
@@ -39,14 +44,17 @@ const INTEGRATION_ICONS: Record<string, LucideIcon> = {
   google_calendar: Calendar,
   weather_api: CloudSun,
   drive_storage: HardDrive,
-  google: Globe,
 };
 
-function toolBadge(integration: Integration) {
-  if (integration.status === "connected") return <Badge tone="success" dot>Connected</Badge>;
-  if (integration.configured) return <Badge tone="primary" dot>Configured</Badge>;
-  return <Badge tone="neutral" dot>Not configured</Badge>;
-}
+const AI_ICONS: Record<string, LucideIcon> = {
+  ollama: Cpu,
+  openai: Sparkles,
+  anthropic: Bot,
+  gemini: Sparkles,
+  grok: Zap,
+  blackbox: Box,
+  openrouter: Network,
+};
 
 export default function SettingsPage() {
   const user = getStoredUser();

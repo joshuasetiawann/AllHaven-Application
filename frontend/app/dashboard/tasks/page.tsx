@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ListTodo, Plus, Sparkles, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ListTodo,
+  Plus,
+  RotateCcw,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -13,32 +23,28 @@ import { Modal } from "@/components/ui/Modal";
 import { Tabs } from "@/components/ui/Tabs";
 import { PriorityBadge, TaskStatusLabel } from "@/components/ui/meta";
 import { ErrorState, Loading, EmptyState } from "@/components/ui/States";
+import { TaskChecklist } from "@/components/tasks/TaskChecklist";
 import { tasksApi, ApiException } from "@/lib/api";
 import { cn, formatDate } from "@/lib/format";
 import type { Task, TaskPriority } from "@/types";
 
 const PRIORITIES: TaskPriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
-const STATUSES: TaskStatus[] = ["TODO", "IN_PROGRESS", "DONE"];
-
-const priorityDot: Record<TaskPriority, string> = {
-  URGENT: "bg-danger",
-  HIGH: "bg-warning",
-  NORMAL: "bg-info",
-  LOW: "bg-content-subtle",
-};
+const MAX_ITEMS = 5;
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<string>("ALL");
+  const [tab, setTab] = useState("ALL");
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [aiBanner, setAiBanner] = useState(true);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [form, setForm] = useState({
     title: "",
     description: "",
     priority: "NORMAL" as TaskPriority,
     due_at: "",
+    checklist: [""] as string[],
   });
 
   const load = async () => {
@@ -64,10 +70,13 @@ export default function TasksPage() {
     };
   }, [tasks]);
 
-  const filtered = useMemo(() => {
-    if (!tasks) return [];
-    return tab === "ALL" ? tasks : tasks.filter((t) => t.status === tab);
-  }, [tasks, tab]);
+  const filtered = useMemo(
+    () => (!tasks ? [] : tab === "ALL" ? tasks : tasks.filter((t) => t.status === tab)),
+    [tasks, tab],
+  );
+
+  const patchTask = (updated: Task) =>
+    setTasks((prev) => prev?.map((t) => (t.id === updated.id ? updated : t)) ?? prev);
 
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -120,7 +129,7 @@ export default function TasksPage() {
     <AppShell>
       <PageHeader
         title="Active Commands"
-        subtitle="Manage your high-priority operational tasks."
+        subtitle="Manage your operational tasks and command checklists."
         actions={
           <Button onClick={() => setOpen(true)}>
             <Plus size={16} /> Create Task
@@ -128,7 +137,6 @@ export default function TasksPage() {
         }
       />
 
-      {/* Honest AI banner (no fake suggestions) */}
       {aiBanner ? (
         <Card className="mb-5 border-primary/20" padding="md">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -137,10 +145,10 @@ export default function TasksPage() {
                 <Sparkles size={18} />
               </span>
               <div>
-                <p className="text-sm font-semibold text-content">AI scheduling assistant</p>
+                <p className="text-sm font-semibold text-content">Command checklists</p>
                 <p className="mt-0.5 text-[13px] text-content-muted">
-                  When a local model is configured, AI can propose schedules here. AI suggestions
-                  require approval — nothing is applied automatically.
+                  Break a command into up to {MAX_ITEMS} checklist steps, track progress, and mark it
+                  done. AI suggestions require approval — nothing runs automatically.
                 </p>
               </div>
             </div>
@@ -156,7 +164,7 @@ export default function TasksPage() {
         value={tab}
         onChange={setTab}
         items={[
-          { value: "ALL", label: "All Tasks", count: counts.ALL },
+          { value: "ALL", label: "All", count: counts.ALL },
           { value: "TODO", label: "Todo", count: counts.TODO },
           { value: "IN_PROGRESS", label: "In Progress", count: counts.IN_PROGRESS },
           { value: "DONE", label: "Done", count: counts.DONE },
@@ -169,8 +177,8 @@ export default function TasksPage() {
         <Loading />
       ) : filtered.length === 0 ? (
         <EmptyState
-          title={tab === "ALL" ? "No tasks yet" : "Nothing here"}
-          description={tab === "ALL" ? "Create your first task to start tracking work." : "No tasks in this view."}
+          title={tab === "ALL" ? "No commands yet" : "Nothing here"}
+          description={tab === "ALL" ? "Create your first command to start tracking work." : "No tasks in this view."}
           icon={<ListTodo size={20} />}
           action={
             tab === "ALL" ? (
@@ -181,98 +189,81 @@ export default function TasksPage() {
           }
         />
       ) : (
-        <Card padding="none" className="overflow-hidden">
-          {/* Desktop table */}
-          <table className="hidden w-full md:table">
-            <thead>
-              <tr className="border-b border-border text-left">
-                {["Task Name", "Priority", "Due Date", "Status", ""].map((h) => (
-                  <th key={h} className="px-5 py-3 text-[11px] font-medium uppercase tracking-wide text-content-subtle">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((task) => (
-                <tr key={task.id} className="border-b border-border/60 last:border-0 hover:bg-surface-raised/40">
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2.5">
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${priorityDot[task.priority]}`} />
-                      <span className={task.status === "DONE" ? "text-content-subtle line-through" : "text-content"}>
-                        {task.title}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <PriorityBadge priority={task.priority} />
-                  </td>
-                  <td className="px-5 py-3.5 text-[13px] text-content-muted">{formatDate(task.due_at)}</td>
-                  <td className="px-5 py-3.5">
-                    <select
-                      value={task.status}
-                      onChange={(e) => changeStatus(task, e.target.value as TaskStatus)}
-                      className="cursor-pointer rounded-md border border-transparent bg-transparent text-[13px] text-content hover:border-border focus:border-primary/60 focus:outline-none"
-                    >
-                      {STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {s.replace("_", " ")}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => remove(task)}
-                      className="text-content-subtle transition-colors hover:text-danger"
-                      aria-label="Delete task"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Mobile cards */}
-          <ul className="divide-y divide-border md:hidden">
-            {filtered.map((task) => (
-              <li key={task.id} className="p-4">
+        <div className="space-y-2.5">
+          {filtered.map((task) => {
+            const items = task.checklist_items ?? [];
+            const done = items.filter((i) => i.is_done).length;
+            const isOpen = expanded[task.id];
+            const isDone = task.status === "DONE";
+            return (
+              <Card key={task.id} className="p-4" hover>
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className={task.status === "DONE" ? "text-content-subtle line-through" : "text-content"}>
-                      {task.title}
-                    </p>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <PriorityBadge priority={task.priority} />
-                      <span className="text-[12px] text-content-subtle">{formatDate(task.due_at)}</span>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <button
+                      onClick={() => toggleDone(task)}
+                      className={cn(
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors",
+                        isDone ? "border-success bg-success text-bg" : "border-border-strong hover:border-primary",
+                      )}
+                      aria-label={isDone ? "Reopen task" : "Mark task done"}
+                    >
+                      {isDone ? <CheckCircle2 size={14} /> : null}
+                    </button>
+                    <div className="min-w-0">
+                      <p className={cn("text-sm font-medium", isDone ? "text-content-subtle line-through" : "text-content")}>
+                        {task.title}
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        <PriorityBadge priority={task.priority} />
+                        <TaskStatusLabel status={task.status} />
+                        {task.due_at ? <span className="text-[12px] text-content-subtle">· {formatDate(task.due_at)}</span> : null}
+                        {items.length > 0 ? (
+                          <button
+                            onClick={() => setExpanded((e) => ({ ...e, [task.id]: !e[task.id] }))}
+                            className="inline-flex items-center gap-1 text-[12px] text-primary hover:underline"
+                          >
+                            {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                            Checklist {done}/{items.length}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setExpanded((e) => ({ ...e, [task.id]: !e[task.id] }))}
+                            className="inline-flex items-center gap-1 text-[12px] text-content-subtle hover:text-primary"
+                          >
+                            <Plus size={12} /> Add checklist
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => remove(task)}
-                    className="text-content-subtle hover:text-danger"
-                    aria-label="Delete task"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Button variant="ghost" size="sm" onClick={() => toggleDone(task)}>
+                      {isDone ? (
+                        <>
+                          <RotateCcw size={14} /> Reopen
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={14} /> Done
+                        </>
+                      )}
+                    </Button>
+                    <button
+                      onClick={() => remove(task)}
+                      className="rounded-md p-2 text-content-subtle transition-colors hover:text-danger"
+                      aria-label="Delete task"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
-                <div className="mt-3">
-                  <Select value={task.status} onChange={(e) => changeStatus(task, e.target.value as TaskStatus)}>
-                    {STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s.replace("_", " ")}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
+                {isOpen ? <TaskChecklist task={task} onChange={patchTask} /> : null}
+              </Card>
+            );
+          })}
+        </div>
       )}
 
-      {/* Stat tiles (real counts) */}
       {tasks && tasks.length > 0 ? (
         <div className="mt-5 grid grid-cols-3 gap-4">
           <Card padding="sm">
@@ -293,15 +284,15 @@ export default function TasksPage() {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Create task"
-        description="Add a new operational task to your workspace."
+        title="Create command"
+        description="Add a task with an optional checklist (max 5 steps)."
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button form="task-form" type="submit" loading={saving} disabled={!form.title.trim()}>
-              Create task
+              Create command
             </Button>
           </>
         }
