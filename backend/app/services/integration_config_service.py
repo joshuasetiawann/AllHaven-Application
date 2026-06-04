@@ -34,7 +34,6 @@ GROUP_BY_TYPE = {
     "calendar": "calendar",
     "weather": "weather",
     "storage": "storage",
-    "auth_provider": "auth_provider",
 }
 
 
@@ -200,6 +199,13 @@ def _verify(db: Session, spec: ProviderSpec, public: dict, secrets: dict) -> tup
         if all(public.get(f) for f in required):
             return "configured", "Connect via OAuth to bring this online (consent required)"
         return "not_configured", "client_id and redirect_uri are required"
+
+    if pid == "drive_storage":
+        # Local storage is available; file-upload wiring is not enabled yet.
+        provider = (public.get("provider") or "local").lower()
+        if provider == "local":
+            return "configured", "Local storage selected; file upload wiring not enabled yet"
+        return "configured", "Configured; verification not implemented for this provider"
 
     if pid == "drive_storage":
         # Local storage is available; file-upload wiring is not enabled yet.
