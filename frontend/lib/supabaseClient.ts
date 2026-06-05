@@ -9,6 +9,10 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 let client: SupabaseClient | null = null;
 let workspaceId: string | null = null;
+let appUserId: string | null = null;
+
+export function getAppUserId(): string | null { return appUserId; }
+export function setAppUserId(id: string | null): void { appUserId = id; }
 
 // Async storage backed by Capacitor Preferences so the session survives app restarts.
 const capacitorStorage = {
