@@ -68,17 +68,34 @@ export default function SettingsPage() {
   const [tab, setTab] = useState("tools");
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [configuring, setConfiguring] = useState<Integration | null>(null);
+  const [allowExternal, setAllowExternal] = useState(false);
+  const [savingPolicy, setSavingPolicy] = useState(false);
 
   useEffect(() => setPrefs(loadPrefs()), []);
+
+  const toggleExternal = async (next: boolean) => {
+    setAllowExternal(next);
+    setSavingPolicy(true);
+    try {
+      const res = await aiApi.setPolicy(next);
+      setAllowExternal(res.allow_external);
+    } catch {
+      setAllowExternal(!next);
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
 
   const load = async () => {
     setError(null);
     try {
-      const [meRes, integrationsRes, providersRes] = await Promise.all([
+      const [meRes, integrationsRes, providersRes, policyRes] = await Promise.all([
         authApi.me().catch(() => null),
         settingsApi.integrations(),
         aiApi.listProviders(),
+        aiApi.getPolicy().catch(() => null),
       ]);
+      if (policyRes) setAllowExternal(policyRes.allow_external);
       setMe(meRes);
       setIntegrations(integrationsRes.integrations);
       setProviders(providersRes.providers);
@@ -235,6 +252,28 @@ export default function SettingsPage() {
                       <li className="flex items-center gap-2"><Boxes size={14} className="text-primary" /> AI suggestions require approval. Human approval required for write actions.</li>
                       <li className="flex items-center gap-2"><Globe size={14} className="text-warning" /> Confidential data is never sent to external providers unless you allow external mode.</li>
                     </ul>
+
+                    <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-surface-input px-3 py-3">
+                      <div className="pr-3">
+                        <p className="text-sm text-content">Allow external AI providers</p>
+                        <p className="text-[12.5px] text-content-muted">
+                          Lets you chat with GPT, Claude, Gemini, Grok, Blackbox, and OpenRouter.
+                          Keep off for local-only (Ollama) privacy.
+                        </p>
+                      </div>
+                      <Toggle
+                        checked={allowExternal}
+                        onChange={toggleExternal}
+                        disabled={savingPolicy}
+                        label="Allow external AI providers"
+                      />
+                    </div>
+                    {allowExternal ? (
+                      <p className="mt-2 flex items-start gap-1.5 text-[12px] text-warning">
+                        <Globe size={13} className="mt-0.5 shrink-0" />
+                        External AI is ON. Avoid sending confidential data to external providers.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </Card>
