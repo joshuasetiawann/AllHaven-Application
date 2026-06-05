@@ -24,9 +24,72 @@ from app.schemas.ai import (
     SessionCreate,
     SessionOut,
 )
-from app.services import ai_service
+from app.schemas.ai_providers import AiProviderUpdateRequest
+from app.services import ai_provider_router, ai_service
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+
+# --- AI providers ---------------------------------------------------------
+
+
+@router.get("/providers")
+def list_providers(
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    return success_response(
+        {"providers": ai_provider_router.list_providers(db, principal)}, "AI providers"
+    )
+
+
+@router.put("/providers/{provider_id}")
+def update_provider(
+    provider_id: str,
+    payload: AiProviderUpdateRequest,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    view = ai_provider_router.upsert_provider(
+        db,
+        principal,
+        provider_id,
+        public=payload.public_config,
+        secrets=payload.secrets,
+        default_model=payload.default_model,
+        privacy_mode=payload.privacy_mode,
+        system_prompt=payload.system_prompt,
+        temperature=payload.temperature,
+        enabled=payload.enabled,
+    )
+    return success_response(view, "AI provider saved")
+
+
+@router.post("/providers/{provider_id}/test")
+def test_provider(
+    provider_id: str,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    return success_response(ai_provider_router.test_provider(db, principal, provider_id), "Provider tested")
+
+
+@router.post("/providers/{provider_id}/enable")
+def enable_provider(
+    provider_id: str,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    return success_response(ai_provider_router.set_enabled(db, principal, provider_id, True), "Provider enabled")
+
+
+@router.post("/providers/{provider_id}/disable")
+def disable_provider(
+    provider_id: str,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    return success_response(ai_provider_router.set_enabled(db, principal, provider_id, False), "Provider disabled")
 
 
 @router.get("/sessions")
@@ -75,12 +138,18 @@ def chat(
     db: Session = Depends(get_db),
 ) -> dict:
     result = ai_service.chat(
-        db, principal, message=payload.message, session_id=payload.session_id
+        db,
+        principal,
+        message=payload.message,
+        session_id=payload.session_id,
+        provider_id=payload.provider_id,
     )
     data = ChatResponse(
         session_id=result["session_id"],
         reply=MessageOut.model_validate(result["reply"]),
         ai_configured=result["ai_configured"],
+        provider_id=result.get("provider_id"),
+        blocked=result.get("blocked", False),
     )
     return success_response(data, "Message processed")
 
