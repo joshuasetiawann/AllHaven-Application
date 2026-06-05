@@ -34,12 +34,15 @@ class MessageOut(ORMModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     session_id: Optional[uuid.UUID] = None
+    provider_id: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
     session_id: uuid.UUID
     reply: MessageOut
     ai_configured: bool
+    provider_id: Optional[str] = None
+    blocked: bool = False
 
 
 class ProposalOut(ORMModel):
