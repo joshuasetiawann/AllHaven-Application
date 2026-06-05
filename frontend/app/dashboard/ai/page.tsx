@@ -2,36 +2,45 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Bot, Lock, SendHorizonal, ShieldCheck, Sparkles, User, XCircle } from "lucide-react";
+import { AlertTriangle, Bot, Cpu, Lock, SendHorizonal, ShieldCheck, Sparkles, User, XCircle } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/States";
-import { ProviderSelector } from "@/components/ai/ProviderSelector";
-import { PrivacyModeBadge } from "@/components/ai/PrivacyModeBadge";
+import { MultiAgentSelector } from "@/components/ai/MultiAgentSelector";
+import { AgentResponseCard, type AgentCardData } from "@/components/ai/AgentResponseCard";
 import { aiApi, ApiException } from "@/lib/api";
 import { cn } from "@/lib/format";
-import type { AiProvider, ChatMessage, ToolProposal } from "@/types";
+import type { AiProvider, MultiChatResponse, ToolProposal } from "@/types";
 
 const ALLOWED_TOOLS = ["create_task", "create_note", "create_transaction", "summarize_notes"];
 
+interface Turn {
+  id: string;
+  user: string;
+  providerIds: string[];
+  run?: MultiChatResponse;
+  error?: string;
+}
+
 export default function AiChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [configured, setConfigured] = useState<boolean | null>(null);
   const [proposals, setProposals] = useState<ToolProposal[]>([]);
   const [providers, setProviders] = useState<AiProvider[]>([]);
-  const [providerId, setProviderId] = useState<string>("ollama");
+  const [selected, setSelected] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
-  const activeProvider = useMemo(
-    () => providers.find((p) => p.id === providerId),
-    [providers, providerId],
+  const providerById = useMemo(
+    () => Object.fromEntries(providers.map((p) => [p.id, p])),
+    [providers],
   );
+  const anyExternal = selected.some((id) => providerById[id]?.external);
+  const anyLocal = selected.some((id) => providerById[id] && !providerById[id]!.external);
 
   const loadProposals = async () => {
     try {
@@ -45,9 +54,8 @@ export default function AiChatPage() {
     try {
       const res = await aiApi.listProviders();
       setProviders(res.providers);
-      // Prefer the local Ollama agent by default; otherwise the first provider.
       const preferred = res.providers.find((p) => p.id === "ollama") ?? res.providers[0];
-      if (preferred) setProviderId(preferred.id);
+      if (preferred) setSelected((cur) => (cur.length ? cur : [preferred.id]));
     } catch {
       /* non-blocking */
     }
@@ -59,33 +67,31 @@ export default function AiChatPage() {
   }, []);
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [turns]);
 
   const send = async (event: React.FormEvent) => {
     event.preventDefault();
     const text = input.trim();
     if (!text || sending) return;
+    if (selected.length === 0) {
+      setError("Select at least one AI agent.");
+      return;
+    }
     setError(null);
     setSending(true);
 
-    const optimistic: ChatMessage = {
-      id: `local-${Date.now()}`,
-      session_id: sessionId ?? null,
-      role: "user",
-      content: text,
-      meta: null,
-      created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, optimistic]);
+    const turnId = `t-${Date.now()}`;
+    const ids = [...selected];
+    setTurns((prev) => [...prev, { id: turnId, user: text, providerIds: ids }]);
     setInput("");
 
     try {
-      const result = await aiApi.chat(text, sessionId, providerId);
-      setSessionId(result.session_id);
-      setConfigured(result.ai_configured);
-      setMessages((prev) => [...prev, result.reply]);
+      const run = await aiApi.multiChat(text, ids, sessionId);
+      setSessionId(run.session_id);
+      setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, run } : t)));
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : "Failed to send message.");
+      const msg = err instanceof ApiException ? err.message : "Failed to send message.";
+      setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, error: msg } : t)));
     } finally {
       setSending(false);
     }
@@ -100,6 +106,27 @@ export default function AiChatPage() {
     }
   };
 
+  // Build the per-agent cards for a turn (queued placeholders while pending).
+  const cardsForTurn = (turn: Turn): AgentCardData[] => {
+    if (turn.run) {
+      return turn.run.agent_responses.map((r) => ({
+        provider_id: r.provider_id,
+        provider_name: r.provider_name,
+        status: r.status,
+        content: r.content,
+        error_message: r.error_message,
+        latency_ms: r.latency_ms,
+        external: providerById[r.provider_id]?.external,
+      }));
+    }
+    return turn.providerIds.map((id) => ({
+      provider_id: id,
+      provider_name: providerById[id]?.name ?? id,
+      status: "running",
+      external: providerById[id]?.external,
+    }));
+  };
+
   return (
     <AppShell>
       <div className="mb-5 flex items-center gap-3">
@@ -108,83 +135,90 @@ export default function AiChatPage() {
         </span>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-content sm:text-[28px]">AI Chat</h1>
-          <p className="text-[13.5px] text-content-muted">AI proposes — humans approve every write action.</p>
+          <p className="text-[13.5px] text-content-muted">
+            Run up to 3 agents at once. AI proposes — humans approve every write action.
+          </p>
         </div>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">
         {/* Chat */}
-        <div className="lg:col-span-2">
+        <div className="min-w-0 lg:col-span-2">
           <Card padding="none" className="flex h-[calc(100vh-230px)] min-h-[460px] flex-col">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+            <div className="flex flex-col gap-2.5 border-b border-border px-5 py-3.5">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Sparkles size={16} />
                 </span>
                 <div className="leading-tight">
-                  <p className="text-sm font-semibold text-content">CoreOS Assistant</p>
-                  <p className="label-mono">
-                    {activeProvider ? activeProvider.detail : configured ? "Configured" : "Not configured"}
-                  </p>
+                  <p className="text-sm font-semibold text-content">CoreOS Multi-Agent</p>
+                  <p className="label-mono">Concurrent agents · honest status</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {activeProvider ? <PrivacyModeBadge external={activeProvider.external} /> : null}
-                <ProviderSelector providers={providers} value={providerId} onChange={setProviderId} />
+              <MultiAgentSelector providers={providers} selected={selected} onChange={setSelected} />
+              <div className="flex flex-wrap items-center gap-2">
+                {anyLocal ? (
+                  <Badge tone="success">
+                    <Cpu size={11} className="mr-1 inline" /> Local AI included
+                  </Badge>
+                ) : null}
+                {anyExternal ? (
+                  <Badge tone="warning">
+                    <AlertTriangle size={11} className="mr-1 inline" /> External AI selected
+                  </Badge>
+                ) : null}
               </div>
             </div>
 
-            <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
-              {messages.length === 0 ? (
+            <div className="custom-scrollbar flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-5">
+              {turns.length === 0 ? (
                 <div className="flex h-full items-center justify-center">
                   <EmptyState
                     title="Start a conversation"
-                    description="Ask anything. The assistant answers honestly and never fabricates AI output or executes actions on its own."
+                    description="Pick 1–3 agents and ask anything. Each agent answers in its own card. CoreOS never fabricates AI output or executes actions on its own."
                     icon={<Bot size={20} />}
                   />
                 </div>
               ) : (
-                messages.map((message) => {
-                  const isUser = message.role === "user";
-                  return (
-                    <div key={message.id} className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
-                      <span
-                        className={cn(
-                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
-                          isUser
-                            ? "border-border bg-surface-high text-content"
-                            : "border-primary/30 bg-primary/10 text-primary",
-                        )}
-                      >
-                        {isUser ? <User size={15} /> : <Bot size={15} />}
+                turns.map((turn) => (
+                  <div key={turn.id} className="space-y-3">
+                    {/* User message */}
+                    <div className="flex flex-row-reverse gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-high text-content">
+                        <User size={15} />
                       </span>
-                      <div
-                        className={cn(
-                          "max-w-[80%] rounded-xl border px-3.5 py-2.5 text-sm leading-relaxed",
-                          isUser ? "border-primary/30 bg-primary/10 text-content" : "border-border bg-surface-input text-content-muted",
-                        )}
-                      >
-                        <p className="whitespace-pre-wrap">{message.content}</p>
+                      <div className="max-w-[80%] rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2.5 text-sm leading-relaxed text-content">
+                        <p className="whitespace-pre-wrap break-words">{turn.user}</p>
                       </div>
                     </div>
-                  );
-                })
+
+                    {/* Agent responses */}
+                    {turn.error ? (
+                      <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[12.5px] text-danger">
+                        {turn.error}
+                      </p>
+                    ) : (
+                      <div
+                        className={cn(
+                          "grid gap-3",
+                          turn.providerIds.length > 1 ? "sm:grid-cols-2" : "grid-cols-1",
+                        )}
+                      >
+                        {cardsForTurn(turn).map((card) => (
+                          <AgentResponseCard key={`${turn.id}-${card.provider_id}`} data={card} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
               )}
               <div ref={endRef} />
             </div>
 
-            {activeProvider && !activeProvider.configured ? (
-              <p className="mx-3 mb-1 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-surface-input px-3 py-2 text-[12px] text-content-muted">
-                {activeProvider.name} is not configured.
-                <Link href="/dashboard/settings" className="text-primary hover:underline">
-                  Set it up in Settings →
-                </Link>
-              </p>
-            ) : null}
-            {activeProvider?.external ? (
+            {anyExternal ? (
               <p className="mx-3 mb-1 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-warning">
                 <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-                External AI may process your prompt. Do not send confidential data unless allowed.
+                External AI may process your prompt. Do not send confidential data unless allowed in Settings.
               </p>
             ) : null}
 
@@ -195,9 +229,9 @@ export default function AiChatPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type a command or ask a question…"
-                className="h-11 flex-1 rounded-lg border border-border bg-surface-input px-3.5 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-surface-input px-3.5 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
-              <Button type="submit" size="lg" loading={sending} disabled={!input.trim()} className="px-4">
+              <Button type="submit" size="lg" loading={sending} disabled={!input.trim() || selected.length === 0} className="px-4">
                 {!sending ? <SendHorizonal size={16} /> : null}
               </Button>
             </form>
@@ -207,25 +241,22 @@ export default function AiChatPage() {
         {/* Right rail */}
         <div className="space-y-5">
           <Card>
-            <CardHeader title="Assistant status" icon={<Bot size={18} />} />
-            <dl className="space-y-2.5 text-[13px]">
-              <div className="flex items-center justify-between">
-                <dt className="text-content-muted">Provider</dt>
-                <dd className="text-content">{activeProvider?.name ?? "—"}</dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-content-muted">Status</dt>
-                <dd>
-                  <Badge tone={activeProvider?.configured ? "primary" : "neutral"}>
-                    {activeProvider?.detail ?? "Not configured"}
-                  </Badge>
-                </dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-content-muted">Mode</dt>
-                <dd className="text-content">Human-in-the-loop</dd>
-              </div>
-            </dl>
+            <CardHeader title="Selected agents" icon={<Bot size={18} />} />
+            {selected.length === 0 ? (
+              <p className="py-1 text-[13px] text-content-muted">No agents selected.</p>
+            ) : (
+              <ul className="space-y-2 text-[13px]">
+                {selected.map((id) => {
+                  const p = providerById[id];
+                  return (
+                    <li key={id} className="flex items-center justify-between">
+                      <span className="truncate text-content">{p?.name ?? id}</span>
+                      <Badge tone={p?.configured ? "primary" : "neutral"}>{p?.detail ?? "Unknown"}</Badge>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
             <Link
               href="/dashboard/settings"
               className="mt-3 inline-flex items-center gap-1 text-[13px] text-primary hover:underline"
