@@ -47,7 +47,7 @@ class OllamaProvider(AIProvider):
             timeout=30.0,
         )
         if err:
-            return ChatResult(False, error=err)
+            return ChatResult(False, error=network_error_message(err))
         if code == 200 and body:
             try:
                 return ChatResult(True, content=body["message"]["content"])
