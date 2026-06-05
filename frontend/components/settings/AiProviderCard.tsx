@@ -14,7 +14,7 @@ import { ConfigStatusBadge } from "@/components/ui/meta";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { SecretInput } from "@/components/settings/SecretInput";
 import { aiApi, ApiException } from "@/lib/api";
-import type { AiProvider } from "@/types";
+import type { AiProvider, ModelSlot } from "@/types";
 
 export function AiProviderCard({
   provider,
@@ -214,6 +214,8 @@ export function AiProviderCard({
           </Select>
         </div>
 
+        <ModelSlotsSection provider={provider} onChange={onChange} />
+
         <p className="mt-4 text-[11.5px] leading-relaxed text-content-subtle">
           Keys are encrypted server-side and never returned. <strong className="font-medium text-content-muted">Online status
           requires a successful Test Connection</strong> — a random or unverified key stays Configured or
@@ -222,5 +224,134 @@ export function AiProviderCard({
         {error ? <p className="mt-2 text-[12.5px] text-danger">{error}</p> : null}
       </Modal>
     </>
+  );
+}
+
+// --- Model slots editor ----------------------------------------------------
+
+// Slot 1 follows the provider's default model and only its role is editable here.
+// Slot 2 (absent on OpenRouter agents — they are single-slot) gets its own model,
+// role, and enabled toggle.
+function ModelSlotsSection({
+  provider,
+  onChange,
+}: {
+  provider: AiProvider;
+  onChange: (updated: AiProvider) => void;
+}) {
+  const slots = provider.model_slots ?? [];
+  const slot1 = slots.find((s) => s.slot === 1);
+  const slot2 = slots.find((s) => s.slot === 2);
+
+  const [slot1Role, setSlot1Role] = useState(slot1?.role ?? "");
+  const [slot2Model, setSlot2Model] = useState(slot2?.model ?? "");
+  const [slot2Role, setSlot2Role] = useState(slot2?.role ?? "");
+  const [slot2Enabled, setSlot2Enabled] = useState(slot2?.enabled ?? false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Re-sync the form whenever the provider is updated (e.g. after a save).
+  useEffect(() => {
+    setSlot1Role(slot1?.role ?? "");
+    setSlot2Model(slot2?.model ?? "");
+    setSlot2Role(slot2?.role ?? "");
+    setSlot2Enabled(slot2?.enabled ?? false);
+    setError(null);
+  }, [slot1, slot2]);
+
+  if (!slot1) return null;
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const payload: Partial<ModelSlot>[] = [{ slot: 1, role: slot1Role }];
+      if (slot2) payload.push({ slot: 2, model: slot2Model, role: slot2Role, enabled: slot2Enabled });
+      onChange(await aiApi.saveModelSlots(provider.provider_id, payload));
+    } catch (err) {
+      setError(err instanceof ApiException ? err.message : "Save failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-5 border-t border-border pt-4">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h4 className="text-[13px] font-semibold text-content">Model slots</h4>
+          <p className="mt-0.5 text-[12px] text-content-muted">
+            Name the role each model plays in multi-agent chat.
+          </p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={save} loading={busy}>
+          Save slots
+        </Button>
+      </div>
+
+      <div className="mt-3 space-y-3">
+        <div className="rounded-lg border border-border bg-surface-input px-3 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="label-mono">Slot 1</span>
+            <span className="font-mono text-[11px] text-content-subtle">
+              {slot1.model || provider.default_model || "no model set"}
+            </span>
+          </div>
+          <div className="mt-2.5">
+            <Input
+              id={`${provider.id}-slot1-role`}
+              label="Role"
+              placeholder="Main Assistant"
+              value={slot1Role}
+              onChange={(e) => setSlot1Role(e.target.value)}
+            />
+          </div>
+          <p className="mt-1.5 text-[11.5px] text-content-subtle">
+            Slot 1 uses the default model field above.
+          </p>
+        </div>
+
+        {slot2 ? (
+          <div className="rounded-lg border border-border bg-surface-input px-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="label-mono">Slot 2</span>
+                <Badge tone={slot2.configured ? "success" : "neutral"}>
+                  {slot2.configured ? "Configured" : "Not configured"}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] text-content-muted">{slot2Enabled ? "Enabled" : "Disabled"}</span>
+                <Toggle checked={slot2Enabled} onChange={setSlot2Enabled} label="Slot 2 enabled" />
+              </div>
+            </div>
+            <div className="mt-2.5 space-y-3">
+              <Input
+                id={`${provider.id}-slot2-model`}
+                label="Model"
+                placeholder="model name"
+                value={slot2Model}
+                onChange={(e) => setSlot2Model(e.target.value)}
+              />
+              <Input
+                id={`${provider.id}-slot2-role`}
+                label="Role"
+                placeholder="Research / Analysis"
+                value={slot2Role}
+                onChange={(e) => setSlot2Role(e.target.value)}
+              />
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {slot2 ? (
+        <p className="mt-2 text-[11.5px] leading-relaxed text-content-subtle">
+          Slot 2 lets one provider run two models — select it in AI Chat as
+          “{provider.name} · Slot 2”.
+        </p>
+      ) : null}
+      {error ? <p className="mt-2 text-[12.5px] text-danger">{error}</p> : null}
+    </div>
   );
 }
