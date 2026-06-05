@@ -17,6 +17,7 @@ EXPECTED_TABLES = {
     "audit_logs",
     "integration_configs",
     "ai_agent_configs",
+    "task_checklist_items",
 }
 
 
