@@ -78,6 +78,34 @@ def interpret_http(code: Optional[int], err: str) -> VerifyResult:
     return VerifyResult("error", f"Verification failed (HTTP {code})")
 
 
+def chat_error_message(code: Optional[int], body: Optional[dict]) -> str:
+    """Human-friendly explanation for a failed chat call."""
+    # Prefer the provider's own message when available.
+    detail = ""
+    if isinstance(body, dict):
+        err = body.get("error")
+        if isinstance(err, dict):
+            detail = str(err.get("message") or "")
+        elif isinstance(err, str):
+            detail = err
+    suffix = f" — {detail}" if detail else ""
+    if code in (401, 403):
+        return f"the API key was rejected (HTTP {code}). Check the key in Settings.{suffix}"
+    if code == 402:
+        return (
+            "the provider requires credits/payment (HTTP 402). Add credits on the provider, "
+            "switch the default model to a free one, choose another provider, or use local "
+            f"Ollama (free).{suffix}"
+        )
+    if code == 404:
+        return f"the model or endpoint was not found (HTTP 404). Check the model name.{suffix}"
+    if code == 429:
+        return f"the provider rate-limited the request (HTTP 429). Try again shortly.{suffix}"
+    if code and code >= 500:
+        return f"the provider had a server error (HTTP {code}). Try again later.{suffix}"
+    return f"the request failed (HTTP {code}).{suffix}"
+
+
 class AIProvider:
     """Provider adapter interface."""
 
@@ -143,5 +171,5 @@ class OpenAICompatibleProvider(AIProvider):
             try:
                 return ChatResult(True, content=body["choices"][0]["message"]["content"])
             except (KeyError, IndexError, TypeError):
-                return ChatResult(False, error="Unexpected response from provider")
-        return ChatResult(False, error=f"Provider returned HTTP {code}")
+                return ChatResult(False, error="the provider returned an unexpected response")
+        return ChatResult(False, error=chat_error_message(code, body))
