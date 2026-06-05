@@ -27,13 +27,16 @@ import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toggle } from "@/components/ui/Toggle";
 import { Tabs } from "@/components/ui/Tabs";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Loading, ErrorState } from "@/components/ui/States";
 import { IntegrationCard } from "@/components/settings/IntegrationCard";
 import { IntegrationConfigModal } from "@/components/settings/IntegrationConfigModal";
 import { AiProviderCard } from "@/components/settings/AiProviderCard";
 import { GoogleOAuthCard } from "@/components/settings/GoogleOAuthCard";
 import { aiApi, authApi, settingsApi } from "@/lib/api";
-import { getStoredUser } from "@/lib/auth";
+import { getStoredUser, setStoredUser } from "@/lib/auth";
 import { initials } from "@/lib/format";
 import { DEFAULT_PREFS, loadPrefs, savePrefs, type Prefs } from "@/lib/prefs";
 import type { AiProvider, Integration, Me } from "@/types";
@@ -69,7 +72,10 @@ export default function SettingsPage() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [configuring, setConfiguring] = useState<Integration | null>(null);
   const [allowExternal, setAllowExternal] = useState(false);
+  const [defaultProvider, setDefaultProvider] = useState("ollama");
   const [savingPolicy, setSavingPolicy] = useState(false);
+  const [profileForm, setProfileForm] = useState({ full_name: "", workspace_name: "" });
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => setPrefs(loadPrefs()), []);
 
@@ -77,12 +83,38 @@ export default function SettingsPage() {
     setAllowExternal(next);
     setSavingPolicy(true);
     try {
-      const res = await aiApi.setPolicy(next);
+      const res = await aiApi.setPolicy({ allow_external: next });
       setAllowExternal(res.allow_external);
     } catch {
       setAllowExternal(!next);
     } finally {
       setSavingPolicy(false);
+    }
+  };
+
+  const changeDefaultProvider = async (id: string) => {
+    setDefaultProvider(id);
+    try {
+      const res = await aiApi.setPolicy({ default_provider: id });
+      setDefaultProvider(res.default_provider);
+    } catch {
+      /* keep optimistic */
+    }
+  };
+
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      const updated = await authApi.updateMe({
+        full_name: profileForm.full_name,
+        workspace_name: profileForm.workspace_name,
+      });
+      setMe(updated);
+      setStoredUser(updated.user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save profile.");
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -95,7 +127,16 @@ export default function SettingsPage() {
         aiApi.listProviders(),
         aiApi.getPolicy().catch(() => null),
       ]);
-      if (policyRes) setAllowExternal(policyRes.allow_external);
+      if (policyRes) {
+        setAllowExternal(policyRes.allow_external);
+        setDefaultProvider(policyRes.default_provider);
+      }
+      if (meRes) {
+        setProfileForm({
+          full_name: meRes.user.full_name ?? "",
+          workspace_name: meRes.workspace.name ?? "",
+        });
+      }
       setMe(meRes);
       setIntegrations(integrationsRes.integrations);
       setProviders(providersRes.providers);
@@ -164,17 +205,43 @@ export default function SettingsPage() {
 
           {tab === "ai" ? (
             <>
-              <Card className="mb-4 border-warning/20">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
-                    <Globe size={18} />
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-content">External providers are opt-in</p>
-                    <p className="mt-0.5 text-[13px] text-content-muted">
-                      External AI providers are disabled globally by default. Enable them only for
-                      non-confidential tasks via <code className="font-mono text-[12px]">AI_ALLOW_EXTERNAL_PROVIDERS=true</code>.
-                      Local Ollama works without external permission.
+              <Card className="mb-4 border-primary/20">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
+                        <Globe size={18} />
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-content">Allow external AI providers</p>
+                        <p className="mt-0.5 text-[13px] text-content-muted">
+                          Enable to chat with GPT, Claude, Gemini, Grok, Blackbox, OpenRouter. Off =
+                          local-only (Ollama).
+                        </p>
+                      </div>
+                    </div>
+                    <Toggle
+                      checked={allowExternal}
+                      onChange={toggleExternal}
+                      disabled={savingPolicy}
+                      label="Allow external AI providers"
+                    />
+                  </div>
+                  <div className="sm:max-w-xs">
+                    <Select
+                      label="Default AI provider"
+                      value={defaultProvider}
+                      onChange={(e) => changeDefaultProvider(e.target.value)}
+                    >
+                      {providers.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                          {p.external ? " · external" : " · local"}
+                        </option>
+                      ))}
+                    </Select>
+                    <p className="mt-1.5 text-[12px] text-content-subtle">
+                      Used in AI Chat when no provider is selected.
                     </p>
                   </div>
                 </div>
@@ -198,26 +265,36 @@ export default function SettingsPage() {
           {tab === "privacy" ? (
             <div className="grid gap-5 lg:grid-cols-3">
               <Card className="lg:col-span-1">
-                <CardHeader title="Profile" />
-                <div className="flex items-center gap-3">
-                  <Avatar initials={initials(me?.user.full_name || user?.full_name || user?.email)} />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-content">
-                      {me?.user.full_name || user?.full_name || "Operator"}
-                    </p>
-                    <Badge tone="primary" className="mt-1">Owner Access</Badge>
-                  </div>
+                <CardHeader title="Profile" subtitle="Edit your name and workspace." />
+                <div className="mb-4 flex items-center gap-3">
+                  <Avatar initials={initials(profileForm.full_name || me?.user.full_name || user?.email)} />
+                  <Badge tone="primary">Owner Access</Badge>
                 </div>
-                <dl className="mt-5 space-y-3 text-[13px]">
+                <div className="space-y-3">
+                  <Input
+                    id="full_name"
+                    label="Full name"
+                    placeholder="Your name"
+                    value={profileForm.full_name}
+                    onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
+                  />
+                  <Input
+                    id="workspace_name"
+                    label="Workspace name"
+                    placeholder="My Workspace"
+                    value={profileForm.workspace_name}
+                    onChange={(e) => setProfileForm({ ...profileForm, workspace_name: e.target.value })}
+                  />
                   <div>
-                    <dt className="label-mono">Workspace</dt>
-                    <dd className="mt-1 truncate text-content">{me?.workspace.name ?? "—"}</dd>
+                    <p className="label-mono">Primary email</p>
+                    <p className="mt-1 truncate text-[13px] text-content-muted">
+                      {me?.user.email || user?.email || "—"}
+                    </p>
                   </div>
-                  <div>
-                    <dt className="label-mono">Primary email</dt>
-                    <dd className="mt-1 truncate text-content">{me?.user.email || user?.email || "—"}</dd>
-                  </div>
-                </dl>
+                  <Button onClick={saveProfile} loading={savingProfile} className="w-full">
+                    Save profile
+                  </Button>
+                </div>
               </Card>
 
               <Card className="lg:col-span-2">
