@@ -1,4 +1,4 @@
-"""Multi-agent debate: up to 10 agents argue across rounds, then one synthesizes.
+"""Multi-agent debate: 2–3 agents argue across rounds, then one synthesizes.
 
 How it differs from ``ai_multi_service`` (parallel fan-out):
     * Round 1 (opening): every runnable agent answers the question independently.
@@ -37,19 +37,12 @@ from app.domain.ai import (
     ChatSession,
 )
 from app.services import ai_provider_router
-from app.services.ai_multi_service import (
-    AGENT_TIMEOUT_SECONDS,
-    UNSUPPORTED_IMAGE_MSG,
-    _dedup,
-    _run_one,
-    _user_meta,
-)
+from app.services.ai_multi_service import AGENT_TIMEOUT_SECONDS, _dedup, _run_one
 from app.services.ai_provider_router import ChatPlan
 from app.services.ai_service import _auto_title
-from app.services.thinking import thinking_params
 
 # Number of debate rounds (round 1 opening + rebuttal rounds). Bounded so a run
-# never explodes into too many provider calls (10 agents x 4 rounds + synthesis).
+# never explodes into too many provider calls (3 agents x 4 rounds + synthesis).
 DEFAULT_DEBATE_ROUNDS = 2
 MAX_DEBATE_ROUNDS = 4
 
@@ -61,14 +54,8 @@ def _opening_prompt(agent_name: str, n_agents: int, question: str) -> str:
     return (
         f'You are "{agent_name}", one of {n_agents} AI agents on a panel answering the '
         f"same question.\n\nQUESTION:\n{question}\n\n"
-        "Give your best independent answer.\n"
-        "- Start with the answer or decision; no greeting, praise, or generic filler.\n"
-        "- Be concrete: use exact steps, code-level detail, dates, numbers, or tradeoffs when useful.\n"
-        "- For coding, think like a senior engineer: root cause, fix, verification, and risks.\n"
-        "- For scheduling, turn the answer into practical time blocks or task steps.\n"
-        "- For casual chat, sound natural and warm without rambling.\n"
-        "- If data is missing, say what is missing instead of inventing it.\n"
-        "You will later see the other agents' answers and refine yours."
+        "Give your best, well-reasoned initial answer. Be substantive but concise. You will "
+        "later see the other agents' answers and get a chance to refine yours."
     )
 
 
@@ -77,11 +64,9 @@ def _rebuttal_prompt(agent_name: str, question: str, others: List[Tuple[str, str
     return (
         f'You are "{agent_name}" in a multi-agent debate about this QUESTION:\n{question}\n\n'
         f"Here are the other agents' latest answers:\n\n{blocks}\n\n"
-        "Improve the answer now.\n"
-        "- Call out only meaningful gaps, wrong assumptions, security risks, or missing verification.\n"
-        "- Adopt stronger points from other agents instead of defending a weaker answer.\n"
-        "- Return the improved answer, not a long debate transcript.\n"
-        "- Stay direct, specific, and in the user's language/tone."
+        "Critically evaluate their answers and your own: point out errors or gaps, defend or "
+        "revise your position with reasons, then give your improved answer. If another agent "
+        "made a better point, adopt it. Be concise and focus on getting the answer right."
     )
 
 
@@ -96,21 +81,9 @@ def _synthesis_prompt(question: str, transcript: List[Tuple[str, List[Tuple[str,
         "You are the moderator of a panel debate among AI agents. Read the full debate below and "
         "produce the single best final answer for the user.\n\n"
         f"QUESTION:\n{question}\n\nDEBATE TRANSCRIPT:\n{body}\n\n"
-        "Write the final answer with these rules:\n"
-        "1. Start with the direct answer/decision - no preamble, no praise, no basa-basi.\n"
-        "2. Make the answer cleanly structured with short paragraphs, useful bullets, or numbered steps.\n"
-        "3. Integrate the agents' best points; remove contradictions, repetition, and rambling - "
-        "but PRESERVE important warnings, risks, and security concerns.\n"
-        "4. Be concrete and specific (exact names, numbers, steps); never generic.\n"
-        "5. When agents disagree on something that matters, pick a position and say why in one "
-        "line — do not just list options.\n"
-        "6. Be honest about uncertainty and missing data; never invent facts the debate "
-        "doesn't support.\n"
-        "7. End with next steps when the topic is actionable.\n"
-        "8. Match the user's mode: casual chat can be natural, serious work stays focused, "
-        "coding gets senior engineering help, and schedule requests get practical next steps.\n"
-        "9. Respect the preferred response language from the context packet.\n"
-        "Do not mention that you are a moderator or that a debate happened — just give the answer."
+        "Synthesize the strongest, most accurate answer: integrate the best points, resolve "
+        "disagreements explicitly when they matter, and present a clear, direct final answer. "
+        "Do not mention that you are a moderator — just give the answer."
     )
 
 
@@ -118,8 +91,7 @@ def _synthesis_prompt(question: str, transcript: List[Tuple[str, List[Tuple[str,
 
 
 def _run_round(
-    runnable: Dict[str, ChatPlan], prompts: Dict[str, str], images: Optional[List[str]] = None,
-    params: Optional[dict] = None,
+    runnable: Dict[str, ChatPlan], prompts: Dict[str, str]
 ) -> Dict[str, dict]:
     """Run one debate round: every runnable agent's call fans out concurrently."""
     outcomes: Dict[str, dict] = {}
@@ -127,7 +99,7 @@ def _run_round(
         return outcomes
     with ThreadPoolExecutor(max_workers=len(runnable)) as pool:
         futures = {
-            pool.submit(_run_one, plan, [{"role": "user", "content": prompts[pid], "images": images or []}], params, bool(images)): pid
+            pool.submit(_run_one, plan, [{"role": "user", "content": prompts[pid]}]): pid
             for pid, plan in runnable.items()
         }
         for future, pid in list(futures.items()):
@@ -149,20 +121,7 @@ def debate_chat(
     provider_ids: List[str],
     session_id: Optional[uuid.UUID] = None,
     rounds: int = DEFAULT_DEBATE_ROUNDS,
-    images: Optional[List[str]] = None,
-    thinking_mode: str = "balance",
-    section_key: Optional[str] = "general",
-    response_language: Optional[str] = None,
 ) -> dict:
-    from app.services import (
-        ai_context_builder,
-        ai_intent_router,
-        ai_orchestrator,
-        memory_extraction_service,
-        schedule_parser,
-    )
-    from app.services.reasoning import quality
-
     ids = _dedup(provider_ids)
     if not ids:
         raise ValidationAppError("Select at least one AI agent.")
@@ -185,21 +144,17 @@ def debate_chat(
             workspace_id=principal.workspace_id,
             created_by=principal.user_id,
             title=_auto_title(message),
-            section_key=section_key or "general",
         )
         db.add(session)
         db.flush()
     if not (session.title or "").strip():
         session.title = _auto_title(message)
-    session.section_key = section_key or "general"
 
     user_message = ChatMessage(
         workspace_id=principal.workspace_id,
         session_id=session.id,
         role="user",
         content=message,
-        section_key=section_key or "general",
-        meta=_user_meta("debate", thinking_mode, images, section_key or "general"),
     )
     db.add(user_message)
     db.flush()
@@ -218,15 +173,9 @@ def debate_chat(
     # Resolve every provider on this thread (DB reads only).
     plans = {pid: ai_provider_router.plan_chat(db, principal, pid) for pid in ids}
     runnable = {pid: p for pid, p in plans.items() if p.runnable}
-    # With an image attached, only vision-capable agents can join the debate.
-    has_images = bool(images)
-    if has_images:
-        runnable = {pid: p for pid, p in runnable.items() if p.supports_image}
     n_runnable = len(runnable)
-    params = thinking_params(thinking_mode)
 
     responses: List[AiAgentResponse] = []
-    context_meta = {"section_key": section_key or "general", "thinking_mode": thinking_mode}
 
     def _record(
         provider_id: str, provider_name: str, status: str, content: Optional[str],
@@ -253,7 +202,6 @@ def debate_chat(
                 session_id=session.id,
                 role="assistant",
                 content=content if status == "completed" and content else (error or status),
-                section_key=section_key or "general",
                 meta={
                     "provider_id": provider_id,
                     "provider_name": provider_name,
@@ -264,7 +212,6 @@ def debate_chat(
                     "debate": True,
                     "round": round_no,
                     "phase": phase,
-                    **context_meta,
                 },
             )
         )
@@ -275,12 +222,8 @@ def debate_chat(
         plan = plans[pid]
         if pid in runnable:
             continue
-        if has_images and plan.runnable and not plan.supports_image:
-            status, msg = "unsupported", UNSUPPORTED_IMAGE_MSG
-        else:
-            status = plan.status if plan.status in ("blocked", "not_configured", "disabled") else "error"
-            msg = plan.message
-        _record(pid, plan.provider_name, status, None, msg, None, plan.external,
+        status = plan.status if plan.status in ("blocked", "not_configured", "disabled") else "error"
+        _record(pid, plan.provider_name, status, None, plan.message, None, plan.external,
                 round_no=1, phase="opening")
 
     # No runnable agents -> honest error, no fabricated debate.
@@ -292,86 +235,16 @@ def debate_chat(
             role="assistant",
             content=(
                 "No selected agent could run, so there is nothing to debate. Configure and enable "
-                "at least two AI agents in Settings -> AI Providers (and allow external AI if needed)."
+                "at least two AI agents in Settings → AI Providers (and allow external AI if needed)."
             ),
-            section_key=section_key or "general",
             meta={"provider_name": "Debate", "status": "error", "run_id": str(run.id),
-                  "debate": True, "debate_final": True, "section_key": section_key or "general"},
+                  "debate": True, "debate_final": True},
         )
         db.add(final_msg)
         db.commit()
         db.refresh(run)
         for r in responses:
             db.refresh(r)
-        memory_extraction_service.extract_and_commit(
-            db, principal, user_msg=message, assistant_msg="", session_id=session.id
-        )
-        return {"run": run, "session_id": session.id, "responses": responses}
-
-    # 4.0: money, schedule, and smalltalk turns never fan out into a debate — ONE
-    # deterministic proposal / one warm reply is the honest result (same rule as
-    # the parallel path). Turns with images still take the full panel.
-    is_finance = ai_intent_router.classify(message).is_finance
-    is_schedule = schedule_parser.parse_schedule(message) is not None
-    is_simple = not has_images and ai_intent_router.is_simple_message(message)
-    if is_finance or is_schedule or is_simple:
-        pid = next(p for p in ids if p in runnable)
-        # Context only matters for the smalltalk reply (a compact style packet);
-        # finance/schedule return deterministically before any model sees context.
-        context_packet = (
-            ai_context_builder.build(
-                db, principal, message=message, session_id=session.id,
-                section_key=section_key or "general", thinking_mode=thinking_mode,
-                response_language=response_language,
-            )
-            if is_simple
-            else {"context": None, "meta": context_meta}
-        )
-        context_meta = context_packet.get("meta", context_meta)
-        orchestrated = ai_orchestrator.run_with_tools(
-            db, principal, message=message, session_id=session.id, provider_id=pid,
-            extra_context=context_packet.get("context"), section_key=section_key or "general",
-            thinking_mode=thinking_mode, user_message_id=user_message.id,
-            response_language=response_language,
-        )
-        status = "completed" if orchestrated.get("ok") else "error"
-        content = orchestrated.get("content")
-        error = orchestrated.get("error") or None
-        tool_calls = orchestrated.get("tool_calls") or []
-        proposal_ids = orchestrated.get("proposal_ids") or []
-        synth_row = AiAgentResponse(
-            workspace_id=principal.workspace_id, run_id=run.id, provider_id=pid,
-            provider_name=plans[pid].provider_name, status=status, content=content,
-            error_message=error, latency_ms=None,
-            meta={"external": plans[pid].external, "phase": "synthesis",
-                  **({"tool_calls": tool_calls} if tool_calls else {}),
-                  **({"proposal_ids": proposal_ids} if proposal_ids else {})},
-        )
-        db.add(synth_row)
-        responses.append(synth_row)
-        db.add(ChatMessage(
-            workspace_id=principal.workspace_id, session_id=session.id, role="assistant",
-            content=content if status == "completed" and content else (error or status),
-            section_key=section_key or "general",
-            meta={"provider_id": pid, "provider_name": plans[pid].provider_name,
-                  "status": status, "run_id": str(run.id), "latency_ms": None,
-                  "external": plans[pid].external, "debate": True, "debate_final": True,
-                  "rounds": 0, "n_agents": 1, **context_meta,
-                  **({"tool_calls": tool_calls} if tool_calls else {}),
-                  **({"proposal_ids": proposal_ids} if proposal_ids else {}),
-                  **({"quality": orchestrated["quality"]} if orchestrated.get("quality") else {})},
-        ))
-        run.status = "completed" if status == "completed" else "error"
-        db.flush()
-        db.commit()
-        db.refresh(run)
-        for r in responses:
-            db.refresh(r)
-        memory_extraction_service.extract_and_commit(
-            db, principal, user_msg=message,
-            assistant_msg=content if status == "completed" else "",
-            session_id=session.id,
-        )
         return {"run": run, "session_id": session.id, "responses": responses}
 
     # --- run the rounds (network calls in worker threads) ---
@@ -379,19 +252,10 @@ def debate_chat(
     last_answer: Dict[str, str] = {}  # pid -> most recent completed content
     rounds_to_run = rounds if n_runnable >= 2 else 1  # one agent => no rebuttal
 
-    context_packet = ai_context_builder.build(
-        db, principal, message=message, session_id=session.id,
-        section_key=section_key or "general", thinking_mode=thinking_mode,
-        response_language=response_language,
-    )
-    context_meta = context_packet.get("meta", {})
-    extra_context = context_packet.get("context")
-    # Debate rounds have no system message; prefix the opening user prompt instead.
-    mem_prefix = f"{extra_context}\n\n" if extra_context else ""
     for k in range(1, rounds_to_run + 1):
         if k == 1:
             prompts = {
-                pid: mem_prefix + _opening_prompt(plans[pid].provider_name, n_runnable, message)
+                pid: _opening_prompt(plans[pid].provider_name, n_runnable, message)
                 for pid in runnable
             }
         else:
@@ -404,8 +268,8 @@ def debate_chat(
                     (plans[o].provider_name, last_answer[o])
                     for o in runnable if o != pid and o in last_answer
                 ]
-                prompts[pid] = mem_prefix + _rebuttal_prompt(plans[pid].provider_name, message, others)
-        outcomes = _run_round(runnable, prompts, images if k == 1 else None, params)
+                prompts[pid] = _rebuttal_prompt(plans[pid].provider_name, message, others)
+        outcomes = _run_round(runnable, prompts)
         round_outcomes.append(outcomes)
         for pid, oc in outcomes.items():
             if oc["status"] == "completed" and oc["content"]:
@@ -447,19 +311,11 @@ def debate_chat(
             final_status, final_content, final_error = "error", None, "The agent did not produce an answer."
     else:
         oc = _run_round({synth_pid: runnable[synth_pid]},
-                        {synth_pid: mem_prefix + _synthesis_prompt(message, transcript)}, None, params)[synth_pid]
+                        {synth_pid: _synthesis_prompt(message, transcript)})[synth_pid]
         final_status = oc["status"]
         final_content = oc["content"]
         final_error = oc["error"]
         final_latency = oc["latency_ms"]
-
-    # Deterministic quality score on the synthesis; low scores are flagged in
-    # metadata (never silently persisted as a good answer).
-    quality_meta = None
-    if final_status == "completed" and final_content:
-        score = quality.score_response(message, final_content)
-        if score.is_low():
-            quality_meta = score.to_meta()
 
     synth_name = plans[synth_pid].provider_name if synth_pid else "Debate"
     synth_external = plans[synth_pid].external if synth_pid else False
@@ -472,8 +328,7 @@ def debate_chat(
         content=final_content,
         error_message=final_error,
         latency_ms=final_latency,
-        meta={"external": synth_external, "phase": "synthesis",
-              **({"quality": quality_meta} if quality_meta else {})},
+        meta={"external": synth_external, "phase": "synthesis"},
     )
     db.add(synth_row)
     responses.append(synth_row)
@@ -483,7 +338,6 @@ def debate_chat(
             session_id=session.id,
             role="assistant",
             content=final_content if final_status == "completed" and final_content else (final_error or final_status),
-            section_key=section_key or "general",
             meta={
                 "provider_id": synth_pid or "debate",
                 "provider_name": synth_name,
@@ -495,8 +349,6 @@ def debate_chat(
                 "debate_final": True,
                 "rounds": len(round_outcomes),
                 "n_agents": n_runnable,
-                **context_meta,
-                **({"quality": quality_meta} if quality_meta else {}),
             },
         )
     )
@@ -511,13 +363,4 @@ def debate_chat(
     db.refresh(run)
     for r in responses:
         db.refresh(r)
-
-    # Trigger hybrid memory extraction using the synthesis content as the assistant reply.
-    memory_extraction_service.extract_and_commit(
-        db, principal,
-        user_msg=message,
-        assistant_msg=final_content or "",
-        session_id=session.id,
-    )
-
     return {"run": run, "session_id": session.id, "responses": responses}
