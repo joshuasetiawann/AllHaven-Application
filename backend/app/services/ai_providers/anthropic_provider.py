@@ -53,7 +53,7 @@ class AnthropicProvider(AIProvider):
             "POST", f"{API_BASE}/messages", headers=self._headers(key), json=payload
         )
         if err:
-            return ChatResult(False, error=err)
+            return ChatResult(False, error=network_error_message(err))
         if code == 200 and body:
             try:
                 return ChatResult(True, content=body["content"][0]["text"])
