@@ -446,6 +446,75 @@ def test_delete_memory_cross_workspace_denied(auth_client, db_session, client):
 
 
 # ---------------------------------------------------------------------------
+# create_memory input validation (handler runs only when approval is OFF)
+# ---------------------------------------------------------------------------
+# The registry's write path with require_approval=ON stores a PENDING proposal
+# without ever calling the handler, so validation in the handler never fires.
+# These tests disable approval so the handler executes immediately.
+
+
+def test_create_memory_blank_title_raises_error(auth_client, db_session):
+    """Blank title must produce a ToolError, not a silent empty-string memory."""
+    auth_client.put(f"{API}/ai/settings/chat", json={"require_approval": False})
+    principal = _principal(auth_client)
+    outcome = ai_tools_registry.run_tool_call(
+        db_session, principal, "create_memory",
+        {"category": "Profile", "title": "   ", "content": "Some content"}
+    )
+    db_session.commit()
+    assert outcome["status"] == "error"
+    assert "title" in outcome["error"].lower()
+    auth_client.put(f"{API}/ai/settings/chat", json={"require_approval": True})
+
+
+def test_create_memory_blank_content_raises_error(auth_client, db_session):
+    """Blank content must produce a ToolError."""
+    auth_client.put(f"{API}/ai/settings/chat", json={"require_approval": False})
+    principal = _principal(auth_client)
+    outcome = ai_tools_registry.run_tool_call(
+        db_session, principal, "create_memory",
+        {"category": "Profile", "title": "My title", "content": ""}
+    )
+    db_session.commit()
+    assert outcome["status"] == "error"
+    assert "content" in outcome["error"].lower()
+    auth_client.put(f"{API}/ai/settings/chat", json={"require_approval": True})
+
+
+def test_create_memory_invalid_category_raises_error(auth_client, db_session):
+    """An unrecognised category must produce a ToolError listing valid values."""
+    from app.domain.ai_memory import MEMORY_CATEGORIES
+
+    auth_client.put(f"{API}/ai/settings/chat", json={"require_approval": False})
+    principal = _principal(auth_client)
+    outcome = ai_tools_registry.run_tool_call(
+        db_session, principal, "create_memory",
+        {"category": "Hobbies", "title": "My title", "content": "Some content"}
+    )
+    db_session.commit()
+    assert outcome["status"] == "error"
+    error_text = outcome["error"]
+    # Error must mention the invalid value and at least one valid category
+    assert "Hobbies" in error_text or "category" in error_text.lower()
+    assert any(cat in error_text for cat in MEMORY_CATEGORIES)
+    auth_client.put(f"{API}/ai/settings/chat", json={"require_approval": True})
+
+
+def test_create_memory_missing_category_defaults_to_profile(auth_client, db_session):
+    """Omitting category should default to 'Profile' and succeed."""
+    auth_client.put(f"{API}/ai/settings/chat", json={"require_approval": False})
+    principal = _principal(auth_client)
+    outcome = ai_tools_registry.run_tool_call(
+        db_session, principal, "create_memory",
+        {"title": "Default cat test", "content": "No category supplied"}
+    )
+    db_session.commit()
+    assert outcome["status"] == "executed", outcome.get("error")
+    assert outcome["result"]["memory"]["category"] == "Profile"
+    auth_client.put(f"{API}/ai/settings/chat", json={"require_approval": True})
+
+
+# ---------------------------------------------------------------------------
 # Memory result shape validation
 # ---------------------------------------------------------------------------
 
