@@ -7,26 +7,27 @@ This guide is for non-technical users. You only need to **clone the repo** and
 
 ## 1. Open the launcher for your OS
 
-| Your OS | Double-click | Notes |
-|---------|--------------|-------|
+| Your OS | Double-click / run | Notes |
+|---------|--------------------|-------|
 | **Windows** | `START_HAVEN_WINDOWS.bat` | If Windows SmartScreen warns, click *More info → Run anyway*. |
 | **macOS** | `START_HAVEN_MAC.command` | First time: **right-click → Open** (or System Settings → Privacy & Security → *Open Anyway*). |
-| **Linux** | `START_HAVEN_LINUX.sh` | If double-click doesn't run it, open a terminal and run `./START_HAVEN_LINUX.sh`. |
+| **Linux** | `./START_HAVEN_LINUX.sh` | If double-click doesn't run it, run it from a terminal. |
+| **Any terminal** | `./install.sh` or `npm run setup` | Same result — opens the wizard. |
 
-> Only **Python 3** is required to run the wizard. If it's missing, the launcher
-> tells you where to get it (<https://www.python.org/downloads/>) — on Windows be
-> sure to tick **"Add Python to PATH"**.
+> Only **Python 3** is required to bootstrap. If it's missing, the launcher tells you
+> where to get it (<https://www.python.org/downloads/>) — on Windows tick **"Add
+> Python to PATH"**.
 
-**By default the launcher now runs a _terminal_ installer** (`installer/haven_cli.py`):
-it prints live progress as it checks tools, configures `.env` (+ `backend/.env`),
-pulls the Docker image, installs dependencies, runs migrations, and starts the app —
-then opens your browser. This is the recommended path because you can *see* the
-Docker/pip/npm progress (the browser version hid it, so a first-run image pull
-looked frozen).
+**The terminal is just a bootstrapper.** It checks Python, starts a small local
+setup server, and **opens the Setup Wizard in your browser** at
+`http://127.0.0.1:7000`. From there, **everything happens in the wizard** — you don't
+configure Haven in the terminal. The Start step shows **live progress** (Docker image
+pull, `pip`, `npm`) so a first run never looks frozen.
 
-> **Prefer the browser wizard?** Set `HAVEN_SETUP_WEB=1` before launching (e.g.
-> `HAVEN_SETUP_WEB=1 ./START_HAVEN_LINUX.sh`). It opens at `http://127.0.0.1:7000`.
-> The steps below describe that optional web wizard.
+> **After setup**, the **Haven desktop shortcut** (or running the launcher again)
+> skips the wizard and just starts services + opens the app. Prefer a terminal-only
+> install? `HAVEN_SETUP_CLI=1 ./START_HAVEN_LINUX.sh`. Re-open the wizard anytime with
+> `HAVEN_FORCE_WIZARD=1`.
 
 ---
 

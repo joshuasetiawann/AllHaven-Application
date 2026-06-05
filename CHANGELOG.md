@@ -11,6 +11,17 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.13.0] - 2026-06-11 — GUI-first install: terminal bootstraps the Setup Wizard
+
+Detailed notes: [`docs/releases/v0.13.0.md`](docs/releases/v0.13.0.md)
+
+### Changed
+- **Install is now GUI-first.** The terminal command is only a **bootstrapper**: it checks for Python, starts the local setup server, and **opens the browser Setup Wizard**, where ALL configuration happens (OS/Docker checks, Docker install guide, ports, `.env` setup/update with backup, start services, health check, desktop shortcut, open app). New entry points `./install.sh` and `npm run setup` join `START_HAVEN_*`.
+- **Launchers branch on setup state:** first run (no `.env`) → the **Setup Wizard**; already set up → the launcher that ensures services are running and opens the app. The **desktop shortcut** uses that same launcher, so clicking it post-install starts services safely and opens Haven — never the wizard. `HAVEN_FORCE_WIZARD=1` re-opens the wizard; `HAVEN_SETUP_CLI=1` keeps the terminal-only installer.
+
+### Added
+- **Live install progress in the wizard.** The Start step tails the install log (Docker image pull, `pip install`, `npm install`) + the backend log via a new masked `/api/setup/log` endpoint, so the first run shows real progress instead of appearing to hang — and auto-advances when the backend & frontend are healthy.
+
 ## [0.12.0] - 2026-06-11 — App-wide AI tools with human approval, 6 OpenRouter slots, 7-agent roles
 
 Detailed report: [`docs/releases/v0.12.0.md`](docs/releases/v0.12.0.md)
