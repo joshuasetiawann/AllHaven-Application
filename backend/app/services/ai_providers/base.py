@@ -78,6 +78,21 @@ def interpret_http(code: Optional[int], err: str) -> VerifyResult:
     return VerifyResult("error", f"Verification failed (HTTP {code})")
 
 
+def network_error_message(err: str) -> str:
+    """Friendly message for a transport-level failure (no HTTP response)."""
+    low = (err or "").lower()
+    if "name resolution" in low or "getaddrinfo" in low or "nodename" in low:
+        return (
+            "could not reach the provider — DNS/name resolution failed. Check your internet "
+            "connection (or proxy/firewall), or use local Ollama which needs no internet."
+        )
+    if "timed out" in low or "timeout" in low:
+        return "could not reach the provider — the request timed out. Try again or check your network."
+    if "connection refused" in low or "refused" in low:
+        return "could not reach the provider — connection refused. Is the URL correct and the service running?"
+    return f"could not reach the provider (network error): {err}"
+
+
 def chat_error_message(code: Optional[int], body: Optional[dict]) -> str:
     """Human-friendly explanation for a failed chat call."""
     # Prefer the provider's own message when available.
@@ -166,7 +181,7 @@ class OpenAICompatibleProvider(AIProvider):
             json={"model": chosen, "messages": messages},
         )
         if err:
-            return ChatResult(False, error=err)
+            return ChatResult(False, error=network_error_message(err))
         if code == 200 and body:
             try:
                 return ChatResult(True, content=body["choices"][0]["message"]["content"])

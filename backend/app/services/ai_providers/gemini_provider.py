@@ -51,7 +51,7 @@ class GeminiProvider(AIProvider):
             json={"contents": contents},
         )
         if err:
-            return ChatResult(False, error=err)
+            return ChatResult(False, error=network_error_message(err))
         if code == 200 and body:
             try:
                 return ChatResult(True, content=body["candidates"][0]["content"]["parts"][0]["text"])
