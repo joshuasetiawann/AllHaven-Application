@@ -10,9 +10,10 @@ provider-agnostic chat routing. Enforces the safety policy:
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Optional
+from typing import Callable, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,6 +24,7 @@ from app.core.principal import Principal
 from app.domain.integrations import AiAgentConfig
 from app.services import ai_policy_service
 from app.services import config_common as cc
+from app.services import env_file_service
 from app.services.ai_providers.anthropic_provider import AnthropicProvider
 from app.services.ai_providers.base import AIProvider
 from app.services.ai_providers.blackbox_provider import BlackboxProvider
@@ -42,7 +44,11 @@ ADAPTERS: dict[str, AIProvider] = {
     "gemini": GeminiProvider(),
     "grok": GrokProvider(),
     "blackbox": BlackboxProvider(),
-    "openrouter": OpenRouterProvider(),
+    # Three independent OpenRouter slots share the OpenRouter adapter; each has
+    # its own DB row, key, status, and default model.
+    "openrouter_1": OpenRouterProvider(),
+    "openrouter_2": OpenRouterProvider(),
+    "openrouter_3": OpenRouterProvider(),
 }
 
 
@@ -57,7 +63,9 @@ def _env_public(spec: ProviderSpec) -> dict:
         "gemini": {"default_model": settings.GEMINI_DEFAULT_MODEL},
         "grok": {"default_model": settings.GROK_DEFAULT_MODEL},
         "blackbox": {"default_model": settings.BLACKBOX_DEFAULT_MODEL},
-        "openrouter": {"default_model": settings.OPENROUTER_DEFAULT_MODEL},
+        "openrouter_1": {"default_model": settings.OPENROUTER_1_DEFAULT_MODEL or settings.OPENROUTER_DEFAULT_MODEL},
+        "openrouter_2": {"default_model": settings.OPENROUTER_2_DEFAULT_MODEL},
+        "openrouter_3": {"default_model": settings.OPENROUTER_3_DEFAULT_MODEL},
     }
     return {k: v for k, v in mapping.get(spec.id, {}).items() if is_configured_value(v)}
 
@@ -69,7 +77,10 @@ def _env_secrets(spec: ProviderSpec) -> dict:
         "gemini": {"api_key": settings.GEMINI_API_KEY},
         "grok": {"api_key": settings.GROK_API_KEY},
         "blackbox": {"api_key": settings.BLACKBOX_API_KEY},
-        "openrouter": {"api_key": settings.OPENROUTER_API_KEY},
+        # Slot 1 falls back to the legacy single OPENROUTER_API_KEY.
+        "openrouter_1": {"api_key": settings.OPENROUTER_1_API_KEY or settings.OPENROUTER_API_KEY},
+        "openrouter_2": {"api_key": settings.OPENROUTER_2_API_KEY},
+        "openrouter_3": {"api_key": settings.OPENROUTER_3_API_KEY},
     }
     return {k: v for k, v in mapping.get(spec.id, {}).items() if is_configured_value(v)}
 
@@ -227,7 +238,15 @@ def upsert_provider(
                 meta={"provider_id": provider_id, "status": row.status})
     db.commit()
     db.refresh(row)
-    return _view(spec, row)
+    view = _view(spec, row)
+    # Mirror real (non-placeholder) values to the local .env for persistence.
+    clean_secrets = {k: v for k, v in (secrets or {}).items() if is_configured_value(v)}
+    env_public = dict(public or {})
+    if default_model is not None:
+        env_public["default_model"] = default_model
+    env_updates = env_file_service.map_ai_provider_updates(provider_id, env_public, clean_secrets)
+    view["env_sync"] = env_file_service.sync_env(env_updates)
+    return view
 
 
 def test_provider(db: Session, principal: Principal, provider_id: str) -> dict:
@@ -271,6 +290,78 @@ def resolve_default_provider(db: Session, principal: Principal) -> str:
     return default if get_ai_provider_spec(default) else "ollama"
 
 
+@dataclass
+class ChatPlan:
+    """A resolved decision about whether/how to call one provider.
+
+    All DB access happens while building the plan (on the request thread). The
+    ``execute`` closure only touches the captured adapter + plain dicts, so it is
+    safe to run inside a worker thread for concurrent multi-agent fan-out.
+    """
+
+    provider_id: str
+    provider_name: str
+    external: bool
+    configured: bool
+    enabled: bool
+    # 'queued' (runnable) | 'blocked' | 'not_configured' | 'disabled' | 'error'
+    status: str
+    message: str = ""
+    _runner: Optional[Callable[[list[dict]], "object"]] = field(default=None, repr=False)
+
+    @property
+    def runnable(self) -> bool:
+        return self.status == "queued"
+
+    def execute(self, messages: list[dict]):
+        """Run the network call. Returns a ChatResult. Thread-safe."""
+        return self._runner(messages)
+
+
+def plan_chat(db: Session, principal: Principal, provider_id: Optional[str] = None) -> ChatPlan:
+    """Resolve a provider into an honest, ready-to-run plan (no network here)."""
+    pid = provider_id or resolve_default_provider(db, principal)
+    spec = get_ai_provider_spec(pid)
+    if spec is None:
+        return ChatPlan(pid, pid, False, False, False, "error", f"Unknown AI provider '{pid}'.")
+
+    adapter = ADAPTERS[pid]
+    row = _get_row(db, principal, pid)
+    public, secrets = _effective_config(row, spec)
+    configured = adapter.is_configured(public, secrets)
+    enabled = bool(row.enabled) if row is not None else False
+    model = row.default_model if row is not None else None
+
+    if spec.external and not ai_policy_service.is_external_allowed(db, principal):
+        return ChatPlan(
+            pid, spec.name, spec.external, configured, enabled, "blocked",
+            (
+                f"External AI provider '{spec.name}' is blocked. Turn on "
+                "“Allow external AI providers” in Settings → Privacy & Safety (or set "
+                "AI_ALLOW_EXTERNAL_PROVIDERS=true) to use it, and only send non-confidential "
+                "data. CoreOS never sends data to external AI unless you allow it."
+            ),
+        )
+    if not configured:
+        return ChatPlan(
+            pid, spec.name, spec.external, False, enabled, "not_configured",
+            (
+                f"The '{spec.name}' provider is not configured. Add its credentials in Settings → "
+                "AI Providers. CoreOS will never fake AI responses."
+            ),
+        )
+    if not enabled:
+        return ChatPlan(
+            pid, spec.name, spec.external, True, False, "disabled",
+            f"The '{spec.name}' provider is configured but disabled. Enable it in Settings to use it.",
+        )
+
+    def _run(messages: list[dict]):
+        return adapter.chat(public, secrets, messages, model=model)
+
+    return ChatPlan(pid, spec.name, spec.external, True, True, "queued", "", _run)
+
+
 def run_chat(
     db: Session,
     principal: Principal,
@@ -279,56 +370,27 @@ def run_chat(
     provider_id: Optional[str] = None,
 ) -> dict:
     """Route a chat to the selected/default provider. Honest, no fake success."""
-    pid = provider_id or resolve_default_provider(db, principal)
-    spec = get_ai_provider_spec(pid)
-    if spec is None:
+    plan = plan_chat(db, principal, provider_id)
+    pid = plan.provider_id
+    if plan.status == "error" and not plan.runnable and plan.provider_name == pid:
         return {"ok": False, "provider_id": pid, "configured": False, "blocked": False,
-                "content": f"Unknown AI provider '{pid}'.", "error": "unknown_provider"}
+                "content": plan.message, "error": "unknown_provider"}
+    if plan.status == "blocked":
+        return {"ok": False, "provider_id": pid, "configured": plan.configured, "blocked": True,
+                "content": plan.message, "error": "external_disabled"}
+    if plan.status == "not_configured":
+        return {"ok": False, "provider_id": pid, "configured": False, "blocked": False,
+                "content": plan.message, "error": "not_configured"}
+    if plan.status == "disabled":
+        return {"ok": False, "provider_id": pid, "configured": True, "blocked": False,
+                "content": plan.message, "error": "disabled"}
 
-    adapter = ADAPTERS[pid]
-    row = _get_row(db, principal, pid)
-    public, secrets = _effective_config(row, spec)
-    configured = adapter.is_configured(public, secrets)
-    enabled = bool(row.enabled) if row is not None else False
-
-    # External providers are blocked unless allowed by the workspace AI policy
-    # (toggle in Settings → Privacy & Safety) or the AI_ALLOW_EXTERNAL_PROVIDERS env.
-    if spec.external and not ai_policy_service.is_external_allowed(db, principal):
-        return {
-            "ok": False, "provider_id": pid, "configured": configured, "blocked": True,
-            "content": (
-                f"External AI provider '{spec.name}' is blocked. Turn on "
-                "“Allow external AI providers” in Settings → Privacy & Safety (or set "
-                "AI_ALLOW_EXTERNAL_PROVIDERS=true) to use it, and only send non-confidential "
-                "data. CoreOS never sends data to external AI unless you allow it."
-            ),
-            "error": "external_disabled",
-        }
-
-    if not configured:
-        return {
-            "ok": False, "provider_id": pid, "configured": False, "blocked": False,
-            "content": (
-                f"The '{spec.name}' provider is not configured. Add its credentials in Settings → "
-                "AI Providers. CoreOS will never fake AI responses."
-            ),
-            "error": "not_configured",
-        }
-
-    if not enabled:
-        return {
-            "ok": False, "provider_id": pid, "configured": True, "blocked": False,
-            "content": f"The '{spec.name}' provider is configured but disabled. Enable it in Settings to use it.",
-            "error": "disabled",
-        }
-
-    model = row.default_model if row is not None else None
-    result = adapter.chat(public, secrets, messages, model=model)
+    result = plan.execute(messages)
     if result.ok:
         return {"ok": True, "provider_id": pid, "configured": True, "blocked": False,
                 "content": result.content, "error": ""}
     return {
         "ok": False, "provider_id": pid, "configured": True, "blocked": False,
-        "content": f"The '{spec.name}' provider could not complete the request: {result.error}",
+        "content": f"The '{plan.provider_name}' provider could not complete the request: {result.error}",
         "error": result.error,
     }
