@@ -16,7 +16,7 @@ from app.services.ai_providers.base import ChatResult
 
 
 def _plan(pid: str, name: str, *, ok: bool = True, external: bool = False) -> ChatPlan:
-    def _runner(messages, params=None):
+    def _runner(messages):
         # Echo a tag + the prompt so we can assert the debate actually fed each
         # agent the question / the other agents' answers.
         prompt = messages[-1]["content"] if messages else ""
@@ -31,16 +31,10 @@ def _patch_plans(monkeypatch, plans: dict[str, ChatPlan]) -> None:
     monkeypatch.setattr(router_mod, "plan_chat", lambda db, principal, pid: plans[pid])
 
 
-def test_debate_rejects_more_than_ten_agents(auth_client):
+def test_debate_rejects_more_than_three_agents(auth_client):
     resp = auth_client.post(
         f"{API}/ai/chat/debate",
-        json={
-            "message": "hi",
-            "provider_ids": [
-                "openai", "anthropic", "gemini", "grok", "blackbox", "cursor",
-                "deepseek", "qwen", "openrouter_1", "openrouter_2", "openrouter_3",
-            ],
-        },
+        json={"message": "hi", "provider_ids": ["openai", "anthropic", "gemini", "grok"]},
     )
     assert resp.status_code == 422, resp.text
 
