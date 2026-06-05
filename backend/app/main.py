@@ -11,7 +11,16 @@ from app.core.responses import success_response
 
 # Import the domain package so all models are registered on the metadata.
 import app.domain  # noqa: F401
-from app.api.routers import ai, auth, finance, health, notes, settings as settings_router, tasks
+from app.api.routers import (
+    ai,
+    auth,
+    finance,
+    google,
+    health,
+    notes,
+    settings as settings_router,
+    tasks,
+)
 
 
 def create_app() -> FastAPI:
@@ -43,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(finance.router, prefix=prefix)
     app.include_router(ai.router, prefix=prefix)
     app.include_router(settings_router.router, prefix=prefix)
+    app.include_router(google.router, prefix=prefix)
 
     @app.get("/", tags=["root"])
     def root() -> dict:
