@@ -54,3 +54,20 @@ def test_login_wrong_password_is_generic_401(client):
 def test_me_requires_auth(client):
     resp = client.get(f"{API}/auth/me")
     assert resp.status_code == 401
+
+
+def test_update_profile_and_workspace(auth_client):
+    from tests.conftest import API
+
+    resp = auth_client.patch(
+        f"{API}/auth/me",
+        json={"full_name": "Renamed Operator", "workspace_name": "Acme HQ"},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()["data"]
+    assert data["user"]["full_name"] == "Renamed Operator"
+    assert data["workspace"]["name"] == "Acme HQ"
+    # Persisted.
+    me = auth_client.get(f"{API}/auth/me").json()["data"]
+    assert me["user"]["full_name"] == "Renamed Operator"
+    assert me["workspace"]["name"] == "Acme HQ"

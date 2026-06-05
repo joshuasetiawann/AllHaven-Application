@@ -11,7 +11,16 @@ from app.core.exceptions import UnauthorizedError
 from app.core.principal import Principal
 from app.core.responses import success_response
 from app.domain.users import Profile
-from app.schemas.auth import LoginRequest, MeData, RegisterRequest, TokenData, UserOut, WorkspaceOut
+from app.domain.workspaces import Workspace
+from app.schemas.auth import (
+    LoginRequest,
+    MeData,
+    MeUpdate,
+    RegisterRequest,
+    TokenData,
+    UserOut,
+    WorkspaceOut,
+)
 from app.services import auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -64,3 +73,28 @@ def me(
         workspace=WorkspaceOut.model_validate(workspace),
     )
     return success_response(data, "Current user")
+
+
+@router.patch("/me")
+def update_me(
+    payload: MeUpdate,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    profile = db.get(Profile, principal.user_id)
+    workspace = auth_service.get_default_workspace(db, principal.user_id)
+    fields = payload.model_dump(exclude_unset=True)
+    if "full_name" in fields and profile is not None:
+        profile.full_name = (fields["full_name"] or "").strip() or None
+    if "workspace_name" in fields and workspace is not None:
+        name = (fields["workspace_name"] or "").strip()
+        if name:
+            workspace.name = name
+    db.commit()
+    profile = db.get(Profile, principal.user_id)
+    workspace = auth_service.get_default_workspace(db, principal.user_id)
+    data = MeData(
+        user=_user_out(principal.email, profile),
+        workspace=WorkspaceOut.model_validate(workspace),
+    )
+    return success_response(data, "Profile updated")
