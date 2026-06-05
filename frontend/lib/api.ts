@@ -100,11 +100,19 @@ export const authApi = {
 // --- Tasks ---
 export const tasksApi = {
   list: () => request<Task[]>("/tasks"),
-  create: (payload: Partial<Task>) =>
+  create: (payload: Record<string, unknown>) =>
     request<Task>("/tasks", { method: "POST", body: json(payload) }),
   update: (id: string, payload: Partial<Task>) =>
     request<Task>(`/tasks/${id}`, { method: "PATCH", body: json(payload) }),
   remove: (id: string) => request<{ id: string }>(`/tasks/${id}`, { method: "DELETE" }),
+  complete: (id: string) => request<Task>(`/tasks/${id}/complete`, { method: "POST" }),
+  reopen: (id: string) => request<Task>(`/tasks/${id}/reopen`, { method: "POST" }),
+  addChecklistItem: (id: string, title: string) =>
+    request<Task>(`/tasks/${id}/checklist`, { method: "POST", body: json({ title }) }),
+  updateChecklistItem: (id: string, itemId: string, payload: { title?: string; is_done?: boolean }) =>
+    request<Task>(`/tasks/${id}/checklist/${itemId}`, { method: "PATCH", body: json(payload) }),
+  deleteChecklistItem: (id: string, itemId: string) =>
+    request<Task>(`/tasks/${id}/checklist/${itemId}`, { method: "DELETE" }),
 };
 
 // --- Notes ---
