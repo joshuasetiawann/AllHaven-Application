@@ -33,6 +33,10 @@ from urllib.parse import parse_qs, urlparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import haven_common as hc  # noqa: E402
 
+
+class _ReusableThreadingHTTPServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+
 POSIX = os.name == "posix"
 _COMPOSE_TIMEOUT = 120
 
@@ -470,7 +474,7 @@ def serve() -> None:
     hc.ensure_dirs()
     hc.ensure_token()
     _pid_file("agent").write_text(str(os.getpid()), encoding="utf-8")
-    httpd = ThreadingHTTPServer((hc.AGENT_HOST, hc.agent_port()), _Handler)
+    httpd = _ReusableThreadingHTTPServer((hc.AGENT_HOST, hc.agent_port()), _Handler)
     print(f"Haven agent listening on {hc.agent_base_url()} (localhost only)")
     try:
         httpd.serve_forever()
