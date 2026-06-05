@@ -116,6 +116,25 @@ print(" ".join(sorted(pids, key=int)))
 PY
 }
 
+_host_pids_on_port() {  # _host_pids_on_port <port> -> host listener pids (Flatpak/VS Code)
+  local port="$1"
+  need flatpak-spawn || return 0
+  flatpak-spawn --host sh -s -- "$port" <<'SH' 2>/dev/null || true
+port="$1"
+pids=""
+if command -v ss >/dev/null 2>&1; then
+  pids="$(ss -ltnpH "( sport = :$port )" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u || true)"
+fi
+if [ -z "$pids" ] && command -v lsof >/dev/null 2>&1; then
+  pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+fi
+if [ -z "$pids" ] && command -v fuser >/dev/null 2>&1; then
+  pids="$(fuser "$port/tcp" 2>/dev/null | tr -s ' ' '\n' | grep -E '^[0-9]+$' | sort -u || true)"
+fi
+printf '%s' "$pids"
+SH
+}
+
 _pids_on_port() {  # _pids_on_port <port> -> listening pids, one per line
   local port="$1" pids=""
   if need ss; then
@@ -130,16 +149,50 @@ _pids_on_port() {  # _pids_on_port <port> -> listening pids, one per line
   if [ -z "$pids" ]; then
     pids="$(_pids_on_port_py "$port" || true)"
   fi
-  printf '%s' "$pids"
+  {
+    printf '%s\n' "$pids"
+    _host_pids_on_port "$port" || true
+  } | tr -s ' ' '\n' | grep -E '^[0-9]+$' | sort -u || true
 }
 
 _port_busy() { [ -n "$(_pids_on_port "$1")" ]; }
+
+_wait_port_free() {  # _wait_port_free <port> [seconds]
+  local port="$1" timeout="${2:-8}" end
+  end=$((SECONDS + timeout))
+  while _port_busy "$port"; do
+    [ "$SECONDS" -ge "$end" ] && return 1
+    sleep 0.5
+  done
+}
+
+_host_kill_pid() {  # _host_kill_pid <pid> — stop a host pid from Flatpak shells
+  local pid="$1"
+  need flatpak-spawn || return 1
+  flatpak-spawn --host sh -s -- "$pid" <<'SH' 2>/dev/null || true
+pid="$1"
+case "$pid" in ''|*[!0-9]*) exit 0 ;; esac
+children() { pgrep -P "$1" 2>/dev/null || true; }
+kill_tree() {
+  p="$1"
+  for c in $(children "$p"); do kill_tree "$c"; done
+  kill -TERM "$p" 2>/dev/null || true
+}
+kill_tree "$pid"
+sleep 1
+if kill -0 "$pid" 2>/dev/null; then
+  for c in $(children "$pid"); do kill -KILL "$c" 2>/dev/null || true; done
+  kill -KILL "$pid" 2>/dev/null || true
+fi
+SH
+}
 
 _free_port() {  # _free_port <port> — stop any listener (process group, then pid)
   local port="$1" pid
   for pid in $(_pids_on_port "$port"); do
     [[ "$pid" =~ ^[0-9]+$ ]] || continue
     kill -- -"$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+    _host_kill_pid "$pid" || true
   done
 }
 
@@ -297,6 +350,7 @@ _start_bg() {  # _start_bg <name> <port> <command...>
   mkdir -p "$PID_DIR" "$LOG_DIR"
   if _is_running "$name"; then c_warn "$name already running (pid $(cat "$PID_DIR/$name.pid"))."; return 0; fi
   _free_port "$port"   # clear any stale/wedged server squatting on the port
+  _wait_port_free "$port" || c_warn "$name port :$port is still busy; trying to start anyway."
   setsid "$@" >"$LOG_DIR/$name.log" 2>&1 < /dev/null &
   echo $! > "$PID_DIR/$name.pid"
   c_green "$name started (pid $!) — logs: $LOG_DIR/$name.log"
@@ -348,6 +402,7 @@ cmd_run() {
 
   mkdir -p "$PID_DIR" "$LOG_DIR"
   _free_port "$BACKEND_PORT"   # clear a wedged backend before we bind
+  _wait_port_free "$BACKEND_PORT" || c_warn "backend port :$BACKEND_PORT is still busy; trying to start anyway."
 
   c_blue "Starting backend on http://localhost:${BACKEND_PORT} …"
   ( cd "$ROOT/backend" && source .venv/bin/activate \
@@ -375,6 +430,7 @@ cmd_run() {
   c_warn  "Tip: use http://localhost (not 127.0.0.1) on this machine."
   c_blue "Starting frontend (dev, reachable on your LAN)… press Ctrl+C to stop everything."
   _free_port "$FRONTEND_PORT"   # clear a wedged frontend before we bind
+  _wait_port_free "$FRONTEND_PORT" || c_warn "frontend port :$FRONTEND_PORT is still busy; trying to start anyway."
   cd "$ROOT/frontend"
   npm run dev -- -H 0.0.0.0 -p "${FRONTEND_PORT}"
 }
