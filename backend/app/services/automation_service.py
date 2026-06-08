@@ -1,6 +1,6 @@
 """Local automation definition CRUD (workspace-scoped, soft delete).
 
-CoreOS never executes these definitions in the MVP — they are disabled-safe
+AllHaven never executes these definitions in the MVP — they are disabled-safe
 drafts. Execution would require a safely configured, verified n8n connection.
 """
 
@@ -48,7 +48,7 @@ def create_automation(db: Session, principal: Principal, data: dict) -> Automati
         trigger_type=data.get("trigger_type") or "manual",
         action_type=data.get("action_type") or "noop",
         config=data.get("config") or {},
-        enabled=False,  # created disabled-safe; CoreOS does not run it
+        enabled=False,  # created disabled-safe; AllHaven does not run it
     )
     db.add(row)
     db.commit()
