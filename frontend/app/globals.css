@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Accessibility: honour the OS "reduce motion" setting — animations and
+   transitions collapse to near-instant, and smooth-scroll is disabled. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer base {
   :root {
     color-scheme: dark;

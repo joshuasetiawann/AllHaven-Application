@@ -11,6 +11,25 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.15.0] - 2026-06-12 — Premium UI polish, persistent model selection & per-section chat memory
+
+Detailed notes: [`docs/releases/v0.15.0.md`](docs/releases/v0.15.0.md)
+
+A frontend/UX release — no backend or API changes.
+
+### Added
+- **Persistent model selection.** AI Chat now remembers your selected **agents/model**, **chat mode** (Parallel/Debate/Reasoning), **Thinking depth**, and debate rounds across page navigation and browser refresh. On load the saved selection is **reconciled against available providers** — unavailable models are dropped with a clear notice and a sensible fallback (or "Configure an AI provider first"). The workspace default only applies on a fresh device.
+- **Per-section chat memory.** Each module section (General, Tasks, Notes, Finance, Calendar, Files, Automations, Weather, Settings, System Control) **and each chat project/group** keeps its own **local, editable memory** (`title` / `summary` / important-context bullets). Pick the section from the chat header, view/edit/clear it, and the AI uses it to give more relevant answers (injected once per thread). **Secrets are auto-redacted** before saving; clear per-section or all.
+- **Local storage abstraction** (`lib/storage.ts`) — namespaced, versioned, SSR-safe, IndexedDB-ready — backing both features.
+- **Smooth micro-animations** — route/page transitions, dropdown/popover entrances, chat message-in, and the pending-actions panel — all 120–250ms with soft easing and a global **`prefers-reduced-motion`** guard.
+
+### Changed
+- **Polished Finance & Settings.** Finance KPI cards gain clearer hierarchy (icon chips, tabular figures, hero balance with negative-aware color); Settings tab switches now fade in.
+- Chat header reorganized to surface the active **Section / Memory** controls without crowding.
+
+### Fixed
+- **No more session-check flash on every navigation** — the session is confirmed once per page-load, so moving between dashboard pages no longer flashes the "Checking your session…" loader.
+
 ## [0.14.0] - 2026-06-11 — Terminal-only install (browser wizard now opt-in) + faster Docker check
 
 Detailed notes: [`docs/releases/v0.14.0.md`](docs/releases/v0.14.0.md)
