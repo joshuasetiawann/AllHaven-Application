@@ -314,3 +314,45 @@ export interface N8nWorkflowList {
   base_url: string;
   workflows: N8nWorkflow[];
 }
+
+// --- System Control (start/stop/restart & inspect Haven services) ---
+export type ServiceName = "backend" | "frontend" | "postgres" | "n8n" | "ollama" | "redis";
+export type ServiceState = "running" | "stopped" | "error" | "unavailable" | "unknown";
+
+export interface ServiceStatus {
+  name: ServiceName;
+  label: string;
+  kind: "host" | "docker";
+  status: ServiceState;
+  port: number | null;
+  controllable: boolean;
+  actions: string[]; // subset of ["start","stop","restart","logs"]
+  message: string;
+  last_checked: string; // ISO timestamp
+}
+
+export interface SystemStatus {
+  agent: { running: boolean; message: string };
+  control_enabled: boolean;
+  services: ServiceStatus[];
+}
+
+export interface SystemLogs {
+  name: string;
+  content: string;
+  truncated: boolean;
+  message: string;
+}
+
+export interface SystemPorts {
+  ports: Record<string, number>;
+  defaults: Record<string, number>;
+  editable: boolean;
+}
+
+export interface PortsApplyResult {
+  ports: Record<string, number>;
+  restart_required: boolean;
+  applied: boolean;
+  message: string;
+}

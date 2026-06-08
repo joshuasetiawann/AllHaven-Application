@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="haven-setup-token" content="__HAVEN_SETUP_TOKEN__" />
+<title>Haven Setup</title>
+<style>
+  :root {
+    --bg: #0A0C10;
+    --panel: #10151C;
+    --panel-2: #0D1218;
+    --border: #1F2730;
+    --text: #E6EAF1;
+    --muted: #8B96A7;
+    --primary: #18E0D6;
+    --primary-dim: #0e9d96;
+    --success: #34D399;
+    --warning: #FBBF24;
+    --danger: #F87171;
+    --radius: 12px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--primary); }
+
+  .app {
+    display: grid;
+    grid-template-columns: 264px 1fr;
+    min-height: 100vh;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  /* ---- Left rail ---- */
+  .rail {
+    background: var(--panel-2);
+    border-right: 1px solid var(--border);
+    padding: 28px 20px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 28px;
+  }
+  .brand .logo {
+    width: 38px; height: 38px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dim));
+    display: grid; place-items: center;
+    color: #04201f; font-weight: 800; font-size: 20px;
+  }
+  .brand .name { font-weight: 700; font-size: 18px; letter-spacing: .2px; }
+  .brand .sub { color: var(--muted); font-size: 12px; }
+
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li {
+    display: flex; align-items: center; gap: 12px;
+    padding: 9px 10px; border-radius: 9px;
+    color: var(--muted); font-size: 14px;
+    cursor: default; user-select: none;
+    transition: background .12s, color .12s;
+  }
+  .steps li .dot {
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 1.5px solid var(--border);
+    display: grid; place-items: center;
+    font-size: 12px; flex: none; color: var(--muted);
+  }
+  .steps li.active { background: var(--panel); color: var(--text); }
+  .steps li.active .dot { border-color: var(--primary); color: var(--primary); }
+  .steps li.done { color: var(--text); }
+  .steps li.done .dot {
+    border-color: var(--success); color: var(--success);
+  }
+
+  /* ---- Main ---- */
+  .main { padding: 40px 48px; min-width: 0; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 30px 32px;
+    max-width: 720px;
+  }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 { font-size: 21px; margin: 0 0 6px; }
+  .lead { color: var(--muted); margin: 0 0 22px; }
+  .muted { color: var(--muted); }
+  p { margin: 0 0 14px; }
+
+  .actions {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    margin-top: 26px; align-items: center;
+  }
+  button {
+    font-family: var(--font); font-size: 14px; font-weight: 600;
+    border-radius: 9px; padding: 11px 18px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    transition: transform .04s, background .12s, border-color .12s, opacity .12s;
+  }
+  button:hover { border-color: #2c3744; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary {
+    background: var(--primary); color: #04201f; border-color: var(--primary);
+  }
+  button.primary:hover { background: #2ef0e6; }
+  button.ghost { background: transparent; }
+  button.link {
+    background: transparent; border: none; color: var(--primary);
+    padding: 6px 4px; text-decoration: underline;
+  }
+
+  .spacer { flex: 1; }
+
+  /* ---- Checklist ---- */
+  .check-list { list-style: none; margin: 18px 0 0; padding: 0; }
+  .check-list li {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px; border: 1px solid var(--border);
+    border-radius: 10px; margin-bottom: 10px; background: var(--panel-2);
+  }
+  .badge {
+    width: 22px; height: 22px; border-radius: 50%; flex: none;
+    display: grid; place-items: center; font-size: 13px; font-weight: 700;
+    border: 1.5px solid var(--border); color: var(--muted);
+  }
+  .badge.ok { color: var(--success); border-color: var(--success); }
+  .badge.bad { color: var(--danger); border-color: var(--danger); }
+  .badge.pending { color: var(--muted); }
+  .check-label { flex: 1; }
+  .check-note { color: var(--muted); font-size: 13px; }
+
+  /* ---- OS choices ---- */
+  .os-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+  .os-card {
+    border: 1.5px solid var(--border); border-radius: 12px; padding: 18px 14px;
+    text-align: center; cursor: pointer; background: var(--panel-2);
+    transition: border-color .12s, background .12s;
+  }
+  .os-card:hover { border-color: #2c3744; }
+  .os-card.selected { border-color: var(--primary); background: rgba(24,224,214,.06); }
+  .os-card .ico { font-size: 28px; }
+  .os-card .lbl { margin-top: 6px; font-weight: 600; }
+
+  /* ---- Ports form ---- */
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .field .row { display: flex; gap: 10px; align-items: center; }
+  input[type="number"] {
+    font-family: var(--font); font-size: 15px;
+    background: var(--panel-2); color: var(--text);
+    border: 1.5px solid var(--border); border-radius: 9px;
+    padding: 10px 12px; width: 160px;
+  }
+  input[type="number"]:focus { outline: none; border-color: var(--primary); }
+  .field.error input { border-color: var(--danger); }
+  .field-err { color: var(--danger); font-size: 13px; margin-top: 6px; min-height: 0; }
+  .suggest { color: var(--warning); font-size: 13px; }
+
+  /* ---- Notices ---- */
+  .notice {
+    border-radius: 10px; padding: 13px 15px; margin-top: 16px;
+    border: 1px solid var(--border); font-size: 14px;
+  }
+  .notice.ok { border-color: rgba(52,211,153,.4); background: rgba(52,211,153,.08); color: #c8f6e4; }
+  .notice.bad { border-color: rgba(248,113,113,.4); background: rgba(248,113,113,.08); color: #ffd9d9; }
+  .notice.warn { border-color: rgba(251,191,36,.4); background: rgba(251,191,36,.08); color: #ffeec2; }
+  .notice.info { border-color: var(--border); background: var(--panel-2); color: var(--muted); }
+
+  .progress { list-style: none; margin: 18px 0 0; padding: 0; }
+  .progress li {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 4px; color: var(--muted); border-bottom: 1px solid var(--border);
+  }
+  .progress li:last-child { border-bottom: none; }
+  .progress li.active { color: var(--text); }
+  .progress li.ok { color: var(--success); }
+  .progress li.bad { color: var(--danger); }
+  .progress .badge { width: 20px; height: 20px; font-size: 11px; }
+
+  .keys { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px 8px; color: var(--text);
+  }
+  pre.out {
+    background: #06090d; border: 1px solid var(--border); border-radius: 9px;
+    padding: 12px 14px; font-size: 12.5px; color: #b9c4d4; overflow: auto;
+    max-height: 220px; white-space: pre-wrap; word-break: break-word; margin-top: 12px;
+  }
+  .hidden { display: none !important; }
+  .spinner {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--primary);
+    display: inline-block; animation: spin .7s linear infinite; vertical-align: -2px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="brand">
+      <div class="logo">H</div>
+      <div>
+        <div class="name">Haven</div>
+        <div class="sub">First-run setup</div>
+      </div>
+    </div>
+    <ul class="steps" id="stepRail"></ul>
+  </aside>
+
+  <main class="main">
+    <!-- Step 1: Welcome -->
+    <section class="panel step" data-step="0">
+      <h1>Welcome to Haven</h1>
+      <p class="lead">Let's get Haven running on this machine.</p>
+      <p>This wizard will check your system, choose free network ports, write your
+      configuration, and start Haven's local services for you.</p>
+      <div class="notice warn">
+        <strong>Docker is required.</strong> Haven runs its database in Docker. If you
+        don't have Docker installed and running yet, the next steps will help you set it up.
+      </div>
+      <div class="actions">
+        <button class="primary" onclick="go(1)">Get Started</button>
+      </div>
+    </section>
+
+    <!-- Step 2: Choose OS -->
+    <section class="panel step hidden" data-step="1">
+      <h2>Choose your operating system</h2>
+      <p class="lead">We detected your OS automatically — change it only if it's wrong.
+      This just tailors the Docker guidance.</p>
+      <div class="os-grid" id="osGrid">
+        <div class="os-card" data-os="windows" onclick="selectOs('windows')">
+          <div class="ico">&#x1FA9F;</div><div class="lbl">Windows</div>
+        </div>
+        <div class="os-card" data-os="macos" onclick="selectOs('macos')">
+          <div class="ico">&#x1F34F;</div><div class="lbl">macOS</div>
+        </div>
+        <div class="os-card" data-os="linux" onclick="selectOs('linux')">
+          <div class="ico">&#x1F427;</div><div class="lbl">Linux</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="ghost" onclick="go(0)">Back</button>
+        <div class="spacer"></div>
+        <button class="primary" onclick="go(2)">Next</button>
+      </div>
+    </section>
+
+    <!-- Step 3: System Check -->
+    <section class="panel step hidden" data-step="2">
+      <h2>System check</h2>
+      <p class="lead">Verifying that this machine is ready for Haven.</p>
+      <ul class="check-list" id="checkList">
+        <li><span class="badge pending">&middot;</span><span class="check-label">Running check…</span></li>
+      </ul>
+      <div class="actions">
+        <button class="ghost" onclick="go(1)">Back</button>
+        <button onclick="runDetect()" id="checkAgainBtn">Check Again</button>
+        <div class="spacer"></div>
+        <button class="primary" onclick="go(3)">Next</button>
+      </div>
+    </section>
+
+    <!-- Step 4: Docker Help -->
+    <section class="panel step hidden" data-step="3">
+      <h2>Docker</h2>
+      <div id="dockerOk" class="hidden">
+        <div class="notice ok">Docker is installed and running. You're good to go.</div>
+      </div>
+      <div id="dockerHelp" class="hidden">
+        <p class="lead">Haven needs Docker to run its database. Follow the steps for your OS, then re-check.</p>
+        <div class="notice warn" id="dockerHelpText"></div>
+        <div class="actions" style="margin-top:14px">
+          <button onclick="openDockerDocs()" id="dockerDocsBtn">Install / open Docker docs</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="ghost" onclick="go(2)">Back</button>
+        <button onclick="runDetect(true)">Check Again</button>
+        <div class="spacer"></div>
+        <button class="primary" id="dockerNextBtn" onclick="go(4)">Next</button>
+      </div>
+    </section>
+
+    <!-- Step 5: Ports -->
+    <section class="panel step hidden" data-step="4">
+      <h2>Network ports</h2>
+      <p class="lead">Pick the ports Haven should use. We'll check they're free and
+      suggest alternatives for any conflicts.</p>
+      <div class="field" id="field-frontend">
+        <label for="port-frontend">Frontend</label>
+        <div class="row">
+          <input type="number" id="port-frontend" min="1" max="65535" />
+          <span class="suggest hidden" id="sugg-frontend"></span>
+        </div>
+        <div class="field-err" id="err-frontend"></div>
+      </div>
+      <div class="field" id="field-backend">
+        <label for="port-backend">Backend</label>
+        <div class="row">
+          <input type="number" id="port-backend" min="1" max="65535" />
+          <span class="suggest hidden" id="sugg-backend"></span>
+        </div>
+        <div class="field-err" id="err-backend"></div>
+      </div>
+      <div class="field" id="field-postgres">
+        <label for="port-postgres">Postgres (database)</label>
+        <div class="row">
+          <input type="number" id="port-postgres" min="1" max="65535" />
+          <span class="suggest hidden" id="sugg-postgres"></span>
+        </div>
+        <div class="field-err" id="err-postgres"></div>
+      </div>
+      <div class="actions">
+        <button class="ghost" onclick="go(3)">Back</button>
+        <button onclick="checkPorts()" id="checkPortsBtn">Check ports</button>
+        <div class="spacer"></div>
+        <button class="primary" id="portsNextBtn" onclick="go(5)">Next</button>
+      </div>
+    </section>
+
+    <!-- Step 6: Apply config -->
+    <section class="panel step hidden" data-step="5">
+      <h2>Write configuration</h2>
+      <p class="lead">This writes your <code>.env</code> file. Existing secrets are
+      preserved and never shown; missing ones are generated securely.</p>
+      <div class="actions" style="margin-top:0">
+        <button class="primary" onclick="applyEnv()" id="writeEnvBtn">Write .env</button>
+      </div>
+      <div id="envResult"></div>
+      <div class="actions">
+        <button class="ghost" onclick="go(4)">Back</button>
+        <div class="spacer"></div>
+        <button class="primary" id="envNextBtn" onclick="go(6)" disabled>Next</button>
+      </div>
+    </section>
+
+    <!-- Step 7: Start services -->
+    <section class="panel step hidden" data-step="6">
+      <h2>Start Haven</h2>
+      <p class="lead">Starting the database and the Haven control agent.</p>
+      <ul class="progress" id="startProgress">
+        <li data-key="config"><span class="badge pending">&middot;</span>Preparing config</li>
+        <li data-key="docker"><span class="badge pending">&middot;</span>Checking Docker</li>
+        <li data-key="db"><span class="badge pending">&middot;</span>Starting database</li>
+        <li data-key="agent"><span class="badge pending">&middot;</span>Starting Haven agent</li>
+      </ul>
+      <div id="startResult"></div>
+      <div class="actions">
+        <button class="ghost" onclick="go(5)">Back</button>
+        <button class="primary" onclick="startServices()" id="startBtn">Start services</button>
+        <div class="spacer"></div>
+        <button class="primary" id="startNextBtn" onclick="go(7)" disabled>Next</button>
+      </div>
+    </section>
+
+    <!-- Step 8: Health -->
+    <section class="panel step hidden" data-step="7">
+      <h2>Health check</h2>
+      <p class="lead">Confirming each part of Haven is responding.</p>
+      <ul class="check-list" id="healthList">
+        <li><span class="badge pending">&middot;</span><span class="check-label">Not checked yet.</span></li>
+      </ul>
+      <div id="healthHints"></div>
+      <div class="actions">
+        <button class="ghost" onclick="go(6)">Back</button>
+        <button class="primary" onclick="checkHealth()" id="healthBtn">Check health</button>
+        <div class="spacer"></div>
+        <button class="primary" onclick="go(8)">Next</button>
+      </div>
+    </section>
+
+    <!-- Step 9: Finish -->
+    <section class="panel step hidden" data-step="8">
+      <h2>You're all set</h2>
+      <p class="lead">Haven is configured. Create a desktop shortcut and open the app.</p>
+      <div class="actions" style="margin-top:0">
+        <button onclick="makeShortcut()" id="shortcutBtn">Create desktop shortcut</button>
+        <button class="primary" onclick="openHaven()">Open Haven</button>
+      </div>
+      <div id="shortcutResult"></div>
+      <div class="notice info" style="margin-top:22px">
+        You can re-open this wizard anytime by running the setup script again. To manage
+        services later, use the System Control panel inside Haven.
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+"use strict";
+const TOKEN = document.querySelector('meta[name="haven-setup-token"]').content;
+
+const STEP_TITLES = [
+  "Welcome", "Choose OS", "System check", "Docker", "Ports",
+  "Write config", "Start services", "Health", "Finish"
+];
+
+const state = {
+  step: 0,
+  os: "linux",
+  detect: null,
+  ports: { frontend: 3000, backend: 8000, postgres: 5432 },
+  portErrors: {},
+  envWritten: false,
+};
+
+// ---- HTTP ----
+async function api(path, opts) {
+  opts = opts || {};
+  const init = {
+    method: opts.method || "GET",
+    headers: { "X-Setup-Token": TOKEN, "Content-Type": "application/json" },
+  };
+  if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
+  const resp = await fetch(path, init);
+  let data = null;
+  try { data = await resp.json(); } catch (e) { data = null; }
+  if (!resp.ok) {
+    const msg = (data && data.message) ? data.message : ("Request failed (" + resp.status + ").");
+    throw new Error(msg);
+  }
+  return data;
+}
+
+// ---- Step rail + navigation ----
+function buildRail() {
+  const ul = document.getElementById("stepRail");
+  ul.innerHTML = "";
+  STEP_TITLES.forEach((title, i) => {
+    const li = document.createElement("li");
+    li.dataset.idx = i;
+    li.innerHTML = '<span class="dot">' + (i + 1) + '</span><span>' + title + '</span>';
+    ul.appendChild(li);
+  });
+  paintRail();
+}
+function paintRail() {
+  document.querySelectorAll("#stepRail li").forEach((li) => {
+    const i = parseInt(li.dataset.idx, 10);
+    li.classList.toggle("active", i === state.step);
+    li.classList.toggle("done", i < state.step);
+    const dot = li.querySelector(".dot");
+    dot.textContent = i < state.step ? "✓" : (i + 1);
+  });
+}
+function go(step) {
+  state.step = step;
+  document.querySelectorAll(".step").forEach((s) => {
+    s.classList.toggle("hidden", parseInt(s.dataset.step, 10) !== step);
+  });
+  paintRail();
+  onEnter(step);
+}
+function onEnter(step) {
+  if (step === 2) runDetect();
+  else if (step === 3) applyDockerStep();
+  else if (step === 4) fillPortInputs();
+}
+
+// ---- Step 2: OS ----
+function selectOs(os) {
+  state.os = os;
+  document.querySelectorAll(".os-card").forEach((c) => {
+    c.classList.toggle("selected", c.dataset.os === os);
+  });
+}
+
+// ---- Step 3 + 4: Detect ----
+function badge(ok) {
+  if (ok === true) return '<span class="badge ok">✓</span>';
+  if (ok === false) return '<span class="badge bad">✕</span>';
+  return '<span class="badge pending">·</span>';
+}
+async function runDetect(forDocker) {
+  const listId = "checkList";
+  const list = document.getElementById(listId);
+  list.innerHTML = '<li><span class="spinner"></span><span class="check-label">Running check…</span></li>';
+  try {
+    const r = await api("/api/detect");
+    state.detect = r;
+    if (!state._osTouched) { selectOs(r.os || "linux"); }
+    if (r.ports) {
+      ["frontend", "backend", "postgres"].forEach((k) => {
+        if (r.ports[k] != null) state.ports[k] = r.ports[k];
+      });
+    }
+    renderCheckList(r);
+    if (forDocker || state.step === 3) applyDockerStep();
+  } catch (e) {
+    list.innerHTML = '<li>' + badge(false) + '<span class="check-label">Could not run system check: ' + escapeHtml(e.message) + '</span></li>';
+  }
+}
+function renderCheckList(r) {
+  const rows = [
+    ["Docker installed", r.docker_installed, r.docker_installed ? "" : "Not found on PATH."],
+    ["Docker running", r.docker_running, r.docker_running ? "" : "Daemon not responding."],
+    ["Docker Compose", r.compose_available, r.compose_available ? "" : "`docker compose` unavailable."],
+    [".env present", r.env_exists, r.env_exists ? "" : "Will be created in a later step."],
+    ["docker-compose.yml", r.compose_file_exists, r.compose_file_exists ? "" : "Missing from repo root."],
+    ["backend / frontend folders", r.folders_ok, r.folders_ok ? "" : "Expected folders are missing."],
+  ];
+  const list = document.getElementById("checkList");
+  list.innerHTML = rows.map(([label, ok, note]) =>
+    '<li>' + badge(!!ok) + '<span class="check-label">' + label + '</span>' +
+    (note ? '<span class="check-note">' + escapeHtml(note) + '</span>' : '') + '</li>'
+  ).join("");
+}
+
+// ---- Step 4: Docker help ----
+const DOCKER_GUIDE = {
+  windows: "Install Docker Desktop for Windows, then launch it and wait until the whale icon says “Docker Desktop is running”. WSL 2 is recommended.",
+  macos: "Install Docker Desktop for Mac (choose the Apple Silicon or Intel build for your machine), open it, and wait until it reports “running”.",
+  linux: "Install Docker Engine and the Compose plugin for your distro, start the service (e.g. `sudo systemctl start docker`), and ensure your user can run docker.",
+};
+function applyDockerStep() {
+  const r = state.detect || {};
+  const ok = r.docker_installed && r.docker_running;
+  const okBox = document.getElementById("dockerOk");
+  const helpBox = document.getElementById("dockerHelp");
+  const nextBtn = document.getElementById("dockerNextBtn");
+  if (ok) {
+    okBox.classList.remove("hidden");
+    helpBox.classList.add("hidden");
+    nextBtn.disabled = false;
+  } else {
+    okBox.classList.add("hidden");
+    helpBox.classList.remove("hidden");
+    document.getElementById("dockerHelpText").textContent = DOCKER_GUIDE[state.os] || DOCKER_GUIDE.linux;
+    nextBtn.disabled = true;
+  }
+}
+function openDockerDocs() {
+  const url = (state.detect && state.detect.docker_install_url) || "https://docs.docker.com/get-docker/";
+  window.open(url, "_blank");
+}
+
+// ---- Step 5: Ports ----
+function fillPortInputs() {
+  ["frontend", "backend", "postgres"].forEach((k) => {
+    const el = document.getElementById("port-" + k);
+    if (el && (el.value === "" || !state._portsTouched)) el.value = state.ports[k];
+  });
+}
+function readPortInputs() {
+  const out = {};
+  ["frontend", "backend", "postgres"].forEach((k) => {
+    const v = document.getElementById("port-" + k).value;
+    out[k] = v === "" ? null : parseInt(v, 10);
+  });
+  return out;
+}
+function clearPortErrors() {
+  ["frontend", "backend", "postgres"].forEach((k) => {
+    document.getElementById("field-" + k).classList.remove("error");
+    document.getElementById("err-" + k).textContent = "";
+    const s = document.getElementById("sugg-" + k);
+    s.classList.add("hidden"); s.innerHTML = "";
+  });
+}
+async function checkPorts() {
+  state._portsTouched = true;
+  const ports = readPortInputs();
+  state.ports = ports;
+  clearPortErrors();
+  const btn = document.getElementById("checkPortsBtn");
+  btn.disabled = true; btn.textContent = "Checking…";
+  try {
+    const r = await api("/api/ports/suggest", { method: "POST", body: { frontend: ports.frontend, backend: ports.backend, postgres: ports.postgres } });
+    state.portErrors = r.errors || {};
+    Object.keys(r.errors || {}).forEach((k) => {
+      const f = document.getElementById("field-" + k);
+      if (f) f.classList.add("error");
+      const e = document.getElementById("err-" + k);
+      if (e) e.textContent = r.errors[k];
+    });
+    Object.keys(r.suggestions || {}).forEach((k) => {
+      const s = document.getElementById("sugg-" + k);
+      if (!s) return;
+      const port = r.suggestions[k];
+      s.classList.remove("hidden");
+      s.innerHTML = 'Try <strong>' + port + '</strong> ';
+      const b = document.createElement("button");
+      b.className = "link"; b.textContent = "Apply";
+      b.onclick = () => { document.getElementById("port-" + k).value = port; checkPorts(); };
+      s.appendChild(b);
+    });
+    if (Object.keys(state.portErrors).length === 0) {
+      showNoticeInline("err-postgres", "");
+      flash(btn, "Ports look free", "ok");
+    }
+  } catch (e) {
+    document.getElementById("err-frontend").textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = "Check ports";
+    updatePortsNext();
+  }
+}
+function updatePortsNext() {
+  document.getElementById("portsNextBtn").disabled = Object.keys(state.portErrors).length > 0;
+}
+
+// ---- Step 6: Apply env ----
+async function applyEnv() {
+  const box = document.getElementById("envResult");
+  const btn = document.getElementById("writeEnvBtn");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Writing…';
+  box.innerHTML = "";
+  try {
+    const r = await api("/api/env/apply", { method: "POST", body: { ports: state.ports } });
+    if (r.ok) {
+      state.envWritten = true;
+      let html = '<div class="notice ok"><strong>Configuration written.</strong>';
+      if (r.backup) html += '<br>Previous .env backed up to <code>' + escapeHtml(r.backup) + '</code>.';
+      if (r.created) html += '<br>Created a fresh .env from the template.';
+      html += '</div>';
+      if (r.updated_keys && r.updated_keys.length) {
+        html += '<p class="muted" style="margin-top:14px">Updated keys (values hidden):</p><div class="keys">' +
+          r.updated_keys.map((k) => '<span class="chip">' + escapeHtml(k) + '</span>').join("") + '</div>';
+      }
+      box.innerHTML = html;
+      document.getElementById("envNextBtn").disabled = false;
+    } else {
+      box.innerHTML = '<div class="notice bad">' + escapeHtml(r.message || "Could not write .env.") + '</div>';
+    }
+  } catch (e) {
+    box.innerHTML = '<div class="notice bad">' + escapeHtml(e.message) + '</div>';
+  } finally {
+    btn.disabled = false; btn.textContent = "Write .env";
+  }
+}
+
+// ---- Step 7: Start services ----
+function setProg(key, status, text) {
+  const li = document.querySelector('#startProgress li[data-key="' + key + '"]');
+  if (!li) return;
+  li.classList.remove("active", "ok", "bad");
+  if (status) li.classList.add(status === "ok" ? "ok" : status === "bad" ? "bad" : "active");
+  const b = li.querySelector(".badge");
+  if (status === "ok") b.outerHTML = '<span class="badge ok">✓</span>';
+  else if (status === "bad") b.outerHTML = '<span class="badge bad">✕</span>';
+  else if (status === "active") b.outerHTML = '<span class="spinner"></span>';
+  if (text) {
+    let note = li.querySelector(".check-note");
+    if (!note) { note = document.createElement("span"); note.className = "check-note"; li.appendChild(note); }
+    note.textContent = text;
+  }
+}
+async function startServices() {
+  const btn = document.getElementById("startBtn");
+  const box = document.getElementById("startResult");
+  btn.disabled = true; box.innerHTML = "";
+  let allOk = true;
+
+  setProg("config", "ok", state.envWritten ? "Config written" : "Using existing .env");
+
+  // Docker check (from last detect; refresh).
+  setProg("docker", "active");
+  try {
+    const d = await api("/api/detect");
+    state.detect = d;
+    if (d.docker_running) setProg("docker", "ok", "Docker is running");
+    else { setProg("docker", "bad", "Docker is not running"); allOk = false; }
+  } catch (e) { setProg("docker", "bad", e.message); allOk = false; }
+
+  // Start database via compose.
+  setProg("db", "active");
+  try {
+    const r = await api("/api/services/start", { method: "POST", body: {} });
+    if (r.ok) setProg("db", "ok", "Database container starting");
+    else { setProg("db", "bad", r.message || "Failed"); allOk = false; }
+    if (r.output) box.innerHTML += '<pre class="out">' + escapeHtml(r.output) + '</pre>';
+  } catch (e) { setProg("db", "bad", e.message); allOk = false; }
+
+  // Start agent.
+  setProg("agent", "active");
+  try {
+    const r = await api("/api/agent/start", { method: "POST", body: {} });
+    if (r.ok) setProg("agent", "ok", r.message || "Agent running");
+    else { setProg("agent", "bad", r.message || "Agent did not start"); allOk = false; }
+  } catch (e) { setProg("agent", "bad", e.message); allOk = false; }
+
+  if (allOk) {
+    box.innerHTML += '<div class="notice ok">Services started. Continue to the health check.</div>';
+    document.getElementById("startNextBtn").disabled = false;
+  } else {
+    box.innerHTML += '<div class="notice warn">Some steps did not complete. Review the messages above; you can fix the issue and retry, or continue to the health check to see current status.</div>';
+    document.getElementById("startNextBtn").disabled = false;
+  }
+  btn.disabled = false; btn.textContent = "Retry";
+}
+
+// ---- Step 8: Health ----
+async function checkHealth() {
+  const list = document.getElementById("healthList");
+  const hints = document.getElementById("healthHints");
+  const btn = document.getElementById("healthBtn");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Checking…';
+  list.innerHTML = '<li><span class="spinner"></span><span class="check-label">Checking…</span></li>';
+  hints.innerHTML = "";
+  try {
+    const r = await api("/api/health");
+    const rows = [
+      ["Backend API", r.backend, "http://127.0.0.1:" + state.ports.backend + "/api/v1/health"],
+      ["Frontend", r.frontend, "http://127.0.0.1:" + state.ports.frontend],
+      ["Postgres (database)", r.postgres, "port " + state.ports.postgres],
+    ];
+    list.innerHTML = rows.map(([label, ok, sub]) =>
+      '<li>' + badge(!!ok) + '<span class="check-label">' + label + '</span><span class="check-note">' + escapeHtml(sub) + '</span></li>'
+    ).join("");
+    const tips = [];
+    if (!r.frontend) tips.push("Frontend not up yet — it can take a minute on first run (dependencies install/compile). Re-check shortly.");
+    if (!r.backend) tips.push("Backend not responding — give it a moment, or check var/logs for errors.");
+    if (!r.postgres) tips.push("Database port is closed. Port conflict? Go back to Step 5 to pick a free port, then re-run Start services.");
+    if (r.backend && r.frontend && r.postgres) tips.push("Everything is healthy. You're ready to finish.");
+    hints.innerHTML = tips.map((t) => '<div class="notice ' + (r.backend && r.frontend && r.postgres ? "ok" : "warn") + '">' + escapeHtml(t) + '</div>').join("");
+  } catch (e) {
+    list.innerHTML = '<li>' + badge(false) + '<span class="check-label">Health check failed: ' + escapeHtml(e.message) + '</span></li>';
+  } finally {
+    btn.disabled = false; btn.textContent = "Check health";
+  }
+}
+
+// ---- Step 9: Finish ----
+async function makeShortcut() {
+  const box = document.getElementById("shortcutResult");
+  const btn = document.getElementById("shortcutBtn");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Creating…';
+  box.innerHTML = "";
+  try {
+    const r = await api("/api/shortcut", { method: "POST", body: {} });
+    if (r.created) {
+      box.innerHTML = '<div class="notice ok">Shortcut created' + (r.path ? ' at <code>' + escapeHtml(r.path) + '</code>' : '') + '.</div>';
+    } else {
+      box.innerHTML = '<div class="notice warn">Could not create a shortcut: ' + escapeHtml(r.message || "unknown error") + '<br>You can still launch Haven with the start script in the repo.</div>';
+    }
+  } catch (e) {
+    box.innerHTML = '<div class="notice bad">' + escapeHtml(e.message) + '</div>';
+  } finally {
+    btn.disabled = false; btn.textContent = "Create desktop shortcut";
+  }
+}
+function openHaven() {
+  window.open("http://localhost:" + state.ports.frontend, "_blank");
+}
+
+// ---- utils ----
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function showNoticeInline(id, msg) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = msg;
+}
+function flash(btn, text, kind) {
+  const old = btn.textContent;
+  btn.textContent = text;
+  setTimeout(() => { btn.textContent = old; }, 1200);
+}
+
+// Track manual edits so we don't clobber user input on re-entry.
+document.addEventListener("input", (e) => {
+  if (e.target && e.target.id && e.target.id.indexOf("port-") === 0) state._portsTouched = true;
+});
+document.getElementById("osGrid").addEventListener("click", () => { state._osTouched = true; });
+
+// boot
+buildRail();
+go(0);
+</script>
+</body>
+</html>

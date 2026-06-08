@@ -35,6 +35,7 @@ import { IntegrationCard } from "@/components/settings/IntegrationCard";
 import { IntegrationConfigModal } from "@/components/settings/IntegrationConfigModal";
 import { AiProviderCard } from "@/components/settings/AiProviderCard";
 import { GoogleOAuthCard } from "@/components/settings/GoogleOAuthCard";
+import SystemControl from "@/components/settings/SystemControl";
 import { aiApi, authApi, settingsApi } from "@/lib/api";
 import { getStoredUser, setStoredUser } from "@/lib/auth";
 import { cn, initials } from "@/lib/format";
@@ -192,6 +193,7 @@ export default function SettingsPage() {
           { value: "tools", label: "Connected Tools", count: integrations?.length },
           { value: "ai", label: "AI Providers", count: providers?.length },
           { value: "privacy", label: "Privacy & Safety" },
+          { value: "system", label: "System Control" },
         ]}
       />
 
@@ -404,6 +406,8 @@ export default function SettingsPage() {
               />
             </div>
           ) : null}
+
+          {tab === "system" ? <SystemControl /> : null}
         </>
       )}
 
