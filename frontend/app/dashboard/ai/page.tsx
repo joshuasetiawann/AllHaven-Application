@@ -12,11 +12,15 @@ import { MAX_AGENTS, MultiAgentSelector } from "@/components/ai/MultiAgentSelect
 import { AgentResponseCard, type AgentCardData } from "@/components/ai/AgentResponseCard";
 import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { PendingActionsPanel } from "@/components/ai/PendingActionsPanel";
+import { SectionMemoryBar } from "@/components/ai/SectionMemoryBar";
 import { aiApi, ApiException } from "@/lib/api";
 import { cn } from "@/lib/format";
+import { aiPrefsExist, loadAiPrefs, resolveSelection, saveAiPrefs, type ChatModePref } from "@/lib/aiPrefs";
+import { DEFAULT_SECTION_KEY, resolveSection } from "@/lib/sections";
+import { buildContextPreface } from "@/lib/sectionMemory";
 import type { AgentResponseStatus, AiChatSettings, AiProvider, ChatGroup, ChatMessage, ChatSession, ThinkingMode } from "@/types";
 
-type ChatMode = "parallel" | "debate" | "reason";
+type ChatMode = ChatModePref;
 
 // Map the persisted default_mode onto this page's modes ("single" = the
 // one-agent parallel flow — there is no separate single-agent mode UI).
@@ -136,8 +140,36 @@ export default function AiChatPage() {
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [chatSettings, setChatSettings] = useState<AiChatSettings | null>(null);
   const [proposalRefresh, setProposalRefresh] = useState(0);
+  // Active chat "section" (each keeps its own local memory) + model-availability notice.
+  const [section, setSection] = useState<string>(DEFAULT_SECTION_KEY);
+  const [availabilityWarn, setAvailabilityWarn] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Sessions+sections we've already seeded with section memory (inject once per thread).
+  const prefacedRef = useRef<Set<string>>(new Set());
+
+  // --- persisted selection (Part 4): never make the user re-pick on nav/refresh ---
+  const changeSelected = (ids: string[]) => {
+    setSelected(ids);
+    saveAiPrefs({ selected_agent_ids: ids });
+    if (ids.length) setAvailabilityWarn(null);
+  };
+  const changeMode = (m: ChatMode) => {
+    setMode(m);
+    saveAiPrefs({ chat_mode: m });
+  };
+  const changeThinking = (t: ThinkingMode) => {
+    setThinking(t);
+    saveAiPrefs({ thinking: t });
+  };
+  const changeRounds = (r: number) => {
+    setRounds(r);
+    saveAiPrefs({ rounds: r });
+  };
+  const changeSection = (k: string) => {
+    setSection(k);
+    saveAiPrefs({ section_key: k });
+  };
 
   const providerById = useMemo(() => Object.fromEntries(providers.map((p) => [p.id, p])), [providers]);
   // Selected values are slot refs ("anthropic#2" = slot 2); the provider id is the part before "#".
@@ -166,18 +198,38 @@ export default function AiChatPage() {
   useEffect(() => {
     void refreshSessions();
     void refreshGroups();
+
+    // Restore the user's last-used selection/mode/section (Part 4) up front, so a
+    // refresh or navigation never resets their choice.
+    const prefs = loadAiPrefs();
+    const hadPrefs = aiPrefsExist();
+    setMode(prefs.chat_mode);
+    setThinking(prefs.thinking);
+    setRounds(prefs.rounds);
+    setSection(prefs.section_key);
+
     aiApi.listProviders()
       .then((res) => {
         setProviders(res.providers);
-        const pref = res.providers.find((p) => p.id === "ollama") ?? res.providers[0];
-        if (pref) setSelected((cur) => (cur.length ? cur : [pref.id]));
+        // Reconcile the saved agents against what's actually available now,
+        // falling back (with a clear notice) if a saved model disappeared.
+        const status = resolveSelection(loadAiPrefs().selected_agent_ids, res.providers);
+        setSelected(status.selected);
+        setAvailabilityWarn(status.kind === "ok" ? null : status.message);
+        if (status.selected.length) saveAiPrefs({ selected_agent_ids: status.selected });
       })
       .catch(() => {});
+
     // Chat behavior settings: debate-flow/tool-activity visibility + default mode.
     aiApi.getChatSettings()
       .then((s) => {
         setChatSettings(s);
-        setMode(MODE_FROM_SETTING[s.default_mode] ?? "parallel");
+        // The workspace default mode only wins on a fresh device with no saved choice.
+        if (!hadPrefs) {
+          const m = MODE_FROM_SETTING[s.default_mode] ?? "parallel";
+          setMode(m);
+          saveAiPrefs({ chat_mode: m });
+        }
       })
       .catch(() => {});
   }, []);
@@ -326,13 +378,21 @@ export default function AiChatPage() {
     setPendingImages(imgs);
     setInput("");
     setImages([]);
+    // Section memory (Part 3): seed the active section's saved context into the
+    // thread once, so answers stay relevant without repeating it every turn.
+    const memoryKey = `${activeId ?? "new"}:${section}`;
+    const preface = prefacedRef.current.has(memoryKey)
+      ? null
+      : buildContextPreface(section, resolveSection(section, groups).label);
+    const sendText = preface ? `${preface}\n\nUser message:\n${msg}` : msg;
     try {
       const run = mode === "debate"
-        ? await aiApi.debateChat(msg, selected, activeId ?? undefined, rounds, imgs, thinking)
+        ? await aiApi.debateChat(sendText, selected, activeId ?? undefined, rounds, imgs, thinking)
         : mode === "reason"
-          ? await aiApi.reasonChat(msg, selected, activeId ?? undefined, thinking, imgs)
-          : await aiApi.multiChat(msg, selected, activeId ?? undefined, imgs, thinking);
+          ? await aiApi.reasonChat(sendText, selected, activeId ?? undefined, thinking, imgs)
+          : await aiApi.multiChat(sendText, selected, activeId ?? undefined, imgs, thinking);
       setActiveId(run.session_id);
+      prefacedRef.current.add(`${run.session_id}:${section}`);
       const msgs = await aiApi.listMessages(run.session_id);
       setMessages(msgs);
       void refreshSessions();
@@ -520,23 +580,32 @@ export default function AiChatPage() {
           {/* Header */}
           <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:px-5">
             <div className="flex items-center gap-2.5">
-              <button onClick={() => setDrawerOpen(true)} className="rounded-md p-1.5 text-content-muted hover:bg-surface-raised hover:text-content lg:hidden" aria-label="Open conversations">
+              <button onClick={() => setDrawerOpen(true)} className="rounded-md p-1.5 text-content-muted transition-colors hover:bg-surface-raised hover:text-content lg:hidden" aria-label="Open conversations">
                 <PanelLeft size={17} />
               </button>
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Sparkles size={16} />
               </span>
-              <div className="min-w-0 leading-tight">
+              <div className="min-w-0 flex-1 leading-tight">
                 <p className="truncate text-sm font-semibold text-content">{activeSession?.title || "New Chat"}</p>
                 <p className="label-mono">AllHaven Multi-Agent · honest status</p>
               </div>
+              <SectionMemoryBar
+                sectionKey={section}
+                groups={groups}
+                onSectionChange={changeSection}
+                onMemoryChange={() => {
+                  // Memory edited — allow it to re-seed the active thread on next send.
+                  prefacedRef.current.delete(`${activeId ?? "new"}:${section}`);
+                }}
+              />
             </div>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
               {/* Mode toggle: parallel fan-out vs multi-round debate. */}
               <div className="inline-flex shrink-0 items-center rounded-lg border border-border bg-surface-input p-0.5 text-[12.5px]">
                 <button
                   type="button"
-                  onClick={() => setMode("parallel")}
+                  onClick={() => changeMode("parallel")}
                   className={cn(
                     "flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors",
                     mode === "parallel" ? "bg-surface-high text-content" : "text-content-muted hover:text-content",
@@ -546,7 +615,7 @@ export default function AiChatPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMode("debate")}
+                  onClick={() => changeMode("debate")}
                   className={cn(
                     "flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors",
                     mode === "debate" ? "bg-surface-high text-primary" : "text-content-muted hover:text-content",
@@ -556,7 +625,7 @@ export default function AiChatPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMode("reason")}
+                  onClick={() => changeMode("reason")}
                   className={cn(
                     "flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors",
                     mode === "reason" ? "bg-surface-high text-primary" : "text-content-muted hover:text-content",
@@ -573,7 +642,7 @@ export default function AiChatPage() {
                       <button
                         key={r}
                         type="button"
-                        onClick={() => setRounds(r)}
+                        onClick={() => changeRounds(r)}
                         className={cn(
                           "min-w-[28px] rounded-md px-2 py-1 transition-colors",
                           rounds === r ? "bg-surface-high text-content" : "text-content-muted hover:text-content",
@@ -613,7 +682,7 @@ export default function AiChatPage() {
             <MultiAgentSelector
               providers={providers}
               selected={selected}
-              onChange={setSelected}
+              onChange={changeSelected}
               hint={mode === "debate" ? "they debate across rounds, then one synthesizes the final answer."
                 : mode === "reason" ? "they take roles (Analyst → Critic → Synthesizer) with grounded, verified reasoning."
                 : "they run at the same time."}
@@ -627,7 +696,7 @@ export default function AiChatPage() {
             onDrop={(e) => { e.preventDefault(); void addImages(e.dataTransfer.files); }}
           >
             {messages.length === 0 && !pendingUser ? (
-              <div className="flex h-full flex-col items-center justify-center text-center">
+              <div className="flex h-full animate-fade-in flex-col items-center justify-center text-center">
                 <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                   <Bot size={22} />
                 </span>
@@ -685,11 +754,11 @@ export default function AiChatPage() {
                       </div>
                     );
                   }
-                  return <div key={item.key}>{renderBubble(item.message)}</div>;
+                  return <div key={item.key} className="animate-fade-in">{renderBubble(item.message)}</div>;
                 })}
 
                 {pendingUser ? (
-                  <div className="flex flex-row-reverse gap-3">
+                  <div className="flex animate-fade-in flex-row-reverse gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-high text-content"><User size={15} /></span>
                     <div className="max-w-[82%] rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2.5 text-sm text-content">
                       {pendingImages.length ? (
@@ -705,7 +774,7 @@ export default function AiChatPage() {
                   </div>
                 ) : null}
                 {sending ? (
-                  <div className="flex gap-3">
+                  <div className="flex animate-fade-in gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary"><Bot size={15} /></span>
                     <div className="rounded-xl border border-border bg-surface-input px-3.5 py-2.5 text-sm text-content-subtle">
                       <Loader2 size={14} className="mr-1.5 inline animate-spin" /> {mode === "reason" ? "Reasoning…" : mode === "debate" ? `${selected.length} agents debating across ${rounds} rounds…` : selected.length > 1 ? `${selected.length} agents thinking…` : "Thinking…"}
@@ -721,6 +790,15 @@ export default function AiChatPage() {
           <PendingActionsPanel refreshKey={proposalRefresh} />
 
           {/* Input */}
+          {availabilityWarn ? (
+            <p className="mx-3 mb-1 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-3 py-1.5 text-[11.5px] text-warning">
+              <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+              <span>
+                {availabilityWarn}{" "}
+                <Link href="/dashboard/settings" className="font-medium underline hover:text-content">Open AI settings →</Link>
+              </span>
+            </p>
+          ) : null}
           {anyExternal ? (
             <p className="mx-3 mb-1 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-3 py-1.5 text-[11.5px] text-warning">
               <AlertTriangle size={12} className="mt-0.5 shrink-0" /> External AI may process your prompt. Don&apos;t send confidential data unless allowed in Settings.
@@ -746,7 +824,7 @@ export default function AiChatPage() {
                   <button
                     key={tm}
                     type="button"
-                    onClick={() => setThinking(tm)}
+                    onClick={() => changeThinking(tm)}
                     title={tm === "fast" ? "Quick, lighter reasoning" : tm === "balance" ? "Good quality + speed (default)" : tm === "thinking" ? "More careful, checks assumptions" : "Maximum reasoning depth"}
                     className={cn(
                       "flex-1 rounded-md px-2.5 py-1 capitalize transition-colors sm:flex-none",
