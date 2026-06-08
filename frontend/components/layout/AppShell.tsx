@@ -90,7 +90,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           throw new ApiException("Sesi Anda berakhir. Silakan masuk lagi.", "AUTH_SESSION_MISSING", 401);
         }
         const cachedUser = getStoredUser();
-        if (cachedUser && getAppUserId() && getWorkspaceId()) {
+        if (cachedUser) {
           setStoredUser(cachedUser);
           authConfirmed = true;
           setReady(true);
