@@ -6,7 +6,8 @@ import type { ReactNode } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { Loading } from "@/components/ui/States";
-import { isAuthenticated } from "@/lib/auth";
+import { authApi } from "@/lib/api";
+import { clearAuth, setStoredUser } from "@/lib/auth";
 import { applyPrefs, loadPrefs } from "@/lib/prefs";
 import { cn } from "@/lib/format";
 
@@ -16,13 +17,26 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // The credential is an HttpOnly cookie JS can't read, so the only honest
+  // check is asking the server. Survives a refresh without exposing a token.
   useEffect(() => {
-    if (!isAuthenticated()) {
-      router.replace("/login");
-      return;
-    }
+    let active = true;
     applyPrefs(loadPrefs());
-    setReady(true);
+    authApi
+      .me()
+      .then((me) => {
+        if (!active) return;
+        setStoredUser(me.user);
+        setReady(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        clearAuth();
+        router.replace("/login");
+      });
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   // Close the mobile drawer on route change.
