@@ -33,6 +33,11 @@ export function normalizeBackendUrl(raw: string): string {
   if (!s) return "";
   if (!/^https?:\/\//i.test(s)) s = `http://${s}`;
   s = s.replace(/\/+$/, "");
+  // People naturally copy the URL they tested in Chrome. Accept the health URL too:
+  //   http://host:8000/api/v1/health -> http://host:8000/api/v1
+  //   http://host:8000/health        -> http://host:8000/api/v1
+  s = s.replace(/\/api(\/v\d+)?\/health$/i, "/api$1");
+  s = s.replace(/\/health$/i, "");
   if (!/\/api(\/v\d+)?$/i.test(s)) s = `${s}/api/v1`;
   return s;
 }
