@@ -94,10 +94,10 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     t === "task" ? <ListChecks size={15} /> : t === "note" ? <FileText size={15} /> : <LayoutGrid size={15} />;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 pt-[12vh]">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden />
-      <div className="relative z-10 w-full max-w-xl animate-scale-in overflow-hidden rounded-xl border border-border bg-surface shadow-glow">
-        <div className="flex items-center gap-2.5 border-b border-border px-4">
+    <div className="fixed inset-0 z-[70] flex items-start justify-center p-3 pt-[10vh] sm:p-4 sm:pt-[12vh]">
+      <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} aria-hidden />
+      <div className="relative z-10 w-full max-w-2xl animate-scale-in overflow-hidden rounded-2xl border border-border bg-surface/95 shadow-glow">
+        <div className="flex items-center gap-2.5 border-b border-border bg-surface-input/35 px-4">
           <Search size={16} className="text-content-subtle" />
           <input
             autoFocus
@@ -107,9 +107,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             placeholder="Search tasks, notes, pages…"
             className="h-12 flex-1 bg-transparent text-sm text-content placeholder:text-content-subtle focus:outline-none"
           />
-          <kbd className="rounded border border-border px-1.5 py-0.5 text-[10px] text-content-subtle">ESC</kbd>
+          <kbd className="rounded-md border border-border bg-surface-high px-1.5 py-0.5 text-[10px] text-content-subtle">ESC</kbd>
         </div>
-        <ul className="custom-scrollbar max-h-[50vh] overflow-y-auto p-2">
+        <ul className="custom-scrollbar max-h-[56vh] overflow-y-auto p-2">
           {results.length === 0 ? (
             <li className="px-3 py-6 text-center text-[13px] text-content-muted">No matches.</li>
           ) : (
@@ -119,15 +119,19 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                   onMouseEnter={() => setActive(i)}
                   onClick={() => go(item)}
                   className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm",
-                    i === active ? "bg-surface-high text-content" : "text-content-muted hover:bg-surface-raised/60",
+                    "flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+                    i === active
+                      ? "border-primary/25 bg-primary/10 text-content"
+                      : "border-transparent text-content-muted hover:border-border hover:bg-surface-raised/60",
                   )}
                 >
                   <span className="flex min-w-0 items-center gap-2.5">
-                    <span className="text-content-subtle">{iconFor(item.type)}</span>
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-content-subtle">
+                      {iconFor(item.type)}
+                    </span>
                     <span className="truncate">{item.label}</span>
                   </span>
-                  <span className="flex items-center gap-2">
+                  <span className="flex shrink-0 items-center gap-2">
                     <span className="text-[11px] text-content-subtle">{item.hint}</span>
                     {i === active ? <CornerDownLeft size={13} className="text-primary" /> : null}
                   </span>

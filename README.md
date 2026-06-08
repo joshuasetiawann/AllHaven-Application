@@ -8,7 +8,7 @@
 
 _The AI acts fast, but risky writes still need human approval._
 
-[![Version](https://img.shields.io/badge/version-0.17.0%20·%20AllHaven%202.9-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.0.0%20·%20AllHaven%203.0-18E0D6?style=flat-square)](CHANGELOG.md)
 &nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 &nbsp;![Next.js 14](https://img.shields.io/badge/Next.js%2014-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 &nbsp;![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
@@ -25,10 +25,11 @@ _The AI acts fast, but risky writes still need human approval._
 > **multi-agent AI** assistant — fast for low-risk memory/context work, cautious for
 > risky writes that need explicit human approval.
 
-**Version:** **v0.17.0** — archive [`AllHaven 2.9`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
+**Version:** **v3.0.0** — archive [`AllHaven 3.0`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
 
 ### 🆕 What's new
 
+- **v3.0.0 — AllHaven 3.0 launch-ready AI workspace.** Refines the whole app shell: a cleaner sidebar hierarchy, more polished top navbar/search/approval popover, stronger page headers, sharper cards/buttons/inputs, a more useful dashboard overview, and more consistent responsive spacing across laptop, PC, tablet, and phone. AI Knowledge context is now available to every chat mode/model, Settings adds Bahasa Indonesia/English/Traditional Mandarin plus dark/light and color nuance controls, and browser `localhost says` decisions are replaced with in-app popups. → [release notes](docs/releases/v3.0.0.md)
 - **v0.17.0 — AI Workspace, Knowledge, finance reports, and faster memory.** Adds **AI Knowledge** document ingestion/search/retrieval, section-aware context packets, dedicated `ai_tool_calls` logging, expanded Tool Registry coverage (**72 tools**), configurable Drive upload limits, and a polished AI Chat flow. Finance now supports **monthly and weekly reports**, clearly separates archived/out-of-period transactions (for example 2023 records outside a 2026 report), and lets you move old records into the active report. AI can answer local date/time without a provider, low-risk memory writes save directly, pending-action notifications are cleaner, and the assistant persona is tuned for direct Indonesian chat, coding help, jokes when invited, serious work, and schedule management. Requires migration `0008` (`python -m alembic upgrade head`). → [release notes](docs/releases/v0.17.0.md)
 - **v0.16.0 — Persistent AI memory system.** The AI now **auto-learns facts about your workspace** from chat (rule-based fast-path + async LLM extraction), with **secret detection** and an **approval queue** for sensitive items. Memory context is injected into all four chat modes (single, parallel, debate, reasoning) via per-section `section_key`. Five new **memory tools** (list/search/create/update/delete) follow the existing human-approval pattern. New **memory management page** (`/dashboard/ai/memory`), **in-chat indicator**, and **AI Memory nav**. Optional **Supabase background sync**. Requires migration `0007` (`python -m alembic upgrade head`). → [release notes](docs/releases/v0.16.0.md)
 - **v0.15.0 — Premium UI polish, persistent model selection & per-section chat memory.** The AI Chat now **remembers your model/agents, mode, and thinking depth** across navigation and refresh (with availability fallback + clear warnings). Each module — and each chat **project/group** — keeps its own **local, editable memory** the AI uses for more relevant answers (secret-redacted; clear per-section or all). Plus **smooth micro-animations** throughout (page transitions, dropdowns, message-in, pending actions) that **honor `prefers-reduced-motion`**, polished Finance/Settings, and a fix for the session-check flash on every navigation. → [release notes](docs/releases/v0.15.0.md)

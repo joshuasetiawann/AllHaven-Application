@@ -102,7 +102,7 @@ def _synthesis_prompt(question: str, transcript: List[Tuple[str, List[Tuple[str,
         "6. End with next steps when the topic is actionable.\n"
         "7. Match the user's mode: casual chat can be natural, serious work stays focused, "
         "coding gets senior engineering help, and schedule requests get practical next steps.\n"
-        "8. Answer in the user's language (Indonesian question → natural Indonesian answer).\n"
+        "8. Respect the preferred response language from the context packet.\n"
         "Do not mention that you are a moderator or that a debate happened — just give the answer."
     )
 
@@ -145,6 +145,7 @@ def debate_chat(
     images: Optional[List[str]] = None,
     thinking_mode: str = "balance",
     section_key: Optional[str] = "general",
+    response_language: Optional[str] = None,
 ) -> dict:
     from app.services import ai_context_builder, memory_extraction_service
 
@@ -301,6 +302,7 @@ def debate_chat(
     context_packet = ai_context_builder.build(
         db, principal, message=message, session_id=session.id,
         section_key=section_key or "general", thinking_mode=thinking_mode,
+        response_language=response_language,
     )
     context_meta = context_packet.get("meta", {})
     extra_context = context_packet.get("context")
@@ -365,7 +367,7 @@ def debate_chat(
             final_status, final_content, final_error = "error", None, "The agent did not produce an answer."
     else:
         oc = _run_round({synth_pid: runnable[synth_pid]},
-                        {synth_pid: _synthesis_prompt(message, transcript)}, None, params)[synth_pid]
+                        {synth_pid: mem_prefix + _synthesis_prompt(message, transcript)}, None, params)[synth_pid]
         final_status = oc["status"]
         final_content = oc["content"]
         final_error = oc["error"]

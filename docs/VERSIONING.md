@@ -10,8 +10,8 @@ AllHaven Command Center uses [Semantic Versioning](https://semver.org/): **`MAJO
 | **MINOR** (`0.3.0` → `0.4.0`) | A new feature or noticeable capability, backward-compatible | a new module, a new chat mode |
 | **MAJOR** (`0.x` → `1.0.0`) | Big or breaking change, or the first "stable" release | rewrite, breaking API change |
 
-While the app is pre-`1.0`, we stay in the `0.x` range: it is still evolving and
-minor versions may include larger changes.
+Earlier experimental releases used the `0.x` range. Starting with **AllHaven
+3.0**, version metadata follows the user-facing release line directly.
 
 ## Single source of truth
 
@@ -35,6 +35,8 @@ The current version is stored in **`/VERSION`**. These must always match it:
 
 | Version | Date | Title |
 |---------|------|-------|
+| [v3.0.0](releases/v3.0.0.md) | 2026-06-13 | AllHaven 3.0 launch-ready AI workspace |
+| [v0.17.0](releases/v0.17.0.md) | 2026-06-13 | AI Workspace, Knowledge, finance reports & direct memory |
 | [v0.1.0](releases/v0.1.0.md) | 2026-06-09 | Initial AllHaven Command Center |
 | [v0.2.0](releases/v0.2.0.md) | 2026-06-09 | Multi-agent Debate |
 | [v0.3.0](releases/v0.3.0.md) | 2026-06-09 | Reasoning Quality Layer |

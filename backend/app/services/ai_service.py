@@ -199,6 +199,7 @@ def chat(
     provider_id: Optional[str] = None,
     section_key: Optional[str] = "general",
     thinking_mode: str = "balance",
+    response_language: Optional[str] = None,
 ) -> dict:
     """Persist the user message, route to the AI provider, persist the reply.
 
@@ -239,6 +240,7 @@ def chat(
     context_packet = ai_context_builder.build(
         db, principal, message=message, session_id=session.id,
         section_key=section_key or "general", thinking_mode=thinking_mode,
+        response_language=response_language,
     )
 
     # Orchestrated chat: history-aware, with a safe tool loop on tool-capable
@@ -248,6 +250,7 @@ def chat(
         provider_id=provider_id, extra_context=context_packet.get("context"),
         section_key=section_key or "general", thinking_mode=thinking_mode,
         user_message_id=user_message.id,
+        response_language=response_language,
     )
     meta = {
         "source": "provider" if result["ok"] else "system",

@@ -103,7 +103,9 @@ def critic_message(user_text: str, analyst_answer: str) -> str:
 
 def synthesizer_message(
     user_text: str, analyst_answer: str, critic_answer: Optional[str], issues: List[str],
+    extra_context: Optional[str] = None,
 ) -> str:
+    prefix = as_prefix(extra_context)
     critic_block = f"CRITIC RESPONSE:\n{critic_answer}\n\n" if critic_answer else ""
     issue_block = ""
     if issues:
@@ -112,7 +114,7 @@ def synthesizer_message(
             + "\n".join(f"- {i}" for i in issues) + "\n\n"
         )
     return (
-        f"{SYSTEM_PROMPT_CORE}\n\n{SYNTHESIZER_PROMPT}\n\n"
+        f"{prefix}{SYSTEM_PROMPT_CORE}\n\n{SYNTHESIZER_PROMPT}\n\n"
         f"USER REQUEST:\n{user_text}\n\n"
         f"ANALYST RESPONSE:\n{analyst_answer}\n\n{critic_block}{issue_block}"
         "Reject any criticism that is irrelevant or wrong. Fix the verified issues above. Produce the "
@@ -120,7 +122,7 @@ def synthesizer_message(
         "Final-answer style: start with the direct answer; no basa-basi; be concrete and specific; no generic "
         "filler or repetition; preserve important warnings; when choosing between options, pick one "
         "and justify it briefly; be honest about uncertainty and missing data; include next steps "
-        "when actionable; answer in the user's language (Indonesian in → natural Indonesian out)."
+        "when actionable; respect the preferred response language from the context packet."
     )
 
 

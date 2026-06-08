@@ -81,6 +81,7 @@ def reasoning_chat(
     thinking_mode: str = "balance",
     images: Optional[List[str]] = None,
     section_key: Optional[str] = "general",
+    response_language: Optional[str] = None,
 ) -> dict:
     from app.services import ai_context_builder, memory_extraction_service
 
@@ -203,6 +204,7 @@ def reasoning_chat(
     context_packet = ai_context_builder.build(
         db, principal, message=message, session_id=session.id,
         section_key=section_key or "general", thinking_mode=thinking_mode,
+        response_language=response_language,
     )
     context_meta = context_packet.get("meta", context_meta)
     extra_context = context_packet.get("context")
@@ -235,7 +237,7 @@ def reasoning_chat(
     # 3) Synthesizer (Balanced/Deep) or Analyst-as-final (Fast).
     if "synthesizer" in roles and analyst_answer:
         synth_pid = role_provider["synthesizer"]
-        synth_prompt = prompts.synthesizer_message(message, analyst_answer, effective_critic, issues)
+        synth_prompt = prompts.synthesizer_message(message, analyst_answer, effective_critic, issues, extra_context)
         final_oc = _call(plans[synth_pid], synth_prompt, gen_params)
     else:
         synth_pid = analyst_pid
