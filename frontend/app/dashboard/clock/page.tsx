@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlarmClock, Clock as ClockIcon, Flag, Pause, Play, Plus, RotateCcw, Timer as TimerIcon, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/format";
 
 type Tab = "clock" | "stopwatch" | "timer" | "alarm";
@@ -169,6 +170,7 @@ function CountdownTimer() {
 type Alarm = { id: string; time: string; label: string; enabled: boolean };
 
 function Alarms() {
+  const toast = useToast();
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [time, setTime] = useState("07:00");
   const [label, setLabel] = useState("");
@@ -189,7 +191,7 @@ function Alarms() {
         if (a.enabled && a.time === hhmm && firedRef.current[a.id] !== minuteKey) {
           firedRef.current[a.id] = minuteKey;
           beep(1000);
-          window.alert(`⏰ Alarm${a.label ? `: ${a.label}` : ""} — ${a.time}`);
+          toast.warning("Alarm", `${a.label ? `${a.label} · ` : ""}${a.time}`);
         }
       }
     }, 1000);

@@ -18,9 +18,71 @@
 @layer base {
   :root {
     color-scheme: dark;
+    --color-bg: 10 12 16;
+    --color-bg-deep: 7 8 9;
+    --color-surface: 16 21 28;
+    --color-surface-raised: 22 28 37;
+    --color-surface-high: 27 35 48;
+    --color-surface-input: 11 15 21;
+    --color-border: 31 39 48;
+    --color-border-strong: 44 55 68;
+    --color-primary: 24 224 214;
+    --color-primary-dim: 18 194 186;
+    --color-primary-bright: 84 238 230;
+    --color-primary-fg: 4 32 31;
+    --color-secondary: 139 92 246;
+    --color-secondary-soft: 196 181 253;
+    --color-content: 230 234 241;
+    --color-content-muted: 139 150 167;
+    --color-content-subtle: 92 104 119;
+    --color-success: 52 211 153;
+    --color-warning: 251 191 36;
+    --color-danger: 248 113 113;
+    --color-info: 56 189 248;
     /* Controlled by the Settings "Glassmorphism" preference. */
     --glass-blur: 14px;
     --panel-alpha: 0.72;
+  }
+
+  [data-theme="light"] {
+    color-scheme: light;
+    --color-bg: 246 248 251;
+    --color-bg-deep: 234 239 245;
+    --color-surface: 255 255 255;
+    --color-surface-raised: 244 247 251;
+    --color-surface-high: 232 239 247;
+    --color-surface-input: 248 250 252;
+    --color-border: 214 222 232;
+    --color-border-strong: 172 184 199;
+    --color-primary-fg: 255 255 255;
+    --color-secondary-soft: 109 40 217;
+    --color-content: 16 24 38;
+    --color-content-muted: 82 96 114;
+    --color-content-subtle: 113 128 150;
+  }
+
+  [data-accent="cyan"] {
+    --color-primary: 24 224 214;
+    --color-primary-dim: 18 194 186;
+    --color-primary-bright: 84 238 230;
+  }
+
+  [data-accent="emerald"] {
+    --color-primary: 34 197 94;
+    --color-primary-dim: 22 163 74;
+    --color-primary-bright: 74 222 128;
+  }
+
+  [data-accent="violet"] {
+    --color-primary: 139 92 246;
+    --color-primary-dim: 124 58 237;
+    --color-primary-bright: 167 139 250;
+  }
+
+  [data-accent="amber"] {
+    --color-primary: 245 158 11;
+    --color-primary-dim: 217 119 6;
+    --color-primary-bright: 251 191 36;
   }
 
   /* Density preference (Settings → Performance Mode) */
@@ -39,15 +101,15 @@
     @apply bg-bg text-content font-sans antialiased;
     min-width: 320px;
     background-image:
-      radial-gradient(1100px 600px at 8% -10%, rgba(24, 224, 214, 0.06), transparent 55%),
-      radial-gradient(900px 600px at 100% -5%, rgba(139, 92, 246, 0.06), transparent 50%),
-      radial-gradient(800px 700px at 50% 120%, rgba(24, 224, 214, 0.04), transparent 60%);
+      radial-gradient(1100px 600px at 8% -10%, rgb(var(--color-primary) / 0.07), transparent 55%),
+      radial-gradient(900px 600px at 100% -5%, rgb(var(--color-secondary) / 0.06), transparent 50%),
+      radial-gradient(800px 700px at 50% 120%, rgb(var(--color-primary) / 0.04), transparent 60%);
     background-attachment: fixed;
   }
 
   ::selection {
-    background: rgba(24, 224, 214, 0.28);
-    color: #d7fffb;
+    background: rgb(var(--color-primary) / 0.28);
+    color: rgb(var(--color-content));
   }
 
   .custom-scrollbar::-webkit-scrollbar {
@@ -55,11 +117,11 @@
     height: 8px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #232c38;
+    background: rgb(var(--color-border-strong) / 0.75);
     border-radius: 9999px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #2c3744;
+    background: rgb(var(--color-primary) / 0.5);
   }
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
@@ -69,22 +131,22 @@
 @layer components {
   /* Core glass panel */
   .panel {
-    background-color: rgba(16, 21, 28, var(--panel-alpha));
+    background-color: rgb(var(--color-surface) / var(--panel-alpha));
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
-    @apply rounded-xl border border-border;
+    @apply rounded-xl border border-border shadow-panel;
   }
 
   .panel-hover {
-    @apply transition-colors duration-200 hover:border-border-strong hover:bg-surface-raised/80;
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-raised/80;
   }
 
   /* Subtle top-lit gradient for hero/feature cards */
   .panel-gradient {
     background-image:
-      linear-gradient(180deg, rgba(24, 224, 214, 0.05), rgba(16, 21, 28, 0) 38%),
-      linear-gradient(180deg, rgba(16, 21, 28, var(--panel-alpha)), rgba(16, 21, 28, var(--panel-alpha)));
-    @apply rounded-xl border border-border;
+      linear-gradient(180deg, rgb(var(--color-primary) / 0.05), rgb(var(--color-surface) / 0) 38%),
+      linear-gradient(180deg, rgb(var(--color-surface) / var(--panel-alpha)), rgb(var(--color-surface) / var(--panel-alpha)));
+    @apply rounded-xl border border-border shadow-panel;
   }
 
   .label-mono {
