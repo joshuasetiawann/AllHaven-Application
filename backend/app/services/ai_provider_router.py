@@ -1,6 +1,6 @@
 """AI provider router.
 
-Workspace-scoped configuration of AI agents (5 API providers + local Ollama) and
+Workspace-scoped configuration of AI agents (API providers + local Ollama) and
 provider-agnostic chat routing. Enforces the safety policy:
     * External providers are blocked when AI_ALLOW_EXTERNAL_PROVIDERS is false.
     * Local Ollama works without external permission.
@@ -28,11 +28,14 @@ from app.services import env_file_service
 from app.services.ai_providers.anthropic_provider import AnthropicProvider
 from app.services.ai_providers.base import AIProvider, OpenAICompatibleProvider
 from app.services.ai_providers.blackbox_provider import BlackboxProvider
+from app.services.ai_providers.cursor_provider import CursorProvider
+from app.services.ai_providers.deepseek_provider import DeepSeekProvider
 from app.services.ai_providers.gemini_provider import GeminiProvider
 from app.services.ai_providers.grok_provider import GrokProvider
 from app.services.ai_providers.ollama_provider import OllamaProvider
 from app.services.ai_providers.openai_provider import OpenAIProvider
 from app.services.ai_providers.openrouter_provider import OpenRouterProvider
+from app.services.ai_providers.qwen_provider import QwenProvider
 from app.services.audit_service import write_audit
 from app.services.integration_status_service import is_configured_value
 from app.services.provider_registry import AI_PROVIDERS, ProviderSpec, get_ai_provider_spec
@@ -44,6 +47,9 @@ ADAPTERS: dict[str, AIProvider] = {
     "gemini": GeminiProvider(),
     "grok": GrokProvider(),
     "blackbox": BlackboxProvider(),
+    "cursor": CursorProvider(),
+    "deepseek": DeepSeekProvider(),
+    "qwen": QwenProvider(),
     # Six independent OpenRouter slots share the OpenRouter adapter; each has
     # its own DB row, key, status, and default model.
     "openrouter_1": OpenRouterProvider(),
@@ -66,6 +72,12 @@ def _env_public(spec: ProviderSpec) -> dict:
         "gemini": {"default_model": settings.GEMINI_DEFAULT_MODEL},
         "grok": {"default_model": settings.GROK_DEFAULT_MODEL},
         "blackbox": {"default_model": settings.BLACKBOX_DEFAULT_MODEL},
+        "cursor": {
+            "default_model": settings.CURSOR_DEFAULT_MODEL,
+            "base_url": settings.CURSOR_BASE_URL,
+        },
+        "deepseek": {"default_model": settings.DEEPSEEK_DEFAULT_MODEL},
+        "qwen": {"default_model": settings.QWEN_DEFAULT_MODEL},
         "openrouter_1": {"default_model": settings.OPENROUTER_1_DEFAULT_MODEL or settings.OPENROUTER_DEFAULT_MODEL},
         "openrouter_2": {"default_model": settings.OPENROUTER_2_DEFAULT_MODEL},
         "openrouter_3": {"default_model": settings.OPENROUTER_3_DEFAULT_MODEL},
@@ -83,6 +95,9 @@ def _env_secrets(spec: ProviderSpec) -> dict:
         "gemini": {"api_key": settings.GEMINI_API_KEY},
         "grok": {"api_key": settings.GROK_API_KEY},
         "blackbox": {"api_key": settings.BLACKBOX_API_KEY},
+        "cursor": {"api_key": settings.CURSOR_API_KEY},
+        "deepseek": {"api_key": settings.DEEPSEEK_API_KEY},
+        "qwen": {"api_key": settings.QWEN_API_KEY},
         # Slot 1 falls back to the legacy single OPENROUTER_API_KEY.
         "openrouter_1": {"api_key": settings.OPENROUTER_1_API_KEY or settings.OPENROUTER_API_KEY},
         "openrouter_2": {"api_key": settings.OPENROUTER_2_API_KEY},

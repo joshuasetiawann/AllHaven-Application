@@ -37,5 +37,5 @@
   <text class="t" x="210" y="180" font-size="30" font-weight="600" fill="#C7D0DC" letter-spacing="0.5">Command Center</text>
   <rect x="212" y="198" width="132" height="4" rx="2" fill="url(#teal)"/>
   <text class="t" x="212" y="236" font-size="21" fill="#8B96A7">Local-first AI command center — the AI proposes, a human approves.</text>
-  <text class="t" x="212" y="266" font-size="16" fill="#5C6675" letter-spacing="0.6">FastAPI · Next.js 14 · PostgreSQL · 9 AI providers · Human-in-the-loop</text>
+  <text class="t" x="212" y="266" font-size="16" fill="#5C6675" letter-spacing="0.6">FastAPI · Next.js 14 · PostgreSQL · 15 AI providers · Human-in-the-loop</text>
 </svg>
