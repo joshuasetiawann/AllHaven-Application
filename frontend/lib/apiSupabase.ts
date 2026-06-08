@@ -883,29 +883,37 @@ async function _executeProposal(tool: string, payload: Record<string, unknown>):
 
 async function supaApproveProposal(id: string): Promise<{ proposal: ToolProposal; result: Record<string, unknown> }> {
   const sb = await getSupabase();
-  // Re-read first: if another device already executed/rejected it, do NOT run again.
-  const { data: row, error: rErr } = await sb
-    .from("ai_tool_proposals").select(_PROPOSAL_COLS).eq("id", id).maybeSingle();
-  if (rErr) throw toApiException(rErr);
-  if (!row) throw new ApiException("Draft tidak ditemukan.", "NOT_FOUND", 404);
-  if (!_PROPOSAL_OPEN.includes((row as ToolProposal).status)) {
-    return { proposal: row as ToolProposal, result: {} };
+  // ATOMIC CLAIM: move the row out of an open status in a single conditional UPDATE.
+  // Only ONE caller (device/tab) can win this — so the write below never runs twice
+  // even if two devices approve within the same sync window (no double transaction).
+  // updated_at is stamped by the DB trigger, not the client (avoids clock skew in LWW).
+  const { data: claimedRows, error: cErr } = await sb
+    .from("ai_tool_proposals")
+    .update({ status: "APPROVED" })
+    .eq("id", id).in("status", _PROPOSAL_OPEN)
+    .select(_PROPOSAL_COLS);
+  if (cErr) throw toApiException(cErr);
+  if (!claimedRows || claimedRows.length === 0) {
+    // Lost the claim (already executed/rejected elsewhere) — do NOT execute again.
+    const { data: cur } = await sb.from("ai_tool_proposals").select(_PROPOSAL_COLS).eq("id", id).maybeSingle();
+    if (!cur) throw new ApiException("Draft tidak ditemukan.", "NOT_FOUND", 404);
+    return { proposal: cur as ToolProposal, result: {} };
   }
+  const row = claimedRows[0] as ToolProposal;
   let result: unknown;
   try {
-    result = await _executeProposal((row as ToolProposal).tool_name, ((row as ToolProposal).tool_payload ?? {}) as Record<string, unknown>);
+    result = await _executeProposal(row.tool_name, (row.tool_payload ?? {}) as Record<string, unknown>);
   } catch (err) {
     // Mirror the backend: a failed approval becomes NEEDS_EDIT and stays visible.
     await sb.from("ai_tool_proposals").update({
       status: "NEEDS_EDIT",
       error_message: (err instanceof Error ? err.message : "Gagal menjalankan aksi.").slice(0, 500),
-      updated_at: new Date().toISOString(),
     }).eq("id", id);
     throw err instanceof ApiException ? err : toApiException(err);
   }
   const { data: updated, error: uErr } = await sb
     .from("ai_tool_proposals")
-    .update({ status: "EXECUTED", error_message: null, executed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({ status: "EXECUTED", error_message: null, executed_at: new Date().toISOString() })
     .eq("id", id).select(_PROPOSAL_COLS).single();
   if (uErr) throw toApiException(uErr);
   return { proposal: updated as ToolProposal, result: (result ?? {}) as Record<string, unknown> };
@@ -915,7 +923,7 @@ async function supaRejectProposal(id: string): Promise<ToolProposal> {
   const sb = await getSupabase();
   const { data, error } = await sb
     .from("ai_tool_proposals")
-    .update({ status: "REJECTED", updated_at: new Date().toISOString() })
+    .update({ status: "REJECTED" })
     .eq("id", id).select(_PROPOSAL_COLS).single();
   if (error) throw toApiException(error);
   return data as ToolProposal;
@@ -925,7 +933,7 @@ async function supaEditProposal(id: string, toolPayload: Record<string, unknown>
   const sb = await getSupabase();
   const { data, error } = await sb
     .from("ai_tool_proposals")
-    .update({ tool_payload: toolPayload, status: "PENDING", error_message: null, updated_at: new Date().toISOString() })
+    .update({ tool_payload: toolPayload, status: "PENDING", error_message: null })
     .eq("id", id).select(_PROPOSAL_COLS).single();
   if (error) throw toApiException(error);
   return data as ToolProposal;
@@ -957,19 +965,26 @@ async function supaRejectSuggestion(id: string): Promise<{ id: string }> {
   const sb = await getSupabase();
   const { error } = await sb
     .from("ai_memory_suggestions")
-    .update({ status: "rejected", updated_at: new Date().toISOString() })
-    .eq("id", id);
+    .update({ status: "rejected" })
+    .eq("id", id).eq("status", "pending");
   if (error) throw toApiException(error);
   return { id };
 }
 
 async function supaApproveSuggestion(id: string): Promise<AiMemory> {
   const sb = await getSupabase();
-  const { data: s, error: sErr } = await sb
-    .from("ai_memory_suggestions").select("*").eq("id", id).maybeSingle();
-  if (sErr) throw toApiException(sErr);
-  if (!s) throw new ApiException("Saran memori tidak ditemukan.", "NOT_FOUND", 404);
-  const sug = s as MemorySuggestion;
+  // ATOMIC CLAIM: only one caller can move pending → approved, so re-approving an
+  // already-handled suggestion can't insert a duplicate ai_memories row.
+  const { data: claimed, error: cErr } = await sb
+    .from("ai_memory_suggestions")
+    .update({ status: "approved" })
+    .eq("id", id).eq("status", "pending")
+    .select("*");
+  if (cErr) throw toApiException(cErr);
+  if (!claimed || claimed.length === 0) {
+    throw new ApiException("Saran memori sudah diproses.", "ALREADY_HANDLED", 409);
+  }
+  const sug = claimed[0] as MemorySuggestion;
   const { data: mem, error: mErr } = await sb
     .from("ai_memories")
     .insert({
@@ -980,7 +995,7 @@ async function supaApproveSuggestion(id: string): Promise<AiMemory> {
     .select("*").single();
   if (mErr) throw toApiException(mErr);
   await sb.from("ai_memory_suggestions")
-    .update({ status: "approved", memory_id: (mem as { id: string }).id, updated_at: new Date().toISOString() })
+    .update({ memory_id: (mem as { id: string }).id })
     .eq("id", id);
   return mem as AiMemory;
 }
