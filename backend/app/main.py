@@ -118,6 +118,17 @@ def create_app() -> FastAPI:
     app.include_router(n8n.router, prefix=prefix)
     app.include_router(system.router, prefix=prefix)
 
+    @app.get(prefix, tags=["root"])
+    def api_root() -> dict:
+        return success_response(
+            {
+                "app": settings.APP_NAME,
+                "docs": "/docs",
+                "health": f"{prefix}/health",
+            },
+            "AllHaven API is running",
+        )
+
     @app.get("/", tags=["root"])
     def root() -> dict:
         return success_response(

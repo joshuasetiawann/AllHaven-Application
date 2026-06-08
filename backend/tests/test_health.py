@@ -40,3 +40,11 @@ def test_root_ok(client):
     resp = client.get("/")
     assert resp.status_code == 200
     assert resp.json()["status"] == "success"
+
+
+def test_api_root_ok(client):
+    resp = client.get(f"{API}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "success"
+    assert body["data"]["health"] == f"{API}/health"
