@@ -1,4 +1,4 @@
-"""CoreOS Command Center — FastAPI application entrypoint."""
+"""AllHaven Command Center — FastAPI application entrypoint."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def create_app() -> FastAPI:
                 "docs": "/docs",
                 "health": f"{prefix}/health",
             },
-            "CoreOS API is running",
+            "AllHaven API is running",
         )
 
     return app

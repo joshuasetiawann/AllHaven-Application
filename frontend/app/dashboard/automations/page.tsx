@@ -137,7 +137,7 @@ export default function AutomationsPage() {
           <div>
             <p className="text-sm font-semibold text-content">Saved drafts only</p>
             <p className="mt-0.5 text-[13px] text-content-muted">
-              CoreOS does not execute automations in the MVP — these are saved drafts. n8n connection
+              AllHaven does not execute automations in the MVP — these are saved drafts. n8n connection
               status is shown in Settings → Connected Tools.
             </p>
           </div>

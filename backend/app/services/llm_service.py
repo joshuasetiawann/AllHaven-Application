@@ -15,7 +15,7 @@ from app.services.integration_status_service import is_configured_value
 
 NOT_CONFIGURED_MESSAGE = (
     "The AI assistant is not configured yet. Set OLLAMA_BASE_URL to a running "
-    "Ollama server to enable local AI. CoreOS will never fake AI responses, and "
+    "Ollama server to enable local AI. AllHaven will never fake AI responses, and "
     "any AI suggestion will require your explicit approval before it can act."
 )
 

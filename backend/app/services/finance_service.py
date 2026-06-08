@@ -1,6 +1,6 @@
 """Finance service: categories, transactions, and the monthly summary.
 
-CoreOS tracks cashflow only — it never provides financial advice or moves money.
+AllHaven tracks cashflow only — it never provides financial advice or moves money.
 All writes are workspace-scoped, soft-deleted, and audited.
 """
 

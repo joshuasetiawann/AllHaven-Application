@@ -63,7 +63,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
   } catch {
     throw new ApiException(
-      "Cannot reach the CoreOS API. Is the backend running?",
+      "Cannot reach the AllHaven API. Is the backend running?",
       "NETWORK_ERROR",
       0,
     );
@@ -249,7 +249,7 @@ export const driveApi = {
         body: form,
       });
     } catch {
-      throw new ApiException("Cannot reach the CoreOS API. Is the backend running?", "NETWORK_ERROR", 0);
+      throw new ApiException("Cannot reach the AllHaven API. Is the backend running?", "NETWORK_ERROR", 0);
     }
     const body = (await res.json().catch(() => null)) as ApiEnvelope<DriveFile> | null;
     if (!res.ok || body?.status === "error") {
