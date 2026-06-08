@@ -114,7 +114,11 @@ export default function DashboardOverview() {
   const weeklyBars = useMemo(() => {
     const buckets = [0, 0, 0, 0, 0];
     (data?.transactions ?? []).forEach((t) => {
-      const d = new Date(t.transaction_date);
+      // Parse "YYYY-MM-DD" as a LOCAL date. `new Date(string)` treats it as UTC
+      // midnight, which rolls back a day in negative-offset timezones and drops
+      // transactions into the wrong week/month.
+      const [yy, mm, dd] = (t.transaction_date || "").split("-").map(Number);
+      const d = new Date(yy, (mm || 1) - 1, dd || 1);
       if (d.getFullYear() === year && d.getMonth() + 1 === month && t.type === "EXPENSE") {
         const week = Math.min(4, Math.floor((d.getDate() - 1) / 7));
         buckets[week] += t.amount;
