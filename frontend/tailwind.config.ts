@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
 /**
- * CoreOS design system — "Command Center" premium dark theme.
+ * AllHaven design system — "Command Center" premium dark theme.
  * Near-black canvas, refined teal-cyan primary, muted-purple secondary,
  * hairline borders, restrained glass panels. Tuned to the provided screens.
  */
