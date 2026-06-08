@@ -57,6 +57,9 @@ def test_env_sync_rejects_arbitrary_keys():
 
 def test_env_sync_allowlist_membership():
     assert "OPENAI_API_KEY" in env_file_service.ALLOWED_ENV_KEYS
+    assert "CURSOR_BASE_URL" in env_file_service.ALLOWED_ENV_KEYS
+    assert "DEEPSEEK_API_KEY" in env_file_service.ALLOWED_ENV_KEYS
+    assert "QWEN_API_KEY" in env_file_service.ALLOWED_ENV_KEYS
     assert "OPENROUTER_3_API_KEY" in env_file_service.ALLOWED_ENV_KEYS
     assert "SUPABASE_SERVICE_ROLE_KEY" in env_file_service.ALLOWED_ENV_KEYS
     assert "EVIL_KEY" not in env_file_service.ALLOWED_ENV_KEYS

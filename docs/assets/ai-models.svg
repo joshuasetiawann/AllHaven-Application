@@ -15,8 +15,8 @@
   <rect width="1280" height="520" fill="#0A0C10"/>
   <circle cx="1160" cy="60" r="220" fill="#18E0D6" opacity="0.05"/>
 
-  <text class="t" x="40" y="62" font-size="30" font-weight="700" fill="#E6EAF1">🤖 Nine AI providers, one command center</text>
-  <text class="t" x="40" y="98" font-size="16" fill="#8B96A7">Run up to <tspan fill="#18E0D6" font-weight="700">3 agents concurrently</tspan> — Parallel, Debate, or Reasoning. The AI proposes; a human approves every write.</text>
+  <text class="t" x="40" y="62" font-size="30" font-weight="700" fill="#E6EAF1">🤖 Fifteen AI providers, one command center</text>
+  <text class="t" x="40" y="98" font-size="16" fill="#8B96A7">Run up to <tspan fill="#18E0D6" font-weight="700">10 agents concurrently</tspan> — Parallel, Debate, or Reasoning. The AI proposes; a human approves every write.</text>
 
   <!-- Row 1 -->
   <g>

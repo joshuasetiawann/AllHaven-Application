@@ -54,7 +54,7 @@ def test_build_always_includes_profile_and_preferences(auth_client, db_session):
     _create(db_session, principal, category="Preferences", title="Lang", content="Replies in Indonesian")
     block = memory_context_builder.build(db_session, principal, "hello there")
     assert block is not None
-    assert block.startswith("[AI Memory — user context, use when relevant]")
+    assert block.startswith("[AI Memory - user context, use when relevant]")
     assert block.rstrip().endswith("[End of memory context]")
     assert "Profile:" in block
     assert "Joshua dari Jakarta" in block
@@ -90,13 +90,13 @@ def test_build_includes_projects_for_project_related_message(auth_client, db_ses
     assert "Working on AllHaven" in block
 
 
-def test_build_skips_projects_for_unrelated_message(auth_client, db_session):
+def test_build_can_include_ranked_projects_for_unrelated_message(auth_client, db_session):
     principal = _principal(auth_client)
     _create(db_session, principal, category="Profile", title="Name", content="Joshua")
     _create(db_session, principal, category="Projects", title="AllHaven", content="Working on AllHaven")
     block = memory_context_builder.build(db_session, principal, "what should I eat today?")
     assert block is not None
-    assert "Working on AllHaven" not in block
+    assert "Working on AllHaven" in block
 
 
 # --- section-specific inclusion -------------------------------------------------------
@@ -113,7 +113,7 @@ def test_build_includes_mapped_category_for_section(auth_client, db_session):
     assert "Save 20 percent monthly" in block
 
 
-def test_build_general_section_does_not_pull_mapped_categories(auth_client, db_session):
+def test_build_general_section_can_include_ranked_mapped_categories(auth_client, db_session):
     principal = _principal(auth_client)
     _create(db_session, principal, category="Profile", title="Name", content="Joshua")
     _create(db_session, principal, category="Goals", title="Saving", content="Save 20 percent monthly")
@@ -121,7 +121,7 @@ def test_build_general_section_does_not_pull_mapped_categories(auth_client, db_s
         db_session, principal, "hello there", section_key="general"
     )
     assert block is not None
-    assert "Save 20 percent monthly" not in block
+    assert "Save 20 percent monthly" in block
 
 
 # --- message keyword search -----------------------------------------------------------

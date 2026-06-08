@@ -57,8 +57,8 @@ export function AiChatBehaviorPanel() {
     if (!settings) return;
     const raw = maxAgents.trim();
     const num = Number(raw);
-    if (!/^\d+$/.test(raw) || num < 1 || num > 7) {
-      setError("Max active agents must be a whole number between 1 and 7.");
+    if (!/^\d+$/.test(raw) || num < 1 || num > 10) {
+      setError("Max active agents must be a whole number between 1 and 10.");
       return;
     }
     setError(null);
@@ -103,7 +103,7 @@ export function AiChatBehaviorPanel() {
               type="number"
               inputMode="numeric"
               min={1}
-              max={7}
+              max={10}
               disabled={saving}
               value={maxAgents}
               onChange={(e) => setMaxAgents(e.target.value)}
@@ -111,7 +111,7 @@ export function AiChatBehaviorPanel() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") commitMaxAgents();
               }}
-              hint="Between 1 and 7. Saved when you leave the field."
+              hint="Between 1 and 10. Saved when you leave the field."
             />
           </div>
         </Card>
