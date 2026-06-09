@@ -18,6 +18,7 @@ EXPECTED_TABLES = {
     "ai_multi_agent_runs",
     "ai_agent_responses",
     "ai_tool_proposals",
+    "ai_tool_calls",
     "audit_logs",
     "integration_configs",
     "ai_agent_configs",
@@ -29,6 +30,8 @@ EXPECTED_TABLES = {
     "ai_memories",
     "ai_memory_suggestions",
     "ai_conversation_summaries",
+    "ai_knowledge_documents",
+    "ai_knowledge_chunks",
 }
 
 

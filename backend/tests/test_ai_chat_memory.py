@@ -177,7 +177,10 @@ def test_chat_builds_memory_context_from_existing_memories(
 
     original_run = _orch.run_with_tools
 
-    def _capture_run(db, principal, *, message, session_id, provider_id=None, extra_context=None):
+    def _capture_run(
+        db, principal, *, message, session_id, provider_id=None, extra_context=None,
+        section_key="general", thinking_mode="balance", user_message_id=None, response_language=None,
+    ):
         captured["extra_context"] = extra_context
         return original_run(
             db, principal,
@@ -185,6 +188,10 @@ def test_chat_builds_memory_context_from_existing_memories(
             session_id=session_id,
             provider_id=provider_id,
             extra_context=extra_context,
+            section_key=section_key,
+            thinking_mode=thinking_mode,
+            user_message_id=user_message_id,
+            response_language=response_language,
         )
 
     monkeypatch.setattr(_orch, "run_with_tools", _capture_run)
