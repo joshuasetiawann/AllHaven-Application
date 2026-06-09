@@ -91,7 +91,7 @@ def _synthesis_prompt(question: str, transcript: List[Tuple[str, List[Tuple[str,
 
 
 def _run_round(
-    runnable: Dict[str, ChatPlan], prompts: Dict[str, str]
+    runnable: Dict[str, ChatPlan], prompts: Dict[str, str], images: Optional[List[str]] = None,
 ) -> Dict[str, dict]:
     """Run one debate round: every runnable agent's call fans out concurrently."""
     outcomes: Dict[str, dict] = {}
@@ -99,7 +99,7 @@ def _run_round(
         return outcomes
     with ThreadPoolExecutor(max_workers=len(runnable)) as pool:
         futures = {
-            pool.submit(_run_one, plan, [{"role": "user", "content": prompts[pid]}]): pid
+            pool.submit(_run_one, plan, [{"role": "user", "content": prompts[pid], "images": images or []}]): pid
             for pid, plan in runnable.items()
         }
         for future, pid in list(futures.items()):
@@ -121,6 +121,7 @@ def debate_chat(
     provider_ids: List[str],
     session_id: Optional[uuid.UUID] = None,
     rounds: int = DEFAULT_DEBATE_ROUNDS,
+    images: Optional[List[str]] = None,
 ) -> dict:
     ids = _dedup(provider_ids)
     if not ids:
@@ -155,6 +156,7 @@ def debate_chat(
         session_id=session.id,
         role="user",
         content=message,
+        meta={"images": images} if images else None,
     )
     db.add(user_message)
     db.flush()
@@ -269,7 +271,7 @@ def debate_chat(
                     for o in runnable if o != pid and o in last_answer
                 ]
                 prompts[pid] = _rebuttal_prompt(plans[pid].provider_name, message, others)
-        outcomes = _run_round(runnable, prompts)
+        outcomes = _run_round(runnable, prompts, images if k == 1 else None)
         round_outcomes.append(outcomes)
         for pid, oc in outcomes.items():
             if oc["status"] == "completed" and oc["content"]:

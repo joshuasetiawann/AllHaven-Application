@@ -11,6 +11,17 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.4.0] - 2026-06-09 — Image input (vision) & polished chat output
+
+Detailed notes: [`docs/releases/v0.4.0.md`](docs/releases/v0.4.0.md)
+
+### Added
+- **Image upload + vision**: attach up to 4 images to a chat turn; vision-capable models receive and respond to them. Images are downscaled client-side, formatted per provider (OpenAI/OpenRouter/Grok/Blackbox, Anthropic, Gemini, Ollama), shown in the thread, and persisted so they survive a reload.
+- **Markdown rendering** for AI output — headings, lists, code blocks, bold/italic, blockquotes, and links — so responses read cleanly instead of as one raw blob. Dependency-free renderer (no HTML-injection risk).
+
+### Fixed
+- Missing `network_error_message` import in the Ollama, Anthropic, and Gemini adapters (would raise `NameError` on a network failure during chat).
+
 ## [0.3.0] - 2026-06-09 — Reasoning Quality Layer
 
 Detailed notes: [`docs/releases/v0.3.0.md`](docs/releases/v0.3.0.md)
