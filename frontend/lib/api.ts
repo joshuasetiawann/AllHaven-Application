@@ -7,6 +7,7 @@ import type {
   Automation,
   AuthToken,
   CalendarEvent,
+  ChatGroup,
   ChatMessage,
   ChatResponse,
   ChatSession,
@@ -166,7 +167,25 @@ export const financeApi = {
 
 // --- AI ---
 export const aiApi = {
+  // Conversations
   listSessions: () => request<ChatSession[]>("/ai/sessions"),
+  createSession: (groupId?: string | null, title?: string) =>
+    request<ChatSession>("/ai/sessions", {
+      method: "POST",
+      body: json({ title: title ?? null, group_id: groupId ?? null }),
+    }),
+  updateSession: (id: string, payload: { title?: string; group_id?: string | null }) =>
+    request<ChatSession>(`/ai/sessions/${id}`, { method: "PATCH", body: json(payload) }),
+  deleteSession: (id: string) =>
+    request<{ id: string }>(`/ai/sessions/${id}`, { method: "DELETE" }),
+  // Groups / projects
+  listGroups: () => request<ChatGroup[]>("/ai/groups"),
+  createGroup: (name: string) =>
+    request<ChatGroup>("/ai/groups", { method: "POST", body: json({ name }) }),
+  renameGroup: (id: string, name: string) =>
+    request<ChatGroup>(`/ai/groups/${id}`, { method: "PATCH", body: json({ name }) }),
+  deleteGroup: (id: string) =>
+    request<{ id: string }>(`/ai/groups/${id}`, { method: "DELETE" }),
   listMessages: (sessionId: string) =>
     request<ChatMessage[]>(`/ai/sessions/${sessionId}/messages`),
   chat: (message: string, sessionId?: string, providerId?: string) =>
