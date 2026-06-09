@@ -24,6 +24,7 @@ class OllamaProvider(AIProvider):
     external = False
     requires_api_key = False
     default_model = "llama3.1"
+    supports_image = True  # vision models such as llava
 
     def base_url(self, public: dict) -> str:
         return (public.get("base_url") or DEFAULT_BASE_URL).rstrip("/")

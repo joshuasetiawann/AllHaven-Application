@@ -38,12 +38,19 @@ from app.domain.ai import (
     ChatSession,
 )
 from app.services import ai_provider_router
-from app.services.ai_multi_service import AGENT_TIMEOUT_SECONDS, _dedup, _run_one
+from app.services.ai_multi_service import (
+    AGENT_TIMEOUT_SECONDS,
+    UNSUPPORTED_IMAGE_MSG,
+    _dedup,
+    _run_one,
+    _user_meta,
+)
 from app.services.ai_provider_router import ChatPlan
 from app.services.ai_service import _auto_title
 from app.services.reasoning import prompts
 from app.services.reasoning import quality as q
-from app.services.reasoning.modes import normalize_mode, params_for, roles_for
+from app.services.reasoning.modes import params_for, roles_for
+from app.services.thinking import reasoning_depth, thinking_params
 
 ROLE_LABELS = {"analyst": "Analyst", "critic": "Critic", "synthesizer": "Synthesizer"}
 
@@ -71,7 +78,7 @@ def reasoning_chat(
     message: str,
     provider_ids: List[str],
     session_id: Optional[uuid.UUID] = None,
-    mode: str = "balanced",
+    thinking_mode: str = "balance",
     images: Optional[List[str]] = None,
 ) -> dict:
     ids = _dedup(provider_ids)
@@ -79,7 +86,8 @@ def reasoning_chat(
         raise ValidationAppError("Select at least one AI agent.")
     if len(ids) > MAX_AGENTS_PER_RUN:
         raise ValidationAppError(f"Maximum {MAX_AGENTS_PER_RUN} agents per run.")
-    mode = normalize_mode(mode)
+    # Thinking Mode drives both reasoning depth and sampling.
+    mode = reasoning_depth(thinking_mode)
 
     # Session + user message.
     if session_id is not None:
@@ -99,7 +107,7 @@ def reasoning_chat(
         session.title = _auto_title(message)
 
     user_message = ChatMessage(workspace_id=principal.workspace_id, session_id=session.id,
-                               role="user", content=message, meta={"images": images} if images else None)
+                               role="user", content=message, meta=_user_meta("reasoning", thinking_mode, images))
     db.add(user_message)
     db.flush()
 
@@ -112,6 +120,10 @@ def reasoning_chat(
 
     plans = {pid: ai_provider_router.plan_chat(db, principal, pid) for pid in ids}
     runnable = {pid: p for pid, p in plans.items() if p.runnable}
+    # With an image attached, only vision-capable agents can reason over it.
+    has_images = bool(images)
+    if has_images:
+        runnable = {pid: p for pid, p in runnable.items() if p.supports_image}
     responses: List[AiAgentResponse] = []
 
     def _record(provider_id, provider_name, status, content, error, latency, external, *, phase, extra=None):
@@ -142,12 +154,17 @@ def reasoning_chat(
         if pid in runnable:
             continue
         plan = plans[pid]
-        status = plan.status if plan.status in ("blocked", "not_configured", "disabled") else "error"
-        _record(pid, plan.provider_name, status, None, plan.message, None, plan.external, phase="analyst")
+        if has_images and plan.runnable and not plan.supports_image:
+            status, msg = "unsupported", UNSUPPORTED_IMAGE_MSG
+        else:
+            status = plan.status if plan.status in ("blocked", "not_configured", "disabled") else "error"
+            msg = plan.message
+        _record(pid, plan.provider_name, status, None, msg, None, plan.external, phase="analyst")
 
     task_type = q.detect_task_type(message)
     facts = q.extract_facts(message)
     gen_params = params_for(task_type, mode)
+    gen_params.update(thinking_params(thinking_mode))
 
     if not runnable:
         run.status = "error"

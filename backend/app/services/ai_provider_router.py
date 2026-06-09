@@ -168,6 +168,7 @@ def _view(spec: ProviderSpec, row: Optional[AiAgentConfig]) -> dict:
         "provider_type": spec.provider_type,
         "external": spec.external,
         "api_key_required": spec.api_key_required,
+        "capabilities": adapter.capabilities(),
         "enabled": enabled,
         "status": status,
         "configured": configured,
@@ -308,6 +309,9 @@ class ChatPlan:
     status: str
     message: str = ""
     _runner: Optional[Callable[..., "object"]] = field(default=None, repr=False)
+    # Whether the provider can accept image input (vision). Used to route images
+    # only to vision-capable providers.
+    supports_image: bool = True
 
     @property
     def runnable(self) -> bool:
@@ -363,7 +367,10 @@ def plan_chat(db: Session, principal: Principal, provider_id: Optional[str] = No
     def _run(messages: list[dict], params: Optional[dict] = None):
         return adapter.chat(public, secrets, messages, model=model, params=params)
 
-    return ChatPlan(pid, spec.name, spec.external, True, True, "queued", "", _run)
+    return ChatPlan(
+        pid, spec.name, spec.external, True, True, "queued", "",
+        supports_image=adapter.supports_image, _runner=_run,
+    )
 
 
 def run_chat(
