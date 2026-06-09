@@ -75,6 +75,16 @@ class MultiChatRequest(BaseModel):
     provider_ids: List[str] = Field(min_length=1, max_length=3)
 
 
+class DebateChatRequest(BaseModel):
+    """Multi-agent debate: 2–3 agents argue across rounds, then one synthesizes."""
+
+    message: str = Field(min_length=1, max_length=8000)
+    session_id: Optional[uuid.UUID] = None
+    provider_ids: List[str] = Field(min_length=1, max_length=3)
+    # Round 1 opening + rebuttal rounds. Bounded so a run can't explode in calls.
+    rounds: int = Field(default=2, ge=1, le=4)
+
+
 class AgentResponseOut(ORMModel):
     id: uuid.UUID
     run_id: uuid.UUID
