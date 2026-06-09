@@ -402,7 +402,10 @@ cmd_restart() {
     backend|be)
       ensure_postgres
       c_blue "Restarting backend on :${BACKEND_PORT}…"
-      _stop_one backend; _free_port "$BACKEND_PORT"; sleep 1; start_backend_bg ;;
+      _stop_one backend; _free_port "$BACKEND_PORT"; sleep 1; start_backend_bg
+      # Ensure the control agent is up too, so Settings → System Control can
+      # start/stop/restart services after a bare backend restart (no-op if already up).
+      start_agent_bg ;;
     frontend|fe|front)
       c_blue "Restarting frontend on :${FRONTEND_PORT}…"
       _stop_one frontend; _free_port "$FRONTEND_PORT"; sleep 1; start_frontend_bg

@@ -20,6 +20,8 @@ import os
 import re
 import shutil
 import socket
+import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -246,6 +248,66 @@ def _fallback_status(enabled: bool) -> dict:
         "control_enabled": enabled,
         "services": services,
     }
+
+
+def agent_running() -> bool:
+    """True if the localhost control agent answers /ping right now."""
+    try:
+        code, _ = _agent("GET", "/ping", timeout=3.0)
+        return code == 200
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return False
+
+
+def start_agent() -> dict:
+    """Launch the localhost control agent if it isn't already up. Local-mode only.
+
+    The backend is allowed exactly ONE spawn — the supervisor agent (which then owns
+    service start/stop/restart). It never starts/stops the services itself. This turns
+    the previously dead-end "agent not running" banner into a one-click recovery, so
+    System Control works even when the backend was started by hand (plain `uvicorn`)
+    instead of via `./allhaven.sh start`.
+    """
+    if not control_enabled():
+        raise ValidationAppError("System Control is disabled on this deployment.")
+    if agent_running():
+        return {"started": False, "running": True, "message": "Control agent is already running."}
+
+    agent_script = _REPO_ROOT / "installer" / "haven_agent.py"
+    if not agent_script.exists():
+        raise ValidationAppError("Control agent script not found (installer/haven_agent.py).")
+
+    log_dir = _REPO_ROOT / "var" / "logs"
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log = open(log_dir / "agent.log", "ab")  # noqa: SIM115 (kept open for the child)
+    except OSError as exc:
+        raise ValidationAppError(f"Could not open the agent log: {exc}")
+
+    # Detach so the agent outlives this request (its own session/process group). The
+    # agent self-bootstraps its token + pid file on startup (same path as allhaven.sh).
+    kwargs: dict = {
+        "stdout": log, "stderr": subprocess.STDOUT, "stdin": subprocess.DEVNULL,
+        "cwd": str(_REPO_ROOT),
+    }
+    if os.name == "posix":
+        kwargs["start_new_session"] = True
+    else:
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    try:
+        subprocess.Popen([sys.executable, str(agent_script)], **kwargs)  # noqa: S603 (fixed argv)
+    except OSError as exc:
+        raise ValidationAppError(f"Could not launch the control agent: {exc}")
+
+    # Wait (up to ~12s) for it to bind + answer /ping.
+    for _ in range(24):
+        if agent_running():
+            return {"started": True, "running": True, "message": "Control agent started."}
+        time.sleep(0.5)
+    raise ValidationAppError(
+        "The control agent did not come up in time. Check var/logs/agent.log, or start it "
+        "with ./allhaven.sh start."
+    )
 
 
 def _one_status(name: str) -> dict:

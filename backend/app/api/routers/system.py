@@ -22,6 +22,16 @@ def status(principal: Principal = Depends(get_current_principal)) -> dict:
     return success_response(system_service.get_status(), "System status")
 
 
+@router.post("/agent/start")
+def start_agent(principal: Principal = Depends(get_current_principal)) -> dict:
+    """Launch the localhost control agent (the supervisor that owns service control).
+
+    Local-mode only. This is the one-click fix behind the "Control agent not running"
+    banner — useful when the backend was started by hand instead of via the launcher.
+    """
+    return success_response(system_service.start_agent(), "Control agent")
+
+
 @router.post("/services/{name}/{action}")
 def service_action(
     name: str,
