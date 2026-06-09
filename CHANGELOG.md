@@ -11,6 +11,28 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [4.0.0] - 2026-06-20 — Full Mobile Parity + Tailscale Bridge + Release-Grade Stability
+
+Detailed notes: [`docs/v4/RELEASE_NOTES_v4.0.0.md`](docs/v4/RELEASE_NOTES_v4.0.0.md) · plan: [`docs/v4/`](docs/v4/)
+
+- **Full mobile parity + setup-required states.** Every active desktop module is reachable
+  from mobile; backend/bridge-dependent features (Drive, AI Knowledge, integration & AI-provider
+  config, n8n) show an actionable `SetupRequiredState` instead of any "use the desktop app" wall.
+- **Tailscale Desktop Bridge.** A connection resolver reaches desktop-local **Ollama**/**n8n** by
+  mode (local / tailscale-private / serve / funnel; **Funnel off by default**). Status is honest —
+  online only if the resolved endpoint responds. Ollama **chat inference** now uses the same
+  resolver. API-key AI providers stay **independent of Tailscale**.
+- **Deployment profiles** — `private` / `client_portal` / `public_demo` (`DEPLOYMENT_PROFILE`).
+- **Version visibility** — `GET /health` returns `app_version` + `deployment_profile`; a single
+  version source (VERSION) flows to backend, login, sidebar, and Settings; consistency test.
+- **Weather removed** from active scope (dormant tables/migrations kept to avoid destructive change).
+- **Carries v3.9 AI fixes** — finance-first deterministic intent routing (money never stored as
+  memory), robust Indonesian money parsing, cross-device approvals (two-way sync, no double-exec),
+  and the desktop CSS-on-update fix.
+- **Quality** — backend 471 tests pass; `tsc` + web + mobile builds clean; secret scan clean.
+- ⚠️ **Requires** applying Supabase migrations **0016** (mobile register) + **0017** (cross-device
+  proposal/suggestion sync) before relying on those in hosted Supabase — see the migration guide.
+
 ## [3.8.0] - 2026-06-19 — Mobile full release, unified accounts, perf & weather removal
 
 Detailed notes: [`docs/releases/v3.8.0.md`](docs/releases/v3.8.0.md)
