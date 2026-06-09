@@ -151,8 +151,6 @@ def debate_chat(
         raise ValidationAppError(f"Maximum {MAX_AGENTS_PER_RUN} agents per run.")
     rounds = max(1, min(int(rounds or DEFAULT_DEBATE_ROUNDS), MAX_DEBATE_ROUNDS))
 
-    extra_context = memory_context_builder.build(db, principal, message, section_key)
-
     # Session + user message (persisted regardless of agent outcomes).
     if session_id is not None:
         session = db.scalar(
@@ -293,6 +291,8 @@ def debate_chat(
     last_answer: Dict[str, str] = {}  # pid -> most recent completed content
     rounds_to_run = rounds if n_runnable >= 2 else 1  # one agent => no rebuttal
 
+    extra_context = memory_context_builder.build(db, principal, message, section_key)
+    # Debate rounds have no system message; prefix the opening user prompt instead.
     mem_prefix = f"{extra_context}\n\n" if extra_context else ""
     for k in range(1, rounds_to_run + 1):
         if k == 1:
