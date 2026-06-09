@@ -8,7 +8,7 @@
 
 _The AI acts fast, but risky writes still need human approval._
 
-[![Version](https://img.shields.io/badge/version-3.7.0%20·%20AllHaven%203.7-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.0.0%20·%20AllHaven%204.0-18E0D6?style=flat-square)](CHANGELOG.md)
 &nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 &nbsp;![Next.js 14](https://img.shields.io/badge/Next.js%2014-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 &nbsp;![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
@@ -25,10 +25,13 @@ _The AI acts fast, but risky writes still need human approval._
 > **multi-agent AI** assistant — fast for low-risk memory/context work, cautious for
 > risky writes that need explicit human approval.
 
-**Version:** **v3.7.0** — archive [`AllHaven 3.7`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
+**Version:** **v4.0.0** — archive [`AllHaven 4.0`](../../tree/master) · [Changelog](CHANGELOG.md) · [Release notes](docs/v4/RELEASE_NOTES_v4.0.0.md) · [v4 docs](docs/v4/)
+
+> **Weather has been removed from the product scope in v4.0** (dormant tables kept only to avoid a destructive migration).
 
 ### 🆕 What's new
 
+- **v4.0.0 — Full Mobile Parity + Tailscale Bridge + Release-Grade Stability.** The biggest release so far. Every active desktop module is reachable from mobile; backend/bridge-dependent features (Drive, AI Knowledge, integration/AI-provider config, n8n) show an actionable **setup-required** state instead of a "use the desktop app" wall. New **Tailscale Desktop Bridge** lets mobile reach desktop-local **Ollama**/**n8n** (modes: local / tailscale-private / serve / funnel — **Funnel off by default**), with honest status (online only if the resolved endpoint responds); API-key AI providers stay independent of Tailscale. Adds **deployment profiles** (private / client_portal / public_demo), end-to-end **version visibility** (`/health` `app_version`, login/sidebar/settings), and **Weather removal**. Carries the v3.9 AI fixes (finance-first intent routing so money is never stored as memory, cross-device approvals, robust Indonesian money parsing). Backend **471 tests pass**; build clean. → [release notes](docs/v4/RELEASE_NOTES_v4.0.0.md) · ⚠️ apply Supabase migrations **0016/0017** before relying on mobile register + cross-device sync ([guide](docs/v4/SUPABASE_MIGRATION_GUIDE_v4.0.0.md)).
 - **v3.7.0 — AllHaven 3.7 two-way Supabase sync + mobile-on-Supabase.** Introduces a two-way incremental sync engine between local Postgres and Supabase (Last-Write-Wins by `updated_at`, soft-delete tombstones, echo-suppression) and a mobile Supabase data layer so the Android APK talks directly to Supabase with no AllHaven backend in the path. Mobile login switches to Supabase Auth; existing users link via a new "Connect to Supabase" button in Settings. Database migrations 0010 – 0015 add soft-delete columns, identity mapping, a DB-authoritative `updated_at` trigger, Supabase RLS with workspace-scoped helper functions, `workspace_members` RLS hardening (closes a privilege-escalation path), and a `sync_state` watermark table. Also fixes the infinite login/dashboard spinner, checklist item sync resurrection, and cross-device item ordering. → [release notes](docs/releases/v3.7.0.md)
 - **v3.6.0 — AllHaven 3.6 privacy cleanup.** Housekeeping release: removes a personal local-path identifier from the in-repo development notes so the project ships clean as a personal project. No application code, API, or behavior changes. → [release notes](docs/releases/v3.6.0.md)
 - **v3.5.0 — AllHaven 3.5 AI routine generation and atomic save.** Adds a "Generate with AI" flow to Routine: describe your day and the configured provider drafts realistic routine items for a Morning/Afternoon/Evening window, which you review and edit before saving them together in one atomic batch (an invalid item saves none). Generation is honest by design — it never fabricates routines, never saves on its own, and clearly reports when a provider is missing or disabled — plus a Routine sync-status card and a component refactor of the routines page. → [release notes](docs/releases/v3.5.0.md)
