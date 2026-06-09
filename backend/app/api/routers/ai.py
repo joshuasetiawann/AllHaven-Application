@@ -21,12 +21,16 @@ from app.schemas.ai import (
     AgentResponseOut,
     ChatRequest,
     ChatResponse,
+    GroupCreate,
+    GroupOut,
+    GroupUpdate,
     MessageOut,
     MultiChatRequest,
     MultiChatResponse,
     ProposalOut,
     SessionCreate,
     SessionOut,
+    SessionUpdate,
 )
 from pydantic import BaseModel
 
@@ -129,6 +133,49 @@ def disable_provider(
     return success_response(ai_provider_router.set_enabled(db, principal, provider_id, False), "Provider disabled")
 
 
+# --- conversation groups / projects --------------------------------------
+
+
+@router.get("/groups")
+def list_groups(
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    groups = ai_service.list_groups(db, principal)
+    return success_response([GroupOut.model_validate(g) for g in groups], "Groups retrieved")
+
+
+@router.post("/groups")
+def create_group(
+    payload: GroupCreate,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    group = ai_service.create_group(db, principal, payload.name)
+    return success_response(GroupOut.model_validate(group), "Group created")
+
+
+@router.patch("/groups/{group_id}")
+def update_group(
+    group_id: uuid.UUID,
+    payload: GroupUpdate,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    group = ai_service.update_group(db, principal, group_id, payload.name)
+    return success_response(GroupOut.model_validate(group), "Group updated")
+
+
+@router.delete("/groups/{group_id}")
+def delete_group(
+    group_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    ai_service.delete_group(db, principal, group_id)
+    return success_response({"id": str(group_id)}, "Group deleted")
+
+
 @router.get("/sessions")
 def list_sessions(
     principal: Principal = Depends(get_current_principal),
@@ -144,8 +191,31 @@ def create_session(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    session = ai_service.create_session(db, principal, payload.title)
+    session = ai_service.create_session(db, principal, payload.title, payload.group_id)
     return success_response(SessionOut.model_validate(session), "Session created")
+
+
+@router.patch("/sessions/{session_id}")
+def update_session(
+    session_id: uuid.UUID,
+    payload: SessionUpdate,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    session = ai_service.update_session(
+        db, principal, session_id, payload.model_dump(exclude_unset=True)
+    )
+    return success_response(SessionOut.model_validate(session), "Session updated")
+
+
+@router.delete("/sessions/{session_id}")
+def delete_session(
+    session_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    ai_service.delete_session(db, principal, session_id)
+    return success_response({"id": str(session_id)}, "Session deleted")
 
 
 @router.get("/sessions/{session_id}")
