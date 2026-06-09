@@ -34,7 +34,10 @@ class GeminiProvider(AIProvider):
         code, _, err = safe_request("GET", f"{API_BASE}/models", params={"key": key})
         return interpret_http(code, err)
 
-    def chat(self, public: dict, secrets: dict, messages: list[dict], model: Optional[str] = None) -> ChatResult:
+    def chat(
+        self, public: dict, secrets: dict, messages: list[dict],
+        model: Optional[str] = None, params: Optional[dict] = None,
+    ) -> ChatResult:
         key = secrets.get("api_key")
         if not key:
             return ChatResult(False, error="API key not set")
@@ -44,11 +47,19 @@ class GeminiProvider(AIProvider):
             for m in messages
             if m.get("role") in ("user", "assistant")
         ]
+        body_json: dict = {"contents": contents}
+        gen_config = {}
+        if params and params.get("temperature") is not None:
+            gen_config["temperature"] = params["temperature"]
+        if params and params.get("top_p") is not None:
+            gen_config["topP"] = params["top_p"]
+        if gen_config:
+            body_json["generationConfig"] = gen_config
         code, body, err = safe_request(
             "POST",
             f"{API_BASE}/models/{chosen}:generateContent",
             params={"key": key},
-            json={"contents": contents},
+            json=body_json,
         )
         if err:
             return ChatResult(False, error=network_error_message(err))
