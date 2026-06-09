@@ -45,7 +45,7 @@ export default function LoginPage() {
       const unreachable = isBackendUnreachable(err);
       setConnError(unreachable);
       if (unreachable) setShowBackendSetup(true);
-      setError(err instanceof ApiException ? err.message : "Something went wrong. Please try again.");
+      setError(err instanceof ApiException || err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

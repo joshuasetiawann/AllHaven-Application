@@ -1,6 +1,7 @@
 // frontend/lib/supabaseClient.ts — lazy supabase-js singleton + DATA_MODE flag.
 // Session is persisted via Capacitor Preferences so it survives app restarts.
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ApiException } from "@/lib/apiRest";
 import { setBearerToken, clearBearerToken } from "@/lib/mobileAuth";
 
 export const DATA_MODE = process.env.NEXT_PUBLIC_DATA_MODE === "supabase";
@@ -33,6 +34,13 @@ const capacitorStorage = {
 
 export async function getSupabase(): Promise<SupabaseClient> {
   if (client) return client;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new ApiException(
+      "Mobile login is missing Supabase configuration. Rebuild the APK with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      "SUPABASE_NOT_CONFIGURED",
+      500,
+    );
+  }
   const { createClient } = await import("@supabase/supabase-js");
   client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
