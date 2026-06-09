@@ -126,8 +126,13 @@ function handleUnauthorized(status: number): void {
 // (AI, settings, drive, …) point at an optional backend that's often
 // unreachable from the phone — fail those fast so they don't freeze the UI.
 const REQUEST_TIMEOUT_MS = BEARER_MODE ? 6000 : 20000;
+// AI generation (chat / multi-agent / debate / reasoning council) legitimately takes
+// far longer than a normal request — the 6s mobile fail-fast would abort a real reply
+// mid-stream. Give those calls a generous ceiling so AI works on mobile, while plain
+// reads/writes still fail fast. Callers opt in via the `timeoutMs` arg on request().
+const AI_TIMEOUT_MS = 120000;
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T> {
   const method = (options.method || "GET").toUpperCase();
   // Mobile: make sure the persisted bearer token is loaded before the first
   // call, so a cold start can't fire requests with no Authorization header.
@@ -138,7 +143,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     let res: Response;
     try {
@@ -306,26 +311,26 @@ export const aiApi = {
     request<ChatResponse>("/ai/chat", {
       method: "POST",
       body: json({ message, session_id: sessionId || null, provider_id: providerId || null, section_key: sectionKey, thinking_mode: thinkingMode, response_language: responseLanguage || null }),
-    }),
+    }, AI_TIMEOUT_MS),
   // Fan a message out to up to 10 agents concurrently. `images` are data URLs;
   // `thinkingMode` controls reasoning depth + sampling.
   multiChat: (message: string, providerIds: string[], sessionId?: string, images?: string[], thinkingMode = "balance", sectionKey = "general", responseLanguage?: string) =>
     request<MultiChatResponse>("/ai/chat/multi", {
       method: "POST",
       body: json({ message, provider_ids: providerIds, session_id: sessionId || null, images: images?.length ? images : null, thinking_mode: thinkingMode, section_key: sectionKey, response_language: responseLanguage || null }),
-    }),
+    }, AI_TIMEOUT_MS),
   // Run a multi-agent debate: agents argue across `rounds`, then one synthesizes.
   debateChat: (message: string, providerIds: string[], sessionId?: string, rounds = 2, images?: string[], thinkingMode = "balance", sectionKey = "general", responseLanguage?: string) =>
     request<MultiChatResponse>("/ai/chat/debate", {
       method: "POST",
       body: json({ message, provider_ids: providerIds, session_id: sessionId || null, rounds, images: images?.length ? images : null, thinking_mode: thinkingMode, section_key: sectionKey, response_language: responseLanguage || null }),
-    }),
+    }, AI_TIMEOUT_MS),
   // Run the reasoning council (Analyst -> Critic -> Synthesizer + quality gate).
   reasonChat: (message: string, providerIds: string[], sessionId?: string, thinkingMode = "balance", images?: string[], sectionKey = "general", responseLanguage?: string) =>
     request<MultiChatResponse>("/ai/chat/reason", {
       method: "POST",
       body: json({ message, provider_ids: providerIds, session_id: sessionId || null, thinking_mode: thinkingMode, images: images?.length ? images : null, section_key: sectionKey, response_language: responseLanguage || null }),
-    }),
+    }, AI_TIMEOUT_MS),
   getRun: (runId: string) => request<MultiChatResponse>(`/ai/runs/${runId}`),
   listProposals: () => request<ToolProposal[]>("/ai/proposals"),
   rejectProposal: (id: string) =>
