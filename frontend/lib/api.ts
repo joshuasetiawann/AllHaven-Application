@@ -193,23 +193,24 @@ export const aiApi = {
       method: "POST",
       body: json({ message, session_id: sessionId || null, provider_id: providerId || null }),
     }),
-  // Fan a message out to up to 3 agents concurrently. `images` are data URLs.
-  multiChat: (message: string, providerIds: string[], sessionId?: string, images?: string[]) =>
+  // Fan a message out to up to 3 agents concurrently. `images` are data URLs;
+  // `thinkingMode` controls reasoning depth + sampling.
+  multiChat: (message: string, providerIds: string[], sessionId?: string, images?: string[], thinkingMode = "balance") =>
     request<MultiChatResponse>("/ai/chat/multi", {
       method: "POST",
-      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, images: images?.length ? images : null }),
+      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, images: images?.length ? images : null, thinking_mode: thinkingMode }),
     }),
   // Run a multi-agent debate: agents argue across `rounds`, then one synthesizes.
-  debateChat: (message: string, providerIds: string[], sessionId?: string, rounds = 2, images?: string[]) =>
+  debateChat: (message: string, providerIds: string[], sessionId?: string, rounds = 2, images?: string[], thinkingMode = "balance") =>
     request<MultiChatResponse>("/ai/chat/debate", {
       method: "POST",
-      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, rounds, images: images?.length ? images : null }),
+      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, rounds, images: images?.length ? images : null, thinking_mode: thinkingMode }),
     }),
   // Run the reasoning council (Analyst -> Critic -> Synthesizer + quality gate).
-  reasonChat: (message: string, providerIds: string[], sessionId?: string, mode: "fast" | "balanced" | "deep" = "balanced", images?: string[]) =>
+  reasonChat: (message: string, providerIds: string[], sessionId?: string, thinkingMode = "balance", images?: string[]) =>
     request<MultiChatResponse>("/ai/chat/reason", {
       method: "POST",
-      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, mode, images: images?.length ? images : null }),
+      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, thinking_mode: thinkingMode, images: images?.length ? images : null }),
     }),
   getRun: (runId: string) => request<MultiChatResponse>(`/ai/runs/${runId}`),
   listProposals: () => request<ToolProposal[]>("/ai/proposals"),

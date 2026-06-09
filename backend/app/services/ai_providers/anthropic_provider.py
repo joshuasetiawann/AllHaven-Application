@@ -25,6 +25,8 @@ class AnthropicProvider(AIProvider):
     external = True
     requires_api_key = True
     default_model = "claude-sonnet-4-5"
+    supports_image = True
+    supports_tools = True
 
     def _headers(self, key: str) -> dict:
         return {"x-api-key": key, "anthropic-version": ANTHROPIC_VERSION}

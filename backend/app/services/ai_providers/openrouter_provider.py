@@ -17,6 +17,8 @@ class OpenRouterProvider(OpenAICompatibleProvider):
     requires_api_key = True
     default_base_url = "https://openrouter.ai/api/v1"
     default_model = "openai/gpt-4.1-mini"
+    supports_image = True
+    supports_tools = True
     extra_headers = {"HTTP-Referer": "https://allhaven.local", "X-Title": "AllHaven Command Center"}
 
     def test_connection(self, public: dict, secrets: dict) -> VerifyResult:
