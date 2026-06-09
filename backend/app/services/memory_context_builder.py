@@ -117,7 +117,7 @@ def build(
 
     def _add(memories: list[AiMemory]) -> None:
         for m in memories:
-            if m.id not in seen_ids and m.enabled and m.status == "active":
+            if m.id not in seen_ids and m.enabled and m.status == "active" and not getattr(m, "is_deleted", False):
                 seen_ids.add(m.id)
                 selected.append(m)
 

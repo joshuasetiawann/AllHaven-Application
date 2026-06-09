@@ -40,6 +40,10 @@ class AiMemory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     source_session_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
     meta: Mapped[dict | None] = mapped_column("metadata", JSONType, nullable=True)
+    # Soft delete: a delete is an UPDATE (is_deleted=true) so two-way LWW sync carries it
+    # in both directions instead of the row being resurrected from the peer on next pull.
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AiMemorySuggestion(UUIDPrimaryKeyMixin, Base):

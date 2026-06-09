@@ -231,6 +231,16 @@ def _auto_save_or_suggest(
 ) -> None:
     from app.services import ai_settings_service, memory_service
 
+    # Re-learn guard: if the user already DELETED a memory with this exact
+    # category+title, don't let background extraction re-suggest or re-save it. (An
+    # active twin is returned first by find_existing_memory, so this only short-circuits
+    # when the sole match is soft-deleted.)
+    twin = memory_service.find_existing_memory(
+        db, principal, candidate.category, candidate.title, include_deleted=True
+    )
+    if twin is not None and twin.is_deleted:
+        return
+
     require_approval_sensitive = ai_settings_service.is_memory_require_approval_sensitive(
         db, principal
     )
