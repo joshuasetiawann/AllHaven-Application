@@ -1,6 +1,8 @@
 import {
   Bot,
+  Calculator,
   Calendar,
+  Clock,
   CloudSun,
   HardDrive,
   LayoutDashboard,
@@ -29,6 +31,8 @@ export const PRIMARY_NAV: NavItem[] = [
 
 // Now accessible (MVP preview pages with honest setup states).
 export const MODULE_NAV: NavItem[] = [
+  { href: "/dashboard/calculator", label: "Calculator", icon: Calculator },
+  { href: "/dashboard/clock", label: "Clock", icon: Clock },
   { href: "/dashboard/drive", label: "Drive", icon: HardDrive, badge: "MVP" },
   { href: "/dashboard/calendar", label: "Calendar", icon: Calendar, badge: "MVP" },
   { href: "/dashboard/weather", label: "Weather", icon: CloudSun, badge: "MVP" },
@@ -37,4 +41,4 @@ export const MODULE_NAV: NavItem[] = [
 
 export const SETTINGS_NAV: NavItem = { href: "/dashboard/settings", label: "Settings", icon: Settings };
 
-export const APP_VERSION = "v0.4.0";
+export const APP_VERSION = "v0.5.0";

@@ -37,9 +37,16 @@ from app.domain.ai import (
     ChatSession,
 )
 from app.services import ai_provider_router
-from app.services.ai_multi_service import AGENT_TIMEOUT_SECONDS, _dedup, _run_one
+from app.services.ai_multi_service import (
+    AGENT_TIMEOUT_SECONDS,
+    UNSUPPORTED_IMAGE_MSG,
+    _dedup,
+    _run_one,
+    _user_meta,
+)
 from app.services.ai_provider_router import ChatPlan
 from app.services.ai_service import _auto_title
+from app.services.thinking import thinking_params
 
 # Number of debate rounds (round 1 opening + rebuttal rounds). Bounded so a run
 # never explodes into too many provider calls (3 agents x 4 rounds + synthesis).
@@ -92,6 +99,7 @@ def _synthesis_prompt(question: str, transcript: List[Tuple[str, List[Tuple[str,
 
 def _run_round(
     runnable: Dict[str, ChatPlan], prompts: Dict[str, str], images: Optional[List[str]] = None,
+    params: Optional[dict] = None,
 ) -> Dict[str, dict]:
     """Run one debate round: every runnable agent's call fans out concurrently."""
     outcomes: Dict[str, dict] = {}
@@ -99,7 +107,7 @@ def _run_round(
         return outcomes
     with ThreadPoolExecutor(max_workers=len(runnable)) as pool:
         futures = {
-            pool.submit(_run_one, plan, [{"role": "user", "content": prompts[pid], "images": images or []}]): pid
+            pool.submit(_run_one, plan, [{"role": "user", "content": prompts[pid], "images": images or []}], params): pid
             for pid, plan in runnable.items()
         }
         for future, pid in list(futures.items()):
@@ -122,6 +130,7 @@ def debate_chat(
     session_id: Optional[uuid.UUID] = None,
     rounds: int = DEFAULT_DEBATE_ROUNDS,
     images: Optional[List[str]] = None,
+    thinking_mode: str = "balance",
 ) -> dict:
     ids = _dedup(provider_ids)
     if not ids:
@@ -156,7 +165,7 @@ def debate_chat(
         session_id=session.id,
         role="user",
         content=message,
-        meta={"images": images} if images else None,
+        meta=_user_meta("debate", thinking_mode, images),
     )
     db.add(user_message)
     db.flush()
@@ -175,7 +184,12 @@ def debate_chat(
     # Resolve every provider on this thread (DB reads only).
     plans = {pid: ai_provider_router.plan_chat(db, principal, pid) for pid in ids}
     runnable = {pid: p for pid, p in plans.items() if p.runnable}
+    # With an image attached, only vision-capable agents can join the debate.
+    has_images = bool(images)
+    if has_images:
+        runnable = {pid: p for pid, p in runnable.items() if p.supports_image}
     n_runnable = len(runnable)
+    params = thinking_params(thinking_mode)
 
     responses: List[AiAgentResponse] = []
 
@@ -224,8 +238,12 @@ def debate_chat(
         plan = plans[pid]
         if pid in runnable:
             continue
-        status = plan.status if plan.status in ("blocked", "not_configured", "disabled") else "error"
-        _record(pid, plan.provider_name, status, None, plan.message, None, plan.external,
+        if has_images and plan.runnable and not plan.supports_image:
+            status, msg = "unsupported", UNSUPPORTED_IMAGE_MSG
+        else:
+            status = plan.status if plan.status in ("blocked", "not_configured", "disabled") else "error"
+            msg = plan.message
+        _record(pid, plan.provider_name, status, None, msg, None, plan.external,
                 round_no=1, phase="opening")
 
     # No runnable agents -> honest error, no fabricated debate.
@@ -271,7 +289,7 @@ def debate_chat(
                     for o in runnable if o != pid and o in last_answer
                 ]
                 prompts[pid] = _rebuttal_prompt(plans[pid].provider_name, message, others)
-        outcomes = _run_round(runnable, prompts, images if k == 1 else None)
+        outcomes = _run_round(runnable, prompts, images if k == 1 else None, params)
         round_outcomes.append(outcomes)
         for pid, oc in outcomes.items():
             if oc["status"] == "completed" and oc["content"]:
@@ -313,7 +331,7 @@ def debate_chat(
             final_status, final_content, final_error = "error", None, "The agent did not produce an answer."
     else:
         oc = _run_round({synth_pid: runnable[synth_pid]},
-                        {synth_pid: _synthesis_prompt(message, transcript)})[synth_pid]
+                        {synth_pid: _synthesis_prompt(message, transcript)}, None, params)[synth_pid]
         final_status = oc["status"]
         final_content = oc["content"]
         final_error = oc["error"]
