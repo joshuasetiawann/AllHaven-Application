@@ -199,19 +199,20 @@ def test_reasoning_chat_extracts_name_memory_synchronously(auth_client, db_sessi
 
 
 # ---------------------------------------------------------------------------
-# (d) Memory context injected into ANALYST prompt only — not later stages
+# (d) Memory context injected into ANALYST and SYNTHESIZER prompts
 # ---------------------------------------------------------------------------
 
 
-def test_reasoning_chat_injects_memory_context_into_analyst_only(
+def test_reasoning_chat_injects_memory_context_into_analyst_and_synthesizer(
     auth_client, db_session, monkeypatch
 ):
-    """With a pre-seeded memory, the analyst-stage prompt contains the memory block
-    exactly once. Critic and synthesizer prompts contain zero occurrences.
+    """With a pre-seeded memory, analyst and synthesizer prompts contain the memory
+    block exactly once. Critic prompts contain zero occurrences.
 
     The reasoning pipeline runs as: analyst -> (critic in deep) -> synthesizer.
     We use thinking_mode='deep' with 3 providers to hit all three stages.
-    Memory prefix must appear in the analyst prompt only.
+    Memory prefix must appear in analyst/synthesizer prompts so final answers keep
+    user context while critique remains focused on the analyst answer.
     """
     principal = _principal(auth_client)
 
@@ -262,7 +263,8 @@ def test_reasoning_chat_injects_memory_context_into_analyst_only(
     # The analyst prompt is the first call — it should contain the memory block exactly once.
     # The analyst prompt contains ANALYST_PROMPT ("You are Analyst") from prompts.py.
     analyst_prompts = [p for p in all_user_prompts if "You are Analyst" in p]
-    non_analyst_prompts = [p for p in all_user_prompts if "You are Analyst" not in p]
+    synthesizer_prompts = [p for p in all_user_prompts if "You are Synthesizer" in p]
+    critic_prompts = [p for p in all_user_prompts if "You are Critic" in p]
 
     assert analyst_prompts, "Expected at least one analyst-stage prompt to be captured"
 
@@ -276,10 +278,15 @@ def test_reasoning_chat_injects_memory_context_into_analyst_only(
             f"{prompt.count('[AI Memory')}: {prompt!r}"
         )
 
-    # Critic and synthesizer prompts must NOT contain the memory block.
-    for prompt in non_analyst_prompts:
+    assert synthesizer_prompts, "Expected at least one synthesizer-stage prompt to be captured"
+    for prompt in synthesizer_prompts:
+        assert "ReasoningTestUser" in prompt
+        assert prompt.count("[AI Memory") == 1
+
+    # Critic prompts must NOT contain the memory block.
+    for prompt in critic_prompts:
         assert "[AI Memory" not in prompt, (
-            f"Memory block found in non-analyst (critic/synth) prompt: {prompt!r}"
+            f"Memory block found in critic prompt: {prompt!r}"
         )
 
 

@@ -33,6 +33,9 @@ ALLOWED_ENV_KEYS = {
     "GEMINI_API_KEY", "GEMINI_DEFAULT_MODEL",
     "GROK_API_KEY", "GROK_DEFAULT_MODEL",
     "BLACKBOX_API_KEY", "BLACKBOX_DEFAULT_MODEL",
+    "CURSOR_API_KEY", "CURSOR_DEFAULT_MODEL", "CURSOR_BASE_URL",
+    "DEEPSEEK_API_KEY", "DEEPSEEK_DEFAULT_MODEL",
+    "QWEN_API_KEY", "QWEN_DEFAULT_MODEL",
     "OPENROUTER_1_API_KEY", "OPENROUTER_1_DEFAULT_MODEL",
     "OPENROUTER_2_API_KEY", "OPENROUTER_2_DEFAULT_MODEL",
     "OPENROUTER_3_API_KEY", "OPENROUTER_3_DEFAULT_MODEL",
@@ -132,6 +135,8 @@ def sync_env(updates: Dict[str, str]) -> dict:
 _AI_PREFIX = {
     "openai": "OPENAI", "anthropic": "ANTHROPIC", "gemini": "GEMINI",
     "grok": "GROK", "blackbox": "BLACKBOX",
+    "cursor": "CURSOR",
+    "deepseek": "DEEPSEEK", "qwen": "QWEN",
     "openrouter_1": "OPENROUTER_1", "openrouter_2": "OPENROUTER_2", "openrouter_3": "OPENROUTER_3",
     "openrouter_4": "OPENROUTER_4", "openrouter_5": "OPENROUTER_5", "openrouter_6": "OPENROUTER_6",
 }
@@ -153,6 +158,8 @@ def map_ai_provider_updates(provider_id: str, public: dict, secrets: dict) -> Di
         out[f"{prefix}_API_KEY"] = secrets.get("api_key", "")
     if "default_model" in public:
         out[f"{prefix}_DEFAULT_MODEL"] = public.get("default_model", "")
+    if provider_id == "cursor" and "base_url" in public:
+        out["CURSOR_BASE_URL"] = public.get("base_url", "")
     return out
 
 

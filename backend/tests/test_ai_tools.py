@@ -55,7 +55,7 @@ def test_chat_settings_defaults_and_update(auth_client):
     data = auth_client.get(f"{API}/ai/settings/chat").json()["data"]
     assert data["require_approval"] is True       # safety default ON
     assert data["show_debate_flow"] is True       # preserves existing behavior
-    assert data["max_active_agents"] == 7
+    assert data["max_active_agents"] == 10
 
     resp = auth_client.put(
         f"{API}/ai/settings/chat",
@@ -68,7 +68,7 @@ def test_chat_settings_defaults_and_update(auth_client):
 
     # Validation: bad values rejected.
     assert auth_client.put(f"{API}/ai/settings/chat", json={"default_mode": "anarchy"}).status_code == 422
-    assert auth_client.put(f"{API}/ai/settings/chat", json={"max_active_agents": 9}).status_code == 422
+    assert auth_client.put(f"{API}/ai/settings/chat", json={"max_active_agents": 11}).status_code == 422
 
 
 # --- model slots (API) --------------------------------------------------------

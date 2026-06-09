@@ -36,7 +36,7 @@ CHAT_DEFAULTS = {
     "require_approval": True,   # write actions create pending proposals by default
     "show_tool_activity": True,
     "polish_level": "standard",
-    "max_active_agents": 7,     # hard product cap; users may lower it
+    "max_active_agents": 10,    # hard product cap; users may lower it
 }
 
 MEMORY_DEFAULTS = {
@@ -81,7 +81,7 @@ def get_chat_settings(db: Session, principal: Principal) -> dict:
     stored = row.public_config if (row and isinstance(row.public_config, dict)) else {}
     merged = {**CHAT_DEFAULTS, **{k: v for k, v in stored.items() if k in CHAT_DEFAULTS}}
     # Clamp anything that may have been stored before validation existed.
-    merged["max_active_agents"] = max(1, min(int(merged.get("max_active_agents") or 7), 7))
+    merged["max_active_agents"] = max(1, min(int(merged.get("max_active_agents") or 10), 10))
     if merged.get("default_mode") not in CHAT_MODES:
         merged["default_mode"] = CHAT_DEFAULTS["default_mode"]
     if merged.get("polish_level") not in POLISH_LEVELS:
@@ -111,8 +111,8 @@ def set_chat_settings(db: Session, principal: Principal, updates: dict) -> dict:
                 n = int(value)
             except (TypeError, ValueError):
                 raise ValidationAppError("max_active_agents must be a number.")
-            if not 1 <= n <= 7:
-                raise ValidationAppError("max_active_agents must be between 1 and 7.")
+            if not 1 <= n <= 10:
+                raise ValidationAppError("max_active_agents must be between 1 and 10.")
             clean[key] = n
     row = _ensure_row(db, principal, CHAT_SETTINGS_PROVIDER_ID, "AI Chat Behavior")
     row.public_config = {**(row.public_config or {}), **clean}
