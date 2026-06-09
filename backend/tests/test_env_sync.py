@@ -58,7 +58,10 @@ def test_env_sync_rejects_arbitrary_keys():
 def test_env_sync_allowlist_membership():
     assert "OPENAI_API_KEY" in env_file_service.ALLOWED_ENV_KEYS
     assert "OPENROUTER_3_API_KEY" in env_file_service.ALLOWED_ENV_KEYS
+    assert "SUPABASE_SERVICE_ROLE_KEY" in env_file_service.ALLOWED_ENV_KEYS
     assert "EVIL_KEY" not in env_file_service.ALLOWED_ENV_KEYS
-    # A sensitive non-allowlisted key must be excluded.
+    # Bootstrap/security-sensitive keys must NEVER be web-syncable: the JWT signing
+    # secret and the DB bootstrap URL are intentionally excluded (changing the latter
+    # from the web would break the running app — see docs/LOCAL_SETUP.md).
     assert "SECRET_KEY" not in env_file_service.ALLOWED_ENV_KEYS
     assert "DATABASE_URL" not in env_file_service.ALLOWED_ENV_KEYS
