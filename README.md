@@ -8,7 +8,7 @@
 
 _The AI acts fast, but risky writes still need human approval._
 
-[![Version](https://img.shields.io/badge/version-3.3.0%20·%20AllHaven%203.3-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.3.1%20·%20AllHaven%203.3.1-18E0D6?style=flat-square)](CHANGELOG.md)
 &nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 &nbsp;![Next.js 14](https://img.shields.io/badge/Next.js%2014-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 &nbsp;![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
@@ -25,10 +25,11 @@ _The AI acts fast, but risky writes still need human approval._
 > **multi-agent AI** assistant — fast for low-risk memory/context work, cautious for
 > risky writes that need explicit human approval.
 
-**Version:** **v3.3.0** — archive [`AllHaven 3.3`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
+**Version:** **v3.3.1** — archive [`AllHaven 3.3.1`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
 
 ### 🆕 What's new
 
+- **v3.3.1 — AllHaven 3.3.1 local Routine UX polish.** Makes Routine fully local-first in the UI, adds a lighter habit-style builder with icon/color/repeat/Pagi-Siang-Malam slots, removes the goal field, keeps empty time lanes visible, and falls back to the compatible local `/calendar/events` endpoint if the backend has not restarted yet. → [release notes](docs/releases/v3.3.1.md)
 - **v3.3.0 — AllHaven 3.3 Routine planner and sidebar flow.** Replaces the old Calendar surface with a polished **Routine** planner for daily schedules, exact date/time blocks, and plans far ahead. The sidebar now follows the requested flow: Dashboard, AI Chat, Routine, Task, Finance, Notes, Approval. Existing calendar data stays safe through compatible `/calendar/events` endpoints while the new UI uses `/routines/events`. → [release notes](docs/releases/v3.3.0.md)
 - **v3.2.0 — AllHaven 3.2 repository hygiene and render skeletons.** Removes local `.env` files from the working tree while keeping safe templates for fresh clones, adds app-wide Next.js route skeleton loaders, gives dashboard renders a full shell skeleton, and clarifies the archive branch so the early `0.1` through `1.3` releases remain CoreOS with `CoreOS 1.2 → v0.1.0` and `CoreOS 1.3 → v0.2.0`. → [release notes](docs/releases/v3.2.0.md)
 - **v3.1.0 — AllHaven 3.1 expanded AI agents and settings UX.** Raises multi-agent runs to **10 agents**, adds first-class **Cursor AI**, **DeepSeek**, and **Qwen** providers, improves Debate prompts and final output structure, and reorganizes Settings → AI Providers into compact health stats plus Direct/OpenRouter sections with clearer labels such as GPT 1/2, Gemini 1/2, Cursor 1/2, DeepSeek, and Qwen. Status remains honest: `online` appears only after a real Test Connection. → [release notes](docs/releases/v3.1.0.md)
@@ -287,7 +288,7 @@ cd frontend && npm run build
 | AI Knowledge | `GET/POST /ai/knowledge/documents`, `GET /ai/knowledge/documents/{id}`, `POST /ai/knowledge/documents/{id}/reindex`, `DELETE /ai/knowledge/documents/{id}`, `GET /ai/knowledge/search` |
 | AI config| `GET /ai/providers`, `PUT /ai/providers/{id}`, `POST /ai/providers/{id}/test\|enable\|disable`, `GET/PUT /ai/policy` |
 | Settings | `GET /settings/integrations`, `PUT /settings/integrations/{id}`, `POST /settings/integrations/{id}/test\|enable\|disable` |
-| Routine | `GET/POST /routines/events`, `PUT/DELETE /routines/events/{id}` (`/calendar/events` remains compatible) |
+| Routine | `GET/POST /routines/events`, `PUT/DELETE /routines/events/{id}` (`/calendar/events` remains compatible; local DB, no Google Calendar required) |
 | Drive    | `GET/POST /drive/files`, `GET /drive/files/{id}/download`, `DELETE /drive/files/{id}` |
 | Automations | `GET/POST /automations`, `PUT/DELETE /automations/{id}` |
 | Weather  | `GET/POST /weather/locations`, `DELETE /weather/locations/{id}`, `GET /weather/current` |

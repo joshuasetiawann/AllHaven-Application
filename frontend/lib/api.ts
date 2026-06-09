@@ -385,20 +385,51 @@ export const calendarApi = {
 };
 
 export const routinesApi = {
-  list: (params?: { start?: string; end?: string }) => {
+  list: async (params?: { start?: string; end?: string }) => {
     const query = params && (params.start || params.end)
       ? `?${new URLSearchParams(
           Object.entries(params).filter(([, v]) => Boolean(v)) as [string, string][],
         ).toString()}`
       : "";
-    return request<CalendarEvent[]>(`/routines/events${query}`);
+    try {
+      return await request<CalendarEvent[]>(`/routines/events${query}`);
+    } catch (err) {
+      if (err instanceof ApiException && err.statusCode === 404) {
+        return request<CalendarEvent[]>(`/calendar/events${query}`);
+      }
+      throw err;
+    }
   },
-  create: (payload: Record<string, unknown>) =>
-    request<CalendarEvent>("/routines/events", { method: "POST", body: json(payload) }),
-  update: (id: string, payload: Record<string, unknown>) =>
-    request<CalendarEvent>(`/routines/events/${id}`, { method: "PUT", body: json(payload) }),
-  remove: (id: string) =>
-    request<{ id: string }>(`/routines/events/${id}`, { method: "DELETE" }),
+  create: async (payload: Record<string, unknown>) => {
+    try {
+      return await request<CalendarEvent>("/routines/events", { method: "POST", body: json(payload) });
+    } catch (err) {
+      if (err instanceof ApiException && err.statusCode === 404) {
+        return request<CalendarEvent>("/calendar/events", { method: "POST", body: json(payload) });
+      }
+      throw err;
+    }
+  },
+  update: async (id: string, payload: Record<string, unknown>) => {
+    try {
+      return await request<CalendarEvent>(`/routines/events/${id}`, { method: "PUT", body: json(payload) });
+    } catch (err) {
+      if (err instanceof ApiException && err.statusCode === 404) {
+        return request<CalendarEvent>(`/calendar/events/${id}`, { method: "PUT", body: json(payload) });
+      }
+      throw err;
+    }
+  },
+  remove: async (id: string) => {
+    try {
+      return await request<{ id: string }>(`/routines/events/${id}`, { method: "DELETE" });
+    } catch (err) {
+      if (err instanceof ApiException && err.statusCode === 404) {
+        return request<{ id: string }>(`/calendar/events/${id}`, { method: "DELETE" });
+      }
+      throw err;
+    }
+  },
 };
 
 // --- Drive (file upload uses multipart, not JSON) ---
