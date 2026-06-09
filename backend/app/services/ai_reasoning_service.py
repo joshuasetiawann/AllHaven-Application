@@ -48,10 +48,10 @@ from app.services.reasoning.modes import normalize_mode, params_for, roles_for
 ROLE_LABELS = {"analyst": "Analyst", "critic": "Critic", "synthesizer": "Synthesizer"}
 
 
-def _call(plan: ChatPlan, prompt: str, params: dict) -> dict:
+def _call(plan: ChatPlan, prompt: str, params: dict, images: Optional[List[str]] = None) -> dict:
     """Run one role's provider call with a hard timeout (network in a worker)."""
     with ThreadPoolExecutor(max_workers=1) as pool:
-        fut = pool.submit(_run_one, plan, [{"role": "user", "content": prompt}], params)
+        fut = pool.submit(_run_one, plan, [{"role": "user", "content": prompt, "images": images or []}], params)
         try:
             return fut.result(timeout=AGENT_TIMEOUT_SECONDS)
         except FutureTimeout:
@@ -72,6 +72,7 @@ def reasoning_chat(
     provider_ids: List[str],
     session_id: Optional[uuid.UUID] = None,
     mode: str = "balanced",
+    images: Optional[List[str]] = None,
 ) -> dict:
     ids = _dedup(provider_ids)
     if not ids:
@@ -98,7 +99,7 @@ def reasoning_chat(
         session.title = _auto_title(message)
 
     user_message = ChatMessage(workspace_id=principal.workspace_id, session_id=session.id,
-                               role="user", content=message)
+                               role="user", content=message, meta={"images": images} if images else None)
     db.add(user_message)
     db.flush()
 
@@ -169,7 +170,7 @@ def reasoning_chat(
 
     # 1) Analyst.
     analyst_pid = role_provider["analyst"]
-    analyst_oc = _call(plans[analyst_pid], prompts.analyst_message(message, facts, task_type), gen_params)
+    analyst_oc = _call(plans[analyst_pid], prompts.analyst_message(message, facts, task_type), gen_params, images)
     analyst_answer = analyst_oc["content"] or ""
     _record(analyst_pid, plans[analyst_pid].provider_name, analyst_oc["status"], analyst_oc["content"],
             analyst_oc["error"], analyst_oc["latency_ms"], plans[analyst_pid].external, phase="analyst")
