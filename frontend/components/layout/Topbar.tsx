@@ -85,19 +85,19 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-2 border-b border-border/80 bg-bg/80 px-3 shadow-[0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-[14px] sm:h-16 sm:gap-3 sm:px-6">
+      <header className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-2 border-b border-white/[0.07] bg-[rgb(var(--color-bg)/0.55)] px-3 backdrop-blur-[16px] sm:h-[66px] sm:gap-3 sm:px-6">
         <IconButton className="shrink-0 md:hidden" onClick={onMenu} aria-label="Open menu">
           <Menu size={18} />
         </IconButton>
 
         <button
           onClick={() => setPaletteOpen(true)}
-          className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-surface-input/70 px-3 text-left text-content-subtle shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-all duration-200 hover:border-primary/35 hover:bg-surface-input sm:max-w-lg xl:max-w-2xl"
+          className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full border border-white/[0.09] bg-white/[0.035] px-4 text-left text-content-subtle transition-all duration-200 hover:border-primary/35 hover:bg-white/[0.05] sm:max-w-[560px]"
         >
           <Search size={15} className="shrink-0" />
           <span className="min-w-0 flex-1 truncate text-[13px] sm:hidden">Search</span>
           <span className="hidden min-w-0 flex-1 truncate text-[13px] sm:block">Search tasks, notes, pages…</span>
-          <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] sm:inline">⌘K</kbd>
+          <kbd className="hidden shrink-0 rounded-sm border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-content-subtle sm:inline">⌘K</kbd>
         </button>
 
         <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
@@ -114,7 +114,11 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
             <span
               className={cn(
                 "h-1.5 w-1.5 shrink-0 rounded-full",
-                aiStatus === "online" ? "bg-success" : aiStatus === "configured" ? "bg-primary" : "bg-content-subtle",
+                aiStatus === "online"
+                  ? "animate-pulse-glow bg-success shadow-[0_0_10px_2px] shadow-success/60"
+                  : aiStatus === "configured"
+                    ? "animate-pulse-glow bg-primary shadow-[0_0_10px_2px] shadow-primary/50"
+                    : "bg-content-subtle",
               )}
             />
             <span className="truncate">Local AI · {statusLabel}</span>
@@ -124,7 +128,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
               <IconButton aria-label="Notifications" active={notifOpen} onClick={() => setNotifOpen((o) => !o)}>
                 <Bell size={17} />
                 {proposals.length > 0 ? (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-fg">
+                  <span className="grad-primary absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold text-primary-fg">
                     {proposals.length}
                   </span>
                 ) : null}
@@ -194,10 +198,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
                 <SettingsIcon size={17} />
               </IconButton>
             </Link>
-            <div
-              title={user?.full_name || user?.email || "Account"}
-              className="hidden rounded-full border border-border bg-surface-input/45 p-0.5 md:block"
-            >
+            <div title={user?.full_name || user?.email || "Account"} className="hidden md:block">
               <Avatar initials={initials(user?.full_name || user?.email)} />
             </div>
           </div>
