@@ -29,6 +29,7 @@ import { useToast } from "@/components/ui/Toast";
 import { aiApi, ApiException, memoryApi } from "@/lib/api";
 import { cn, relativeTime } from "@/lib/format";
 import type { AiMemory, MemorySuggestion, ToolProposal } from "@/types";
+import { ProposalDetails } from "@/components/approvals/ProposalPreview";
 import {
   isTransactionTool,
   todayIso,
@@ -68,16 +69,6 @@ function toolIcon(name: string) {
 function humanizeTool(name: string): string {
   const spaced = name.replace(/[_.-]+/g, " ").trim();
   return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : name;
-}
-
-function previewJson(value: unknown, max = 220): string {
-  let text: string;
-  try {
-    text = JSON.stringify(value) || String(value);
-  } catch {
-    text = String(value);
-  }
-  return text.length > max ? `${text.slice(0, max)}...` : text;
 }
 
 /** Mono provenance chip (agent / tool / relative time). */
@@ -437,9 +428,7 @@ export default function ApprovalsPage() {
                         {isTxn ? (
                           <TransactionSummary payload={proposal.tool_payload} />
                         ) : (
-                          <pre className="mt-1 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-bg/50 p-2.5 font-mono text-[11.5px] leading-relaxed text-content-muted">
-                            {previewJson(proposal.tool_payload, 800)}
-                          </pre>
+                          <ProposalDetails toolName={proposal.tool_name} payload={proposal.tool_payload ?? {}} />
                         )}
                         <div className="mt-2.5 flex flex-wrap gap-1.5">
                           <ProvenanceChip icon={<Bot size={11} />}>{proposal.tool_name}</ProvenanceChip>
