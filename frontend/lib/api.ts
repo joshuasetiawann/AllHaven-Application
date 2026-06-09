@@ -199,6 +199,12 @@ export const aiApi = {
       method: "POST",
       body: json({ message, provider_ids: providerIds, session_id: sessionId || null }),
     }),
+  // Run a multi-agent debate: agents argue across `rounds`, then one synthesizes.
+  debateChat: (message: string, providerIds: string[], sessionId?: string, rounds = 2) =>
+    request<MultiChatResponse>("/ai/chat/debate", {
+      method: "POST",
+      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, rounds }),
+    }),
   getRun: (runId: string) => request<MultiChatResponse>(`/ai/runs/${runId}`),
   listProposals: () => request<ToolProposal[]>("/ai/proposals"),
   rejectProposal: (id: string) =>
