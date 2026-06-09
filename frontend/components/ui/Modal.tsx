@@ -43,7 +43,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         className={cn(
-          "relative z-10 w-full animate-scale-in rounded-t-2xl border border-border bg-surface shadow-glow sm:rounded-2xl",
+          "relative z-10 w-full animate-scale-in rounded-t-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(18,20,34,0.96),rgba(10,11,20,0.98))] shadow-glow backdrop-blur-[22px] sm:rounded-2xl",
           size === "lg" ? "max-w-2xl" : "max-w-lg",
         )}
       >

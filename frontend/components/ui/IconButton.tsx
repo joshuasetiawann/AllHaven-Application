@@ -11,9 +11,9 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
     <button
       ref={ref}
       className={cn(
-        "inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-all duration-200 focus-ring",
+        "inline-flex h-9 w-9 items-center justify-center rounded-md border transition-all duration-200 focus-ring",
         active
-          ? "border-primary/40 bg-primary/10 text-primary shadow-[0_0_0_1px_rgba(24,224,214,0.08)]"
+          ? "border-primary/40 bg-primary/10 text-primary-bright shadow-[0_0_18px_rgb(var(--color-primary)/0.2)]"
           : "border-border bg-surface-input/45 text-content-muted hover:border-primary/35 hover:bg-surface-raised/70 hover:text-content",
         className,
       )}
