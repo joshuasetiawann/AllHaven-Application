@@ -17,7 +17,16 @@ This guide is for non-technical users. You only need to **clone the repo** and
 > tells you where to get it (<https://www.python.org/downloads/>) — on Windows be
 > sure to tick **"Add Python to PATH"**.
 
-The wizard opens at `http://127.0.0.1:7000` in your browser.
+**By default the launcher now runs a _terminal_ installer** (`installer/haven_cli.py`):
+it prints live progress as it checks tools, configures `.env` (+ `backend/.env`),
+pulls the Docker image, installs dependencies, runs migrations, and starts the app —
+then opens your browser. This is the recommended path because you can *see* the
+Docker/pip/npm progress (the browser version hid it, so a first-run image pull
+looked frozen).
+
+> **Prefer the browser wizard?** Set `HAVEN_SETUP_WEB=1` before launching (e.g.
+> `HAVEN_SETUP_WEB=1 ./START_HAVEN_LINUX.sh`). It opens at `http://127.0.0.1:7000`.
+> The steps below describe that optional web wizard.
 
 ---
 
