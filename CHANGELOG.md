@@ -11,6 +11,18 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.9.0] - 2026-06-10 — One-click desktop installer, setup wizard & System Control
+
+Detailed notes: [`docs/releases/v0.9.0.md`](docs/releases/v0.9.0.md)
+
+### Added
+- **One-click launchers** at the repo root — `START_HAVEN_WINDOWS.bat`, `START_HAVEN_MAC.command`, `START_HAVEN_LINUX.sh` — that run a **browser-based setup wizard** (`installer/haven_setup.py`, Python stdlib only): OS detect, Docker/ports/`.env` system check, Docker install guidance, port configuration (validation + free-port suggestions), safe `.env` write (backup + preserved secrets), service start, health check, and per-OS **desktop shortcut** creation.
+- **Haven Agent** (`installer/haven_agent.py`) — a localhost-only, token-gated process supervisor that safely starts/stops/restarts the backend & frontend (host processes) and Postgres/optional services (Docker Compose, non-destructive), with masked logs. No shell; fixed argv; service + action allowlists.
+- **Settings → System Control** (in-app): live service cards (status / port / last-checked), Start / Stop / Restart, a masked **Logs** viewer, and a **Ports editor** ("Save & Restart"). Backed by a new authenticated, allowlisted `/api/v1/system/*` API that forwards to the agent and falls back to read-only status when the agent is offline. Disabled outside local mode.
+
+### Security
+- Privileged actions live only in the localhost + token agent; the browser never touches Docker or a shell. Service/action **allowlists** are enforced in both the agent and the backend; secrets are **masked** in all logs/responses; `.env` writes are atomic with timestamped backups; Docker control **cannot express** destructive (`down` / volume) commands; the control surface requires auth and is off outside local mode.
+
 ## [0.8.0] - 2026-06-10 — Live n8n workflows in Automations
 
 Detailed notes: [`docs/releases/v0.8.0.md`](docs/releases/v0.8.0.md)
