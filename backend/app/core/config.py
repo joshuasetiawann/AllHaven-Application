@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     GEMINI_DEFAULT_MODEL: str = ""
     GROK_API_KEY: str = ""
     GROK_DEFAULT_MODEL: str = ""
+    BLACKBOX_API_KEY: str = ""
+    BLACKBOX_DEFAULT_MODEL: str = ""
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_DEFAULT_MODEL: str = ""
 
