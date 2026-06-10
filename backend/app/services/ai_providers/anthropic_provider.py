@@ -10,6 +10,8 @@ from app.services.ai_providers.base import (
     VerifyResult,
     chat_error_message,
     interpret_http,
+    network_error_message,
+    parse_data_url,
     safe_request,
 )
 
@@ -48,7 +50,22 @@ class AnthropicProvider(AIProvider):
         chosen = model or public.get("default_model") or self.default_model
         # Anthropic uses a top-level system param + user/assistant messages.
         system = next((m["content"] for m in messages if m.get("role") == "system"), None)
-        convo = [m for m in messages if m.get("role") in ("user", "assistant")]
+        convo: list[dict] = []
+        for m in messages:
+            role = m.get("role")
+            if role not in ("user", "assistant"):
+                continue
+            imgs = m.get("images") or []
+            if imgs and role == "user":
+                blocks: list[dict] = []
+                if m.get("content"):
+                    blocks.append({"type": "text", "text": m["content"]})
+                for u in imgs:
+                    media, b64 = parse_data_url(u)
+                    blocks.append({"type": "image", "source": {"type": "base64", "media_type": media or "image/png", "data": b64}})
+                convo.append({"role": "user", "content": blocks})
+            else:
+                convo.append({"role": role, "content": m.get("content") or ""})
         payload: dict = {"model": chosen, "max_tokens": (params or {}).get("max_tokens") or 1024, "messages": convo}
         for k in ("temperature", "top_p"):
             if params and params.get(k) is not None:

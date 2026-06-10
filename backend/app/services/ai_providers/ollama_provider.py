@@ -11,6 +11,7 @@ from app.services.ai_providers.base import (
     chat_error_message,
     interpret_http,
     network_error_message,
+    parse_data_url,
     safe_request,
 )
 
@@ -44,7 +45,15 @@ class OllamaProvider(AIProvider):
         if not public.get("base_url"):
             return ChatResult(False, error="Base URL not set")
         chosen = model or public.get("default_model") or self.default_model
-        body_json = {"model": chosen, "messages": messages, "stream": False}
+        # Ollama carries images as base64 strings under each message's "images".
+        out_messages = []
+        for m in messages:
+            msg = {"role": m.get("role", "user"), "content": m.get("content") or ""}
+            imgs = m.get("images") or []
+            if imgs:
+                msg["images"] = [parse_data_url(u)[1] for u in imgs]
+            out_messages.append(msg)
+        body_json = {"model": chosen, "messages": out_messages, "stream": False}
         # Ollama takes sampling settings under "options".
         options = {k: params[k] for k in ("temperature", "top_p") if params and params.get(k) is not None}
         if options:
