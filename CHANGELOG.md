@@ -11,6 +11,13 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.5.1] - 2026-06-10 — Honest "model can't read images" status
+
+Detailed notes: [`docs/releases/v0.5.1.md`](docs/releases/v0.5.1.md)
+
+### Fixed
+- When a vision-capable **provider** (Ollama, OpenRouter, …) is given an image but the selected **model** is text-only, the provider's raw API error (`HTTP 400 multimodal`, `HTTP 404 no endpoints found that support image input`) is now translated into a clear **`unsupported`** status with guidance to pick a vision model — instead of leaking the raw error JSON. Applies to Parallel, Debate, and Reasoning.
+
 ## [0.5.0] - 2026-06-09 — Calculator, Clock, Thinking Mode & vision routing
 
 Detailed notes: [`docs/releases/v0.5.0.md`](docs/releases/v0.5.0.md)

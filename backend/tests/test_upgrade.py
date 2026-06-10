@@ -6,6 +6,7 @@ import pytest
 from tests.conftest import API
 
 import app.services.ai_providers.base as base
+from app.services.ai_multi_service import _is_image_unsupported
 from app.services.calc_service import CalcError, evaluate
 from app.services.thinking import reasoning_depth, thinking_params
 
@@ -92,3 +93,30 @@ def test_thinking_mode_sets_generation_params(auth_client, monkeypatch):
     )
     assert captured["json"]["temperature"] == 0.1
     assert captured["json"]["top_p"] == 0.7
+
+
+# --- Vision-capable provider but text-only model -> honest 'unsupported' ---
+
+def test_is_image_unsupported_detects_provider_errors():
+    assert _is_image_unsupported("Multimodal data provided, but model does not support multimodal requests.")
+    assert _is_image_unsupported("No endpoints found that support image input")
+    assert not _is_image_unsupported("the provider rate-limited the request (HTTP 429).")
+
+
+def test_image_to_text_only_model_is_reclassified_unsupported(auth_client, monkeypatch):
+    auth_client.put(f"{API}/ai/policy", json={"allow_external": True})
+    auth_client.put(f"{API}/ai/providers/openai", json={"secrets": {"api_key": "sk-x"}, "enabled": True})
+
+    def fake(method, url, **kw):
+        # A vision-capable provider, but the chosen model rejects images.
+        return (400, {"error": {"message": "Multimodal data provided, but model does not support multimodal requests."}}, "")
+
+    monkeypatch.setattr(base, "safe_request", fake)
+    resp = auth_client.post(
+        f"{API}/ai/chat/multi",
+        json={"message": "what is this?", "provider_ids": ["openai"], "images": [DATA_URL]},
+    )
+    assert resp.status_code == 200, resp.text
+    agent = resp.json()["data"]["agent_responses"][0]
+    assert agent["status"] == "unsupported"
+    assert "vision model" in (agent["error_message"] or "").lower()
