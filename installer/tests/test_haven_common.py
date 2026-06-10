@@ -104,3 +104,45 @@ def test_command_builders():
 
 def test_detect_os_is_known():
     assert hc.detect_os() in ("windows", "macos", "linux")
+
+
+# --- launch helpers (v2.2 fix) --------------------------------------------- #
+
+
+def test_app_binds_all_interfaces():
+    # Managed services bind 0.0.0.0 (matching allhaven.sh), the agent stays localhost.
+    assert hc.APP_BIND_HOST == "0.0.0.0"
+    assert "0.0.0.0" in hc.backend_command("python", 8000, host=hc.APP_BIND_HOST)
+    assert "0.0.0.0" in hc.frontend_command(3000, host=hc.APP_BIND_HOST)
+    assert hc.AGENT_HOST == "127.0.0.1"
+
+
+def test_enriched_env_augments_path(monkeypatch):
+    monkeypatch.setenv("PATH", "/usr/bin")
+    env = hc.enriched_env()
+    assert "/usr/bin" in env["PATH"]            # original preserved
+    assert "/usr/local/bin" in env["PATH"]      # common locations added
+    assert "/opt/homebrew/bin" in env["PATH"]   # macOS Homebrew
+
+
+def test_ensure_env_files_creates_frontend_local(tmp_path, monkeypatch):
+    (tmp_path / "frontend").mkdir()
+    (tmp_path / "frontend" / ".env.local.example").write_text(
+        "NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(hc, "repo_root", lambda: tmp_path)
+    res = hc.ensure_env_files()
+    assert "frontend/.env.local" in res["created"]
+    assert (tmp_path / "frontend" / ".env.local").exists()
+    # idempotent: a second call creates nothing
+    assert hc.ensure_env_files()["created"] == []
+
+
+def test_wait_for_port_times_out(tmp_path):
+    import time
+
+    start = time.time()
+    # An almost-certainly-free high port returns False within the timeout window.
+    result = hc.wait_for_port(59321, timeout=2.0)
+    assert isinstance(result, bool)
+    assert time.time() - start < 5.0
