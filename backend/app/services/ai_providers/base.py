@@ -37,6 +37,31 @@ def openai_gen_params(params: Optional[dict]) -> dict:
     return {k: params[k] for k in _OPENAI_PARAM_KEYS if params.get(k) is not None}
 
 
+def parse_data_url(url: str) -> tuple[str, str]:
+    """Return (media_type, base64_data) from a data URL; ('', url) otherwise."""
+    if isinstance(url, str) and url.startswith("data:") and "," in url:
+        head, b64 = url.split(",", 1)
+        media = head[5:].split(";")[0] or "image/png"
+        return media, b64
+    return "", url
+
+
+def openai_message_content(message: dict):
+    """OpenAI chat 'content': a plain string, or a parts array when images attach.
+
+    A message may carry ``images`` (a list of data URLs). Vision-capable models
+    (e.g. gpt-4o) accept image_url parts; non-vision models simply ignore/err.
+    """
+    images = message.get("images") or []
+    text = message.get("content") or ""
+    if not images:
+        return text
+    parts: list[dict] = [{"type": "text", "text": text}] if text else []
+    for img in images:
+        parts.append({"type": "image_url", "image_url": {"url": img}})
+    return parts
+
+
 @dataclass
 class VerifyResult:
     """Typed result of a connection test. ``status`` is one of VERIFY_STATUSES."""
@@ -230,11 +255,14 @@ class OpenAICompatibleProvider(AIProvider):
         if not key:
             return ChatResult(False, error="API key not set")
         chosen = model or public.get("default_model") or self.default_model
+        payload_messages = [
+            {"role": m.get("role", "user"), "content": openai_message_content(m)} for m in messages
+        ]
         code, body, err = safe_request(
             "POST",
             f"{self.base_url(public)}/chat/completions",
             headers=self._headers(key),
-            json={"model": chosen, "messages": messages, **openai_gen_params(params)},
+            json={"model": chosen, "messages": payload_messages, **openai_gen_params(params)},
         )
         if err:
             return ChatResult(False, error=network_error_message(err))
