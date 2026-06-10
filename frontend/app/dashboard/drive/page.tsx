@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { driveApi, ApiException } from "@/lib/api";
-import { getToken } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import type { DriveFile } from "@/types";
 
@@ -61,10 +60,7 @@ export default function DrivePage() {
     setActionError(null);
     setBusyId(file.id);
     try {
-      const token = getToken();
-      const res = await fetch(driveApi.downloadUrl(file.id), {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
+      const res = await fetch(driveApi.downloadUrl(file.id), { credentials: "include" });
       if (!res.ok) throw new ApiException(`Download failed (${res.status})`, "HTTP_ERROR", res.status);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

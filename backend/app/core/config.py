@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-insecure-secret-change-me"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     JWT_ALGORITHM: str = "HS256"
+    # Browser cookie sessions (HttpOnly): lifetime in days; refresh rotates+extends.
+    SESSION_TTL_DAYS: int = 7
+    # Per-IP request cap per minute on /auth/* (login/register/refresh).
+    # 0 disables (local dev / behind an already rate-limited gateway).
+    AUTH_RATE_LIMIT_PER_MINUTE: int = 0
 
     # --- Database ---
     POSTGRES_USER: str = "allhaven"
@@ -138,6 +143,19 @@ class Settings(BaseSettings):
         if raw.startswith("["):
             return json.loads(raw)
         return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+    @model_validator(mode="after")
+    def _require_strong_secret_in_production(self) -> "Settings":
+        """Fail startup in production with the dev default or a weak SECRET_KEY."""
+        env = (self.APP_ENV or "").strip().lower()
+        if env in ("production", "prod", "staging"):
+            if self.SECRET_KEY == "dev-insecure-secret-change-me" or len(self.SECRET_KEY) < 32:
+                raise ValueError(
+                    "Refusing to start: SECRET_KEY must be a strong random value "
+                    "(>= 32 chars) when APP_ENV is production. Generate one with: "
+                    "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+                )
+        return self
 
     @model_validator(mode="after")
     def _assemble_database_url(self) -> "Settings":
