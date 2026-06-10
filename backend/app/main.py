@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.responses import success_response
+
+
+def _app_version() -> str:
+    """Read the repo VERSION file (kept next to the app), defaulting safely."""
+    try:
+        return (Path(__file__).resolve().parents[2] / "VERSION").read_text().strip() or "0.0.0"
+    except Exception:  # noqa: BLE001
+        return "0.0.0"
 
 # Import the domain package so all models are registered on the metadata.
 import app.domain  # noqa: F401
@@ -30,11 +40,22 @@ from app.api.routers import (
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
-        version="0.1.0",
+        version=_app_version(),
         description="Modular AI command center — local MVP backend.",
         docs_url="/docs",
         openapi_url="/openapi.json",
     )
+
+    # Security headers on every response (defense in depth). No CSP here so the
+    # Swagger UI at /docs keeps working; the frontend sets its own CSP.
+    @app.middleware("http")
+    async def _security_headers(request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+        return response
 
     # CORS. Auth is via the Authorization header (no cookies), so when allowing
     # any origin we set allow_credentials=False (required by the CORS spec).

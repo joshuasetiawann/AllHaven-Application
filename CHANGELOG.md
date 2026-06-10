@@ -11,6 +11,20 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.6.0] - 2026-06-10 — Launch hardening: security headers, safe downloads & dep patches
+
+Detailed notes: [`docs/releases/v0.6.0.md`](docs/releases/v0.6.0.md) · Audit: [`LAUNCH_SECURITY_REPORT.md`](LAUNCH_SECURITY_REPORT.md)
+
+### Security
+- **Security headers** on every backend response (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`) and on the frontend via `next.config.js`, including a production **Content-Security-Policy** (`frame-ancestors 'none'`, `object-src 'none'`, no `unsafe-eval`).
+- **Drive downloads** force `Content-Disposition: attachment` and serve active types (HTML/SVG/JS/XML) as `application/octet-stream` — uploaded files can't render inline (XSS).
+- **Dependencies**: Next `14.2.18 → 14.2.35` (fixes the critical middleware-authorization-bypass) and `postcss → 8.5.15` tree-wide (fixes moderate stringify-XSS). One residual Next "high" (DoS/cache — features we don't use) documented in the security report.
+- Backend reports its real version from `VERSION` (was hardcoded).
+
+### Added
+- `LAUNCH_SECURITY_REPORT.md` — full audit (secrets, auth, API, DB, uploads, AI safety, integrations, deps, headers) with verdict + residual risks.
+
+
 ## [0.5.1] - 2026-06-10 — Honest "model can't read images" status
 
 Detailed notes: [`docs/releases/v0.5.1.md`](docs/releases/v0.5.1.md)
