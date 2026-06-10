@@ -160,7 +160,10 @@ cd frontend && npm run build
 | Automations | `GET/POST /automations`, `PUT/DELETE /automations/{id}` |
 | Weather  | `GET/POST /weather/locations`, `DELETE /weather/locations/{id}`, `GET /weather/current` |
 
-All endpoints (except health and auth register/login) require a bearer token.
+All endpoints (except health and auth register/login) require authentication: the
+browser uses an **HttpOnly session cookie** (set on login; CSRF header required on
+state-changing requests; `POST /auth/refresh` rotates it, `POST /auth/logout`
+revokes it server-side), while API clients/tools can use a **bearer token**.
 
 ---
 
