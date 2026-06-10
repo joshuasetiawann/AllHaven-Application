@@ -58,7 +58,7 @@ ROLE_LABELS = {"analyst": "Analyst", "critic": "Critic", "synthesizer": "Synthes
 def _call(plan: ChatPlan, prompt: str, params: dict, images: Optional[List[str]] = None) -> dict:
     """Run one role's provider call with a hard timeout (network in a worker)."""
     with ThreadPoolExecutor(max_workers=1) as pool:
-        fut = pool.submit(_run_one, plan, [{"role": "user", "content": prompt, "images": images or []}], params)
+        fut = pool.submit(_run_one, plan, [{"role": "user", "content": prompt, "images": images or []}], params, bool(images))
         try:
             return fut.result(timeout=AGENT_TIMEOUT_SECONDS)
         except FutureTimeout:
