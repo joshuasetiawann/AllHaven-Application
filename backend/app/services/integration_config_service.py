@@ -155,6 +155,18 @@ def _effective_config(row: Optional[IntegrationConfig], spec: ProviderSpec) -> t
     return public, secrets
 
 
+def effective_config(db: Session, principal: Principal, provider_id: str) -> tuple[dict, dict]:
+    """Public accessor: the effective (public, secrets) for a configured integration.
+
+    Secrets are decrypted for server-side use only (e.g. calling the n8n API) and
+    must never be returned to the client.
+    """
+    spec = get_integration_spec(provider_id)
+    if spec is None:
+        return {}, {}
+    return _effective_config(_get_row(db, principal, provider_id), spec)
+
+
 def _verify(db: Session, spec: ProviderSpec, public: dict, secrets: dict) -> tuple[str, str]:
     """Return (status, error). status in {online, error, configured}."""
     pid = spec.id
