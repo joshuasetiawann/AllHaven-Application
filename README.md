@@ -13,6 +13,28 @@ This repository is a complete, runnable **local MVP**.
 
 ---
 
+## 🚀 Easiest start — one click (no terminal)
+
+After cloning, just open the launcher for your operating system. It opens a
+**setup wizard** in your browser that checks Docker, lets you choose ports, writes
+a safe `.env` (generating secrets, never overwriting yours), starts the services,
+and offers to create a **Haven** desktop shortcut.
+
+| Your OS | Open this file |
+|---------|----------------|
+| **Windows** | **`START_HAVEN_WINDOWS.bat`** |
+| **macOS** | **`START_HAVEN_MAC.command`** (right-click → Open the first time) |
+| **Linux** | **`START_HAVEN_LINUX.sh`** |
+
+Only **Python 3** is needed to run the wizard — it guides you through installing
+Docker if it's missing. After setup, clicking the launcher (or the **Haven** desktop
+icon) starts everything and opens the app. Manage services anytime from
+**Settings → System Control**: Start / Stop / Restart, change ports, and view logs.
+
+📖 Full beginner walkthrough + troubleshooting: [`docs/DESKTOP_SETUP.md`](docs/DESKTOP_SETUP.md)
+
+---
+
 ## Highlights
 
 - **FastAPI** backend with a clean layered architecture (api → schemas → services → domain → core)
