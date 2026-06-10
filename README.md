@@ -4,8 +4,8 @@ This branch records **every version of the project**, one self-contained folder 
 release, named `AllHaven <version>` from oldest to newest. The **latest version
 also lives on the [`main`](../../tree/main) branch** as the runnable app at root.
 
-> Numbering: `0.1 → 0.9`, then rolls over to `1.0 → 1.7` (so the folders sort and
-> read naturally). A new update adds the next folder (`AllHaven 1.8`, …).
+> Numbering: `0.1 → 0.9`, then rolls over to `1.0 → 1.8` (so the folders sort and
+> read naturally). A new update adds the next folder (`AllHaven 1.9`, …).
 
 ## Versions & what each update introduced
 
@@ -27,11 +27,12 @@ also lives on the [`main`](../../tree/main) branch** as the runnable app at root
 | **AllHaven 1.4** | **AllHaven** | Rebrand to AllHaven + responsive UI, **multi-agent Debate** mode, and the **Reasoning Quality Layer** (Analyst → Critic → Synthesizer with grounded, verified reasoning). Internally semantic `v0.3.0`. |
 | **AllHaven 1.5** | **AllHaven** | **Image input (vision)** — attach images and have agents respond to them — plus **Markdown-rendered chat output** so replies read cleanly. Internally semantic `v0.4.0`. |
 | **AllHaven 1.6** | **AllHaven** | **Calculator** & **Clock** (stopwatch/timer/alarm) modules, **Thinking Mode** (Fast/Balance/Thinking/Deep) separate from chat mode, chat modes simplified to Parallel/Debate/Reasoning, and **vision routing** (images go only to vision-capable models; others say so honestly). Internally semantic `v0.5.0`. |
-| **AllHaven 1.7** | **AllHaven** | **Current.** When a vision-capable provider gets an image but the chosen **model** is text-only, the raw API error is now an honest **"this model can't read images — pick a vision model"** status. Internally semantic `v0.5.1`. |
+| **AllHaven 1.7** | **AllHaven** | When a vision-capable provider gets an image but the chosen **model** is text-only, the raw API error is now an honest **"this model can't read images — pick a vision model"** status. Internally semantic `v0.5.1`. |
+| **AllHaven 1.8** | **AllHaven** | **Current.** **Launch hardening** — HTTP security headers (backend + frontend CSP), safe Drive downloads (attachment + neutralized active types), and dependency patches (Next 14.2.35, postcss 8.5.15). Full audit in `LAUNCH_SECURITY_REPORT.md`. Internally semantic `v0.6.0`. |
 
 ## How the two branches relate
 
-- **`main`** — only the **latest** version (`AllHaven 1.7`), flat at the repo root, ready to run/deploy.
+- **`main`** — only the **latest** version (`AllHaven 1.8`), flat at the repo root, ready to run/deploy.
 - **`master`** (this branch) — the **full archive**: every version frozen in its own folder.
 
 Each version folder is a complete snapshot you can open and run on its own; the
