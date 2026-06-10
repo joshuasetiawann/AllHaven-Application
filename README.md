@@ -19,12 +19,12 @@ This repository is a complete, runnable **local MVP**.
 
 ---
 
-## 🚀 Easiest start — one click (no terminal)
+## 🚀 Easiest start — one click
 
-After cloning, just open the launcher for your operating system. It opens a
-**setup wizard** in your browser that checks Docker, lets you choose ports, writes
-a safe `.env` (generating secrets, never overwriting yours), starts the services,
-and offers to create a **Haven** desktop shortcut.
+After cloning, open the launcher for your operating system. By default it runs a
+**guided terminal installer** that checks Docker, configures `.env` (and mirrors it
+to `backend/.env`), pulls the database image, installs dependencies (with live
+progress), runs migrations, then starts the app and opens your browser. Safe to re-run.
 
 | Your OS | Open this file |
 |---------|----------------|
@@ -32,10 +32,11 @@ and offers to create a **Haven** desktop shortcut.
 | **macOS** | **`START_HAVEN_MAC.command`** (right-click → Open the first time) |
 | **Linux** | **`START_HAVEN_LINUX.sh`** |
 
-Only **Python 3** is needed to run the wizard — it guides you through installing
-Docker if it's missing. After setup, clicking the launcher (or the **Haven** desktop
-icon) starts everything and opens the app. Manage services anytime from
-**Settings → System Control**: Start / Stop / Restart, change ports, and view logs.
+Only **Python 3** is needed to bootstrap — it guides you through installing Docker
+if it's missing. Prefer a **browser wizard**? Launch with `HAVEN_SETUP_WEB=1`. After
+setup, clicking the launcher (or the **Haven** desktop icon) starts everything and
+opens the app. Manage services anytime from **Settings → System Control**: Start /
+Stop / Restart, change ports, and view logs.
 
 📖 Full beginner walkthrough + troubleshooting: [`docs/DESKTOP_SETUP.md`](docs/DESKTOP_SETUP.md)
 
