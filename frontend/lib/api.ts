@@ -21,6 +21,11 @@ import type {
   N8nWorkflow,
   N8nWorkflowList,
   Note,
+  PortsApplyResult,
+  ServiceStatus,
+  SystemLogs,
+  SystemPorts,
+  SystemStatus,
   Task,
   ToolProposal,
   Transaction,
@@ -340,6 +345,17 @@ export const automationsApi = {
     request<Automation>(`/automations/${id}`, { method: "PUT", body: json(payload) }),
   remove: (id: string) =>
     request<{ id: string }>(`/automations/${id}`, { method: "DELETE" }),
+};
+
+// --- System Control (start/stop/restart & inspect Haven services) ---
+export const systemApi = {
+  status: () => request<SystemStatus>("/system/status"),
+  action: (name: string, action: string) =>
+    request<ServiceStatus>(`/system/services/${name}/${action}`, { method: "POST", body: json({}) }),
+  logs: (name: string, lines = 300) => request<SystemLogs>(`/system/logs/${name}?lines=${lines}`),
+  getPorts: () => request<SystemPorts>("/system/ports"),
+  savePorts: (ports: Record<string, number>, restart: boolean) =>
+    request<PortsApplyResult>(`/system/ports?restart=${restart}`, { method: "POST", body: json(ports) }),
 };
 
 // --- Weather ---

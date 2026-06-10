@@ -34,6 +34,7 @@ from app.api.routers import (
     n8n,
     notes,
     settings as settings_router,
+    system,
     tasks,
     weather,
 )
@@ -101,6 +102,7 @@ def create_app() -> FastAPI:
     app.include_router(automations.router, prefix=prefix)
     app.include_router(weather.router, prefix=prefix)
     app.include_router(n8n.router, prefix=prefix)
+    app.include_router(system.router, prefix=prefix)
 
     @app.get("/", tags=["root"])
     def root() -> dict:
