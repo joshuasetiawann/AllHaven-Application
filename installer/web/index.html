@@ -351,12 +351,13 @@
     <!-- Step 7: Start services -->
     <section class="panel step hidden" data-step="6">
       <h2>Start Haven</h2>
-      <p class="lead">Starting the database and the Haven control agent.</p>
+      <p class="lead">Starting the database, the Haven control agent, and the app. The first run installs dependencies and can take a few minutes.</p>
       <ul class="progress" id="startProgress">
         <li data-key="config"><span class="badge pending">&middot;</span>Preparing config</li>
         <li data-key="docker"><span class="badge pending">&middot;</span>Checking Docker</li>
         <li data-key="db"><span class="badge pending">&middot;</span>Starting database</li>
         <li data-key="agent"><span class="badge pending">&middot;</span>Starting Haven agent</li>
+        <li data-key="app"><span class="badge pending">&middot;</span>Starting backend &amp; frontend</li>
       </ul>
       <div id="startResult"></div>
       <div class="actions">
@@ -693,8 +694,16 @@ async function startServices() {
     else { setProg("agent", "bad", r.message || "Agent did not start"); allOk = false; }
   } catch (e) { setProg("agent", "bad", e.message); allOk = false; }
 
+  // Start backend + frontend (installs deps + runs migrations on first run) via the launcher.
+  setProg("app", "active");
+  try {
+    const r = await api("/api/launch", { method: "POST", body: {} });
+    if (r.ok) setProg("app", "ok", r.message || "Backend & frontend starting");
+    else { setProg("app", "bad", r.message || "Failed to start the app"); allOk = false; }
+  } catch (e) { setProg("app", "bad", e.message); allOk = false; }
+
   if (allOk) {
-    box.innerHTML += '<div class="notice ok">Services started. Continue to the health check.</div>';
+    box.innerHTML += '<div class="notice ok">Haven is starting. On the first run, installing dependencies can take a few minutes — continue to the Health check, which turns green when the backend &amp; frontend are ready.</div>';
     document.getElementById("startNextBtn").disabled = false;
   } else {
     box.innerHTML += '<div class="notice warn">Some steps did not complete. Review the messages above; you can fix the issue and retry, or continue to the health check to see current status.</div>';
