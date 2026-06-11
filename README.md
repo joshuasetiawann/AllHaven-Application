@@ -24,10 +24,11 @@ _The AI proposes — a human approves every write action._
 > application (FastAPI + Next.js) that unifies tasks, notes, finance tracking, and a
 > **multi-agent AI** assistant — where **the AI proposes and humans approve** every write action.
 
-**Version:** **v0.12.0** — archive [`AllHaven 2.4`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
+**Version:** **v0.13.0** — archive [`AllHaven 2.5`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
 
 ### 🆕 What's new
 
+- **v0.13.0 — GUI-first install.** One terminal command bootstraps the **browser Setup Wizard**, which now does everything (OS/Docker checks, ports, `.env` with backup, **live install progress**, health, desktop shortcut, open app). The desktop shortcut starts services and opens Haven with no terminal. → [release notes](docs/releases/v0.13.0.md)
 - **v0.12.0 — App-wide AI tools with human approval.** AI Chat now connects to **every module** through a safe, allowlisted **Tool Registry** (35 tools): reads execute instantly, **writes always create a pending approval** you Approve/Edit/Reject in chat. Plus **6 OpenRouter agents**, **2 model slots per provider**, **up to 7 agents** with distinct roles, a **debate-flow visibility toggle**, and Settings → **AI Tools** / **AI Chat**. → [release notes](docs/releases/v0.12.0.md)
 - **v0.11.0 — Terminal installer + config sync.** The launchers now install & start Haven from the **terminal by default**, with live progress for the slow steps (Docker pull, `pip`, `npm`); `backend/.env` now mirrors the root `.env`; faster Docker check. Browser wizard via `HAVEN_SETUP_WEB=1`. → [release notes](docs/releases/v0.11.0.md)
 - **v0.10.0 — Reliable one-click startup + responsive menu.** Launch faithful to `allhaven.sh` (wait for PostgreSQL, migrations, health-gate, deps on first run) — fixing *"works manually but not from the app"* — plus the collapsible, responsive navigation. → [release notes](docs/releases/v0.10.0.md)
@@ -46,24 +47,25 @@ _The AI proposes — a human approves every write action._
 
 ---
 
-## 🚀 Easiest start — one click
+## 🚀 Easiest start — one command, then your browser
 
-After cloning, open the launcher for your operating system. By default it runs a
-**guided terminal installer** that checks Docker, configures `.env` (and mirrors it
-to `backend/.env`), pulls the database image, installs dependencies (with live
-progress), runs migrations, then starts the app and opens your browser. Safe to re-run.
+After cloning, run **one terminal command** — it's only a bootstrapper that opens the
+**Setup Wizard in your browser**, where everything else happens: OS & Docker checks,
+a Docker install guide if needed, port configuration, `.env` setup/update (with backup),
+**starting services with live progress**, a health check, a **desktop shortcut**, and
+opening the app.
 
-| Your OS | Open this file |
-|---------|----------------|
+| Your OS | Run / double-click |
+|---------|--------------------|
 | **Windows** | **`START_HAVEN_WINDOWS.bat`** |
 | **macOS** | **`START_HAVEN_MAC.command`** (right-click → Open the first time) |
-| **Linux** | **`START_HAVEN_LINUX.sh`** |
+| **Linux** | **`./START_HAVEN_LINUX.sh`** |
+| **Any terminal** | **`./install.sh`** &nbsp;or&nbsp; **`npm run setup`** |
 
-Only **Python 3** is needed to bootstrap — it guides you through installing Docker
-if it's missing. Prefer a **browser wizard**? Launch with `HAVEN_SETUP_WEB=1`. After
-setup, clicking the launcher (or the **Haven** desktop icon) starts everything and
-opens the app. Manage services anytime from **Settings → System Control**: Start /
-Stop / Restart, change ports, and view logs.
+Only **Python 3** is needed to bootstrap. After setup, the **Haven desktop shortcut**
+(or the same launcher) starts services and opens the app — **no terminal needed**; if a
+service is down it starts it safely first. Manage services anytime in
+**Settings → System Control**. Prefer a terminal-only install? `HAVEN_SETUP_CLI=1`.
 
 📖 Full beginner walkthrough + troubleshooting: [`docs/DESKTOP_SETUP.md`](docs/DESKTOP_SETUP.md)
 
