@@ -11,6 +11,37 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.17.0] - 2026-06-13 — AI Workspace, Knowledge, finance reports & direct memory
+
+Detailed notes: [`docs/releases/v0.17.0.md`](docs/releases/v0.17.0.md)
+
+A full-stack workspace release: AI context becomes section-aware, AI Knowledge is now a
+first-class module, finance gets weekly/monthly reports, and the assistant becomes more
+direct, conversational, and useful for coding plus schedule management.
+
+### Added
+- **AI Knowledge module.** Upload/index/search/retrieve workspace documents from the dashboard and from the AI Tool Registry. Current text extraction supports `.txt`, `.md`, and `.csv`; other file types are stored with honest indexing status until parsers are added.
+- **Section-aware AI context packets.** Single chat, one-agent Parallel, Debate, and Reasoning now receive active section, thinking mode, tool priority, relevant memory, conversation summaries/snippets, and AI Knowledge context when useful.
+- **Dedicated AI tool-call logging.** Tool calls are persisted in `ai_tool_calls` with redacted arguments/results for auditing and debugging.
+- **Expanded Tool Registry.** The registry now exposes 72 allowlisted tools, including conversation search, task/note draft aliases, finance summaries, file metadata, AI Knowledge retrieval, and local date/time tools.
+- **Finance reports.** Finance now supports custom report ranges with weekly and monthly views, trend bars, and report-scoped totals.
+- **Archived/out-of-period finance handling.** Old records such as 2023 transactions are shown as outside the selected 2026 report and can be moved into the active week/month from the UI.
+- **Local date/time answers.** The AI can answer "jam berapa" / current date questions instantly from the app timezone, even without a configured AI provider.
+- **Configurable Drive upload limit.** `DRIVE_MAX_UPLOAD_MB` controls backend and frontend upload limits, defaulting to 250 MB.
+
+### Changed
+- **Memory can be faster.** Low-risk memory create/update/disable actions now save directly; destructive or higher-risk memory actions still require approval.
+- **AI tone and behavior.** Prompts now keep routine replies direct/no basa-basi while still allowing casual chat, jokes when invited, serious work mode, senior coding help, and schedule/task/calendar assistance.
+- **Pending action UI.** Approval/rejection feedback is now a short toast-style notification; the pending panel stays focused on actions that still need a decision.
+- **Memory ranking and UI.** The memory context builder prioritizes profile, preferences, writing style, work context, and relevant recent memories; the memory page exposes richer metadata and easier editing.
+
+### Fixed
+- **Finance no longer looks "empty" without context.** When the active report is empty but older records exist, the UI explains why those transactions are not counted and offers a move action.
+- **AI-created finance transactions default to today.** If the user does not specify a transaction date, finance tools now use the app's current date instead of forcing the model to invent one.
+
+### Database
+- **Migration `0008_ai_workspace_tools_and_knowledge`.** Adds `chat_sessions.section_key`, `chat_messages.section_key`, `ai_tool_calls`, `ai_knowledge_documents`, and `ai_knowledge_chunks`. **Run `python -m alembic upgrade head` after pulling.**
+
 ## [0.16.0] - 2026-06-12 — Persistent AI memory system
 
 Detailed notes: [`docs/releases/v0.16.0.md`](docs/releases/v0.16.0.md)

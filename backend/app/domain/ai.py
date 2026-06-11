@@ -60,6 +60,8 @@ class ChatSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Optional project/group the conversation belongs to.
     group_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
+    # Last active workspace section for this conversation (general/tasks/notes/...).
+    section_key: Mapped[str] = mapped_column(String(50), nullable=False, default="general")
 
 
 class ChatMessage(UUIDPrimaryKeyMixin, Base):
@@ -69,9 +71,36 @@ class ChatMessage(UUIDPrimaryKeyMixin, Base):
     session_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    section_key: Mapped[str] = mapped_column(String(50), nullable=False, default="general", index=True)
     # Column name is "metadata" but the attribute is "meta" ("metadata" is reserved
     # by SQLAlchemy's declarative API).
     meta: Mapped[dict | None] = mapped_column("metadata", JSONType, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class AiToolCall(UUIDPrimaryKeyMixin, Base):
+    """Append-only audit rows for every model-requested tool call.
+
+    This is separate from the general audit log so product/debug UI can inspect
+    AI behavior without scraping unrelated audit events.
+    """
+
+    __tablename__ = "ai_tool_calls"
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
+    session_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
+    message_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    tool_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    risk_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    access: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    arguments: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    result_preview: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    proposal_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
