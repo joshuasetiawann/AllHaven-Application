@@ -34,6 +34,8 @@ Thumbs.db
 
 # Runtime / app data (Drive uploads, local file storage)
 var/
+# allhaven.sh process tracking (PID files)
+.allhaven-pids/
 
 # v4 release artifacts (ZIPs/APK kept local, not committed)
 release/
