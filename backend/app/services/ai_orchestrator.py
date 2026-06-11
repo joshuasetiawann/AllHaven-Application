@@ -25,32 +25,44 @@ from sqlalchemy.orm import Session
 from app.core.principal import Principal
 from app.domain.ai import ChatMessage
 from app.services import ai_intent_router, ai_local_answers, ai_provider_router, ai_tools_registry, schedule_parser
+from app.services.ai_reply_text import display_text
 from app.services.thinking import thinking_params
+
+# A friendly, human fallback when the model returns nothing usable at all (no tools, no
+# text). Never a blank bubble — the user always gets a real sentence to act on.
+_EMPTY_REPLY = (
+    "Maaf, saya belum menghasilkan jawaban untuk pesan itu. "
+    "Bisa coba ulangi atau perjelas sedikit pertanyaannya?"
+)
 
 MAX_TOOL_ROUNDS = 5
 HISTORY_MESSAGES = 12
 HISTORY_CHAR_LIMIT = 4000
 
 SYSTEM_PROMPT = (
-    "You are Haven, the AI assistant inside the AllHaven Command Center - the user's "
-    "private workspace for tasks, notes, calendar, finance, files, automations, "
-    "and system control.\n"
-    "Tool rules (strict):\n"
+    "You are Haven, a warm, thoughtful, and genuinely capable AI assistant living inside "
+    "the user's AllHaven Command Center — their private workspace for tasks, notes, "
+    "calendar, finance, files, automations, and system control.\n\n"
+    "How you talk:\n"
+    "  * Reply like a knowledgeable, friendly human — the way ChatGPT or Claude would. "
+    "Write natural, conversational prose in complete sentences and short paragraphs.\n"
+    "  * Actually answer the question. Be specific, helpful, and concrete; bring real "
+    "substance, reasoning, and examples — never a one-word status or a clipped fragment.\n"
+    "  * A short friendly opener or a sentence of useful context is welcome when it fits; "
+    "you do not have to be terse. Mirror the user's energy: playful when they're casual, "
+    "focused when the work is serious, senior-engineer depth for coding.\n"
+    "  * Use headings or bullet points only when the content is genuinely list-like; "
+    "otherwise write flowing prose.\n"
+    "  * Always reply in the user's language (Bahasa Indonesia in → Bahasa Indonesia out).\n\n"
+    "Honesty & tools (strict — these keep the user safe):\n"
     "  * Use tools to answer questions about the user's real data; never invent data.\n"
     "  * Use get_current_time/get_current_date for current time/date questions.\n"
-    "  * A tool outcome with status 'pending_approval' means the action was NOT executed - "
-    "it awaits HUMAN approval. Say so clearly; never claim it was done.\n"
-    "  * If a tool returns an error or 'setup_required', tell the user honestly and "
-    "suggest the fix (e.g. configure the provider in Settings).\n"
-    "Answer style: no basa-basi. Start with the answer or action status immediately. "
-    "Keep routine replies to 1-3 short sentences. Use bullets only when they make the "
-    "answer faster to scan. Do not say praise like 'Bagus sekali' unless the user asks "
-    "for encouragement. Be specific and concrete; no generic filler or repeated caveats. "
-    "Match the user's mode: casual chat and jokes are allowed when invited, serious "
-    "work gets serious focus, coding requests get senior full-stack engineering help, "
-    "and schedule/calendar requests should use task or calendar tools when useful. "
-    "Say what is missing when data is missing. Reply in the user's language (Bahasa "
-    "Indonesia in, Bahasa Indonesia out)."
+    "  * A tool outcome with status 'pending_approval' means the action was NOT executed — "
+    "it is waiting for the user's approval. Say so clearly and warmly; never claim it is done.\n"
+    "  * If a tool returns an error or 'setup_required', say so honestly and suggest the fix "
+    "(e.g. configure the provider in Settings).\n"
+    "  * If you genuinely don't know, or the data is missing, say what's missing instead of "
+    "guessing — but stay helpful about what to do next."
 )
 
 
@@ -250,10 +262,13 @@ def run_with_tools(
         return _finance_proposal_turn(db, principal, intent, session_id, user_message_id, pid)
     # Deterministic schedule routing: an "atur jadwal ..." request becomes ONE
     # structured multi-day routine proposal (timed per-day blocks) instead of the
-    # LLM improvising a single giant all-day event.
-    schedule = schedule_parser.parse_schedule(message)
-    if schedule is not None:
-        return _schedule_proposal_turn(db, principal, schedule, session_id, user_message_id, pid)
+    # LLM improvising a single giant all-day event. A genuine question that merely
+    # mentions a schedule ("enaknya jadwal belajar gimana?") must NOT be hijacked into
+    # a draft — let it fall through to a real, conversational answer.
+    if not ai_intent_router.is_question(message):
+        schedule = schedule_parser.parse_schedule(message)
+        if schedule is not None:
+            return _schedule_proposal_turn(db, principal, schedule, session_id, user_message_id, pid)
 
     if plan.status == "error" and not plan.runnable and plan.provider_name == pid:
         return {**base, "ok": False, "configured": False, "blocked": False,
@@ -284,8 +299,9 @@ def run_with_tools(
         # through the system prompt so non-tool providers follow the same style.
         result = plan.execute([{"role": "system", "content": base_system}, *history, user_turn], params)
         if result.ok:
+            content = result.content if (result.content or "").strip() else _EMPTY_REPLY
             return {**base, "ok": True, "configured": True, "blocked": False,
-                    "content": result.content, "error": ""}
+                    "content": content, "error": ""}
         return {**base, "ok": False, "configured": True, "blocked": False,
                 "content": f"The '{plan.provider_name}' provider could not complete the request: {result.error}",
                 "error": result.error}
@@ -339,8 +355,10 @@ def run_with_tools(
     base = {"provider_id": pid, "tool_calls": tool_meta, "proposal_ids": proposal_ids}
     if result is not None and result.ok:
         content = result.content
-        if not (content or "").strip() and tool_meta:
-            content = _fallback_text(tool_meta, proposal_ids)
+        if not (content or "").strip():
+            # Model returned empty text. If tools ran, summarise them; otherwise give a
+            # friendly nudge — never persist a blank bubble or a bare status word.
+            content = _fallback_text(tool_meta, proposal_ids) if tool_meta else _EMPTY_REPLY
         return {**base, "ok": True, "configured": True, "blocked": False,
                 "content": content, "error": ""}
     error = result.error if result is not None else "no response"

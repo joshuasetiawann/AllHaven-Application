@@ -53,6 +53,33 @@ _QUALIFIED_MONEY_RE = re.compile(
     re.IGNORECASE,
 )
 
+# A message is a QUESTION (not a recording command) when it ends with "?" or opens with
+# an interrogative. Such messages must NOT be auto-drafted into a finance/schedule
+# proposal even if they mention an amount — e.g. "menurut kamu worth ga beli laptop 15
+# juta?" is asking for advice, not recording an expense. They fall through to the LLM.
+_QUESTION_RE = re.compile(
+    r"\b(menurut|apakah|worth|haruskah|sebaiknya|mending|bagusan|lebih\s+baik|"
+    r"gimana|bagaimana|kenapa|mengapa|kapan|berapa|bisakah|bolehkah|"
+    r"should\s+i|worth\s+it|is\s+it|how\s+(?:do|much|many|can)|what|why|when)\b",
+    re.IGNORECASE,
+)
+
+
+def is_question(message: str) -> bool:
+    """True when the message reads as a question/advice request rather than a command to
+    record something. Used to stop finance/schedule auto-routing from hijacking real
+    questions that merely mention a number or a schedule."""
+    text = (message or "").strip()
+    if not text:
+        return False
+    if text.endswith("?"):
+        return True
+    # "ga/gak/nggak ?"-style tag questions even without the punctuation.
+    if re.search(r"\b(ga|gak|nggak|engga|enggak|kah)\b\s*\??$", text, re.IGNORECASE):
+        return True
+    return bool(_QUESTION_RE.search(text))
+
+
 # Explicit "remember" requests → memory (never finance).
 _EXPLICIT_REMEMBER_RE = re.compile(
     r"\b(ingat|inget|simpan|catat)\s+(?:bahwa|kalau|kalo|sebagai\s+memory|ini)\b"
@@ -223,8 +250,11 @@ def classify(message: str) -> IntentResult:
     bare = _bare_money_with_verb(text, has_income or has_expense) if not amounts else None
     amount = amounts[0] if amounts else bare
 
-    # Finance only on a real money amount, and never when the user explicitly said "remember".
-    if amount is not None and not explicit_remember:
+    # Finance only on a real money amount, and never when the user explicitly said
+    # "remember", and never when the message is actually a question/advice request that
+    # merely mentions an amount ("worth ga beli laptop 15 juta?") — that gets a real
+    # conversational answer from the LLM instead of a canned draft.
+    if amount is not None and not explicit_remember and not is_question(text):
         txn_type = _detect_type(text)
         if txn_type is None:
             txn_type = "INCOME" if has_income else ("EXPENSE" if has_expense else None)

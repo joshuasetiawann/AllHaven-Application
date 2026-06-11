@@ -19,8 +19,10 @@ TASK_TYPES = (
     "planning", "creative", "casual",
 )
 
-# Base generation settings (model_settings policy).
-_DEFAULT = {"temperature": 0.2, "top_p": 0.8, "presence_penalty": 0, "frequency_penalty": 0}
+# Base generation settings (model_settings policy). _DEFAULT is used for casual/general
+# (non-analytical) turns, so it leans a little warmer for natural, human-sounding prose;
+# _REASONING stays low for grounded analytical work (finance, coding, planning, Deep mode).
+_DEFAULT = {"temperature": 0.4, "top_p": 0.85, "presence_penalty": 0, "frequency_penalty": 0}
 _REASONING = {"temperature": 0.1, "top_p": 0.7, "presence_penalty": 0, "frequency_penalty": 0}
 _CREATIVE = {"temperature": 0.7, "top_p": 0.9, "presence_penalty": 0, "frequency_penalty": 0}
 
