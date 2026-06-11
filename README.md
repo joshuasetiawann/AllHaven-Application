@@ -8,7 +8,7 @@
 
 _The AI proposes — a human approves every write action._
 
-[![Version](https://img.shields.io/badge/version-0.11.0%20·%20AllHaven%202.3-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.12.0%20·%20AllHaven%202.4-18E0D6?style=flat-square)](CHANGELOG.md)
 &nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 &nbsp;![Next.js 14](https://img.shields.io/badge/Next.js%2014-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 &nbsp;![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
@@ -77,11 +77,11 @@ Stop / Restart, change ports, and view logs.
 
 ![Settings → AI Providers — nine providers, each on its latest model](docs/assets/screenshot-ai-providers.png)
 
-<sub><b>Settings → AI Providers</b> — configure all nine (Ollama local + GPT, Claude, Gemini, Grok, Blackbox, and three OpenRouter slots), each on its latest default model. Keys are stored server-side and shown masked; enable/disable and Test Connection per provider.</sub>
+<sub><b>Settings → AI Providers</b> — configure all twelve (Ollama local + GPT, Claude, Gemini, Grok, Blackbox, and six OpenRouter agents), each on the model you choose. Keys are stored server-side and shown masked; enable/disable and Test Connection per provider. (Screenshot shows an earlier nine-provider build.)</sub>
 
 ![Multi-agent AI chat](docs/assets/screenshot-ai-chat.png)
 
-<sub>Multi-agent chat — pick 1–3 agents and run them in <b>Parallel</b>, <b>Debate</b>, or <b>Reasoning</b>. Honest status; the AI never fabricates output.</sub>
+<sub>Multi-agent chat — pick 1–7 agents and run them in <b>Parallel</b>, <b>Debate</b>, or <b>Reasoning</b>. Honest status; the AI never fabricates output.</sub>
 
 </div>
 
