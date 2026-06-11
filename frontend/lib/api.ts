@@ -4,8 +4,11 @@
 
 import { clearAuth } from "@/lib/auth";
 import type {
+  AiChatSettings,
   AiProvider,
+  AiTool,
   Automation,
+  ModelSlot,
   AuthToken,
   CalendarEvent,
   ChatGroup,
@@ -237,6 +240,21 @@ export const aiApi = {
   listProposals: () => request<ToolProposal[]>("/ai/proposals"),
   rejectProposal: (id: string) =>
     request<ToolProposal>(`/ai/proposals/${id}/reject`, { method: "POST" }),
+  approveProposal: (id: string) =>
+    request<ProposalApproval>(`/ai/proposals/${id}/approve`, { method: "POST" }),
+  editProposal: (id: string, toolPayload: Record<string, unknown>) =>
+    request<ToolProposal>(`/ai/proposals/${id}`, { method: "PATCH", body: json({ tool_payload: toolPayload }) }),
+  // AI tools (registry)
+  listTools: () => request<AiTool[]>("/ai/tools"),
+  setToolEnabled: (name: string, enabled: boolean) =>
+    request<AiTool>(`/ai/tools/${name}`, { method: "PUT", body: json({ enabled }) }),
+  // Chat behavior settings
+  getChatSettings: () => request<AiChatSettings>("/ai/settings/chat"),
+  setChatSettings: (payload: Partial<AiChatSettings>) =>
+    request<AiChatSettings>("/ai/settings/chat", { method: "PUT", body: json(payload) }),
+  // Model slots
+  saveModelSlots: (providerId: string, slots: Partial<ModelSlot>[]) =>
+    request<AiProvider>(`/ai/providers/${providerId}/slots`, { method: "PUT", body: json({ slots }) }),
   // AI provider configuration
   listProviders: () => request<{ providers: AiProvider[] }>("/ai/providers"),
   saveProvider: (id: string, payload: AiProviderUpdatePayload) =>
@@ -258,6 +276,11 @@ export interface AiPolicy {
   default_privacy_mode: string;
   env_default: boolean;
   env_sync?: import("@/types").EnvSync;
+}
+
+export interface ProposalApproval {
+  proposal: ToolProposal;
+  result: Record<string, unknown>;
 }
 
 // --- Settings ---
