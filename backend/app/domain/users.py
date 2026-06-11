@@ -7,10 +7,12 @@ application profile linked to the authenticated user id.
 
 from __future__ import annotations
 
+import uuid
+
 from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.domain.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.domain.base import Base, GUID, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class LocalUser(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -31,3 +33,6 @@ class Profile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    supabase_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), unique=True, nullable=True, index=True
+    )
