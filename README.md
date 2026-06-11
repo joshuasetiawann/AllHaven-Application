@@ -8,7 +8,7 @@
 
 _The AI acts fast, but risky writes still need human approval._
 
-[![Version](https://img.shields.io/badge/version-3.1.0%20·%20AllHaven%203.1-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.2.0%20·%20AllHaven%203.2-18E0D6?style=flat-square)](CHANGELOG.md)
 &nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 &nbsp;![Next.js 14](https://img.shields.io/badge/Next.js%2014-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 &nbsp;![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
@@ -25,10 +25,11 @@ _The AI acts fast, but risky writes still need human approval._
 > **multi-agent AI** assistant — fast for low-risk memory/context work, cautious for
 > risky writes that need explicit human approval.
 
-**Version:** **v3.1.0** — archive [`AllHaven 3.1`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
+**Version:** **v3.2.0** — archive [`AllHaven 3.2`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
 
 ### 🆕 What's new
 
+- **v3.2.0 — AllHaven 3.2 repository hygiene and render skeletons.** Removes local `.env` files from the working tree while keeping safe templates for fresh clones, adds app-wide Next.js route skeleton loaders, gives dashboard renders a full shell skeleton, and clarifies the archive branch so the early `0.1` through `1.3` releases remain CoreOS with `CoreOS 1.2 → v0.1.0` and `CoreOS 1.3 → v0.2.0`. → [release notes](docs/releases/v3.2.0.md)
 - **v3.1.0 — AllHaven 3.1 expanded AI agents and settings UX.** Raises multi-agent runs to **10 agents**, adds first-class **Cursor AI**, **DeepSeek**, and **Qwen** providers, improves Debate prompts and final output structure, and reorganizes Settings → AI Providers into compact health stats plus Direct/OpenRouter sections with clearer labels such as GPT 1/2, Gemini 1/2, Cursor 1/2, DeepSeek, and Qwen. Status remains honest: `online` appears only after a real Test Connection. → [release notes](docs/releases/v3.1.0.md)
 - **v3.0.0 — AllHaven 3.0 launch-ready AI workspace.** Refines the whole app shell: a cleaner sidebar hierarchy, more polished top navbar/search/approval popover, stronger page headers, sharper cards/buttons/inputs, a more useful dashboard overview, and more consistent responsive spacing across laptop, PC, tablet, and phone. AI Knowledge context is now available to every chat mode/model, Settings adds Bahasa Indonesia/English/Traditional Mandarin plus dark/light and color nuance controls, and browser `localhost says` decisions are replaced with in-app popups. → [release notes](docs/releases/v3.0.0.md)
 - **v0.17.0 — AI Workspace, Knowledge, finance reports, and faster memory.** Adds **AI Knowledge** document ingestion/search/retrieval, section-aware context packets, dedicated `ai_tool_calls` logging, expanded Tool Registry coverage (**72 tools**), configurable Drive upload limits, and a polished AI Chat flow. Finance now supports **monthly and weekly reports**, clearly separates archived/out-of-period transactions (for example 2023 records outside a 2026 report), and lets you move old records into the active report. AI can answer local date/time without a provider, low-risk memory writes save directly, pending-action notifications are cleaner, and the assistant persona is tuned for direct Indonesian chat, coding help, jokes when invited, serious work, and schedule management. Requires migration `0008` (`python -m alembic upgrade head`). → [release notes](docs/releases/v0.17.0.md)
