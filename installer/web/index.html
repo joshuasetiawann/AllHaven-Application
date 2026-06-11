@@ -360,6 +360,7 @@
         <li data-key="app"><span class="badge pending">&middot;</span>Starting backend &amp; frontend</li>
       </ul>
       <div id="startResult"></div>
+      <pre id="setupLog" class="out" style="display:none;max-height:260px;overflow:auto;white-space:pre-wrap"></pre>
       <div class="actions">
         <button class="ghost" onclick="go(5)">Back</button>
         <button class="primary" onclick="startServices()" id="startBtn">Start services</button>
@@ -703,13 +704,41 @@ async function startServices() {
   } catch (e) { setProg("app", "bad", e.message); allOk = false; }
 
   if (allOk) {
-    box.innerHTML += '<div class="notice ok">Haven is starting. On the first run, installing dependencies can take a few minutes — continue to the Health check, which turns green when the backend &amp; frontend are ready.</div>';
+    box.innerHTML += '<div class="notice ok">Haven is starting. The first run pulls the database image and installs dependencies (a few minutes) — live progress below.</div>';
+    const healthy = await pollStartup();
+    if (healthy) {
+      setProg("app", "ok", "Backend & frontend are up");
+      box.innerHTML += '<div class="notice ok">Everything is up and healthy. Continue to finish.</div>';
+    } else {
+      box.innerHTML += '<div class="notice warn">Still starting (or a step needs attention). Check the live log above, or use the Health step to re-check.</div>';
+    }
     document.getElementById("startNextBtn").disabled = false;
   } else {
     box.innerHTML += '<div class="notice warn">Some steps did not complete. Review the messages above; you can fix the issue and retry, or continue to the health check to see current status.</div>';
     document.getElementById("startNextBtn").disabled = false;
   }
   btn.disabled = false; btn.textContent = "Retry";
+}
+
+// Poll the install log + health while first-run setup runs, so the GUI shows
+// live progress (Docker image pull, pip install, npm install) instead of looking
+// frozen. Resolves true once the backend & frontend report healthy.
+async function pollStartup() {
+  const logEl = document.getElementById("setupLog");
+  logEl.style.display = "block";
+  const deadline = Date.now() + 10 * 60 * 1000; // up to 10 minutes on a cold first run
+  while (Date.now() < deadline) {
+    try {
+      const lg = await api("/api/setup/log");
+      if (lg && lg.content) { logEl.textContent = lg.content; logEl.scrollTop = logEl.scrollHeight; }
+    } catch (e) { /* keep polling */ }
+    try {
+      const h = await api("/api/health");
+      if (h && h.backend && h.frontend) return true;
+    } catch (e) { /* keep polling */ }
+    await new Promise((r) => setTimeout(r, 1800));
+  }
+  return false;
 }
 
 // ---- Step 8: Health ----

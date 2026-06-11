@@ -148,12 +148,11 @@ def main() -> int:
 
     # Database
     if hc.docker_running():
-        _say("Starting the database (PostgreSQL via Docker)…")
-        try:
-            _agent_post("/service/postgres/start")
-        except OSError as exc:
-            _say(f"  postgres: {hc.mask_secrets(str(exc))}")
-        _say("  Database is ready." if hc.wait_for_port(pg_port, timeout=45)
+        _say("Starting the database (PostgreSQL via Docker; first run pulls the image)…")
+        # Run compose directly so the image-pull progress is captured to setup.log
+        # (the wizard tails it for live feedback). Idempotent.
+        _run(["docker", "compose", "up", "-d", "postgres"], cwd=hc.repo_root())
+        _say("  Database is ready." if hc.wait_for_port(pg_port, timeout=60)
              else "  Database not ready yet; continuing (it may still be starting).")
     else:
         _say("Docker isn't running — skipping the database. Start Docker Desktop for full functionality.")
