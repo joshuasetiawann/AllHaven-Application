@@ -28,17 +28,17 @@ if [ -z "$PY" ]; then
   exit 1
 fi
 
-# Bootstrapper only. First run (no .env) opens the browser Setup Wizard, where
-# ALL configuration happens; after setup it starts services and opens the app.
-#   HAVEN_FORCE_WIZARD=1  re-open the wizard even when already configured
-#   HAVEN_SETUP_CLI=1     use the terminal installer instead of the browser
-if [ "${HAVEN_SETUP_CLI:-}" = "1" ]; then
-  echo "Running the terminal installer (HAVEN_SETUP_CLI=1)…"
-  exec "$PY" "$ROOT/installer/haven_cli.py"
-elif [ "${HAVEN_FORCE_WIZARD:-}" = "1" ] || [ ! -f "$ROOT/.env" ]; then
-  echo "Opening the Haven Setup Wizard in your browser…"
+# Terminal installer. First run installs & starts Haven in THIS terminal (no
+# website). After setup it just starts services and opens the app.
+#   HAVEN_FORCE_SETUP=1  re-run the installer even when already configured
+#   HAVEN_SETUP_WEB=1    use the optional browser wizard instead
+if [ "${HAVEN_SETUP_WEB:-}" = "1" ]; then
+  echo "Opening the optional browser setup wizard (HAVEN_SETUP_WEB=1)…"
   exec "$PY" "$ROOT/installer/haven_setup.py"
-else
+elif [ -f "$ROOT/.env" ] && [ "${HAVEN_FORCE_SETUP:-}" != "1" ]; then
   echo "Starting Haven and opening the app…"
   exec "$PY" "$ROOT/installer/haven_launch.py"
+else
+  echo "Installing & starting Haven in this terminal…"
+  exec "$PY" "$ROOT/installer/haven_cli.py"
 fi
