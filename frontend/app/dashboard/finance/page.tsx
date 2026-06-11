@@ -13,7 +13,7 @@ import { Modal } from "@/components/ui/Modal";
 import { BarChart } from "@/components/ui/BarChart";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { financeApi, ApiException } from "@/lib/api";
-import { formatCurrency, formatDate, monthLabel } from "@/lib/format";
+import { cn, formatCurrency, formatDate, monthLabel } from "@/lib/format";
 import type { FinanceCategory, FinanceSummary, FinanceType, Transaction } from "@/types";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -149,23 +149,41 @@ export default function FinancePage() {
       ) : !transactions || !summary ? (
         <Loading />
       ) : (
-        <div className="space-y-5">
+        <div className="animate-fade-in space-y-5">
           <div className="grid gap-4 sm:grid-cols-3">
-            <Card padding="md">
-              <p className="label-mono">Income</p>
-              <p className="mt-1.5 text-2xl font-semibold text-success">
+            <Card padding="md" hover>
+              <div className="flex items-center justify-between gap-2">
+                <p className="label-mono">Income</p>
+                <span className="flex h-7 w-7 items-center justify-center rounded-md border border-success/30 bg-success/10 text-success">
+                  <ArrowDownLeft size={14} />
+                </span>
+              </div>
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-success">
                 {formatCurrency(summary.total_income, summary.currency)}
               </p>
             </Card>
-            <Card padding="md">
-              <p className="label-mono">Expense</p>
-              <p className="mt-1.5 text-2xl font-semibold text-danger">
+            <Card padding="md" hover>
+              <div className="flex items-center justify-between gap-2">
+                <p className="label-mono">Expense</p>
+                <span className="flex h-7 w-7 items-center justify-center rounded-md border border-danger/30 bg-danger/10 text-danger">
+                  <ArrowUpRight size={14} />
+                </span>
+              </div>
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-danger">
                 {formatCurrency(summary.total_expense, summary.currency)}
               </p>
             </Card>
-            <Card padding="md" className="border-primary/20">
-              <p className="label-mono">Balance</p>
-              <p className="mt-1.5 text-2xl font-semibold text-content">
+            <Card gradient padding="md" hover className="border-primary/30">
+              <div className="flex items-center justify-between gap-2">
+                <p className="label-mono">Balance</p>
+                <span className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
+                  <Wallet size={14} />
+                </span>
+              </div>
+              <p className={cn(
+                "mt-2 text-2xl font-semibold tabular-nums",
+                summary.balance < 0 ? "text-danger" : "text-content",
+              )}>
                 {formatCurrency(summary.balance, summary.currency)}
               </p>
             </Card>
