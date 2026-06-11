@@ -19,9 +19,11 @@ DATA_URL = (
 # --- Thinking Mode --------------------------------------------------------
 
 def test_thinking_params_table():
-    assert thinking_params("fast") == {"temperature": 0.35, "top_p": 0.85}
-    assert thinking_params("balance") == {"temperature": 0.25, "top_p": 0.80}
-    assert thinking_params("thinking") == {"temperature": 0.15, "top_p": 0.75}
+    # Default (balance) leans warmer for natural, human-sounding prose; thinking/deep
+    # stay low so analytical and grounded work remains careful.
+    assert thinking_params("fast") == {"temperature": 0.45, "top_p": 0.90}
+    assert thinking_params("balance") == {"temperature": 0.40, "top_p": 0.85}
+    assert thinking_params("thinking") == {"temperature": 0.20, "top_p": 0.75}
     assert thinking_params("deep") == {"temperature": 0.10, "top_p": 0.70}
     assert thinking_params("nonsense") == thinking_params("balance")  # default
 
