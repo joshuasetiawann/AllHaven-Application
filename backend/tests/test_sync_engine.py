@@ -169,3 +169,57 @@ def test_pull_keeps_local_when_local_is_newer():
         assert local.title == "local-newer"  # LWW: local wins, not overwritten
     finally:
         db.close()
+
+
+def test_pull_keeps_local_when_remote_has_non_utc_offset_but_is_older():
+    """Regression: remote row with +07:00 offset that is OLDER in UTC must not overwrite local.
+
+    Local:  2026-02-01T05:00:00+00:00  (05:00 UTC)   — newer
+    Remote: 2026-02-01T09:00:00+07:00  (02:00 UTC)   — older
+
+    Before the fix, `.replace(tzinfo=None)` compared wall-clock numbers
+    (09:00 > 05:00) and silently overwrote the newer local row.
+    After the fix, `_to_utc_naive` converts to UTC first (02:00 < 05:00)
+    and correctly keeps the local row.
+    """
+    db = SessionLocal()
+    try:
+        ws = uuid.uuid4()
+        pk = uuid.uuid4()
+        user = uuid.uuid4()
+        # Local row: 05:00 UTC — the newer row
+        local = Task(
+            id=pk,
+            workspace_id=ws,
+            created_by=user,
+            title="local-newer",
+            status="TODO",
+            updated_at=datetime(2026, 2, 1, 5, 0, 0, tzinfo=timezone.utc),
+        )
+        db.add(local)
+        db.commit()
+
+        spec = sync_registry.spec_for("tasks")
+        # Remote row: 09:00+07:00 == 02:00 UTC — older instant, different title
+        remote_row = {
+            "id": str(pk),
+            "workspace_id": str(ws),
+            "title": "remote-older-with-tz-offset",
+            "status": "TODO",
+            "is_deleted": False,
+            "created_at": "2026-02-01T09:00:00+07:00",
+            "updated_at": "2026-02-01T09:00:00+07:00",
+        }
+
+        sync_engine.pull_table(
+            db, "https://x", "svc", ws, [], spec,
+            fetch=lambda *a: [remote_row],
+        )
+
+        db.refresh(local)
+        assert local.title == "local-newer", (
+            f"LWW violation: local row (05:00 UTC) was overwritten by remote row "
+            f"(09:00+07:00 = 02:00 UTC), title is now {local.title!r}"
+        )
+    finally:
+        db.close()
