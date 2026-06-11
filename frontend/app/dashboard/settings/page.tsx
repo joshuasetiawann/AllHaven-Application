@@ -34,6 +34,8 @@ import { Loading, ErrorState } from "@/components/ui/States";
 import { IntegrationCard } from "@/components/settings/IntegrationCard";
 import { IntegrationConfigModal } from "@/components/settings/IntegrationConfigModal";
 import { AiProviderCard } from "@/components/settings/AiProviderCard";
+import { AiToolsPanel } from "@/components/settings/AiToolsPanel";
+import { AiChatBehaviorPanel } from "@/components/settings/AiChatBehaviorPanel";
 import { GoogleOAuthCard } from "@/components/settings/GoogleOAuthCard";
 import SystemControl from "@/components/settings/SystemControl";
 import { aiApi, authApi, settingsApi } from "@/lib/api";
@@ -63,6 +65,9 @@ const AI_ICONS: Record<string, LucideIcon> = {
   openrouter_1: Network,
   openrouter_2: Network,
   openrouter_3: Network,
+  openrouter_4: Network,
+  openrouter_5: Network,
+  openrouter_6: Network,
 };
 
 export default function SettingsPage() {
@@ -192,6 +197,8 @@ export default function SettingsPage() {
         items={[
           { value: "tools", label: "Connected Tools", count: integrations?.length },
           { value: "ai", label: "AI Providers", count: providers?.length },
+          { value: "ai-tools", label: "AI Tools" },
+          { value: "ai-chat", label: "AI Chat" },
           { value: "privacy", label: "Privacy & Safety" },
           { value: "system", label: "System Control" },
         ]}
@@ -302,6 +309,10 @@ export default function SettingsPage() {
               </div>
             </>
           ) : null}
+
+          {tab === "ai-tools" ? <AiToolsPanel /> : null}
+
+          {tab === "ai-chat" ? <AiChatBehaviorPanel /> : null}
 
           {tab === "privacy" ? (
             <div className="grid gap-5 lg:grid-cols-3">
