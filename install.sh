@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Haven installer (Linux/macOS) — a thin BOOTSTRAPPER.
+# Haven installer (Linux/macOS) — installs & starts Haven from THIS terminal.
 #
-# It only checks for Python 3, then opens the browser-based **Setup Wizard**,
-# where ALL configuration happens (OS/Docker checks, ports, .env, starting
-# services, health, desktop shortcut, open app). The terminal is not where you
-# configure Haven — the wizard is.
+# It checks for Python 3, then runs the terminal installer: checks tools, writes
+# .env (with backup), pulls the database image, installs dependencies (with live
+# progress), runs migrations, starts services, and opens the app. No website.
 #
 # Windows: run START_HAVEN_WINDOWS.bat instead.
-# Prefer a terminal-only install: HAVEN_SETUP_CLI=1 ./install.sh
+# Prefer the optional browser wizard: HAVEN_SETUP_WEB=1 ./install.sh
 # =============================================================================
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,9 +23,9 @@ if [ -z "$PY" ]; then
   exit 1
 fi
 
-if [ "${HAVEN_SETUP_CLI:-}" = "1" ]; then
-  exec "$PY" "$ROOT/installer/haven_cli.py"
+if [ "${HAVEN_SETUP_WEB:-}" = "1" ]; then
+  echo "Opening the optional browser setup wizard (HAVEN_SETUP_WEB=1)…"
+  exec "$PY" "$ROOT/installer/haven_setup.py"
 fi
-echo "Opening the Haven Setup Wizard in your browser…"
-echo "(Keep this terminal open while you complete setup; you can close it afterward.)"
-exec "$PY" "$ROOT/installer/haven_setup.py"
+echo "Installing & starting Haven in this terminal…"
+exec "$PY" "$ROOT/installer/haven_cli.py"
