@@ -28,7 +28,7 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { DesktopBridgePanel } from "@/components/settings/DesktopBridgePanel";
 import { BackendBridgeCard } from "@/components/settings/BackendBridgeCard";
 import { APP_VERSION } from "@/components/layout/nav";
-import { SetupRequiredState } from "@/components/SetupRequiredState";
+import { NotConnectedNotice } from "@/components/settings/NotConnectedNotice";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toggle } from "@/components/ui/Toggle";
@@ -228,9 +228,9 @@ export default function SettingsPage() {
   // load is still running, then an honest connect-state. Never a full-page block — so
   // Settings (and Appearance, which is device-local) open instantly even with no
   // backend / no Tailscale.
-  const backendTabFallback = (feature: string, reason: string) =>
+  const backendTabFallback = (feature: string, _reason: string) =>
     loaded ? (
-      <SetupRequiredState feature={feature} needs="backend" reason={reason} onRetry={load} />
+      <NotConnectedNotice what={`${feature} loads live data from your backend.`} onRetry={load} />
     ) : (
       <Loading />
     );

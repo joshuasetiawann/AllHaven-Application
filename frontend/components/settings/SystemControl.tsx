@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { ErrorState, Loading } from "@/components/ui/States";
-import { SetupRequiredState } from "@/components/SetupRequiredState";
+import { NotConnectedNotice } from "@/components/settings/NotConnectedNotice";
 import { systemApi, ApiException } from "@/lib/api";
 import { backendReachable, needsBackendConnection } from "@/lib/connection";
 import { BEARER_MODE } from "@/lib/mobileAuth";
@@ -149,12 +149,24 @@ export default function SystemControl() {
 
   if (needsBackend) {
     return (
-      <SetupRequiredState
-        feature="System Control"
-        needs="backend"
-        reason="System Control manages services on your desktop computer through the AllHaven backend. Connect to it (locally, or over Tailscale from mobile) to view and control services."
-        onRetry={refresh}
-      />
+      <div className="space-y-4">
+        <NotConnectedNotice what="System Control manages services on your desktop." onRetry={refresh} />
+        <Card padding="md">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Server size={18} />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-content">Start / stop / restart services</p>
+              <p className="mt-0.5 text-[13px] text-content-muted">
+                {BEARER_MODE
+                  ? "System Control runs on your desktop computer. Connect over Tailscale (Connection in the top bar) to view and control the backend, frontend, and database from your phone."
+                  : "Connect to the backend to view and control the backend, frontend, and database."}
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
     );
   }
   if (error && !status) return <ErrorState message={error} onRetry={refresh} />;

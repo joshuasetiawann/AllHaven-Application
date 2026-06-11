@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Toggle } from "@/components/ui/Toggle";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
-import { SetupRequiredState } from "@/components/SetupRequiredState";
+import { NotConnectedNotice } from "@/components/settings/NotConnectedNotice";
 import { aiApi, ApiException } from "@/lib/api";
 import { backendReachable, needsBackendConnection } from "@/lib/connection";
 import { BEARER_MODE } from "@/lib/mobileAuth";
@@ -75,35 +75,23 @@ export function AiToolsPanel() {
     }
   };
 
-  if (needsBackend) {
-    return (
-      <SetupRequiredState
-        feature="AI Tools"
-        needs="backend"
-        reason="The AI Tool registry lives on the AllHaven backend. Connect to it (locally, or over Tailscale from mobile) to manage tools — Appearance settings work without it."
-        onRetry={load}
-      />
-    );
-  }
-  if (loadError) return <ErrorState message={loadError} onRetry={load} />;
-  if (!tools) return <Loading label="Loading AI tools…" />;
-  if (!tools.length) {
-    return (
-      <EmptyState
-        title="No AI tools registered"
-        description="The backend Tool Registry has not published any tools yet."
-        icon={<Wrench size={20} />}
-      />
-    );
-  }
+  // Only a hard spinner/error when we're actually mid-load on a reachable backend.
+  if (loadError && !needsBackend) return <ErrorState message={loadError} onRetry={load} />;
+  if (!tools && !needsBackend) return <Loading label="Loading AI tools…" />;
 
+  const list = tools ?? [];
   const modules = [
-    ...MODULE_ORDER.filter((m) => tools.some((t) => t.module === m)),
-    ...Array.from(new Set(tools.map((t) => t.module))).filter((m) => !MODULE_ORDER.includes(m)),
+    ...MODULE_ORDER.filter((m) => list.some((t) => t.module === m)),
+    ...Array.from(new Set(list.map((t) => t.module))).filter((m) => !MODULE_ORDER.includes(m)),
   ];
 
   return (
     <div className="space-y-4">
+      {/* Stay OPEN with or without the backend — show the registry + a slim notice. */}
+      {needsBackend ? (
+        <NotConnectedNotice what="The AI tool registry loads from your backend." onRetry={load} />
+      ) : null}
+
       <Card padding="md" className="border-primary/15">
         <div className="flex items-start gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -121,13 +109,24 @@ export function AiToolsPanel() {
 
       {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
 
+      {list.length === 0 ? (
+        <EmptyState
+          title={needsBackend ? "Tools load when you connect" : "No AI tools registered"}
+          description={
+            needsBackend
+              ? "Connect your backend from the Connection control in the top bar to load and toggle the tool registry."
+              : "The backend Tool Registry has not published any tools yet."
+          }
+          icon={<Wrench size={20} />}
+        />
+      ) : (
       <Card>
         <div className="space-y-5">
           {modules.map((module) => (
             <section key={module}>
               <p className="label-mono">{MODULE_LABELS[module] ?? module}</p>
               <ul className="mt-1 divide-y divide-border">
-                {tools
+                {list
                   .filter((t) => t.module === module)
                   .map((tool) => (
                     <li key={tool.name} className="flex items-center justify-between gap-3 py-3">
@@ -155,6 +154,7 @@ export function AiToolsPanel() {
           ))}
         </div>
       </Card>
+      )}
     </div>
   );
 }

@@ -7,11 +7,22 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Toggle } from "@/components/ui/Toggle";
 import { ErrorState, Loading } from "@/components/ui/States";
-import { SetupRequiredState } from "@/components/SetupRequiredState";
+import { NotConnectedNotice } from "@/components/settings/NotConnectedNotice";
 import { aiApi, ApiException } from "@/lib/api";
 import { backendReachable, needsBackendConnection } from "@/lib/connection";
 import { BEARER_MODE } from "@/lib/mobileAuth";
 import type { AiChatSettings } from "@/types";
+
+// Shown when the backend isn't connected, so the controls are still visible/configurable
+// (changes save once you connect). Mirrors the backend defaults.
+const DEFAULT_CHAT_SETTINGS: AiChatSettings = {
+  default_mode: "single",
+  polish_level: "standard",
+  max_active_agents: 3,
+  show_debate_flow: true,
+  require_approval: true,
+  show_tool_activity: true,
+};
 
 export function AiChatBehaviorPanel() {
   const [settings, setSettings] = useState<AiChatSettings | null>(null);
@@ -30,7 +41,10 @@ export function AiChatBehaviorPanel() {
     // ping) when the desktop backend isn't reachable, instead of spinning the full
     // timeout. Desktop/web (local backend up) passes through.
     if (BEARER_MODE && !(await backendReachable())) {
+      // Stay open: show the controls with defaults + a slim notice (saving needs the bridge).
       setNeedsBackend(true);
+      setSettings(DEFAULT_CHAT_SETTINGS);
+      setMaxAgents(String(DEFAULT_CHAT_SETTINGS.max_active_agents));
       return;
     }
     try {
@@ -40,6 +54,8 @@ export function AiChatBehaviorPanel() {
     } catch (err) {
       if (needsBackendConnection(err)) {
         setNeedsBackend(true);
+        setSettings(DEFAULT_CHAT_SETTINGS);
+        setMaxAgents(String(DEFAULT_CHAT_SETTINGS.max_active_agents));
         return;
       }
       setLoadError(err instanceof ApiException ? err.message : "Failed to load chat settings.");
@@ -83,21 +99,14 @@ export function AiChatBehaviorPanel() {
     void save({ max_active_agents: num });
   };
 
-  if (needsBackend) {
-    return (
-      <SetupRequiredState
-        feature="AI Chat"
-        needs="backend"
-        reason="AI Chat behavior settings live on the AllHaven backend. Connect to it (locally, or over Tailscale from mobile) to manage them — Appearance settings work without it."
-        onRetry={load}
-      />
-    );
-  }
-  if (loadError) return <ErrorState message={loadError} onRetry={load} />;
+  if (loadError && !needsBackend) return <ErrorState message={loadError} onRetry={load} />;
   if (!settings) return <Loading label="Loading chat settings…" />;
 
   return (
     <div className="space-y-4">
+      {needsBackend ? (
+        <NotConnectedNotice what="These are the defaults; saving needs your backend." onRetry={load} />
+      ) : null}
       {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
