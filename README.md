@@ -9,8 +9,8 @@
 Every version is frozen in its own self-contained `AllHaven X.Y` folder — a full,
 runnable snapshot. The latest version also lives on the [`main`](../../tree/main) branch.
 
-![Latest](https://img.shields.io/badge/latest-AllHaven%202.4%20·%20v0.12.0-18E0D6?style=flat-square)
-&nbsp;![Releases](https://img.shields.io/badge/releases-24-2563EB?style=flat-square)
+![Latest](https://img.shields.io/badge/latest-AllHaven%202.5%20·%20v0.13.0-18E0D6?style=flat-square)
+&nbsp;![Releases](https://img.shields.io/badge/releases-25-2563EB?style=flat-square)
 &nbsp;![© 2026 Joshua Setiawan](https://img.shields.io/badge/©%202026-Joshua%20Setiawan-555?style=flat-square)
 
 </div>
@@ -55,14 +55,15 @@ runnable snapshot. The latest version also lives on the [`main`](../../tree/main
 | **AllHaven 2.1** | 2026-06-10 | **AllHaven** | `v0.9.0` | **One-click desktop installer** — OS launchers + a browser **setup wizard** (Docker / ports / `.env` checks), a localhost-only **token-gated control agent**, and in-app **Settings → System Control**. |
 | **AllHaven 2.2** | 2026-06-10 | **AllHaven** | `v0.10.0` | **Reliable one-click startup + responsive menu** — launch faithful to `allhaven.sh` (bind `0.0.0.0`, wait for PostgreSQL, run migrations, health-gate, install deps, surface logs), fixing *"works manually but not from the app"*. Plus a collapsible, responsive nav menu. |
 | **AllHaven 2.3** | 2026-06-10 | **AllHaven** | `v0.11.0` | **Terminal installer + config sync** — install & start from the **terminal by default** with live progress (Docker pull, `pip`, `npm`); `backend/.env` mirrors the root `.env`; faster Docker check. Browser wizard via `HAVEN_SETUP_WEB=1`. |
-| **⭐ AllHaven 2.4** | 2026-06-11 | **AllHaven** | `v0.12.0` | **Current.** **App-wide AI tools with human approval** — a safe, allowlisted **Tool Registry** (35 tools) connects AI Chat to every module: reads execute, **writes await your Approve/Edit/Reject** (HIGH-risk always). Plus **6 OpenRouter agents**, **2 model slots per provider**, **up to 7 agents** with distinct roles, a **debate-flow visibility toggle**, output-quality polish, and Settings → AI Tools / AI Chat. |
+| **AllHaven 2.4** | 2026-06-11 | **AllHaven** | `v0.12.0` | **App-wide AI tools with human approval** — a safe, allowlisted **Tool Registry** (35 tools) connects AI Chat to every module: reads execute, **writes await your Approve/Edit/Reject** (HIGH-risk always). Plus **6 OpenRouter agents**, **2 model slots per provider**, **up to 7 agents** with distinct roles, a **debate-flow visibility toggle**, output-quality polish, and Settings → AI Tools / AI Chat. |
+| **⭐ AllHaven 2.5** | 2026-06-11 | **AllHaven** | `v0.13.0` | **Current.** **GUI-first install** — the terminal command is just a bootstrapper that opens the **browser Setup Wizard**, where everything happens (OS/Docker checks, ports, `.env` with backup, **live install progress**, health, desktop shortcut, open app). New entry points `./install.sh` and `npm run setup`; the desktop shortcut starts services & opens Haven with no terminal. |
 
 <sub>⭐ = current release. Dates reflect each version's build/release during the project's initial development sprint.</sub>
 
 ## 🌱 How the two branches relate
 
 Each `AllHaven X.Y` folder is a complete, standalone snapshot you can open and run on
-its own; the latest (`AllHaven 2.4`) keeps its own `CHANGELOG.md`, `VERSION`, and
+its own; the latest (`AllHaven 2.5`) keeps its own `CHANGELOG.md`, `VERSION`, and
 `docs/releases/` inside it. New releases add the next folder here, while
 [`main`](../../tree/main) is fast-forwarded to the same version.
 
