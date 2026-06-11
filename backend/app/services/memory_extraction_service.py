@@ -73,6 +73,14 @@ _RULES: list[tuple] = [
     (re.compile(r'my\s+name\s+is\s+([A-Za-z][A-Za-z\s]{1,40}?)(?:[.,!?]|$)', re.IGNORECASE),
      "Profile", "User name", "User's name is {value}.", 0.95, "LOW"),
 
+    # Education / location
+    (re.compile(r'saya\s+(?:sekolah|belajar|kuliah)\s+di\s+([A-Za-z0-9][A-Za-z0-9\s&._-]{1,60}?)(?:[.,!?]|$)', re.IGNORECASE),
+     "Profile", "School", "User studies at {value}.", 0.92, "LOW"),
+    (re.compile(r'(?:saya\s+)?(?:tinggal|berdomisili)\s+di\s+([A-Za-z0-9][A-Za-z0-9\s,._-]{1,80}?)(?:[.,!?]|$)', re.IGNORECASE),
+     "Profile", "Location", "User lives in {value}.", 0.88, "LOW"),
+    (re.compile(r'i\s+(?:study|go\s+to\s+school)\s+at\s+([A-Za-z0-9][A-Za-z0-9\s&._-]{1,60}?)(?:[.,!?]|$)', re.IGNORECASE),
+     "Profile", "School", "User studies at {value}.", 0.9, "LOW"),
+
     # Role / job
     (re.compile(r'saya\s+(?:adalah\s+)?(?:seorang\s+)?([A-Za-z][A-Za-z\s]{1,50}?)\s+(?:di|pada|yang|bekerja)', re.IGNORECASE),
      "Profile", "User role", "User's role is {value}.", 0.75, "LOW"),
@@ -91,7 +99,14 @@ _RULES: list[tuple] = [
     (re.compile(r'(?:this\s+)?project\s+(?:is\s+called\s+|named\s+|name\s+is\s+)([A-Za-z0-9][A-Za-z0-9\s/_-]{1,60}?)(?:[.,!?]|$)', re.IGNORECASE),
      "Projects", "Current project name", "User's current project is {value}.", 0.9, "LOW"),
 
+    (re.compile(r'untuk\s+project\s+([A-Za-z0-9][A-Za-z0-9\s/_-]{1,60}?),?\s+saya\s+mau\s+(.{8,160}?)(?:[.!?]|$)', re.IGNORECASE),
+     "Decisions", "Project decision", "For project {value}, the user made a decision recorded in chat.", 0.75, "LOW"),
+
     # Response preferences
+    (re.compile(r'(?:mau|ingin|prefer|suka|tolong|jawab|jawabannya|ai(?:nya)?)\s+.{0,50}?((?:tanpa|ga|gak|nggak|tidak)\s+basa\s+basi|langsung\s*(?:sat\s*set)?|sat\s*set)', re.IGNORECASE),
+     "Writing style", "Direct response style", "User prefers direct, concise responses without small talk.", 0.92, "LOW"),
+    (re.compile(r'((?:no\s+small\s+talk|skip\s+the\s+preamble|be\s+direct|concise\s+answers?))', re.IGNORECASE),
+     "Writing style", "Direct response style", "User prefers direct, concise responses without small talk.", 0.9, "LOW"),
     (re.compile(r'saya\s+suka\s+jawaban\s+(?:yang\s+)?([A-Za-z][A-Za-z\s,]{2,80}?)(?:[.,!?]|$)', re.IGNORECASE),
      "Preferences", "Response style preference", "User prefers {value} responses.", 0.9, "LOW"),
     (re.compile(r'(?:tolong\s+)?jawab\s+(?:dengan\s+)?(?:cara\s+)?(?:yang\s+)?([A-Za-z][A-Za-z\s,]{2,60}?)(?:\s+ya)?(?:[.,!?]|$)', re.IGNORECASE),
@@ -100,6 +115,10 @@ _RULES: list[tuple] = [
      "Preferences", "Response style - avoid", "User dislikes {value} in responses.", 0.85, "LOW"),
     (re.compile(r'i\s+(?:prefer|like|want)\s+(?:responses?\s+(?:that\s+are\s+|to\s+be\s+))?([A-Za-z][A-Za-z\s,]{2,80}?)(?:[.,!?]|$)', re.IGNORECASE),
      "Preferences", "Response style preference", "User prefers {value} responses.", 0.85, "LOW"),
+    (re.compile(r'kebutuhan\s+saya\s+untuk\s+ai\s+ini\s+(?:adalah\s+)?(.{5,160}?)(?:[.!?]|$)', re.IGNORECASE),
+     "Preferences", "AI usage needs", "User wants the AI to help with {value}.", 0.92, "LOW"),
+    (re.compile(r'ai(?:nya)?\s+.*?(ngoding|coding|programming|jadwal|schedule).{0,120}', re.IGNORECASE),
+     "Work context", "AI work focus", "User wants the AI to help with coding and schedule management.", 0.86, "LOW"),
 
     # Tech stack
     (re.compile(r'(?:saya\s+)?(?:menggunakan|pakai|pake)\s+([A-Za-z0-9][A-Za-z0-9\s+_/-]{1,60}?)\s+(?:sebagai\s+)?(?:untuk|framework|library|tech\s+stack)', re.IGNORECASE),
@@ -249,7 +268,7 @@ def _llm_extract_candidates(
     prompt = (
         "You are a memory extractor. Analyze this conversation turn and identify facts worth remembering "
         "long-term about the user. Return a JSON array of objects with keys: "
-        "category (Profile|Preferences|Projects|WorkStyle|Technical|Goals), "
+        "category (Profile|Preferences|Projects|Decisions|Writing style|Work context|UI/UX preferences|Technical|Technical preferences|Tasks context|Finance context|Goals|Other), "
         "title (short, max 50 chars), content (complete sentence), confidence (0.0-1.0), sensitivity (LOW|MEDIUM|HIGH). "
         "Only include high-signal facts. Return [] if nothing important. Do NOT include secrets, passwords, or API keys.\n\n"
         f"User: {user_msg[:800]}\nAssistant: {assistant_msg[:800]}"

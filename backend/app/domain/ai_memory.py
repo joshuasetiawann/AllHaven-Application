@@ -10,10 +10,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, JSONType, TimestampMixin, UUIDPrimaryKeyMixin
 
-MEMORY_CATEGORIES = ("Profile", "Preferences", "Projects", "WorkStyle", "Technical", "Goals")
+MEMORY_CATEGORIES = (
+    "Profile", "Preferences", "Projects", "Decisions", "Writing style",
+    "Work context", "UI/UX preferences", "Technical", "Technical preferences",
+    "Tasks context", "Finance context", "Goals", "Other",
+)
 MEMORY_STATUSES = ("active", "pending", "disabled", "stale")
 SENSITIVITY_LEVELS = ("LOW", "MEDIUM", "HIGH")
-MEMORY_SOURCES = ("chat_extracted", "manual", "llm_extracted")
+MEMORY_SOURCES = ("chat_extracted", "manual", "llm_extracted", "tool_result", "approved_action")
 EXTRACTION_METHODS = ("rule_based", "llm")
 SUGGESTION_STATUSES = ("pending", "approved", "rejected", "auto_saved")
 

@@ -26,6 +26,7 @@ class SessionOut(ORMModel):
     id: uuid.UUID
     title: Optional[str] = None
     group_id: Optional[uuid.UUID] = None
+    section_key: str = "general"
     created_at: datetime
     updated_at: datetime
 
@@ -50,6 +51,7 @@ class MessageOut(ORMModel):
     session_id: Optional[uuid.UUID] = None
     role: str
     content: str
+    section_key: str = "general"
     meta: Optional[dict] = None
     created_at: datetime
 
@@ -59,6 +61,7 @@ class ChatRequest(BaseModel):
     session_id: Optional[uuid.UUID] = None
     provider_id: Optional[str] = None
     section_key: Optional[str] = Field(default="general", max_length=50)
+    thinking_mode: Literal["fast", "balance", "thinking", "deep"] = "balance"
 
 
 class ChatResponse(BaseModel):
