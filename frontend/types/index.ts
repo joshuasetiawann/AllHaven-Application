@@ -275,6 +275,39 @@ export interface Integration {
   env_sync?: EnvSync;
 }
 
+// A selectable model slot on a provider (OpenRouter agents: 1 slot each; every
+// other provider: 2 slots — slot 2 is an optional secondary model). `ref` is the
+// agent reference used in multi-agent runs (e.g. "anthropic#2").
+export interface ModelSlot {
+  slot: number;
+  ref: string;
+  model: string;
+  role: string;
+  enabled: boolean;
+  configured: boolean;
+}
+
+// One registered AI tool (backend Tool Registry).
+export interface AiTool {
+  name: string;
+  description: string;
+  module: string;
+  access: "read" | "write";
+  risk: "LOW" | "MEDIUM" | "HIGH";
+  approval_required: boolean;
+  enabled: boolean;
+}
+
+// Workspace chat behavior settings.
+export interface AiChatSettings {
+  default_mode: "single" | "parallel" | "debate" | "reasoning";
+  show_debate_flow: boolean;
+  require_approval: boolean;
+  show_tool_activity: boolean;
+  polish_level: "standard" | "high";
+  max_active_agents: number;
+}
+
 export interface AiProvider {
   id: string;
   provider_id: string;
@@ -284,6 +317,7 @@ export interface AiProvider {
   external: boolean;
   api_key_required: boolean;
   capabilities?: { text: boolean; image: boolean; tools: boolean };
+  model_slots?: ModelSlot[];
   enabled: boolean;
   status: IntegrationStatusValue;
   configured: boolean;

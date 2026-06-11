@@ -78,7 +78,7 @@ class MultiChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     session_id: Optional[uuid.UUID] = None
     # 1–3 agents. >3 fails validation (HTTP 422: "Maximum 3 agents per run").
-    provider_ids: List[str] = Field(min_length=1, max_length=3)
+    provider_ids: List[str] = Field(min_length=1, max_length=7)
     images: ImageList = Field(default=None, max_length=4)
     thinking_mode: ThinkingMode = "balance"
 
@@ -88,7 +88,7 @@ class DebateChatRequest(BaseModel):
 
     message: str = Field(min_length=1, max_length=8000)
     session_id: Optional[uuid.UUID] = None
-    provider_ids: List[str] = Field(min_length=1, max_length=3)
+    provider_ids: List[str] = Field(min_length=1, max_length=7)
     # Round 1 opening + rebuttal rounds. Bounded so a run can't explode in calls.
     rounds: int = Field(default=2, ge=1, le=4)
     images: ImageList = Field(default=None, max_length=4)
@@ -100,7 +100,7 @@ class ReasoningChatRequest(BaseModel):
 
     message: str = Field(min_length=1, max_length=8000)
     session_id: Optional[uuid.UUID] = None
-    provider_ids: List[str] = Field(min_length=1, max_length=3)
+    provider_ids: List[str] = Field(min_length=1, max_length=7)
     images: ImageList = Field(default=None, max_length=4)
     # Depth + sampling: fast (1 pass), balance (analyst+synth), thinking/deep (+critic).
     thinking_mode: ThinkingMode = "balance"

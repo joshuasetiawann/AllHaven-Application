@@ -19,14 +19,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ValidationAppError
 from app.core.principal import Principal
 from app.domain.integrations import AiAgentConfig
 from app.services import ai_policy_service
 from app.services import config_common as cc
 from app.services import env_file_service
 from app.services.ai_providers.anthropic_provider import AnthropicProvider
-from app.services.ai_providers.base import AIProvider
+from app.services.ai_providers.base import AIProvider, OpenAICompatibleProvider
 from app.services.ai_providers.blackbox_provider import BlackboxProvider
 from app.services.ai_providers.gemini_provider import GeminiProvider
 from app.services.ai_providers.grok_provider import GrokProvider
@@ -44,11 +44,14 @@ ADAPTERS: dict[str, AIProvider] = {
     "gemini": GeminiProvider(),
     "grok": GrokProvider(),
     "blackbox": BlackboxProvider(),
-    # Three independent OpenRouter slots share the OpenRouter adapter; each has
+    # Six independent OpenRouter slots share the OpenRouter adapter; each has
     # its own DB row, key, status, and default model.
     "openrouter_1": OpenRouterProvider(),
     "openrouter_2": OpenRouterProvider(),
     "openrouter_3": OpenRouterProvider(),
+    "openrouter_4": OpenRouterProvider(),
+    "openrouter_5": OpenRouterProvider(),
+    "openrouter_6": OpenRouterProvider(),
 }
 
 
@@ -66,6 +69,9 @@ def _env_public(spec: ProviderSpec) -> dict:
         "openrouter_1": {"default_model": settings.OPENROUTER_1_DEFAULT_MODEL or settings.OPENROUTER_DEFAULT_MODEL},
         "openrouter_2": {"default_model": settings.OPENROUTER_2_DEFAULT_MODEL},
         "openrouter_3": {"default_model": settings.OPENROUTER_3_DEFAULT_MODEL},
+        "openrouter_4": {"default_model": settings.OPENROUTER_4_DEFAULT_MODEL},
+        "openrouter_5": {"default_model": settings.OPENROUTER_5_DEFAULT_MODEL},
+        "openrouter_6": {"default_model": settings.OPENROUTER_6_DEFAULT_MODEL},
     }
     return {k: v for k, v in mapping.get(spec.id, {}).items() if is_configured_value(v)}
 
@@ -81,6 +87,9 @@ def _env_secrets(spec: ProviderSpec) -> dict:
         "openrouter_1": {"api_key": settings.OPENROUTER_1_API_KEY or settings.OPENROUTER_API_KEY},
         "openrouter_2": {"api_key": settings.OPENROUTER_2_API_KEY},
         "openrouter_3": {"api_key": settings.OPENROUTER_3_API_KEY},
+        "openrouter_4": {"api_key": settings.OPENROUTER_4_API_KEY},
+        "openrouter_5": {"api_key": settings.OPENROUTER_5_API_KEY},
+        "openrouter_6": {"api_key": settings.OPENROUTER_6_API_KEY},
     }
     return {k: v for k, v in mapping.get(spec.id, {}).items() if is_configured_value(v)}
 
@@ -174,6 +183,7 @@ def _view(spec: ProviderSpec, row: Optional[AiAgentConfig]) -> dict:
         "configured": configured,
         "detail": cc.STATUS_DETAIL.get(status, "Not configured"),
         "default_model": default_model,
+        "model_slots": _model_slots(spec, row, default_model or ""),
         "privacy_mode": privacy_mode,
         "fields": cc.field_specs(spec),
         "public_config": public,
@@ -188,6 +198,80 @@ def _require_spec(provider_id: str) -> ProviderSpec:
     if spec is None:
         raise NotFoundError(f"Unknown AI provider '{provider_id}'.")
     return spec
+
+
+# --- model slots ------------------------------------------------------------
+# Every provider exposes selectable "model slots" for the multi-agent picker.
+# The six OpenRouter providers are one slot each (with a suggested role); every
+# other provider gets two slots: slot 1 = its default model, slot 2 = an optional
+# secondary model stored in public_config (slot2_model / slot2_role / slot2_enabled).
+
+OPENROUTER_SLOT_ROLES = {
+    "openrouter_1": "Main Assistant",
+    "openrouter_2": "Reasoning / Planner",
+    "openrouter_3": "Critic / Reviewer",
+    "openrouter_4": "Coding / Technical",
+    "openrouter_5": "Research / Long Context",
+    "openrouter_6": "Synthesizer / Final Writer",
+}
+
+
+def _model_slots(spec: ProviderSpec, row: Optional[AiAgentConfig], default_model: str) -> list[dict]:
+    cfg = dict(row.public_config or {}) if row is not None else {}
+    slot1_role = str(cfg.get("slot1_role") or OPENROUTER_SLOT_ROLES.get(spec.id, "Main Assistant"))
+    slots = [{
+        "slot": 1,
+        "ref": spec.id,
+        "model": default_model or "",
+        "role": slot1_role,
+        "enabled": True,
+        "configured": bool(default_model),
+    }]
+    if spec.id not in OPENROUTER_SLOT_ROLES:
+        slot2_model = str(cfg.get("slot2_model") or "")
+        slots.append({
+            "slot": 2,
+            "ref": f"{spec.id}#2",
+            "model": slot2_model,
+            "role": str(cfg.get("slot2_role") or "Secondary"),
+            "enabled": cfg.get("slot2_enabled") is not False,
+            "configured": bool(slot2_model),
+        })
+    return slots
+
+
+def set_model_slots(db: Session, principal: Principal, provider_id: str, slots: list[dict]) -> dict:
+    """Update a provider's model slots. Only slot keys are written; everything
+    else in public_config (and all secrets) is untouched."""
+    spec = _require_spec(provider_id)
+    row = _get_or_create_row(db, principal, spec)
+    cfg = dict(row.public_config or {})
+    for s in slots or []:
+        try:
+            n = int(s.get("slot"))
+        except (TypeError, ValueError):
+            raise ValidationAppError("Each slot needs a numeric 'slot' (1 or 2).")
+        if n not in (1, 2):
+            raise ValidationAppError("Only slots 1 and 2 exist.")
+        if n == 2 and spec.id in OPENROUTER_SLOT_ROLES:
+            raise ValidationAppError("OpenRouter agents are single-slot (use the six agents).")
+        if "role" in s:
+            cfg[f"slot{n}_role"] = str(s.get("role") or "")[:80]
+        if n == 2 and "model" in s:
+            cfg["slot2_model"] = str(s.get("model") or "")[:200]
+        if n == 1 and "model" in s and s.get("model"):
+            row.default_model = str(s["model"])[:200]
+        if n == 2 and "enabled" in s:
+            cfg["slot2_enabled"] = bool(s.get("enabled"))
+    row.public_config = cfg
+    row.updated_by = principal.user_id
+    db.flush()
+    write_audit(db, action="UPDATE", entity_name="ai_agent_config",
+                workspace_id=principal.workspace_id, user_id=principal.user_id, entity_id=row.id,
+                meta={"provider_id": provider_id, "change": "model_slots"})
+    db.commit()
+    db.refresh(row)
+    return _view(spec, row)
 
 
 def list_providers(db: Session, principal: Principal) -> list[dict]:
@@ -312,22 +396,46 @@ class ChatPlan:
     # Whether the provider can accept image input (vision). Used to route images
     # only to vision-capable providers.
     supports_image: bool = True
+    # Whether this plan can run a native tool-calling loop (OpenAI-compatible
+    # adapters with tool support). Other providers chat normally without tools.
+    supports_tool_loop: bool = False
+    # Role configured on the selected model slot ("" = use position default).
+    slot_role: str = ""
 
     @property
     def runnable(self) -> bool:
         return self.status == "queued"
 
-    def execute(self, messages: list[dict], params: Optional[dict] = None):
+    def execute(self, messages: list[dict], params: Optional[dict] = None, tools: Optional[list] = None):
         """Run the network call. Returns a ChatResult. Thread-safe.
 
         ``params`` carries generation settings (temperature/top_p/…) from the
         Reasoning Quality Layer; adapters forward the subset their API supports.
+        ``tools`` (OpenAI tools array) is forwarded only on tool-capable plans.
         """
+        if tools:
+            return self._runner(messages, params, tools)
         return self._runner(messages, params)
 
 
-def plan_chat(db: Session, principal: Principal, provider_id: Optional[str] = None) -> ChatPlan:
-    """Resolve a provider into an honest, ready-to-run plan (no network here)."""
+def split_agent_ref(ref: str) -> tuple[str, int]:
+    """Parse an agent reference: 'anthropic' -> ('anthropic', 1); 'anthropic#2' -> (...,2)."""
+    base, sep, slot = (ref or "").partition("#")
+    if sep and slot in ("1", "2"):
+        return base, int(slot)
+    return ref, 1
+
+
+def plan_chat(
+    db: Session, principal: Principal, provider_id: Optional[str] = None, slot: int = 1,
+) -> ChatPlan:
+    """Resolve a provider into an honest, ready-to-run plan (no network here).
+
+    ``provider_id`` may be an agent reference like ``"anthropic#2"`` selecting the
+    provider's secondary model slot; slot 2 overrides the model and role.
+    """
+    if provider_id and "#" in provider_id:
+        provider_id, slot = split_agent_ref(provider_id)
     pid = provider_id or resolve_default_provider(db, principal)
     spec = get_ai_provider_spec(pid)
     if spec is None:
@@ -339,6 +447,22 @@ def plan_chat(db: Session, principal: Principal, provider_id: Optional[str] = No
     configured = adapter.is_configured(public, secrets)
     enabled = bool(row.enabled) if row is not None else False
     model = row.default_model if row is not None else None
+    cfg = dict(row.public_config or {}) if row is not None else {}
+    slot_role = str(cfg.get(f"slot{slot}_role") or "")
+    if slot == 2:
+        slot_model = str(cfg.get("slot2_model") or "")
+        if not slot_model:
+            return ChatPlan(
+                pid, spec.name, spec.external, configured, enabled, "not_configured",
+                f"Slot 2 of '{spec.name}' has no model configured. Set it in Settings → AI Providers.",
+                slot_role=slot_role,
+            )
+        if cfg.get("slot2_enabled") is False:
+            return ChatPlan(
+                pid, spec.name, spec.external, configured, enabled, "disabled",
+                f"Slot 2 of '{spec.name}' is disabled.", slot_role=slot_role,
+            )
+        model = slot_model
 
     if spec.external and not ai_policy_service.is_external_allowed(db, principal):
         return ChatPlan(
@@ -364,12 +488,17 @@ def plan_chat(db: Session, principal: Principal, provider_id: Optional[str] = No
             f"The '{spec.name}' provider is configured but disabled. Enable it in Settings to use it.",
         )
 
-    def _run(messages: list[dict], params: Optional[dict] = None):
+    tool_loop = isinstance(adapter, OpenAICompatibleProvider) and adapter.supports_tools
+
+    def _run(messages: list[dict], params: Optional[dict] = None, tools: Optional[list] = None):
+        if tools and tool_loop:
+            return adapter.chat(public, secrets, messages, model=model, params=params, tools=tools)
         return adapter.chat(public, secrets, messages, model=model, params=params)
 
     return ChatPlan(
         pid, spec.name, spec.external, True, True, "queued", "",
         supports_image=adapter.supports_image, _runner=_run,
+        supports_tool_loop=tool_loop, slot_role=slot_role,
     )
 
 
