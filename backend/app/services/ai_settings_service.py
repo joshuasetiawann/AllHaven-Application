@@ -25,6 +25,7 @@ from app.domain.integrations import IntegrationConfig
 
 CHAT_SETTINGS_PROVIDER_ID = "ai_chat_settings"
 TOOL_SETTINGS_PROVIDER_ID = "ai_tool_settings"
+MEMORY_SETTINGS_PROVIDER_ID = "ai_memory_settings"
 
 CHAT_MODES = ("parallel", "debate", "reasoning", "single")
 POLISH_LEVELS = ("standard", "high")
@@ -36,6 +37,11 @@ CHAT_DEFAULTS = {
     "show_tool_activity": True,
     "polish_level": "standard",
     "max_active_agents": 7,     # hard product cap; users may lower it
+}
+
+MEMORY_DEFAULTS = {
+    "auto_learning_enabled": True,
+    "require_approval_sensitive": True,
 }
 
 
@@ -146,3 +152,34 @@ def set_tool_enabled(db: Session, principal: Principal, tool_name: str, enabled:
     row.updated_by = principal.user_id
     db.commit()
     return disabled
+
+
+# --- memory auto-learning settings ------------------------------------------
+
+
+def get_memory_settings(db: Session, principal: Principal) -> dict:
+    row = _row(db, principal, MEMORY_SETTINGS_PROVIDER_ID)
+    cfg = dict(row.public_config) if row and row.public_config else {}
+    return {**MEMORY_DEFAULTS, **{k: v for k, v in cfg.items() if k in MEMORY_DEFAULTS}}
+
+
+def set_memory_settings(db: Session, principal: Principal, updates: dict) -> dict:
+    row = _ensure_row(db, principal, MEMORY_SETTINGS_PROVIDER_ID, "AI Memory Settings")
+    valid_keys = set(MEMORY_DEFAULTS.keys())
+    cfg = dict(row.public_config or {})
+    for k, v in updates.items():
+        if k in valid_keys:
+            cfg[k] = v
+    row.public_config = cfg
+    db.commit()
+    return {**MEMORY_DEFAULTS, **{k: v for k, v in cfg.items() if k in MEMORY_DEFAULTS}}
+
+
+def is_memory_auto_learning_enabled(db: Session, principal: Principal) -> bool:
+    settings = get_memory_settings(db, principal)
+    return bool(settings.get("auto_learning_enabled", True))
+
+
+def is_memory_require_approval_sensitive(db: Session, principal: Principal) -> bool:
+    settings = get_memory_settings(db, principal)
+    return bool(settings.get("require_approval_sensitive", True))
