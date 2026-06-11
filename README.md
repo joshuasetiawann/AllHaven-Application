@@ -24,13 +24,13 @@ _The AI proposes — a human approves every write action._
 > application (FastAPI + Next.js) that unifies tasks, notes, finance tracking, and a
 > **multi-agent AI** assistant — where **the AI proposes and humans approve** every write action.
 
-**Version:** **v0.11.0** — archive [`AllHaven 2.3`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
+**Version:** **v0.12.0** — archive [`AllHaven 2.4`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
 
 ### 🆕 What's new
 
-- **v0.11.0 — Terminal installer + config sync.** The launchers now install & start Haven from the **terminal by default**, with live progress for the slow steps (Docker pull, `pip`, `npm`); `backend/.env` now mirrors the root `.env`; and the Docker check is faster (no more frozen "checking Docker"). The browser wizard is still available via `HAVEN_SETUP_WEB=1`. → [release notes](docs/releases/v0.11.0.md)
-- **v0.10.0 — Reliable one-click startup + responsive menu.** The launcher/setup wizard now start services reliably (bind `0.0.0.0`, wait for PostgreSQL, run migrations, health-gate the backend, install dependencies on first run, and surface logs on failure) — fixing *"works when run manually but not from the app"*. Plus a collapsible, responsive navigation menu (desktop rail, tablet icon rail, mobile drawer, signed-in user chip). → [release notes](docs/releases/v0.10.0.md)
-- **v0.9.0 — One-click desktop installer & System Control.** OS launchers (`START_HAVEN_*`) + a browser **setup wizard** (Docker/ports/`.env` checks), a localhost-only **Haven control agent**, and in-app **Settings → System Control** (start/stop/restart, ports, masked logs). → [release notes](docs/releases/v0.9.0.md) · [beginner guide](docs/DESKTOP_SETUP.md)
+- **v0.12.0 — App-wide AI tools with human approval.** AI Chat now connects to **every module** through a safe, allowlisted **Tool Registry** (35 tools): reads execute instantly, **writes always create a pending approval** you Approve/Edit/Reject in chat. Plus **6 OpenRouter agents**, **2 model slots per provider**, **up to 7 agents** with distinct roles, a **debate-flow visibility toggle**, and Settings → **AI Tools** / **AI Chat**. → [release notes](docs/releases/v0.12.0.md)
+- **v0.11.0 — Terminal installer + config sync.** The launchers now install & start Haven from the **terminal by default**, with live progress for the slow steps (Docker pull, `pip`, `npm`); `backend/.env` now mirrors the root `.env`; faster Docker check. Browser wizard via `HAVEN_SETUP_WEB=1`. → [release notes](docs/releases/v0.11.0.md)
+- **v0.10.0 — Reliable one-click startup + responsive menu.** Launch faithful to `allhaven.sh` (wait for PostgreSQL, migrations, health-gate, deps on first run) — fixing *"works manually but not from the app"* — plus the collapsible, responsive navigation. → [release notes](docs/releases/v0.10.0.md)
 
 ---
 
@@ -93,10 +93,10 @@ Stop / Restart, change ports, and view logs.
 | **Gemini** | Google | Cloud | Multimodal; vision. |
 | **Grok** | xAI | Cloud | Conversational reasoning. |
 | **Blackbox** | Blackbox AI | Cloud | Coding-focused. |
-| **OpenRouter ×3** | OpenRouter | Cloud | Three independent slots (`openrouter_1/2/3`), each with its own key + default model → route to *any* OpenRouter model. |
+| **OpenRouter ×6** | OpenRouter | Cloud | Six independent agents (`openrouter_1..6`) with suggested roles (Main, Planner, Critic, Coding, Research, Synthesizer), each with its own key + model → route to *any* OpenRouter model. |
 
-- **Multi-agent:** send one prompt to up to **3 agents at once** (Parallel), or use **Debate** / **Reasoning** modes — each agent answers in its own card.
-- **Human-in-the-loop:** the AI **proposes**; a human **approves** every write action. The AI never creates, edits, or deletes data on its own.
+- **Multi-agent:** send one prompt to up to **7 agents at once**, each with a distinct role (Main, Planner, Research, Coder, Critic/Risk, Product/UX, Synthesizer) — Parallel, **Debate** (transcript can be hidden → just the polished final answer), or **Reasoning** modes. Every provider also offers **2 model slots** ("Provider · Slot 2") so one provider can field two models.
+- **AI tools + human approval:** AI Chat reaches every module through an allowlisted **Tool Registry** — reads (schedule, notes, finance summary, weather, service status) run instantly; **writes always become pending approvals** you Approve/Edit/Reject. HIGH-risk actions (file delete, enabling workflows, service control) *always* require approval. Every call is audited.
 - **Honest status & privacy:** a provider is `online` only after a successful **Test Connection** (never faked); API keys stay **server-side**; a per-workspace policy can disable external providers entirely (local-only mode).
 
 ---
@@ -126,8 +126,9 @@ directly. Honest states when n8n isn't connected yet.
 - Local MVP **auth boundary** (register / login / me) — replaceable by Supabase Auth
 - **Workspace-scoped** business data, **soft deletes**, and **audit logging**
 - Tasks, Notes, Finance (categories, transactions, monthly summary) CRUD
-- **Multi-agent AI chat**: run up to **3 agents concurrently**, each answering in its own card
-- **9 AI providers**: Ollama (local) + GPT, Claude, Gemini, Grok, Blackbox, and **3 independent OpenRouter slots**
+- **Multi-agent AI chat**: run up to **7 agents concurrently** with distinct roles, each answering in its own card
+- **12 AI providers**: Ollama (local) + GPT, Claude, Gemini, Grok, Blackbox, and **6 independent OpenRouter agents** — plus 2 model slots per provider
+- **AI Tool Registry + human approval**: 35 allowlisted tools across all modules; reads execute, writes await your approval (audited)
 - **Human-in-the-loop AI**: honest "not configured" responses, no fake execution
 - Honest **integration status** & **real verification** (online only after a successful test; no faked connections, no secret leakage)
 - **Local `.env` mirror**: web Settings persist to the DB and mirror allowed keys to `.env` (allowlist + backup + atomic write)
