@@ -233,7 +233,7 @@ export default function SettingsPage() {
       ) : !integrations || !providers ? (
         <Loading />
       ) : (
-        <>
+        <div key={tab} className="animate-fade-in">
           {tab === "tools" ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {integrations.map((integration) => (
@@ -419,7 +419,7 @@ export default function SettingsPage() {
           ) : null}
 
           {tab === "system" ? <SystemControl /> : null}
-        </>
+        </div>
       )}
 
       <IntegrationConfigModal
