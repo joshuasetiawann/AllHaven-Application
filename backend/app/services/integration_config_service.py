@@ -200,13 +200,39 @@ def _verify(db: Session, spec: ProviderSpec, public: dict, secrets: dict) -> tup
     if pid == "supabase":
         url = (public.get("url") or "").rstrip("/")
         anon = secrets.get("anon_key") or public.get("anon_key") or ""
+        service = secrets.get("service_role_key") or ""
         if not url:
             return "not_configured", "Project URL not set"
+        # 1) Reachability: the Auth health endpoint confirms the project + URL.
         headers = {"apikey": anon} if anon else None
         code, _, err = safe_request("GET", f"{url}/auth/v1/health", headers=headers)
         if err or code is None:
             return "unavailable", f"Could not reach Supabase: {err}" if err else "No response"
-        return ("online", "") if code < 500 else ("error", f"Supabase error (HTTP {code})")
+        if code >= 500:
+            return "error", f"Supabase error (HTTP {code})"
+        # 2) Schema check: reachable is NOT enough. Two-way sync writes via PostgREST,
+        #    so the synced tables must exist on Supabase or every sync silently no-ops.
+        #    Probe a core table with the service-role key (bypasses RLS; 404 == table
+        #    missing == schema never provisioned).
+        if not service:
+            return "configured", "Reachable, but service_role key not set — sync can't write to Supabase."
+        probe_headers = {"apikey": service, "Authorization": f"Bearer {service}"}
+        pcode, _, perr = safe_request(
+            "GET", f"{url}/rest/v1/profiles?select=id&limit=1", headers=probe_headers
+        )
+        if perr or pcode is None:
+            return "unavailable", f"Could not reach Supabase REST: {perr}" if perr else "No response"
+        if pcode == 404:
+            return "error", (
+                "Schema not provisioned on Supabase (tables missing). From backend/, run "
+                "`ALLHAVEN_DB_TARGET=supabase DATABASE_URL=<supabase-postgres-url> "
+                "python -m alembic upgrade head`."
+            )
+        if pcode in (401, 403):
+            return "error", f"Supabase rejected the service_role key (HTTP {pcode})."
+        if pcode >= 500:
+            return "error", f"Supabase REST error (HTTP {pcode})."
+        return "online", ""
 
     if pid in ("google_calendar", "google"):
         # OAuth requires a user-consent flow; a static test can't reach "online".
