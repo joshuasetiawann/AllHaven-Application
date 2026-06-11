@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Cpu, Workflow, Globe, ShieldCheck, ShieldAlert, Smartphone } from "lucide-react";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { API_BASE_URL } from "@/lib/api";
+import { getApiBaseUrl } from "@/lib/api";
 
 const PROFILE_LABEL: Record<string, string> = {
   private: "Private / Personal",
@@ -29,7 +29,7 @@ export function DesktopBridgePanel() {
 
   useEffect(() => {
     // Best-effort: /health is public and returns the deployment profile.
-    fetch(`${API_BASE_URL}/health`)
+    fetch(`${getApiBaseUrl()}/health`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         const p = j?.data?.deployment_profile;
