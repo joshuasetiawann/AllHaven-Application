@@ -1,8 +1,9 @@
-"""AI router: sessions, messages, chat, and tool proposals.
+"""AI router: sessions, messages, chat, tools, settings, and tool proposals.
 
-The chat endpoint persists messages and returns an honest reply. Proposals can be
-listed and rejected; there is intentionally no approve/execute endpoint in the
-MVP (human-in-the-loop, no autonomous execution).
+The chat endpoint persists messages and returns an honest reply. The AI may only
+request actions through the allowlisted Tool Registry: reads execute, writes
+become PENDING proposals. Humans approve (executes via the registry), edit, or
+reject each proposal — the AI never executes writes autonomously.
 """
 
 from __future__ import annotations
@@ -44,12 +45,35 @@ from app.services import (
     ai_provider_router,
     ai_reasoning_service,
     ai_service,
+    ai_settings_service,
+    ai_tools_registry,
 )
 
 
 class AiPolicyUpdate(BaseModel):
     allow_external: Optional[bool] = None
     default_provider: Optional[str] = None
+
+
+class ChatSettingsUpdate(BaseModel):
+    default_mode: Optional[str] = None
+    show_debate_flow: Optional[bool] = None
+    require_approval: Optional[bool] = None
+    show_tool_activity: Optional[bool] = None
+    polish_level: Optional[str] = None
+    max_active_agents: Optional[int] = None
+
+
+class ToolEnabledUpdate(BaseModel):
+    enabled: bool
+
+
+class ProposalEdit(BaseModel):
+    tool_payload: dict
+
+
+class ModelSlotsUpdate(BaseModel):
+    slots: list[dict]
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -366,3 +390,91 @@ def reject_proposal(
 ) -> dict:
     proposal = ai_service.reject_proposal(db, principal, proposal_id)
     return success_response(ProposalOut.model_validate(proposal), "Proposal rejected")
+
+
+@router.post("/proposals/{proposal_id}/approve")
+def approve_proposal(
+    proposal_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Human approval: executes the proposed action via the Tool Registry."""
+    outcome = ai_tools_registry.approve_proposal(db, principal, proposal_id)
+    return success_response(
+        {"proposal": ProposalOut.model_validate(outcome["proposal"]), "result": outcome["result"]},
+        "Proposal approved and executed",
+    )
+
+
+@router.patch("/proposals/{proposal_id}")
+def edit_proposal(
+    proposal_id: uuid.UUID,
+    payload: ProposalEdit,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Edit a pending proposal's payload before approving it."""
+    proposal = ai_tools_registry.edit_proposal(db, principal, proposal_id, payload.tool_payload)
+    return success_response(ProposalOut.model_validate(proposal), "Proposal updated")
+
+
+# --- AI tools (registry) ----------------------------------------------------
+
+
+@router.get("/tools")
+def list_tools(
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    return success_response(ai_tools_registry.list_tools_view(db, principal), "AI tools")
+
+
+@router.put("/tools/{tool_name}")
+def set_tool_enabled(
+    tool_name: str,
+    payload: ToolEnabledUpdate,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    if tool_name not in ai_tools_registry.TOOLS:
+        from app.core.exceptions import NotFoundError
+
+        raise NotFoundError(f"Unknown tool '{tool_name}'.")
+    ai_settings_service.set_tool_enabled(db, principal, tool_name, payload.enabled)
+    view = next(t for t in ai_tools_registry.list_tools_view(db, principal) if t["name"] == tool_name)
+    return success_response(view, "Tool updated")
+
+
+# --- AI chat behavior settings ----------------------------------------------
+
+
+@router.get("/settings/chat")
+def get_chat_settings(
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    return success_response(ai_settings_service.get_chat_settings(db, principal), "Chat settings")
+
+
+@router.put("/settings/chat")
+def update_chat_settings(
+    payload: ChatSettingsUpdate,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    return success_response(ai_settings_service.set_chat_settings(db, principal, updates), "Chat settings saved")
+
+
+# --- model slots -------------------------------------------------------------
+
+
+@router.put("/providers/{provider_id}/slots")
+def update_model_slots(
+    provider_id: str,
+    payload: ModelSlotsUpdate,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    view = ai_provider_router.set_model_slots(db, principal, provider_id, payload.slots)
+    return success_response(view, "Model slots saved")
