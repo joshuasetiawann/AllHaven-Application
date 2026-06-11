@@ -15,6 +15,8 @@ export interface AgentCardData {
   error_message?: string | null;
   latency_ms?: number | null;
   external?: boolean;
+  // The agent's role in a multi-agent run (from message meta), when known.
+  role?: string | null;
 }
 
 const STATUS_META: Record<
@@ -44,6 +46,7 @@ export function AgentResponseCard({ data }: { data: AgentCardData }) {
             <Bot size={13} />
           </span>
           <span className="truncate text-[13px] font-medium text-content">{data.provider_name}</span>
+          {data.role ? <Badge tone="neutral" className="shrink-0">{data.role}</Badge> : null}
           {data.external ? <Globe size={12} className="shrink-0 text-warning" aria-label="External" /> : null}
         </div>
         <Badge tone={meta.tone} className="shrink-0">
