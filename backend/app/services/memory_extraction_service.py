@@ -323,4 +323,8 @@ def schedule_extraction(
 
         return len(candidates)
     except Exception:  # noqa: BLE001
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001
+            pass
         return 0
