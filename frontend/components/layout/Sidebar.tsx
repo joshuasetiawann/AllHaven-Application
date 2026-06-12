@@ -74,22 +74,31 @@ export function Sidebar({
         aria-current={active ? "page" : undefined}
         title={collapsed ? item.label : undefined}
         className={cn(
-          "group relative flex items-center gap-3 rounded-lg py-2.5 text-sm transition-all duration-150 focus-ring",
-          collapsed ? "justify-center px-0" : "justify-between px-3",
+          "group relative flex min-h-[42px] items-center gap-3 rounded-xl border py-2.5 text-sm transition-all duration-200 focus-ring",
+          collapsed ? "justify-center px-0" : "justify-between px-2.5",
           active
-            ? "bg-surface-high font-medium text-primary"
-            : "text-content-muted hover:bg-surface-raised/60 hover:text-content",
+            ? "border-primary/25 bg-primary/10 font-medium text-content shadow-[0_0_0_1px_rgba(24,224,214,0.04)]"
+            : "border-transparent text-content-muted hover:border-border/80 hover:bg-surface-raised/60 hover:text-content",
         )}
       >
         {active ? (
-          <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary" />
+          <span className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-full bg-primary" />
         ) : null}
         <span className={cn("flex min-w-0 items-center gap-3", collapsed && "gap-0")}>
-          <Icon size={18} className={cn("shrink-0", active ? "text-primary" : "")} />
+          <span
+            className={cn(
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors",
+              active
+                ? "border-primary/25 bg-primary/12 text-primary"
+                : "border-border/50 bg-surface-input/50 text-content-subtle group-hover:border-border-strong group-hover:text-content",
+            )}
+          >
+            <Icon size={17} />
+          </span>
           {collapsed ? null : <span className="truncate">{item.label}</span>}
         </span>
         {item.badge && !collapsed ? (
-          <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-content-subtle">
+          <span className="shrink-0 rounded-full border border-border bg-surface-input px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-content-subtle">
             {item.badge}
           </span>
         ) : null}
@@ -101,20 +110,20 @@ export function Sidebar({
     <div
       className={cn(
         "flex h-full flex-col border-r border-border bg-bg-deep/95 transition-[width] duration-200 ease-out",
-        collapsed ? "w-[76px]" : "w-[260px]",
+        collapsed ? "w-[80px]" : "w-[280px]",
       )}
     >
       <div
         className={cn(
           "flex items-center py-5",
-          collapsed ? "justify-center px-0" : "gap-2.5 px-5",
+          collapsed ? "justify-center px-0" : "gap-3 px-5",
         )}
       >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-fg shadow-glow-primary">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-fg shadow-glow-primary">
           <ShieldCheck size={18} />
         </div>
         {collapsed ? null : (
-          <div className="leading-tight">
+          <div className="min-w-0 leading-tight">
             <p className="text-[15px] font-semibold tracking-tight text-content">
               All<span className="text-primary">Haven</span>
             </p>
@@ -131,7 +140,7 @@ export function Sidebar({
           onClick={onNavigate}
           title={collapsed ? "New Command" : undefined}
           className={cn(
-            "flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary text-[13px] font-semibold text-primary-fg transition-colors hover:bg-primary-bright focus-ring",
+            "flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-[13px] font-semibold text-primary-fg shadow-[0_16px_32px_-24px_rgba(24,224,214,0.95)] transition-all duration-200 hover:bg-primary-bright hover:shadow-glow-primary focus-ring",
           )}
         >
           <Plus size={16} className="shrink-0" />
@@ -140,6 +149,11 @@ export function Sidebar({
       </div>
 
       <nav className="custom-scrollbar flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-2">
+        {collapsed ? null : (
+          <p className="px-3 pb-1 font-mono text-[10px] uppercase tracking-[0.16em] text-content-subtle">
+            Workspace
+          </p>
+        )}
         {PRIMARY_NAV.map(renderItem)}
 
         {collapsed ? (
@@ -155,12 +169,12 @@ export function Sidebar({
         {renderItem(SETTINGS_NAV)}
       </nav>
 
-      <div className={cn("space-y-1 border-t border-border py-3", collapsed ? "px-3" : "px-3")}>
+      <div className={cn("space-y-1 border-t border-border bg-bg-deep/80 py-3", collapsed ? "px-3" : "px-3")}>
         {user ? (
           <div
             className={cn(
-              "flex items-center rounded-lg py-1.5",
-              collapsed ? "justify-center px-0" : "gap-2.5 px-2",
+              "flex items-center rounded-xl border border-border/70 bg-surface-input/45 py-2",
+              collapsed ? "justify-center px-0" : "gap-2.5 px-2.5",
             )}
             title={collapsed ? user.full_name || user.email : undefined}
           >
@@ -184,7 +198,7 @@ export function Sidebar({
           rel="noreferrer"
           title={collapsed ? "Support" : undefined}
           className={cn(
-            "flex items-center gap-3 rounded-lg py-2 text-sm text-content-muted transition-colors hover:bg-surface-raised/60 hover:text-content focus-ring",
+            "flex items-center gap-3 rounded-xl py-2 text-sm text-content-muted transition-colors hover:bg-surface-raised/60 hover:text-content focus-ring",
             collapsed ? "justify-center px-0" : "px-3",
           )}
         >
@@ -195,7 +209,7 @@ export function Sidebar({
           onClick={signOut}
           title={collapsed ? "Sign Out" : undefined}
           className={cn(
-            "flex w-full items-center gap-3 rounded-lg py-2 text-sm text-content-muted transition-colors hover:bg-danger/10 hover:text-danger focus-ring",
+            "flex w-full items-center gap-3 rounded-xl py-2 text-sm text-content-muted transition-colors hover:bg-danger/10 hover:text-danger focus-ring",
             collapsed ? "justify-center px-0" : "px-3",
           )}
         >
@@ -209,7 +223,7 @@ export function Sidebar({
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={cn(
-              "flex w-full items-center gap-3 rounded-lg py-2 text-sm text-content-muted transition-colors hover:bg-surface-raised/60 hover:text-content focus-ring",
+              "flex w-full items-center gap-3 rounded-xl py-2 text-sm text-content-muted transition-colors hover:bg-surface-raised/60 hover:text-content focus-ring",
               collapsed ? "justify-center px-0" : "px-3",
             )}
           >

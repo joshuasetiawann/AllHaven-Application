@@ -62,6 +62,7 @@ class ChatRequest(BaseModel):
     provider_id: Optional[str] = None
     section_key: Optional[str] = Field(default="general", max_length=50)
     thinking_mode: Literal["fast", "balance", "thinking", "deep"] = "balance"
+    response_language: Optional[str] = Field(default=None, max_length=24)
 
 
 class ChatResponse(BaseModel):
@@ -86,6 +87,7 @@ class MultiChatRequest(BaseModel):
     images: ImageList = Field(default=None, max_length=4)
     thinking_mode: ThinkingMode = "balance"
     section_key: Optional[str] = Field(default="general", max_length=50)
+    response_language: Optional[str] = Field(default=None, max_length=24)
 
 
 class DebateChatRequest(BaseModel):
@@ -99,6 +101,7 @@ class DebateChatRequest(BaseModel):
     images: ImageList = Field(default=None, max_length=4)
     thinking_mode: ThinkingMode = "balance"
     section_key: Optional[str] = Field(default="general", max_length=50)
+    response_language: Optional[str] = Field(default=None, max_length=24)
 
 
 class ReasoningChatRequest(BaseModel):
@@ -111,6 +114,7 @@ class ReasoningChatRequest(BaseModel):
     # Depth + sampling: fast (1 pass), balance (analyst+synth), thinking/deep (+critic).
     thinking_mode: ThinkingMode = "balance"
     section_key: Optional[str] = Field(default="general", max_length=50)
+    response_language: Optional[str] = Field(default=None, max_length=24)
 
 
 class AgentResponseOut(ORMModel):

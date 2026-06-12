@@ -285,6 +285,7 @@ def chat(
         provider_id=payload.provider_id,
         section_key=payload.section_key or "general",
         thinking_mode=payload.thinking_mode,
+        response_language=payload.response_language,
     )
     data = ChatResponse(
         session_id=result["session_id"],
@@ -321,6 +322,7 @@ def chat_multi(
         images=payload.images,
         thinking_mode=payload.thinking_mode,
         section_key=payload.section_key or "general",
+        response_language=payload.response_language,
     )
     return success_response(_multi_view(result), "Multi-agent run processed")
 
@@ -342,6 +344,7 @@ def chat_debate(
         images=payload.images,
         thinking_mode=payload.thinking_mode,
         section_key=payload.section_key or "general",
+        response_language=payload.response_language,
     )
     return success_response(_multi_view(result), "Debate run processed")
 
@@ -362,6 +365,7 @@ def chat_reason(
         thinking_mode=payload.thinking_mode,
         images=payload.images,
         section_key=payload.section_key or "general",
+        response_language=payload.response_language,
     )
     return success_response(_multi_view(result), "Reasoning run processed")
 

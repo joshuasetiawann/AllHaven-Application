@@ -7,6 +7,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Toggle } from "@/components/ui/Toggle";
+import { useAppDialog } from "@/components/ui/AppDialog";
 import { ConversationSidebar } from "@/components/ai/ConversationSidebar";
 import { MAX_AGENTS, MultiAgentSelector } from "@/components/ai/MultiAgentSelector";
 import { AgentResponseCard, type AgentCardData } from "@/components/ai/AgentResponseCard";
@@ -17,6 +18,7 @@ import { SectionMemoryBar } from "@/components/ai/SectionMemoryBar";
 import { aiApi, ApiException } from "@/lib/api";
 import { cn } from "@/lib/format";
 import { aiPrefsExist, loadAiPrefs, resolveSelection, saveAiPrefs, type ChatModePref } from "@/lib/aiPrefs";
+import { loadPrefs } from "@/lib/prefs";
 import { DEFAULT_SECTION_KEY, resolveSection } from "@/lib/sections";
 import { buildContextPreface } from "@/lib/sectionMemory";
 import type { AgentResponseStatus, AiChatSettings, AiProvider, ChatGroup, ChatMessage, ChatSession, ThinkingMode } from "@/types";
@@ -122,6 +124,7 @@ function buildThread(messages: ChatMessage[]): ThreadItem[] {
 }
 
 export default function AiChatPage() {
+  const dialog = useAppDialog();
   const [groups, setGroups] = useState<ChatGroup[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [providers, setProviders] = useState<AiProvider[]>([]);
@@ -274,7 +277,13 @@ export default function AiChatPage() {
   };
 
   const renameChat = async (s: ChatSession) => {
-    const t = window.prompt("Rename conversation", s.title || "");
+    const t = await dialog.prompt({
+      title: "Rename conversation",
+      message: "Give this chat a clear title.",
+      defaultValue: s.title || "",
+      confirmLabel: "Rename",
+      placeholder: "Conversation title",
+    });
     if (t == null) return;
     const title = t.trim();
     if (!title) return;
@@ -282,7 +291,13 @@ export default function AiChatPage() {
     void refreshSessions();
   };
   const deleteChat = async (s: ChatSession) => {
-    if (!window.confirm(`Delete "${s.title || "New Chat"}"? This cannot be undone.`)) return;
+    const ok = await dialog.confirm({
+      title: "Delete conversation?",
+      message: `Delete "${s.title || "New Chat"}"? This cannot be undone.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     await aiApi.deleteSession(s.id).catch(() => {});
     if (activeId === s.id) { setActiveId(null); setMessages([]); }
     void refreshSessions();
@@ -292,19 +307,36 @@ export default function AiChatPage() {
     void refreshSessions();
   };
   const createGroup = async () => {
-    const name = window.prompt("New group name");
+    const name = await dialog.prompt({
+      title: "New group",
+      message: "Create a group to organize related chats.",
+      confirmLabel: "Create group",
+      placeholder: "Group name",
+    });
     if (!name || !name.trim()) return;
     await aiApi.createGroup(name.trim()).catch(() => {});
     void refreshGroups();
   };
   const renameGroup = async (g: ChatGroup) => {
-    const name = window.prompt("Rename group", g.name);
+    const name = await dialog.prompt({
+      title: "Rename group",
+      message: "Update this chat group name.",
+      defaultValue: g.name,
+      confirmLabel: "Rename",
+      placeholder: "Group name",
+    });
     if (name == null || !name.trim()) return;
     await aiApi.renameGroup(g.id, name.trim()).catch(() => {});
     void refreshGroups();
   };
   const deleteGroup = async (g: ChatGroup) => {
-    if (!window.confirm(`Delete group "${g.name}"? Its chats are kept (moved out of the group).`)) return;
+    const ok = await dialog.confirm({
+      title: "Delete group?",
+      message: `Delete group "${g.name}"? Its chats are kept and moved out of the group.`,
+      confirmLabel: "Delete group",
+      tone: "danger",
+    });
+    if (!ok) return;
     await aiApi.deleteGroup(g.id).catch(() => {});
     void refreshGroups();
     void refreshSessions();
@@ -387,12 +419,13 @@ export default function AiChatPage() {
       ? null
       : buildContextPreface(section, resolveSection(section, groups).label);
     const sendText = preface ? `${preface}\n\nUser message:\n${msg}` : msg;
+    const responseLanguage = loadPrefs().language;
     try {
       const run = mode === "debate"
-        ? await aiApi.debateChat(sendText, selected, activeId ?? undefined, rounds, imgs, thinking, section)
+        ? await aiApi.debateChat(sendText, selected, activeId ?? undefined, rounds, imgs, thinking, section, responseLanguage)
         : mode === "reason"
-          ? await aiApi.reasonChat(sendText, selected, activeId ?? undefined, thinking, imgs, section)
-          : await aiApi.multiChat(sendText, selected, activeId ?? undefined, imgs, thinking, section);
+          ? await aiApi.reasonChat(sendText, selected, activeId ?? undefined, thinking, imgs, section, responseLanguage)
+          : await aiApi.multiChat(sendText, selected, activeId ?? undefined, imgs, thinking, section, responseLanguage);
       setActiveId(run.session_id);
       prefacedRef.current.add(`${run.session_id}:${section}`);
       const msgs = await aiApi.listMessages(run.session_id);
