@@ -201,6 +201,13 @@ def _verify(db: Session, spec: ProviderSpec, public: dict, secrets: dict) -> tup
             return "configured", "Connect via OAuth to bring this online (consent required)"
         return "not_configured", "client_id and redirect_uri are required"
 
+    if pid == "drive_storage":
+        # Local storage is available; file-upload wiring is not enabled yet.
+        provider = (public.get("provider") or "local").lower()
+        if provider == "local":
+            return "configured", "Local storage selected; file upload wiring not enabled yet"
+        return "configured", "Configured; verification not implemented for this provider"
+
     if pid == "weather_api":
         key = secrets.get("api_key") or ""
         if not key:
