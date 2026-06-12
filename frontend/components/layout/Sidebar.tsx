@@ -32,8 +32,29 @@ export function Sidebar({
   const router = useRouter();
   const user = getStoredUser();
 
-  const isActive = (href: string) =>
-    href === "/dashboard" ? pathname === href : pathname.startsWith(href);
+  // Collect every href in the nav so we can detect a more-specific match.
+  const allHrefs = [
+    ...PRIMARY_NAV.map((i) => i.href),
+    ...MODULE_NAV.map((i) => i.href),
+    SETTINGS_NAV.href,
+  ];
+
+  const isActive = (href: string) => {
+    // Dashboard root must be an exact match — it is a prefix of every other route.
+    if (href === "/dashboard") return pathname === "/dashboard";
+    // Basic prefix match: equal or a sub-path.
+    const prefixMatch = pathname === href || pathname.startsWith(href + "/");
+    if (!prefixMatch) return false;
+    // Longest-prefix wins: deactivate this item if any other nav href is a
+    // longer, more-specific match for the current pathname.
+    const hasMoreSpecific = allHrefs.some(
+      (other) =>
+        other !== href &&
+        other.startsWith(href + "/") &&
+        (pathname === other || pathname.startsWith(other + "/")),
+    );
+    return !hasMoreSpecific;
+  };
 
   const signOut = async () => {
     // Revoke the server-side session + clear cookies, then drop the local cache.
