@@ -183,7 +183,7 @@ export default function LoginPage() {
         <div className="mt-6 text-center">
           <p className="inline-flex items-center gap-2 text-[12px] text-content-muted">
             <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-            Secure by design · Human approval required
+            Secure by design · Risky actions require approval
           </p>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-content-subtle">
             AllHaven Executive Interface {APP_VERSION}

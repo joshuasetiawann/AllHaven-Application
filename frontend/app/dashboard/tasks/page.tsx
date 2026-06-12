@@ -197,7 +197,7 @@ export default function TasksPage() {
             const isDone = task.status === "DONE";
             return (
               <Card key={task.id} className="p-4" hover>
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex min-w-0 items-start gap-3">
                     <button
                       onClick={() => toggleDone(task)}
@@ -236,8 +236,8 @@ export default function TasksPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <Button variant="ghost" size="sm" onClick={() => toggleDone(task)}>
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                    <Button variant="ghost" size="sm" onClick={() => toggleDone(task)} className="flex-1 sm:flex-none">
                       {isDone ? (
                         <>
                           <RotateCcw size={14} /> Reopen
@@ -265,7 +265,7 @@ export default function TasksPage() {
       )}
 
       {tasks && tasks.length > 0 ? (
-        <div className="mt-5 grid grid-cols-3 gap-4">
+        <div className="mt-5 grid gap-4 sm:grid-cols-3">
           <Card padding="sm">
             <p className="label-mono">Total</p>
             <p className="mt-1 text-2xl font-semibold text-content">{counts.ALL}</p>
@@ -313,7 +313,7 @@ export default function TasksPage() {
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Select
               id="priority"
               label="Priority"
@@ -352,7 +352,7 @@ export default function TasksPage() {
                     value={value}
                     onChange={(e) => setChecklistField(idx, e.target.value)}
                     placeholder={`Step ${idx + 1}`}
-                    className="h-9 flex-1 rounded-md border border-border bg-surface-input px-2.5 text-[13px] text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none"
+                    className="h-9 min-w-0 flex-1 rounded-md border border-border bg-surface-input px-2.5 text-[13px] text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none"
                   />
                   {form.checklist.length > 1 ? (
                     <button

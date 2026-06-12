@@ -6,7 +6,7 @@ REM    First time:  double-click this file. It opens the setup wizard in your
 REM                 browser and guides you through Docker + ports.
 REM    After setup: the same double-click starts Haven and opens the app.
 REM
-REM  Only Python 3 is required to run the wizard.
+REM  Python 3 and Node.js 18+ are required; the terminal installer checks both.
 REM ============================================================================
 setlocal
 set "ROOT=%~dp0"

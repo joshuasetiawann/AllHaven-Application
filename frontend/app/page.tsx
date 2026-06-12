@@ -5,7 +5,7 @@ import { APP_VERSION } from "@/components/layout/nav";
 const FEATURES = [
   { icon: ListTodo, title: "Tasks & Notes", desc: "Workspace-scoped, soft-deleted, fully audited." },
   { icon: Wallet, title: "Finance tracking", desc: "Cashflow only — never financial advice." },
-  { icon: Bot, title: "AI command center", desc: "Proposes actions; you approve every write." },
+  { icon: Bot, title: "AI command center", desc: "Learns memory fast; risky actions wait for approval." },
 ];
 
 export default function LandingPage() {
@@ -26,8 +26,8 @@ export default function LandingPage() {
         </h1>
         <p className="mt-6 max-w-xl text-balance text-[15px] leading-relaxed text-content-muted sm:text-base">
           A premium, modular AI command center for personal and company productivity. Tasks, notes,
-          finance, and an assistant that <span className="text-content">proposes</span> — while humans
-          approve every write action.
+          finance, and an assistant that learns context quickly while keeping risky actions
+          under human approval.
         </p>
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
