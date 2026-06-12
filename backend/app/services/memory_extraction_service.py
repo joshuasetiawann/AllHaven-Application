@@ -102,7 +102,12 @@ def _should_skip_memory(user_msg: str) -> bool:
     if schedule_parser.parse_schedule(text) is not None:
         return True
     intent = ai_intent_router.classify(text).intent
-    return intent in (ai_intent_router.FINANCE, ai_intent_router.TASK, ai_intent_router.NOTE)
+    return intent in (
+        ai_intent_router.FINANCE,
+        ai_intent_router.TASK,
+        ai_intent_router.NOTE,
+        ai_intent_router.ROUTINE,
+    )
 
 
 # --------------------------------------------------------------------------- #

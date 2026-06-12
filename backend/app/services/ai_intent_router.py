@@ -23,13 +23,17 @@ from typing import List, Optional
 FINANCE = "finance_transaction"
 TASK = "task_command"
 NOTE = "note_creation"
+ROUTINE = "routine_request"
 MEMORY = "memory_candidate"
 GENERAL = "general_chat"
 
 # --- keyword sets (word-boundary matched so "bayaran" != "bayar") ----------- #
+# "dapat/dapet" alone is ambiguous ("dapat membayar" = can pay), so the bare verb
+# counts as income ONLY when a number/Rp follows directly ("dapat 5000000").
 _INCOME_RE = re.compile(
     r"\b(pendapatan|pemasukan|pemasukkan|income|gaji(?:an)?|bayaran|honor|fee|"
-    r"dapat\s+(?:uang|duit|project|proyek|bayaran|gaji|job|client|klien)|"
+    r"dap[ae]t\s+(?:uang|duit|project|proyek|bayaran|gaji|job|client|klien)|"
+    r"dap[ae]t(?=\s*(?:rp\.?\s*)?\d)|"
     r"terima\s+(?:uang|duit|pembayaran|transfer)|untung|profit|bonus|thr|komisi|"
     r"dibayar|cuan)\b",
     re.IGNORECASE,
@@ -73,6 +77,42 @@ _NOTE_RE = re.compile(
     r"(?:note|catatan|memo)\b",
     re.IGNORECASE,
 )
+
+# Recurrence / routine talk belongs to the calendar-routine domain, never memory.
+# (Fully parseable "atur jadwal ..." requests are handled by schedule_parser before
+# this label matters; ROUTINE catches the recurrence phrasing the parser skips.)
+_ROUTINE_RE = re.compile(
+    r"\b(?:rutin(?:itas)?|routine|recurring|berulang|"
+    r"(?:setiap|tiap)\s+(?:hari|pagi|siang|sore|malam|minggu|bulan|"
+    r"senin|selasa|rabu|kamis|jum'?at|sabtu|weekend)|"
+    r"jadwal\s+(?:harian|mingguan|bulanan|rutin|tetap)|"
+    r"daily\s+(?:routine|schedule|habit)|weekly\s+(?:routine|schedule)|"
+    r"kebiasaan\s+(?:harian|pagi|malam))\b",
+    re.IGNORECASE,
+)
+
+# Greetings / thanks / acknowledgements: one warm reply is the whole job — no tool
+# loop, no knowledge retrieval, no multi-agent panel. Strict full-match with only a
+# short tail of address/particle words allowed, so real commands never match.
+_SIMPLE_INPUT_RE = re.compile(
+    r"^\s*(?:halo+|hai+|hi+|hello+|hey+|yo|p|pagi|siang|sore|malam|"
+    r"met\s+\w+|selamat\s+(?:pagi|siang|sore|malam|datang)|assalamualaikum|"
+    r"thanks?|thank\s+you|makasih?|trims|terima\s+kasih|thx|ty|"
+    r"ok(?:e|ay)?|sip+|mantap|mantul|keren|nice|noted|siap|baik(?:lah)?|"
+    r"good\s+(?:morning|afternoon|evening|night)|apa\s+kabar|how\s+are\s+you|"
+    r"test|tes|coba|ping)"
+    r"(?:\s+(?:ya+|dong|deh|bro|kak|min|mas|mbak|bang|guys?|semua|juga|"
+    r"banget|banyak|sekali|so\s+much|haven|all|sip+|makasih?|thanks?|apa\s+kabar))*"
+    r"\s*[!.,?~]*\s*$",
+    re.IGNORECASE,
+)
+
+
+def is_simple_message(message: str) -> bool:
+    """True for smalltalk (greetings/thanks/acks) that should short-circuit the
+    heavy chat machinery: skip the tool loop, knowledge retrieval, and any
+    multi-agent fan-out, and answer with one plain, warm reply instead."""
+    return bool(_SIMPLE_INPUT_RE.match((message or "").strip()))
 
 _UNIT_MULT = {
     "ribu": 1_000, "rb": 1_000, "k": 1_000,
@@ -242,8 +282,12 @@ def classify(message: str) -> IntentResult:
         return IntentResult(TASK)
     if _NOTE_RE.search(text):
         return IntentResult(NOTE)
+    # Explicit "ingat bahwa setiap senin ..." stays a memory request; only then
+    # does recurrence phrasing route to the routine domain.
     if explicit_remember:
         return IntentResult(MEMORY)
+    if _ROUTINE_RE.search(text):
+        return IntentResult(ROUTINE)
     return IntentResult(GENERAL)
 
 

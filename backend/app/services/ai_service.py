@@ -264,6 +264,8 @@ def chat(
         meta["tool_calls"] = result["tool_calls"]
     if result.get("proposal_ids"):
         meta["proposal_ids"] = result["proposal_ids"]
+    if result.get("quality"):
+        meta["quality"] = result["quality"]
     assistant_message = ChatMessage(
         workspace_id=principal.workspace_id,
         session_id=session.id,
