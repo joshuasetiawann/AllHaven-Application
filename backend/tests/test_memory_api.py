@@ -421,14 +421,21 @@ def test_settings_put_roundtrip(auth_client):
 
 def test_settings_put_ignores_unknown_keys(auth_client):
     """Unknown keys in MemorySettingsUpdate are ignored (Pydantic strips extras)."""
-    # MemorySettingsUpdate uses default Pydantic behaviour (ignore extra fields)
-    # so sending unknown keys should not raise a 422.
+    # Send a known key alongside a completely unknown key.
     resp = auth_client.put(
         f"{MEMORY_PREFIX}/settings",
-        json={"auto_learning_enabled": True},
+        json={"auto_learning_enabled": True, "hack_key": True},
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["data"]["auto_learning_enabled"] is True
+    data = resp.json()["data"]
+    assert data["auto_learning_enabled"] is True
+    # The unknown key must NOT appear in the response.
+    assert "hack_key" not in data
+
+    # A follow-up GET must also not carry the unknown key.
+    get_resp = auth_client.get(f"{MEMORY_PREFIX}/settings")
+    assert get_resp.status_code == 200
+    assert "hack_key" not in get_resp.json()["data"]
 
 
 # ---------------------------------------------------------------------------
@@ -460,6 +467,38 @@ def test_clear_all_memories_empty(auth_client):
     resp = auth_client.post(f"{MEMORY_PREFIX}/clear")
     assert resp.status_code == 200
     assert resp.json()["data"]["deleted"] == 0
+
+
+def test_clear_removes_non_active_status_memories(auth_client, db_session):
+    """POST /clear must delete memories regardless of status (not just 'active')."""
+    principal = _principal(auth_client)
+
+    # Create one memory via the API (status='active').
+    auth_client.post(
+        MEMORY_PREFIX,
+        json={"category": "Profile", "title": "Active Mem", "content": "Active"},
+    )
+
+    # Seed a 'stale' memory directly via the ORM, bypassing the API.
+    stale_mem = memory_service.create_memory(
+        db_session,
+        principal,
+        category="Profile",
+        title="Stale Mem",
+        content="Should be cleared",
+        source="manual",
+    )
+    stale_mem.status = "stale"
+    db_session.commit()
+
+    # /clear should wipe both memories.
+    clear_resp = auth_client.post(f"{MEMORY_PREFIX}/clear")
+    assert clear_resp.status_code == 200, clear_resp.text
+    assert clear_resp.json()["data"]["deleted"] == 2
+
+    # Nothing left — even list with no status filter shows empty.
+    list_resp = auth_client.get(MEMORY_PREFIX)
+    assert list_resp.json()["data"] == []
 
 
 # ---------------------------------------------------------------------------
