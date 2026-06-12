@@ -99,12 +99,9 @@ def clear_all_memories(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Delete ALL active memories for this workspace. Irreversible."""
-    rows = memory_service.list_memories(db, principal, limit=MAX_MEMORIES_PER_WORKSPACE)
-    for m in rows:
-        db.delete(m)
-    db.commit()
-    return success_response({"deleted": len(rows)}, "All memories cleared")
+    """Delete ALL memories for this workspace regardless of status. Irreversible."""
+    count = memory_service.clear_all_memories(db, principal)
+    return success_response({"deleted": count}, "All memories cleared")
 
 
 @router.post("/sync/supabase")
