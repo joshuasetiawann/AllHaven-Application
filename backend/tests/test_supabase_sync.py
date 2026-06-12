@@ -219,41 +219,138 @@ def test_sync_all_with_creds_starts_thread(auth_client, db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_serialize_primitives_and_none():
-    """_serialize logic handles plain primitives and None without raising."""
-    # Mirror the exact _serialize logic from the service to verify the rule:
-    # datetime → isoformat, UUID-like objects → str, primitives stay as-is.
+def test_serialize_primitives_and_none(auth_client, db_session):
+    """_serialize on a real ORM row handles primitives, datetime, UUID, and None correctly.
+
+    Uses AiMemory (which has all these types) and calls _do_sync with a mocked urlopen
+    to exercise the real _serialize function — not a hand-rolled copy of its loop.
+    """
     import datetime as _dt
 
-    col_id = MagicMock(); col_id.key = "id"
-    col_ts = MagicMock(); col_ts.key = "ts"
-    col_num = MagicMock(); col_num.key = "num"
-    col_flag = MagicMock(); col_flag.key = "flag"
-    col_nil = MagicMock(); col_nil.key = "nil"
+    from app.domain.ai_memory import AiMemory
 
-    row = MagicMock()
-    row.__table__ = MagicMock()
-    row.__table__.columns = [col_id, col_ts, col_num, col_flag, col_nil]
-    row.id = "static-id"
-    row.ts = _dt.datetime(2024, 1, 15, 12, 0, 0)
-    row.num = 3.14
-    row.flag = True
-    row.nil = None
+    principal = _make_principal(auth_client)
 
-    res: dict = {}
-    for col in row.__table__.columns:
-        val = getattr(row, col.key, None)
-        if hasattr(val, "isoformat"):
-            val = val.isoformat()
-        elif not isinstance(val, (str, int, float, bool, type(None), dict, list)):
-            val = str(val)
-        res[col.key] = val
+    # Use an explicit last_used_at to exercise datetime → isoformat
+    ts = _dt.datetime(2024, 1, 15, 12, 0, 0)
+    mem = AiMemory(
+        workspace_id=principal.workspace_id,
+        category="Profile",
+        title="primitives-test",
+        content="checking types",
+        source="manual",
+        sensitivity="LOW",
+        confidence=3.14,
+        enabled=True,
+        last_used_at=ts,
+        meta=None,
+    )
+    db_session.add(mem)
+    db_session.commit()
+    db_session.refresh(mem)
 
-    assert res["id"] == "static-id"
-    assert res["ts"] == "2024-01-15T12:00:00"
-    assert abs(res["num"] - 3.14) < 1e-9
-    assert res["flag"] is True
-    assert res["nil"] is None
+    captured_bodies: dict[str, list] = {}
+
+    def fake_urlopen(req, timeout=None):
+        table = req.get_full_url().split("/rest/v1/")[1]
+        captured_bodies[table] = json.loads(req.data.decode())
+        fake_resp = MagicMock()
+        fake_resp.__enter__ = lambda s: s
+        fake_resp.__exit__ = MagicMock(return_value=False)
+        return fake_resp
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        supabase_sync_service._do_sync(
+            db_session,
+            "https://abc.supabase.co",
+            "key",
+            str(principal.workspace_id),
+        )
+
+    assert "ai_memories" in captured_bodies
+    row_data = captured_bodies["ai_memories"][0]
+
+    # id and workspace_id must be str (UUIDs serialised)
+    assert isinstance(row_data["id"], str)
+    assert isinstance(row_data["workspace_id"], str)
+    # datetime field must be ISO string
+    assert row_data["last_used_at"] == "2024-01-15T12:00:00"
+    # float stays float
+    assert abs(row_data["confidence"] - 3.14) < 1e-9
+    # bool stays bool
+    assert row_data["enabled"] is True
+    # None stays None
+    assert row_data["metadata"] is None
+
+
+def test_serialize_metadata_column(auth_client, db_session):
+    """_serialize must emit the dict under the DB column name 'metadata', not 'meta'.
+
+    This is a regression guard for the bug where col.key == "metadata" caused
+    getattr(row, "metadata") to resolve to SQLAlchemy's MetaData registry object,
+    silently replacing the real dict with the string "MetaData()".
+    """
+    from app.domain.ai import ChatMessage
+    from app.domain.ai_memory import AiMemory
+
+    principal = _make_principal(auth_client)
+
+    mem = AiMemory(
+        workspace_id=principal.workspace_id,
+        category="Profile",
+        title="meta-test",
+        content="checking metadata column",
+        source="manual",
+        sensitivity="LOW",
+        meta={"k": "v", "num": 42},
+    )
+    db_session.add(mem)
+
+    # Use a real session_id UUID for the ChatMessage
+    import uuid as _uuid
+    msg = ChatMessage(
+        workspace_id=principal.workspace_id,
+        session_id=_uuid.uuid4(),
+        role="user",
+        content="hello",
+        meta={"msg_key": "msg_val"},
+    )
+    db_session.add(msg)
+    db_session.commit()
+
+    captured_bodies: dict[str, list] = {}
+
+    def fake_urlopen(req, timeout=None):
+        table = req.get_full_url().split("/rest/v1/")[1]
+        captured_bodies[table] = json.loads(req.data.decode())
+        fake_resp = MagicMock()
+        fake_resp.__enter__ = lambda s: s
+        fake_resp.__exit__ = MagicMock(return_value=False)
+        return fake_resp
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        supabase_sync_service._do_sync(
+            db_session,
+            "https://abc.supabase.co",
+            "key",
+            str(principal.workspace_id),
+        )
+
+    # AiMemory.meta → column "metadata" must contain the real dict
+    assert "ai_memories" in captured_bodies
+    mem_row = captured_bodies["ai_memories"][0]
+    assert "metadata" in mem_row, f"'metadata' key missing from ai_memories row: {list(mem_row)}"
+    assert mem_row["metadata"] == {"k": "v", "num": 42}, (
+        f"Expected dict but got: {mem_row['metadata']!r}"
+    )
+
+    # ChatMessage.meta → column "metadata" must contain the real dict
+    assert "chat_messages" in captured_bodies
+    msg_row = captured_bodies["chat_messages"][0]
+    assert "metadata" in msg_row, f"'metadata' key missing from chat_messages row: {list(msg_row)}"
+    assert msg_row["metadata"] == {"msg_key": "msg_val"}, (
+        f"Expected dict but got: {msg_row['metadata']!r}"
+    )
 
 
 def test_serialize_datetime_and_uuid(auth_client, db_session):
@@ -456,3 +553,45 @@ def test_endpoint_sync_supabase_not_configured(auth_client):
     assert data["status"] == "not_configured", (
         f"Expected 'not_configured' but got {data['status']!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# URL scheme validation: non-http(s) URLs must be treated as not_configured
+# ---------------------------------------------------------------------------
+
+
+def test_sync_all_rejects_non_http_url(auth_client, db_session):
+    """sync_all must return 'not_configured' for URLs that are not http:// or https://.
+
+    urllib also accepts file:// and ftp://, which could be exploited; we reject them.
+    """
+    from sqlalchemy import delete
+
+    from app.domain.integrations import IntegrationConfig
+
+    principal = _make_principal(auth_client)
+
+    for bad_url in ("file:///etc/passwd", "ftp://example.com/db", "javascript:alert(1)"):
+        _insert_integration_row(
+            db_session,
+            principal,
+            url=bad_url,
+            anon_key="some-key",
+            enabled=True,
+        )
+        with patch.object(threading.Thread, "start") as mock_start:
+            result = supabase_sync_service.sync_all(db_session, principal)
+
+        assert result["status"] == "not_configured", (
+            f"Expected 'not_configured' for URL {bad_url!r} but got {result['status']!r}"
+        )
+        mock_start.assert_not_called()
+
+        # Remove the integration row before the next iteration
+        db_session.execute(
+            delete(IntegrationConfig).where(
+                IntegrationConfig.workspace_id == principal.workspace_id,
+                IntegrationConfig.provider_id == "supabase",
+            )
+        )
+        db_session.commit()
