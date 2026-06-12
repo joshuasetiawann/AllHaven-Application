@@ -58,7 +58,7 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     session_id: Optional[uuid.UUID] = None
     provider_id: Optional[str] = None
-    section_key: Optional[str] = "general"
+    section_key: Optional[str] = Field(default="general", max_length=50)
 
 
 class ChatResponse(BaseModel):
