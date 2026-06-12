@@ -156,7 +156,7 @@ export default function DashboardOverview() {
                   </span>
                 </span>
                 <span className="ml-auto text-[12px] text-content-subtle">
-                  CoreOS tracks cashflow. It does not provide financial advice.
+                  AllHaven tracks cashflow. It does not provide financial advice.
                 </span>
               </div>
             </Card>

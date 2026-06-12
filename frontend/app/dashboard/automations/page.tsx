@@ -31,8 +31,34 @@ export default function AutomationsPage() {
 
   return (
     <AppShell>
-      <PageHeader title="Automations" subtitle="Workflow automation via n8n." />
-      {loading ? (
+      <PageHeader
+        title="Automations"
+        subtitle="Draft workflow definitions for your workspace."
+        actions={
+          <Button onClick={openCreate}>
+            <Plus size={16} /> New automation
+          </Button>
+        }
+      />
+
+      <Card className="mb-5 border-warning/20" padding="md">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/12 text-warning">
+            <Info size={18} />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-content">Saved drafts only</p>
+            <p className="mt-0.5 text-[13px] text-content-muted">
+              AllHaven does not execute automations in the MVP — these are saved drafts. n8n connection
+              status is shown in Settings → Connected Tools.
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {error ? (
+        <ErrorState message={error} onRetry={load} />
+      ) : !automations ? (
         <Loading />
       ) : (
         <>
