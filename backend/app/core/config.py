@@ -190,6 +190,22 @@ class Settings(BaseSettings):
             return json.loads(raw)
         return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
+    @property
+    def cors_private_origin_regex(self) -> str:
+        """Origins allowed in local mode without opening CORS to the internet."""
+        return (
+            r"^("
+            r"capacitor://localhost"
+            r"|https?://localhost(?::\d+)?"
+            r"|https?://127(?:\.\d{1,3}){3}(?::\d+)?"
+            r"|https?://10(?:\.\d{1,3}){3}(?::\d+)?"
+            r"|https?://192\.168(?:\.\d{1,3}){2}(?::\d+)?"
+            r"|https?://172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}(?::\d+)?"
+            r"|https?://100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])(?:\.\d{1,3}){2}(?::\d+)?"
+            r"|https?://[^/:]+\.ts\.net(?::\d+)?"
+            r")$"
+        )
+
     @model_validator(mode="after")
     def _require_strong_secret_in_production(self) -> "Settings":
         """Fail startup in production with the dev default or a weak SECRET_KEY."""
