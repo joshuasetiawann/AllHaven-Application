@@ -19,6 +19,7 @@ class KnowledgeDocumentOut(ORMModel):
     chunk_count: int
     last_indexed_at: Optional[datetime] = None
     error_message: Optional[str] = None
+    meta: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
 

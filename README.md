@@ -57,6 +57,16 @@ After cloning, run **one command**. Haven installs and starts **right in your te
 with live progress — checking tools, writing `.env` (with backup), pulling the database
 image, installing dependencies, running migrations, starting services, and opening the app.
 
+You need **Python 3** and **Node.js 18+** installed first. Docker Desktop is recommended
+for the bundled PostgreSQL, but the installer can also use an existing local PostgreSQL.
+If a required tool is missing, the installer stops early with the exact install hint.
+
+```bash
+git clone https://github.com/joshuasetiawann/AllHaven-Application.git
+cd AllHaven-Application
+./install.sh
+```
+
 | Your OS | Run / double-click |
 |---------|--------------------|
 | **Windows** | **`START_HAVEN_WINDOWS.bat`** |
@@ -64,11 +74,10 @@ image, installing dependencies, running migrations, starting services, and openi
 | **Linux** | **`./START_HAVEN_LINUX.sh`** |
 | **Any terminal** | **`./install.sh`** &nbsp;or&nbsp; **`npm run setup`** |
 
-Only **Python 3** is needed to bootstrap. After setup, the **Haven desktop shortcut**
-(or the same launcher) starts services and opens the app — **no terminal needed**; if a
-service is down it starts it safely first. Manage services anytime in
-**Settings → System Control**. _(An optional browser wizard is available with
-`HAVEN_SETUP_WEB=1`.)_
+After setup, the **Haven desktop shortcut** (or the same launcher) starts services and
+opens the app — **no terminal needed**; if a service is down it starts it safely first.
+Manage services anytime in **Settings → System Control**. _(An optional browser wizard is
+available with `HAVEN_SETUP_WEB=1`.)_
 
 📖 Full beginner walkthrough + troubleshooting: [`docs/DESKTOP_SETUP.md`](docs/DESKTOP_SETUP.md)
 
@@ -130,10 +139,12 @@ directly. Honest states when n8n isn't connected yet.
 - Standard success/error response envelopes and centralized exception handling
 - Local MVP **auth boundary** (register / login / me) — replaceable by Supabase Auth
 - **Workspace-scoped** business data, **soft deletes**, and **audit logging**
-- Tasks, Notes, Finance (categories, transactions, monthly summary) CRUD
+- Tasks, Notes, Finance (categories, transactions, monthly summary, weekly/monthly reports) CRUD
 - **Multi-agent AI chat**: run up to **7 agents concurrently** with distinct roles, each answering in its own card
 - **12 AI providers**: Ollama (local) + GPT, Claude, Gemini, Grok, Blackbox, and **6 independent OpenRouter agents** — plus 2 model slots per provider
 - **AI Tool Registry + human approval**: 72 allowlisted tools across all modules; reads execute, low-risk memory can save directly, risky writes await your approval (audited)
+- **AI Knowledge**: upload any file; text/code/CSV is indexed for search/retrieval, while binary or secret-like files are safely stored as metadata-only
+- **App-wide toast notifications** for finance, AI Knowledge, memory, and pending AI action approvals
 - **Human-in-the-loop AI**: honest "not configured" responses, no fake execution
 - Honest **integration status** & **real verification** (online only after a successful test; no faked connections, no secret leakage)
 - **Local `.env` mirror**: web Settings persist to the DB and mirror allowed keys to `.env` (allowlist + backup + atomic write)
@@ -145,7 +156,7 @@ directly. Honest states when n8n isn't connected yet.
 ## Project structure
 
 ```
-CORE-OS-APPLICATION/
+AllHaven-Application/
 ├── README.md
 ├── .env.example
 ├── docker-compose.yml          # PostgreSQL (optional services documented only)
@@ -178,8 +189,9 @@ CORE-OS-APPLICATION/
 
 ## Quick start
 
-> **Fastest:** `./scripts/start.sh` (Linux/macOS) or `scripts\start.bat` (Windows) starts
-> backend + frontend. `./scripts/healthcheck.sh` verifies them. Full guide:
+> **Fastest for a fresh clone:** `./install.sh` (Linux/macOS) or `START_HAVEN_WINDOWS.bat`
+> (Windows) installs dependencies, runs migrations, starts backend + frontend, and opens
+> the app. `./scripts/healthcheck.sh` verifies running services. Full guide:
 > [`docs/LOCAL_SETUP.md`](./docs/LOCAL_SETUP.md). Deploy: [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
 > Release status: [`docs/RELEASE_CHECKLIST.md`](./docs/RELEASE_CHECKLIST.md).
 
@@ -262,8 +274,10 @@ cd frontend && npm run build
 | Auth     | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
 | Tasks    | `GET/POST /tasks`, `GET/PATCH/DELETE /tasks/{id}` |
 | Notes    | `GET/POST /notes`, `GET/PATCH/DELETE /notes/{id}` |
-| Finance  | `GET/POST /finance/categories`, `PATCH/DELETE /finance/categories/{id}`, `GET/POST /finance/transactions`, `GET/PATCH/DELETE /finance/transactions/{id}`, `GET /finance/summary` |
-| AI       | `GET/POST /ai/sessions`, `GET /ai/sessions/{id}`, `GET /ai/sessions/{id}/messages`, `POST /ai/chat`, **`POST /ai/chat/multi`**, **`GET /ai/runs/{id}`**, `GET /ai/proposals`, `POST /ai/proposals/{id}/reject` |
+| Finance  | `GET/POST /finance/categories`, `PATCH/DELETE /finance/categories/{id}`, `GET/POST /finance/transactions`, `GET/PATCH/DELETE /finance/transactions/{id}`, `GET /finance/summary`, `GET /finance/report` |
+| AI       | `GET/POST /ai/sessions`, `GET /ai/sessions/{id}`, `GET /ai/sessions/{id}/messages`, `POST /ai/chat`, **`POST /ai/chat/multi`**, **`GET /ai/runs/{id}`**, `GET /ai/proposals`, `PATCH /ai/proposals/{id}`, `POST /ai/proposals/{id}/approve\|reject` |
+| AI Memory | `GET/POST /ai/memory`, `GET /ai/memory/search`, `PATCH/DELETE /ai/memory/{id}`, `GET/PUT /ai/memory/settings`, `GET /ai/memory/suggestions`, `POST /ai/memory/suggestions/{id}/approve\|reject` |
+| AI Knowledge | `GET/POST /ai/knowledge/documents`, `GET /ai/knowledge/documents/{id}`, `POST /ai/knowledge/documents/{id}/reindex`, `DELETE /ai/knowledge/documents/{id}`, `GET /ai/knowledge/search` |
 | AI config| `GET /ai/providers`, `PUT /ai/providers/{id}`, `POST /ai/providers/{id}/test\|enable\|disable`, `GET/PUT /ai/policy` |
 | Settings | `GET /settings/integrations`, `PUT /settings/integrations/{id}`, `POST /settings/integrations/{id}/test\|enable\|disable` |
 | Calendar | `GET/POST /calendar/events`, `PUT/DELETE /calendar/events/{id}` |
@@ -280,13 +294,13 @@ revokes it server-side), while API clients/tools can use a **bearer token**.
 
 ## Multi-agent AI, modules & `.env` sync
 
-- **Multi-agent chat** (`POST /ai/chat/multi`): send one message to up to **3 agents** at once
-  (`provider_ids: [...]`, max 3 — more returns HTTP 422). Agents run concurrently; one agent
+- **Multi-agent chat** (`POST /ai/chat/multi`): send one message to up to **7 agents** at once
+  (`provider_ids: [...]`, max 7 — more returns HTTP 422). Agents run concurrently; one agent
   failing never fails the others. Each result is persisted (`ai_multi_agent_runs` /
   `ai_agent_responses`) with an honest per-agent status: `completed`, `error`, `not_configured`,
   `disabled`, or `blocked` (external disabled by policy).
-- **Three OpenRouter agents** (`openrouter_1/2/3`): each has its own API key, default model,
-  status, and `OPENROUTER_{1,2,3}_API_KEY` / `_DEFAULT_MODEL` env keys.
+- **Six OpenRouter agents** (`openrouter_1..6`): each has its own API key, default model,
+  status, and `OPENROUTER_{1..6}_API_KEY` / `_DEFAULT_MODEL` env keys.
 - **Real verification**: saving a key sets status `configured` — never `online`. `online`
   requires a successful Test Connection. Random/invalid keys fail; OpenRouter is verified via its
   authenticated `/key` endpoint (its `/models` is public); Blackbox stays `configured` (no honest
