@@ -90,6 +90,17 @@ export interface FinanceSummary {
   transaction_count: number;
 }
 
+export interface FinanceReport {
+  period_type: "month" | "week" | "custom" | string;
+  start_date: string;
+  end_date: string;
+  currency: string;
+  total_income: number;
+  total_expense: number;
+  balance: number;
+  transaction_count: number;
+}
+
 export interface ChatGroup {
   id: string;
   name: string;
@@ -101,6 +112,7 @@ export interface ChatSession {
   id: string;
   title: string | null;
   group_id: string | null;
+  section_key: string;
   created_at: string;
   updated_at: string;
 }
@@ -110,6 +122,7 @@ export interface ChatMessage {
   session_id: string | null;
   role: "user" | "assistant" | "system";
   content: string;
+  section_key: string;
   meta: Record<string, unknown> | null;
   created_at: string;
 }
@@ -180,6 +193,40 @@ export interface DriveFile {
   size_bytes: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface DriveConfig {
+  max_upload_bytes: number;
+  max_upload_mb: number;
+}
+
+export interface KnowledgeDocument {
+  id: string;
+  title: string;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  status: "uploaded" | "indexing" | "indexed" | "failed";
+  chunk_count: number;
+  last_indexed_at: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeSearchResult {
+  document_id: string;
+  document_title: string;
+  document_filename: string;
+  chunk_id: string;
+  chunk_index: number;
+  score: number;
+  content: string;
+}
+
+export interface KnowledgeSearchResponse {
+  results: KnowledgeSearchResult[];
+  count: number;
 }
 
 export interface Automation {
@@ -296,6 +343,7 @@ export interface AiTool {
   risk: "LOW" | "MEDIUM" | "HIGH";
   approval_required: boolean;
   enabled: boolean;
+  active_for_section?: boolean;
 }
 
 // Workspace chat behavior settings.
@@ -392,9 +440,9 @@ export interface PortsApplyResult {
 }
 
 // --- AI Memory ---
-export type MemoryCategory = "Profile" | "Preferences" | "Projects" | "WorkStyle" | "Technical" | "Goals";
+export type MemoryCategory = "Profile" | "Preferences" | "Projects" | "Decisions" | "Writing style" | "Work context" | "UI/UX preferences" | "Technical" | "Technical preferences" | "Tasks context" | "Finance context" | "Goals" | "Other";
 export type MemorySensitivity = "LOW" | "MEDIUM" | "HIGH";
-export type MemorySource = "chat_extracted" | "manual" | "llm_extracted";
+export type MemorySource = "chat_extracted" | "manual" | "llm_extracted" | "tool_result" | "approved_action";
 
 export interface AiMemory {
   id: string;

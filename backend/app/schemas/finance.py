@@ -107,3 +107,14 @@ class SummaryOut(BaseModel):
     total_expense: float
     balance: float
     transaction_count: int
+
+
+class ReportOut(BaseModel):
+    period_type: str
+    start_date: date
+    end_date: date
+    currency: str
+    total_income: float
+    total_expense: float
+    balance: float
+    transaction_count: int
