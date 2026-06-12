@@ -338,7 +338,7 @@ def plan_chat(db: Session, principal: Principal, provider_id: Optional[str] = No
                 f"External AI provider '{spec.name}' is blocked. Turn on "
                 "“Allow external AI providers” in Settings → Privacy & Safety (or set "
                 "AI_ALLOW_EXTERNAL_PROVIDERS=true) to use it, and only send non-confidential "
-                "data. CoreOS never sends data to external AI unless you allow it."
+                "data. AllHaven never sends data to external AI unless you allow it."
             ),
         )
     if not configured:
@@ -346,7 +346,7 @@ def plan_chat(db: Session, principal: Principal, provider_id: Optional[str] = No
             pid, spec.name, spec.external, False, enabled, "not_configured",
             (
                 f"The '{spec.name}' provider is not configured. Add its credentials in Settings → "
-                "AI Providers. CoreOS will never fake AI responses."
+                "AI Providers. AllHaven will never fake AI responses."
             ),
         )
     if not enabled:

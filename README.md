@@ -1,8 +1,8 @@
-# CoreOS Command Center
+# AllHaven Command Center
 
 A modular **AI command center dashboard** for personal and company productivity.
 
-> CoreOS is **not** an operating system. It is a local-first web application (FastAPI + Next.js)
+> AllHaven is **not** an operating system. It is a local-first web application (FastAPI + Next.js)
 > that combines tasks, notes, finance tracking, and an AI assistant — where **the AI proposes and
 > humans approve** every write action.
 
@@ -87,7 +87,7 @@ docker compose up -d postgres
 ```
 
 **Option B — Local PostgreSQL:** create a database/user that matches your `.env`
-(default user `coreos`, password `coreos`, database `coreos`).
+(default user `allhaven`, password `allhaven`, database `allhaven`).
 
 ### 3) Backend
 
@@ -174,7 +174,7 @@ All endpoints (except health and auth register/login) require a bearer token.
   Inspect with `cat .env` and `ls -lh .env.bak.*`.
 - **Modules**: Drive stores file bytes under a local storage root (metadata in `drive_files`,
   path-traversal blocked); Calendar/Automations/Weather-locations persist in PostgreSQL; Weather
-  returns `setup_required` until a Weather API key is configured (never faked data). CoreOS does
+  returns `setup_required` until a Weather API key is configured (never faked data). AllHaven does
   **not** execute automations — they are disabled-safe drafts.
 
 ### Ollama (local AI) setup

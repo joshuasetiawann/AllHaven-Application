@@ -52,7 +52,7 @@ export default function LoginPage() {
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-fg shadow-glow-primary">
                 <ShieldCheck size={22} />
               </div>
-              <h1 className="text-xl font-semibold tracking-tight text-content">CoreOS Command Center</h1>
+              <h1 className="text-xl font-semibold tracking-tight text-content">AllHaven Command Center</h1>
               <p className="mt-1.5 font-mono text-[10.5px] uppercase tracking-[0.22em] text-content-subtle">
                 Your private AI workspace
               </p>
@@ -104,7 +104,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="identity@coreos.ai"
+                  placeholder="identity@allhaven.ai"
                   className="h-11 w-full rounded-lg border border-border bg-surface-input px-3.5 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
                 />
               </div>
@@ -185,7 +185,7 @@ export default function LoginPage() {
             Secure by design · Human approval required
           </p>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-content-subtle">
-            CoreOS Executive Interface {APP_VERSION}
+            AllHaven Executive Interface {APP_VERSION}
           </p>
           <Link href="/" className="mt-3 inline-block text-[12px] text-content-subtle hover:text-content">
             ← Back to overview
