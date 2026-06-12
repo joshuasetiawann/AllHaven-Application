@@ -207,33 +207,40 @@ def test_chat_builds_memory_context_from_existing_memories(
 
 
 def test_chat_completes_even_when_extraction_raises(auth_client, db_session, monkeypatch):
-    """If schedule_extraction raises unexpectedly, chat() still returns normally."""
+    """If an internal extraction step raises, chat() still returns the assistant reply.
+
+    We force a failure deep inside schedule_extraction (rule_based_extract) so the
+    real rollback-safety code in schedule_extraction is exercised, then assert:
+    (a) chat() returns normally (no exception propagates to the caller), and
+    (b) the assistant ChatMessage was persisted in the database.
+    """
     principal = _principal(auth_client)
 
     from app.services import memory_extraction_service as _mes
 
-    def _always_raise(*args, **kwargs):
-        raise RuntimeError("Simulated extraction failure")
+    def _always_raise(text):
+        raise RuntimeError("boom")
 
-    monkeypatch.setattr(_mes, "schedule_extraction", _always_raise)
+    monkeypatch.setattr(_mes, "rule_based_extract", _always_raise)
 
-    # schedule_extraction is patched to raise, but it already swallows errors
-    # internally. Here we're testing that even if the outer wrapper breaks, the
-    # exception propagates — so we catch it at the test level. The intent is to
-    # show chat() itself is not defensively wrapping this (the never-raise guarantee
-    # lives inside schedule_extraction, not chat).
-    # Since schedule_extraction itself guarantees no raises in production, this
-    # test verifies the production path: with the real schedule_extraction, chat
-    # never breaks. We test that the monkeypatched version raises to prove we're
-    # correctly intercepting the call.
-    try:
-        result = chat(
-            db_session,
-            principal,
-            message="Hello there",
+    result = chat(
+        db_session,
+        principal,
+        message="Hello there",
+    )
+
+    # (a) chat() returned normally — no exception raised
+    assert result is not None
+    assert result.get("reply") is not None
+
+    # (b) the assistant message was persisted
+    from app.domain.ai import ChatMessage
+    from sqlalchemy import select
+
+    msg = db_session.scalar(
+        select(ChatMessage).where(
+            ChatMessage.session_id == result["session_id"],
+            ChatMessage.role == "assistant",
         )
-        # If we reach here, the patched raise was somehow swallowed by chat() —
-        # that's also acceptable if chat() gained its own guard, but currently
-        # the guarantee lives in schedule_extraction.
-    except RuntimeError as e:
-        assert "extraction failure" in str(e)
+    )
+    assert msg is not None, "Assistant message was not persisted when extraction raised"
