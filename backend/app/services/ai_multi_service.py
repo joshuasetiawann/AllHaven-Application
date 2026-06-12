@@ -106,7 +106,12 @@ def multi_chat(
     session_id: Optional[uuid.UUID] = None,
     images: Optional[List[str]] = None,
     thinking_mode: str = "balance",
+    section_key: Optional[str] = "general",
 ) -> dict:
+    from app.services import memory_context_builder, memory_extraction_service
+
+    extra_context = memory_context_builder.build(db, principal, message, section_key)
+
     ids = _dedup(provider_ids)
     if not ids:
         raise ValidationAppError("Select at least one AI agent.")
@@ -170,10 +175,15 @@ def multi_chat(
 
     def _messages_for(pid: str) -> list[dict]:
         role_name, role_task = roles[pid]
+        mem_prefix = f"{extra_context}\n\n" if extra_context else ""
         if len(ids) == 1:
-            return [base_user]  # single agent: no role framing needed
+            # Single agent: no role framing, but still inject memory context via system msg.
+            if mem_prefix:
+                return [{"role": "system", "content": mem_prefix.rstrip("\n")}, base_user]
+            return [base_user]
         return [
             {"role": "system", "content": (
+                f"{mem_prefix}"
                 f"You are the {role_name} agent in a team of {len(ids)} AI agents answering "
                 f"the same request. Your job: {role_task} Answer from that perspective — "
                 "be specific and concrete, no generic filler, and be honest about uncertainty."
@@ -265,6 +275,19 @@ def multi_chat(
     db.refresh(run)
     for r in responses:
         db.refresh(r)
+
+    # Trigger memory extraction using the user message + first completed agent response.
+    first_response = next(
+        (r.content for r in responses if r.status == "completed" and r.content),
+        "",
+    )
+    try:
+        memory_extraction_service.schedule_extraction(
+            db, principal, message, first_response or "", session.id
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
 
     return {"run": run, "session_id": session.id, "responses": responses}
 
