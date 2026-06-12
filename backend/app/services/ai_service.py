@@ -16,9 +16,76 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError
 from app.core.principal import Principal
-from app.domain.ai import AiToolProposal, ChatMessage, ChatSession
+from app.domain.ai import (
+    AiAgentResponse,
+    AiMultiAgentRun,
+    AiToolProposal,
+    ChatGroup,
+    ChatMessage,
+    ChatSession,
+)
 from app.services import ai_provider_router
 from app.services.audit_service import write_audit
+
+
+def _auto_title(message: str) -> str:
+    """Title from the first user message, max 40 chars."""
+    text = " ".join((message or "").split()).strip()
+    if len(text) > 40:
+        text = text[:39].rstrip() + "…"
+    return text or "New Chat"
+
+
+# --- groups ---------------------------------------------------------------
+
+
+def list_groups(db: Session, principal: Principal) -> List[ChatGroup]:
+    stmt = (
+        select(ChatGroup)
+        .where(ChatGroup.workspace_id == principal.workspace_id)
+        .order_by(ChatGroup.created_at.asc())
+    )
+    return list(db.scalars(stmt).all())
+
+
+def create_group(db: Session, principal: Principal, name: str) -> ChatGroup:
+    group = ChatGroup(workspace_id=principal.workspace_id, created_by=principal.user_id, name=name)
+    db.add(group)
+    db.commit()
+    db.refresh(group)
+    return group
+
+
+def _get_group(db: Session, principal: Principal, group_id: uuid.UUID) -> ChatGroup:
+    group = db.scalar(
+        select(ChatGroup).where(
+            ChatGroup.id == group_id, ChatGroup.workspace_id == principal.workspace_id
+        )
+    )
+    if not group:
+        raise NotFoundError("Group not found.")
+    return group
+
+
+def update_group(db: Session, principal: Principal, group_id: uuid.UUID, name: str) -> ChatGroup:
+    group = _get_group(db, principal, group_id)
+    group.name = name
+    db.commit()
+    db.refresh(group)
+    return group
+
+
+def delete_group(db: Session, principal: Principal, group_id: uuid.UUID) -> None:
+    group = _get_group(db, principal, group_id)
+    # Detach conversations (don't delete them), then remove the group.
+    for s in db.scalars(
+        select(ChatSession).where(
+            ChatSession.workspace_id == principal.workspace_id, ChatSession.group_id == group_id
+        )
+    ).all():
+        s.group_id = None
+    db.delete(group)
+    db.commit()
 
 
 def list_sessions(db: Session, principal: Principal) -> List[ChatSession]:
@@ -43,17 +110,71 @@ def get_session(db: Session, principal: Principal, session_id: uuid.UUID) -> Cha
 
 
 def create_session(
-    db: Session, principal: Principal, title: Optional[str] = None
+    db: Session,
+    principal: Principal,
+    title: Optional[str] = None,
+    group_id: Optional[uuid.UUID] = None,
 ) -> ChatSession:
+    if group_id is not None:
+        _get_group(db, principal, group_id)  # validate ownership
     session = ChatSession(
         workspace_id=principal.workspace_id,
         created_by=principal.user_id,
         title=title,
+        group_id=group_id,
     )
     db.add(session)
     db.commit()
     db.refresh(session)
     return session
+
+
+def update_session(db: Session, principal: Principal, session_id: uuid.UUID, data: dict) -> ChatSession:
+    """Rename a conversation and/or move it to a group (group_id=None removes it)."""
+    session = get_session(db, principal, session_id)
+    if "title" in data and data["title"] is not None:
+        session.title = data["title"]
+    if "group_id" in data:
+        gid = data["group_id"]
+        if gid is not None:
+            _get_group(db, principal, gid)
+        session.group_id = gid
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def delete_session(db: Session, principal: Principal, session_id: uuid.UUID) -> None:
+    """Delete a conversation and all of its messages + multi-agent run records."""
+    session = get_session(db, principal, session_id)
+    ws = principal.workspace_id
+    for msg in db.scalars(
+        select(ChatMessage).where(ChatMessage.workspace_id == ws, ChatMessage.session_id == session_id)
+    ).all():
+        db.delete(msg)
+    run_ids = [
+        r.id
+        for r in db.scalars(
+            select(AiMultiAgentRun).where(
+                AiMultiAgentRun.workspace_id == ws, AiMultiAgentRun.session_id == session_id
+            )
+        ).all()
+    ]
+    if run_ids:
+        for resp in db.scalars(
+            select(AiAgentResponse).where(
+                AiAgentResponse.workspace_id == ws, AiAgentResponse.run_id.in_(run_ids)
+            )
+        ).all():
+            db.delete(resp)
+        for run in db.scalars(
+            select(AiMultiAgentRun).where(
+                AiMultiAgentRun.workspace_id == ws, AiMultiAgentRun.session_id == session_id
+            )
+        ).all():
+            db.delete(run)
+    db.delete(session)
+    db.commit()
 
 
 def list_messages(db: Session, principal: Principal, session_id: uuid.UUID) -> List[ChatMessage]:
@@ -89,10 +210,13 @@ def chat(
         session = ChatSession(
             workspace_id=principal.workspace_id,
             created_by=principal.user_id,
-            title=message[:60],
+            title=_auto_title(message),
         )
         db.add(session)
         db.flush()
+    # Auto-title an untitled conversation from its first user message.
+    if not (session.title or "").strip():
+        session.title = _auto_title(message)
 
     user_message = ChatMessage(
         workspace_id=principal.workspace_id,
