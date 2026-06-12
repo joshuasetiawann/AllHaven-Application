@@ -277,13 +277,9 @@ def debate_chat(
         db.refresh(run)
         for r in responses:
             db.refresh(r)
-        try:
-            memory_extraction_service.schedule_extraction(
-                db, principal, message, "", session.id
-            )
-            db.commit()
-        except Exception:  # noqa: BLE001
-            db.rollback()
+        memory_extraction_service.extract_and_commit(
+            db, principal, user_msg=message, assistant_msg="", session_id=session.id
+        )
         return {"run": run, "session_id": session.id, "responses": responses}
 
     # --- run the rounds (network calls in worker threads) ---
@@ -293,7 +289,7 @@ def debate_chat(
 
     extra_context = memory_context_builder.build(db, principal, message, section_key)
     # Debate rounds have no system message; prefix the opening user prompt instead.
-    mem_prefix = f"{extra_context}\n\n" if extra_context else ""
+    mem_prefix = memory_context_builder.as_prefix(extra_context)
     for k in range(1, rounds_to_run + 1):
         if k == 1:
             prompts = {
@@ -407,12 +403,11 @@ def debate_chat(
         db.refresh(r)
 
     # Trigger hybrid memory extraction using the synthesis content as the assistant reply.
-    try:
-        memory_extraction_service.schedule_extraction(
-            db, principal, message, final_content or "", session.id
-        )
-        db.commit()
-    except Exception:  # noqa: BLE001
-        db.rollback()
+    memory_extraction_service.extract_and_commit(
+        db, principal,
+        user_msg=message,
+        assistant_msg=final_content or "",
+        session_id=session.id,
+    )
 
     return {"run": run, "session_id": session.id, "responses": responses}

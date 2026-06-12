@@ -352,6 +352,48 @@ def test_reasoning_chat_completes_even_when_extraction_flush_fails(
 
 
 # ---------------------------------------------------------------------------
+# Build-placement invariant: build() is never called on the early-exit path
+# ---------------------------------------------------------------------------
+
+
+def test_reasoning_chat_never_builds_memory_context_on_early_exit(
+    auth_client, db_session, monkeypatch
+):
+    """build() must NOT be called when no agent is runnable (early-exit path).
+
+    build() has a mark_used side effect on every selected memory; firing it when
+    no model will see the context would corrupt usage stats. This pins the
+    placement promised by the comment in ai_reasoning_service.py: the build()
+    call sits after the no-runnable-agents early exit.
+    """
+    principal = _principal(auth_client)
+
+    import app.services.memory_context_builder as _mcb
+
+    build_calls: list[tuple] = []
+
+    def spy_build(db, principal, message, section_key=None):
+        build_calls.append((message, section_key))
+        return None
+
+    monkeypatch.setattr(_mcb, "build", spy_build)
+
+    # ollama/openai are not configured in tests -> zero runnable -> early exit.
+    result = reasoning_chat(
+        db_session,
+        principal,
+        message="Hello analyst",
+        provider_ids=["ollama", "openai"],
+    )
+
+    assert result.get("session_id") is not None
+    assert build_calls == [], (
+        f"memory_context_builder.build() must never be called on the early-exit "
+        f"path (no runnable agents), but it was called with: {build_calls}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # (f) schedule_extraction raising does not break reasoning_chat
 # ---------------------------------------------------------------------------
 
