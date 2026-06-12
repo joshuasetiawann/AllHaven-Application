@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Brain, Clock } from "lucide-react";
 import { memoryApi } from "@/lib/api";
@@ -17,29 +17,29 @@ interface MemoryIndicatorProps {
 export function MemoryIndicator({ refreshKey, className }: MemoryIndicatorProps) {
   const [state, setState] = useState<IndicatorState>("idle");
   const [pendingCount, setPendingCount] = useState(0);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
 
   useEffect(() => {
     if (refreshKey === 0) return;
+    let active = true;
     // Show "updated" flash briefly, then check for pending suggestions.
     setState("updated");
     const timer = setTimeout(() => {
       memoryApi.listSuggestions()
         .then((s) => {
-          if (!mountedRef.current) return;
+          if (!active) return;
           setPendingCount(s.length);
           setState(s.length > 0 ? "pending" : "idle");
         })
         .catch(() => {
-          if (mountedRef.current) setState("idle");
+          if (!active) return;
+          setPendingCount(0);
+          setState("idle");
         });
     }, 1500);
-    return () => clearTimeout(timer);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [refreshKey]);
 
   if (state === "idle" && pendingCount === 0) return null;
@@ -58,7 +58,7 @@ export function MemoryIndicator({ refreshKey, className }: MemoryIndicatorProps)
       {state === "updated" ? (
         <><Brain size={11} /> Memory updated</>
       ) : (
-        <><Clock size={11} /> {pendingCount} memory pending</>
+        <><Clock size={11} /> {pendingCount} {pendingCount === 1 ? "memory" : "memories"} pending</>
       )}
     </Link>
   );
