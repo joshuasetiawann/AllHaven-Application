@@ -34,7 +34,7 @@ def test_ai_knowledge_upload_indexes_txt_and_searches(auth_client):
     assert "private AI workspace" in results[0]["content"]
 
 
-def test_ai_knowledge_marks_unsupported_file_not_usable(auth_client):
+def test_ai_knowledge_stores_unsupported_file_as_metadata_only(auth_client):
     resp = auth_client.post(
         f"{API}/ai/knowledge/documents",
         files={"file": ("source.bin", b"\x00\x01", "application/octet-stream")},
@@ -42,8 +42,33 @@ def test_ai_knowledge_marks_unsupported_file_not_usable(auth_client):
     assert resp.status_code == 200, resp.text
     doc = resp.json()["data"]
     assert doc["status"] == "uploaded"
-    assert doc["chunk_count"] == 0
+    assert doc["chunk_count"] == 1
+    assert doc["meta"]["metadata_only"] is True
+    assert doc["meta"]["indexable"] is False
     assert doc["error_message"]
+
+    search = auth_client.get(f"{API}/ai/knowledge/search", params={"q": "source.bin"})
+    assert search.status_code == 200, search.text
+    results = search.json()["data"]["results"]
+    assert results
+    assert results[0]["document_filename"] == "source.bin"
+
+
+def test_ai_knowledge_protects_secret_like_text_as_metadata_only(auth_client):
+    resp = auth_client.post(
+        f"{API}/ai/knowledge/documents",
+        files={"file": ("secrets.env", b"OPENAI_API_KEY=sk-abc123DEF456ghi789", "text/plain")},
+    )
+    assert resp.status_code == 200, resp.text
+    doc = resp.json()["data"]
+    assert doc["status"] == "uploaded"
+    assert doc["chunk_count"] == 1
+    assert doc["meta"]["metadata_only"] is True
+    assert "Secret-like content" in doc["error_message"]
+
+    search = auth_client.get(f"{API}/ai/knowledge/search", params={"q": "OPENAI_API_KEY"})
+    assert search.status_code == 200, search.text
+    assert search.json()["data"]["results"] == []
 
 
 def test_drive_config_exposes_higher_upload_limit(auth_client):

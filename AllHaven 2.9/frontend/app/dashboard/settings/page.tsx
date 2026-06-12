@@ -255,7 +255,7 @@ export default function SettingsPage() {
             <>
               <Card className="mb-4 border-primary/20">
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
                         <Globe size={18} />
@@ -352,14 +352,14 @@ export default function SettingsPage() {
               <Card className="lg:col-span-2">
                 <CardHeader title="Appearance" subtitle="Device-local UI preferences." />
                 <ul className="divide-y divide-border">
-                  <li className="flex items-center justify-between py-3.5">
+                  <li className="flex items-center justify-between gap-3 py-3.5">
                     <div>
                       <p className="text-sm text-content">Glassmorphism</p>
                       <p className="text-[12.5px] text-content-muted">Translucent, blurred panels.</p>
                     </div>
                     <Toggle checked={prefs.glass} onChange={(v) => updatePref({ glass: v })} label="Glassmorphism" />
                   </li>
-                  <li className="flex items-center justify-between py-3.5">
+                  <li className="flex items-center justify-between gap-3 py-3.5">
                     <div>
                       <p className="text-sm text-content">Compact density</p>
                       <p className="text-[12.5px] text-content-muted">Tighter spacing for more on screen.</p>
@@ -382,8 +382,8 @@ export default function SettingsPage() {
                       <li className="flex items-center gap-2"><Globe size={14} className="text-warning" /> Confidential data is never sent to external providers unless you allow external mode.</li>
                     </ul>
 
-                    <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-surface-input px-3 py-3">
-                      <div className="pr-3">
+                    <div className="mt-4 flex flex-col gap-3 rounded-lg border border-border bg-surface-input px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="sm:pr-3">
                         <p className="text-sm text-content">Allow external AI providers</p>
                         <p className="text-[12.5px] text-content-muted">
                           Lets you chat with GPT, Claude, Gemini, Grok, Blackbox, and OpenRouter.
