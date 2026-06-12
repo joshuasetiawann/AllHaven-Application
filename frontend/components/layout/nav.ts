@@ -4,6 +4,7 @@ import {
   BookOpenCheck,
   Calculator,
   Calendar,
+  ClipboardCheck,
   Clock,
   CloudSun,
   HardDrive,
@@ -26,6 +27,7 @@ export interface NavItem {
 export const PRIMARY_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/ai", label: "AI Chat", icon: Bot },
+  { href: "/dashboard/approvals", label: "Approvals", icon: ClipboardCheck, badge: "NEW" },
   { href: "/dashboard/tasks", label: "Tasks", icon: ListTodo },
   { href: "/dashboard/notes", label: "Notes", icon: StickyNote },
   { href: "/dashboard/finance", label: "Finance", icon: Wallet },
@@ -45,4 +47,4 @@ export const MODULE_NAV: NavItem[] = [
 
 export const SETTINGS_NAV: NavItem = { href: "/dashboard/settings", label: "Settings", icon: Settings };
 
-export const APP_VERSION = "v0.16.0";
+export const APP_VERSION = "v0.17.0";

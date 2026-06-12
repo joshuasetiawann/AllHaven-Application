@@ -18,7 +18,7 @@ for c in python3 python; do
   if command -v "$c" >/dev/null 2>&1; then PY="$c"; break; fi
 done
 if [ -z "$PY" ]; then
-  echo "Python 3 is required to bootstrap the Haven Setup Wizard."
+  echo "Python 3 is required to run the AllHaven installer."
   echo "Install it from https://www.python.org/downloads/ then run ./install.sh again."
   exit 1
 fi
