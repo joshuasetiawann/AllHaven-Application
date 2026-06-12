@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { driveApi, ApiException } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
-import type { DriveFile } from "@/types";
+import type { DriveConfig, DriveFile } from "@/types";
 
 function formatSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -21,6 +21,7 @@ function formatSize(bytes: number): string {
 
 export default function DrivePage() {
   const [files, setFiles] = useState<DriveFile[] | null>(null);
+  const [config, setConfig] = useState<DriveConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -30,7 +31,9 @@ export default function DrivePage() {
   const load = async () => {
     setError(null);
     try {
-      setFiles(await driveApi.list());
+      const [cfg, rows] = await Promise.all([driveApi.config(), driveApi.list()]);
+      setConfig(cfg);
+      setFiles(rows);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load files.");
     }
@@ -43,6 +46,11 @@ export default function DrivePage() {
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (config && file.size > config.max_upload_bytes) {
+      setActionError(`File exceeds the configured ${config.max_upload_mb} MB limit.`);
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     setUploading(true);
     setActionError(null);
     try {
@@ -122,7 +130,7 @@ export default function DrivePage() {
             {uploading ? "Uploading…" : "Click to upload a file"}
           </p>
           <p className="mt-1 max-w-sm text-[13px] text-content-muted">
-            Files are stored in your workspace and persist across sessions.
+            Current upload limit: {config ? `${config.max_upload_mb} MB` : "loading..."}.
           </p>
         </button>
       </Card>

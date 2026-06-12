@@ -82,7 +82,7 @@ def reasoning_chat(
     images: Optional[List[str]] = None,
     section_key: Optional[str] = "general",
 ) -> dict:
-    from app.services import memory_context_builder, memory_extraction_service
+    from app.services import ai_context_builder, memory_extraction_service
 
     ids = _dedup(provider_ids)
     if not ids:
@@ -103,14 +103,16 @@ def reasoning_chat(
             raise NotFoundError("Chat session not found.")
     else:
         session = ChatSession(workspace_id=principal.workspace_id, created_by=principal.user_id,
-                              title=_auto_title(message))
+                              title=_auto_title(message), section_key=section_key or "general")
         db.add(session)
         db.flush()
     if not (session.title or "").strip():
         session.title = _auto_title(message)
+    session.section_key = section_key or "general"
 
     user_message = ChatMessage(workspace_id=principal.workspace_id, session_id=session.id,
-                               role="user", content=message, meta=_user_meta("reasoning", thinking_mode, images))
+                               role="user", content=message, section_key=section_key or "general",
+                               meta=_user_meta("reasoning", thinking_mode, images, section_key or "general"))
     db.add(user_message)
     db.flush()
 
@@ -128,9 +130,11 @@ def reasoning_chat(
     if has_images:
         runnable = {pid: p for pid, p in runnable.items() if p.supports_image}
     responses: List[AiAgentResponse] = []
+    context_meta = {"section_key": section_key or "general", "thinking_mode": thinking_mode}
 
     def _record(provider_id, provider_name, status, content, error, latency, external, *, phase, extra=None):
         meta = {"external": external, "phase": phase, "reasoning": True}
+        meta.update(context_meta)
         if extra:
             meta.update(extra)
         row = AiAgentResponse(
@@ -144,12 +148,14 @@ def reasoning_chat(
             "provider_id": provider_id, "provider_name": provider_name, "status": status,
             "run_id": str(run.id), "latency_ms": latency, "external": external,
             "reasoning": True, "phase": phase,
+            **context_meta,
         }
         if extra:
             msg_meta.update(extra)
         db.add(ChatMessage(
             workspace_id=principal.workspace_id, session_id=session.id, role="assistant",
-            content=content if status == "completed" and content else (error or status), meta=msg_meta,
+            content=content if status == "completed" and content else (error or status),
+            section_key=section_key or "general", meta=msg_meta,
         ))
 
     # Honest record for agents that can't run.
@@ -175,8 +181,9 @@ def reasoning_chat(
             workspace_id=principal.workspace_id, session_id=session.id, role="assistant",
             content=("No selected agent could run, so reasoning could not start. Configure and enable "
                      "at least one AI agent in Settings -> AI Providers."),
+            section_key=section_key or "general",
             meta={"provider_name": "Reasoning", "status": "error", "run_id": str(run.id),
-                  "reasoning": True, "reasoning_final": True, "mode": mode, "task_type": task_type},
+                  "reasoning": True, "reasoning_final": True, "mode": mode, "task_type": task_type, **context_meta},
         ))
         db.commit()
         db.refresh(run)
@@ -191,9 +198,14 @@ def reasoning_chat(
     runnable_ids = [pid for pid in ids if pid in runnable]
     role_provider = _assign_roles(roles, runnable_ids)
 
-    # Build memory context block (only after confirming runnable agents exist,
-    # so mark_used side effects are not triggered on dead-end paths).
-    extra_context = memory_context_builder.build(db, principal, message, section_key)
+    # Build context packet only after confirming runnable agents exist, so
+    # memory mark_used side effects are not triggered on dead-end paths.
+    context_packet = ai_context_builder.build(
+        db, principal, message=message, session_id=session.id,
+        section_key=section_key or "general", thinking_mode=thinking_mode,
+    )
+    context_meta = context_packet.get("meta", context_meta)
+    extra_context = context_packet.get("context")
 
     # 1) Analyst.
     analyst_pid = role_provider["analyst"]
@@ -256,16 +268,17 @@ def reasoning_chat(
         workspace_id=principal.workspace_id, run_id=run.id, provider_id=synth_pid,
         provider_name=synth_name, status=final_oc["status"], content=final_oc["content"],
         error_message=final_oc["error"], latency_ms=final_oc["latency_ms"],
-        meta={"external": plans[synth_pid].external, "phase": "synthesis", **final_extra},
+        meta={"external": plans[synth_pid].external, "phase": "synthesis", **context_meta, **final_extra},
     )
     db.add(synth_row)
     responses.append(synth_row)
     db.add(ChatMessage(
         workspace_id=principal.workspace_id, session_id=session.id, role="assistant",
         content=final_answer if final_oc["status"] == "completed" and final_answer else (final_oc["error"] or final_oc["status"]),
+        section_key=section_key or "general",
         meta={"provider_id": synth_pid, "provider_name": synth_name, "status": final_oc["status"],
               "run_id": str(run.id), "latency_ms": final_oc["latency_ms"],
-              "external": plans[synth_pid].external, "reasoning": True, **final_extra},
+              "external": plans[synth_pid].external, "reasoning": True, **context_meta, **final_extra},
     ))
 
     if final_oc["status"] != "completed":

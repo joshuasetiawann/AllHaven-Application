@@ -24,26 +24,33 @@ from sqlalchemy.orm import Session
 
 from app.core.principal import Principal
 from app.domain.ai import ChatMessage
-from app.services import ai_provider_router, ai_tools_registry
+from app.services import ai_local_answers, ai_provider_router, ai_tools_registry
+from app.services.thinking import thinking_params
 
 MAX_TOOL_ROUNDS = 5
 HISTORY_MESSAGES = 12
 HISTORY_CHAR_LIMIT = 4000
 
 SYSTEM_PROMPT = (
-    "You are Haven, the AI assistant inside the AllHaven Command Center — the user's "
+    "You are Haven, the AI assistant inside the AllHaven Command Center - the user's "
     "private workspace for tasks, notes, calendar, finance, files, weather, automations, "
     "and system control.\n"
     "Tool rules (strict):\n"
     "  * Use tools to answer questions about the user's real data; never invent data.\n"
-    "  * A tool outcome with status 'pending_approval' means the action was NOT executed — "
+    "  * Use get_current_time/get_current_date for current time/date questions.\n"
+    "  * A tool outcome with status 'pending_approval' means the action was NOT executed - "
     "it awaits HUMAN approval. Say so clearly; never claim it was done.\n"
     "  * If a tool returns an error or 'setup_required', tell the user honestly and "
     "suggest the fix (e.g. configure the provider in Settings).\n"
-    "Answer style: start with the direct answer; be specific and concrete; no generic "
-    "filler or repeated caveats; use short sections or lists only when they help; say "
-    "what is missing when data is missing; reply in the user's language (Bahasa Indonesia "
-    "in, Bahasa Indonesia out)."
+    "Answer style: no basa-basi. Start with the answer or action status immediately. "
+    "Keep routine replies to 1-3 short sentences. Use bullets only when they make the "
+    "answer faster to scan. Do not say praise like 'Bagus sekali' unless the user asks "
+    "for encouragement. Be specific and concrete; no generic filler or repeated caveats. "
+    "Match the user's mode: casual chat and jokes are allowed when invited, serious "
+    "work gets serious focus, coding requests get senior full-stack engineering help, "
+    "and schedule/calendar requests should use task or calendar tools when useful. "
+    "Say what is missing when data is missing. Reply in the user's language (Bahasa "
+    "Indonesia in, Bahasa Indonesia out)."
 )
 
 
@@ -85,6 +92,9 @@ def run_with_tools(
     session_id: Optional[uuid.UUID] = None,
     provider_id: Optional[str] = None,
     extra_context: Optional[str] = None,
+    section_key: Optional[str] = "general",
+    thinking_mode: str = "balance",
+    user_message_id: Optional[uuid.UUID] = None,
 ) -> dict:
     """Route one chat turn, with the tool loop when the provider supports it.
 
@@ -94,6 +104,18 @@ def run_with_tools(
     plan = ai_provider_router.plan_chat(db, principal, provider_id)
     pid = plan.provider_id
     base = {"provider_id": pid, "tool_calls": [], "proposal_ids": []}
+    local = ai_local_answers.direct_answer(message)
+    if local:
+        return {
+            **base,
+            "provider_id": "local_clock",
+            "tool_calls": [{"tool": local["tool"], "status": "executed", "summary": "done"}],
+            "ok": True,
+            "configured": True,
+            "blocked": False,
+            "content": local["content"],
+            "error": "",
+        }
     if plan.status == "error" and not plan.runnable and plan.provider_name == pid:
         return {**base, "ok": False, "configured": False, "blocked": False,
                 "content": plan.message, "error": "unknown_provider"}
@@ -109,16 +131,16 @@ def run_with_tools(
 
     history = _recent_history(db, principal, session_id)
     user_turn = {"role": "user", "content": message}
+    params = thinking_params(thinking_mode)
 
     if not plan.supports_tool_loop:
         # Honest non-tool path (Ollama/Anthropic/Gemini/Blackbox today): plain chat
-        # with history; we never pretend tools ran. Memory context (extra_context)
-        # is prepended to the user turn since this path sends no system message.
+        # with history; we never pretend tools ran. Memory context still arrives
+        # through the system prompt so non-tool providers follow the same style.
+        system_content = SYSTEM_PROMPT
         if extra_context:
-            augmented_turn = {"role": "user", "content": f"{extra_context}\n\nUser: {message}"}
-        else:
-            augmented_turn = user_turn
-        result = plan.execute([*history, augmented_turn])
+            system_content = f"{SYSTEM_PROMPT}\n\n{extra_context}"
+        result = plan.execute([{"role": "system", "content": system_content}, *history, user_turn], params)
         if result.ok:
             return {**base, "ok": True, "configured": True, "blocked": False,
                     "content": result.content, "error": ""}
@@ -126,7 +148,7 @@ def run_with_tools(
                 "content": f"The '{plan.provider_name}' provider could not complete the request: {result.error}",
                 "error": result.error}
 
-    tools = ai_tools_registry.tool_definitions(db, principal)
+    tools = ai_tools_registry.tool_definitions(db, principal, section_key)
     system_content = SYSTEM_PROMPT
     if extra_context:
         system_content = f"{SYSTEM_PROMPT}\n\n{extra_context}"
@@ -136,7 +158,7 @@ def run_with_tools(
     result = None
 
     for round_no in range(MAX_TOOL_ROUNDS):
-        result = plan.execute(convo, None, tools or None)
+        result = plan.execute(convo, params, tools or None)
         if not result.ok or not result.tool_calls:
             break
         # Echo the assistant tool request, then answer each call via the registry.
@@ -155,7 +177,9 @@ def run_with_tools(
             except (ValueError, TypeError):
                 args = None
             if isinstance(args, dict):
-                outcome = ai_tools_registry.run_tool_call(db, principal, tc["name"], args)
+                outcome = ai_tools_registry.run_tool_call(
+                    db, principal, tc["name"], args, session_id=session_id, message_id=user_message_id
+                )
             else:
                 outcome = {"status": "error", "tool": tc["name"],
                            "error": "tool arguments were not valid JSON"}
@@ -171,7 +195,7 @@ def run_with_tools(
     else:
         # Round budget exhausted while the model still wanted tools: force a
         # final text answer without tools so the user gets a real reply.
-        result = plan.execute(convo)
+        result = plan.execute(convo, params)
 
     base = {"provider_id": pid, "tool_calls": tool_meta, "proposal_ids": proposal_ids}
     if result is not None and result.ok:

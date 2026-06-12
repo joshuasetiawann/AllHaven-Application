@@ -29,7 +29,7 @@ from app.domain.ai import (
     ChatMessage,
     ChatSession,
 )
-from app.services import ai_provider_router
+from app.services import ai_local_answers, ai_provider_router
 from app.services.ai_provider_router import ChatPlan
 from app.services.ai_service import _auto_title
 from app.services.thinking import thinking_params
@@ -70,9 +70,9 @@ def _dedup(provider_ids: List[str]) -> List[str]:
     return ordered
 
 
-def _user_meta(chat_mode: str, thinking_mode: str, images: Optional[List[str]]) -> dict:
-    """Metadata persisted on the user's turn: chat mode, thinking mode, attachments."""
-    meta: dict = {"chat_mode": chat_mode, "thinking_mode": thinking_mode}
+def _user_meta(chat_mode: str, thinking_mode: str, images: Optional[List[str]], section_key: str = "general") -> dict:
+    """Metadata persisted on the user's turn: chat mode, thinking mode, section, attachments."""
+    meta: dict = {"chat_mode": chat_mode, "thinking_mode": thinking_mode, "section_key": section_key or "general"}
     if images:
         meta["images"] = images
     return meta
@@ -108,7 +108,7 @@ def multi_chat(
     thinking_mode: str = "balance",
     section_key: Optional[str] = "general",
 ) -> dict:
-    from app.services import memory_context_builder, memory_extraction_service
+    from app.services import ai_context_builder, ai_orchestrator, memory_extraction_service
 
     ids = _dedup(provider_ids)
     if not ids:
@@ -131,19 +131,22 @@ def multi_chat(
             workspace_id=principal.workspace_id,
             created_by=principal.user_id,
             title=_auto_title(message),
+            section_key=section_key or "general",
         )
         db.add(session)
         db.flush()
     # Auto-title an untitled conversation from its first user message.
     if not (session.title or "").strip():
         session.title = _auto_title(message)
+    session.section_key = section_key or "general"
 
     user_message = ChatMessage(
         workspace_id=principal.workspace_id,
         session_id=session.id,
         role="user",
         content=message,
-        meta=_user_meta("parallel", thinking_mode, images),
+        section_key=section_key or "general",
+        meta=_user_meta("parallel", thinking_mode, images, section_key or "general"),
     )
     db.add(user_message)
     db.flush()
@@ -158,6 +161,54 @@ def multi_chat(
     )
     db.add(run)
     db.flush()
+
+    local = ai_local_answers.direct_answer(message)
+    if local:
+        row = AiAgentResponse(
+            workspace_id=principal.workspace_id,
+            run_id=run.id,
+            provider_id="local_clock",
+            provider_name="Local Clock",
+            status="completed",
+            content=local["content"],
+            error_message=None,
+            latency_ms=0,
+            meta={"external": False, "role": "Local", "n_agents": 1},
+        )
+        db.add(row)
+        db.add(ChatMessage(
+            workspace_id=principal.workspace_id,
+            session_id=session.id,
+            role="assistant",
+            content=local["content"],
+            section_key=section_key or "general",
+            meta={
+                "provider_id": "local_clock",
+                "provider_name": "Local Clock",
+                "status": "completed",
+                "run_id": str(run.id),
+                "latency_ms": 0,
+                "external": False,
+                "multi": True,
+                "role": "Local",
+                "n_agents": 1,
+                "section_key": section_key or "general",
+                "thinking_mode": thinking_mode,
+                "tool_calls": [{"tool": local["tool"], "status": "executed", "summary": "done"}],
+            },
+        ))
+        run.status = "completed"
+        db.flush()
+        db.commit()
+        db.refresh(run)
+        db.refresh(row)
+        memory_extraction_service.extract_and_commit(
+            db, principal,
+            user_msg=message,
+            assistant_msg=local["content"],
+            session_id=session.id,
+        )
+        return {"run": run, "session_id": session.id, "responses": [row]}
 
     # Resolve every provider on this thread (DB reads only). Ids may be agent
     # refs like "anthropic#2" selecting a provider's secondary model slot.
@@ -179,16 +230,21 @@ def multi_chat(
     # Build memory context only when at least one agent will actually run:
     # build() marks memories as used, and that side effect must not fire when
     # no model sees the context.
-    extra_context = (
-        memory_context_builder.build(db, principal, message, section_key)
+    context_packet = (
+        ai_context_builder.build(
+            db, principal, message=message, session_id=session.id,
+            section_key=section_key or "general", thinking_mode=thinking_mode,
+        )
         if runnable
-        else None
+        else {"context": None, "meta": {"section_key": section_key or "general", "thinking_mode": thinking_mode}}
     )
+    extra_context = context_packet.get("context")
+    context_meta = context_packet.get("meta", {})
     base_user = {"role": "user", "content": message, "images": images or []}
 
     def _messages_for(pid: str) -> list[dict]:
         role_name, role_task = roles[pid]
-        mem_prefix = memory_context_builder.as_prefix(extra_context)
+        mem_prefix = f"{extra_context}\n\n" if extra_context else ""
         if len(ids) == 1:
             # Single agent: no role framing, but still inject memory context via system msg.
             if mem_prefix:
@@ -199,13 +255,33 @@ def multi_chat(
                 f"{mem_prefix}"
                 f"You are the {role_name} agent in a team of {len(ids)} AI agents answering "
                 f"the same request. Your job: {role_task} Answer from that perspective — "
-                "be specific and concrete, no generic filler, and be honest about uncertainty."
+                "start with the answer, be specific and concrete, no basa-basi, no generic filler, "
+                "and be honest about uncertainty. Keep routine replies short. Match the user's "
+                "tone: casual chat may be warm/playful, coding gets senior engineering help, and "
+                "schedule requests should stay practical."
             )},
             base_user,
         ]
 
     outcomes: dict[str, dict] = {}
-    if runnable:
+    if runnable and len(ids) == 1 and not has_images:
+        # The main UI's one-agent Parallel mode should behave like real AI Chat:
+        # history + context + safe tool loop + pending actions.
+        pid = next(iter(runnable.keys()))
+        orchestrated = ai_orchestrator.run_with_tools(
+            db, principal, message=message, session_id=session.id, provider_id=pid,
+            extra_context=extra_context, section_key=section_key or "general",
+            thinking_mode=thinking_mode, user_message_id=user_message.id,
+        )
+        outcomes[pid] = {
+            "status": "completed" if orchestrated.get("ok") else "error",
+            "content": orchestrated.get("content"),
+            "error": orchestrated.get("error") or None,
+            "latency_ms": None,
+            "tool_calls": orchestrated.get("tool_calls") or [],
+            "proposal_ids": orchestrated.get("proposal_ids") or [],
+        }
+    elif runnable:
         with ThreadPoolExecutor(max_workers=len(runnable)) as pool:
             futures = {pool.submit(_run_one, p, _messages_for(pid), params, has_images): pid
                        for pid, p in runnable.items()}
@@ -223,9 +299,13 @@ def multi_chat(
     completed = 0
     for pid in ids:
         plan = plans[pid]
+        tool_calls: list[dict] = []
+        proposal_ids: list[str] = []
         if pid in outcomes:
             oc = outcomes[pid]
             status, content, error, latency = oc["status"], oc["content"], oc["error"], oc["latency_ms"]
+            tool_calls = oc.get("tool_calls") or []
+            proposal_ids = oc.get("proposal_ids") or []
             if status == "completed":
                 completed += 1
         elif has_images and plan.runnable and not plan.supports_image:
@@ -256,6 +336,7 @@ def multi_chat(
                 session_id=session.id,
                 role="assistant",
                 content=content if status == "completed" and content else (error or status),
+                section_key=section_key or "general",
                 meta={
                     "provider_id": pid,
                     "provider_name": plan.provider_name,
@@ -266,6 +347,9 @@ def multi_chat(
                     "multi": True,
                     "role": roles[pid][0],
                     "n_agents": len(ids),
+                    **context_meta,
+                    **({"tool_calls": tool_calls} if tool_calls else {}),
+                    **({"proposal_ids": proposal_ids} if proposal_ids else {}),
                 },
             )
         )
