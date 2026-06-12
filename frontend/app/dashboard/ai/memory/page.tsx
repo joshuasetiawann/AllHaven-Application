@@ -90,6 +90,7 @@ export default function MemoryPage() {
   }, []);
 
   const handleSearch = async () => {
+    setError(null);
     if (!searchQ.trim()) {
       void load();
       return;
@@ -103,6 +104,7 @@ export default function MemoryPage() {
   };
 
   const handleToggleEnabled = async (m: AiMemory) => {
+    setError(null);
     try {
       const updated = m.enabled
         ? await memoryApi.disable(m.id)
@@ -115,6 +117,7 @@ export default function MemoryPage() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this memory?")) return;
+    setError(null);
     try {
       await memoryApi.remove(id);
       setMemories((prev) => prev.filter((m) => m.id !== id));
@@ -124,6 +127,7 @@ export default function MemoryPage() {
   };
 
   const handleSaveEdit = async (id: string) => {
+    setError(null);
     try {
       const updated = await memoryApi.update(id, { content: editContent });
       setMemories((prev) => prev.map((m) => (m.id === id ? updated : m)));
@@ -134,6 +138,7 @@ export default function MemoryPage() {
   };
 
   const handleApproveSuggestion = async (id: string) => {
+    setError(null);
     try {
       const m = await memoryApi.approveSuggestion(id);
       setSuggestions((prev) => prev.filter((s) => s.id !== id));
@@ -144,6 +149,7 @@ export default function MemoryPage() {
   };
 
   const handleRejectSuggestion = async (id: string) => {
+    setError(null);
     try {
       await memoryApi.rejectSuggestion(id);
       setSuggestions((prev) => prev.filter((s) => s.id !== id));
@@ -153,7 +159,11 @@ export default function MemoryPage() {
   };
 
   const handleAddMemory = async () => {
-    if (!newMemory.title.trim() || !newMemory.content.trim()) return;
+    if (!newMemory.title.trim() || !newMemory.content.trim()) {
+      setError("Title and content are required.");
+      return;
+    }
+    setError(null);
     try {
       const m = await memoryApi.create(newMemory);
       setMemories((prev) => [m, ...prev]);
@@ -166,6 +176,7 @@ export default function MemoryPage() {
 
   const handleUpdateSettings = async (patch: Partial<MemorySettings>) => {
     if (!settings) return;
+    setError(null);
     const prev = settings;
     const next = { ...settings, ...patch };
     setSettings(next); // optimistic
@@ -180,6 +191,7 @@ export default function MemoryPage() {
 
   const handleClearAll = async () => {
     if (!window.confirm("Delete ALL memories? This cannot be undone.")) return;
+    setError(null);
     try {
       await memoryApi.clearAll();
       setMemories([]);
@@ -202,6 +214,7 @@ export default function MemoryPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/ai"
+            aria-label="Back to AI chat"
             className="rounded-md p-1.5 text-content-muted hover:bg-surface-raised hover:text-content"
           >
             <ArrowLeft size={17} />
@@ -417,7 +430,7 @@ export default function MemoryPage() {
             <input
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && void handleSearch()}
+              onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && void handleSearch()}
               placeholder="Search memories…"
               className="min-w-0 flex-1 bg-transparent py-1 text-[12px] text-content placeholder:text-content-subtle focus:outline-none"
             />
@@ -533,6 +546,7 @@ export default function MemoryPage() {
                     />
                     <button
                       onClick={() => void handleDelete(m.id)}
+                      aria-label="Delete memory"
                       className="rounded-md p-1 text-content-subtle hover:text-danger"
                     >
                       <Trash2 size={13} />
