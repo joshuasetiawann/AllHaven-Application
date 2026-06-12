@@ -4,6 +4,7 @@
 // to steer the AI when its section memory is injected into a prompt.
 
 import {
+  BookOpenCheck,
   Bot,
   Calendar,
   CloudSun,
@@ -34,6 +35,7 @@ export const SECTIONS: SectionDef[] = [
   { key: "finance", label: "Finance", icon: Wallet, hint: "Cashflow, budgets, and money tracking." },
   { key: "calendar", label: "Calendar", icon: Calendar, hint: "Events, scheduling, and time." },
   { key: "drive", label: "Files", icon: HardDrive, hint: "Documents and file organization." },
+  { key: "ai_knowledge", label: "AI Knowledge", icon: BookOpenCheck, hint: "Indexed documents for AI retrieval." },
   { key: "automations", label: "Automations", icon: Workflow, hint: "Workflows and automation ideas." },
   { key: "weather", label: "Weather", icon: CloudSun, hint: "Locations and weather context." },
   { key: "settings", label: "Settings", icon: Settings, hint: "App configuration and providers." },

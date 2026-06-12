@@ -7,12 +7,14 @@ Importing this package registers every model on ``Base.metadata`` so Alembic and
 from app.domain.ai import (
     AiAgentResponse,
     AiMultiAgentRun,
+    AiToolCall,
     AiToolProposal,
     ChatGroup,
     ChatMessage,
     ChatSession,
 )
 from app.domain.ai_memory import AiMemory, AiMemorySuggestion, AiConversationSummary
+from app.domain.ai_knowledge import AiKnowledgeChunk, AiKnowledgeDocument
 from app.domain.audit import AuditLog
 from app.domain.automations import Automation
 from app.domain.base import Base
@@ -44,7 +46,10 @@ __all__ = [
     "ChatMessage",
     "AiMultiAgentRun",
     "AiAgentResponse",
+    "AiToolCall",
     "AiToolProposal",
+    "AiKnowledgeDocument",
+    "AiKnowledgeChunk",
     "AuditLog",
     "IntegrationConfig",
     "AiAgentConfig",

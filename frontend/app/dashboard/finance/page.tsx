@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Plus, SlidersHorizontal, Trash2, Wallet } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  SlidersHorizontal,
+  Trash2,
+  Wallet,
+} from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -14,18 +24,71 @@ import { BarChart } from "@/components/ui/BarChart";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { financeApi, ApiException } from "@/lib/api";
 import { cn, formatCurrency, formatDate, monthLabel } from "@/lib/format";
-import type { FinanceCategory, FinanceSummary, FinanceType, Transaction } from "@/types";
+import type { FinanceCategory, FinanceReport, FinanceType, Transaction } from "@/types";
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+type ReportMode = "month" | "week";
+
+const toIsoDate = (date: Date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const parseLocalDate = (value: string) => {
+  const [y, m, d] = value.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
+const todayIso = () => toIsoDate(new Date());
+
+const startOfWeek = (date: Date) => {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const mondayOffset = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - mondayOffset);
+  return d;
+};
+
+const addDays = (date: Date, days: number) => {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() + days);
+  return d;
+};
+
+const addMonths = (date: Date, months: number) =>
+  new Date(date.getFullYear(), date.getMonth() + months, 1);
+
+function periodFor(mode: ReportMode, anchor: Date) {
+  if (mode === "week") {
+    const start = startOfWeek(anchor);
+    const end = addDays(start, 6);
+    return {
+      start: toIsoDate(start),
+      end: toIsoDate(end),
+      label: `${formatDate(toIsoDate(start))} - ${formatDate(toIsoDate(end))}`,
+    };
+  }
+  const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+  return {
+    start: toIsoDate(start),
+    end: toIsoDate(end),
+    label: monthLabel(anchor.getFullYear(), anchor.getMonth() + 1),
+  };
+}
+
+const isInRange = (dateValue: string, start: string, end: string) =>
+  dateValue >= start && dateValue <= end;
 
 export default function FinancePage() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+  const [mode, setMode] = useState<ReportMode>("month");
+  const [anchorDate, setAnchorDate] = useState(() => new Date());
+  const period = useMemo(() => periodFor(mode, anchorDate), [mode, anchorDate]);
 
   const [categories, setCategories] = useState<FinanceCategory[]>([]);
   const [transactions, setTransactions] = useState<Transaction[] | null>(null);
-  const [summary, setSummary] = useState<FinanceSummary | null>(null);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [report, setReport] = useState<FinanceReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [txnOpen, setTxnOpen] = useState(false);
@@ -44,14 +107,16 @@ export default function FinancePage() {
   const load = async () => {
     setError(null);
     try {
-      const [cats, txns, sum] = await Promise.all([
+      const [cats, txns, recent, rep] = await Promise.all([
         financeApi.listCategories(),
-        financeApi.listTransactions(),
-        financeApi.summary(year, month),
+        financeApi.listTransactions({ start: period.start, end: period.end, currency: "IDR", limit: 500 }),
+        financeApi.listTransactions({ limit: 8 }),
+        financeApi.report({ start: period.start, end: period.end, periodType: mode, currency: "IDR" }),
       ]);
       setCategories(cats);
       setTransactions(txns);
-      setSummary(sum);
+      setRecentTransactions(recent);
+      setReport(rep);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load finance data.");
     }
@@ -60,24 +125,65 @@ export default function FinancePage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [mode, period.start, period.end]);
 
-  const weeklyBars = useMemo(() => {
+  const trendBars = useMemo(() => {
+    if (mode === "week") {
+      const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      const buckets = labels.map(() => 0);
+      (transactions ?? []).forEach((t) => {
+        if (t.type !== "EXPENSE") return;
+        const day = (parseLocalDate(t.transaction_date).getDay() + 6) % 7;
+        buckets[day] += t.amount;
+      });
+      return labels.map((label, i) => ({ label, value: buckets[i] }));
+    }
     const buckets = [0, 0, 0, 0, 0];
     (transactions ?? []).forEach((t) => {
-      const d = new Date(t.transaction_date);
-      if (d.getFullYear() === year && d.getMonth() + 1 === month && t.type === "EXPENSE") {
-        buckets[Math.min(4, Math.floor((d.getDate() - 1) / 7))] += t.amount;
-      }
+      if (t.type !== "EXPENSE") return;
+      const d = parseLocalDate(t.transaction_date);
+      buckets[Math.min(4, Math.floor((d.getDate() - 1) / 7))] += t.amount;
     });
     return buckets.map((value, i) => ({ label: `W${i + 1}`, value }));
-  }, [transactions, month, year]);
+  }, [transactions, mode]);
+
+  const latestOutsidePeriod = useMemo(
+    () => recentTransactions.filter((t) => !isInRange(t.transaction_date, period.start, period.end)).slice(0, 5),
+    [recentTransactions, period.start, period.end],
+  );
+
+  const periodInputValue = useMemo(() => {
+    if (mode === "week") return period.start;
+    const d = parseLocalDate(period.start);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, [mode, period.start]);
+
+  const openTransactionModal = () => {
+    const today = todayIso();
+    const defaultDate = isInRange(today, period.start, period.end) ? today : period.start;
+    setTxnForm((cur) => ({ ...cur, transaction_date: defaultDate }));
+    setTxnOpen(true);
+  };
+
+  const shiftPeriod = (amount: number) => {
+    setAnchorDate((cur) => (mode === "week" ? addDays(cur, amount * 7) : addMonths(cur, amount)));
+  };
+
+  const changePeriodInput = (value: string) => {
+    if (!value) return;
+    if (mode === "month") {
+      const [y, m] = value.split("-").map(Number);
+      if (y && m) setAnchorDate(new Date(y, m - 1, 1));
+      return;
+    }
+    setAnchorDate(parseLocalDate(value));
+  };
 
   const createTransaction = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
     try {
-      await financeApi.createTransaction({
+      const created = await financeApi.createTransaction({
         type: txnForm.type,
         amount: Number(txnForm.amount),
         category_id: txnForm.category_id || null,
@@ -86,7 +192,11 @@ export default function FinancePage() {
       });
       setTxnOpen(false);
       setTxnForm({ type: "EXPENSE", amount: "", category_id: "", description: "", transaction_date: todayIso() });
-      await load();
+      if (isInRange(created.transaction_date, period.start, period.end)) {
+        await load();
+      } else {
+        setAnchorDate(parseLocalDate(created.transaction_date));
+      }
     } catch (err) {
       setError(err instanceof ApiException ? err.message : "Failed to create transaction.");
     } finally {
@@ -110,11 +220,27 @@ export default function FinancePage() {
 
   const removeTransaction = async (txn: Transaction) => {
     setTransactions((prev) => prev?.filter((t) => t.id !== txn.id) ?? prev);
+    setRecentTransactions((prev) => prev.filter((t) => t.id !== txn.id));
     try {
       await financeApi.removeTransaction(txn.id);
       await load();
     } catch {
       void load();
+    }
+  };
+
+  const moveTransactionToReport = async (txn: Transaction) => {
+    const today = todayIso();
+    const transactionDate = isInRange(today, period.start, period.end) ? today : period.start;
+    setSaving(true);
+    setError(null);
+    try {
+      await financeApi.updateTransaction(txn.id, { transaction_date: transactionDate });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiException ? err.message : "Failed to move transaction into this report.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -131,22 +257,70 @@ export default function FinancePage() {
     <AppShell>
       <PageHeader
         title="Finance"
-        subtitle={`Cashflow overview · ${monthLabel(year, month)}`}
+        subtitle={`Cashflow report - ${period.label}`}
         actions={
           <>
             <Button variant="ghost" onClick={() => setCatOpen(true)}>
               <SlidersHorizontal size={15} /> Categories
             </Button>
-            <Button onClick={() => setTxnOpen(true)}>
+            <Button onClick={openTransactionModal}>
               <Plus size={16} /> New transaction
             </Button>
           </>
         }
       />
 
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-lg border border-border bg-surface-input p-0.5 text-[12.5px]">
+          {(["month", "week"] as ReportMode[]).map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setMode(item)}
+              className={cn(
+                "rounded-md px-3 py-1.5 capitalize transition-colors",
+                mode === item ? "bg-surface-high text-primary" : "text-content-muted hover:text-content",
+              )}
+            >
+              {item === "month" ? "Monthly" : "Weekly"}
+            </button>
+          ))}
+        </div>
+        <div className="inline-flex items-center rounded-lg border border-border bg-surface-input p-0.5">
+          <button
+            type="button"
+            onClick={() => shiftPeriod(-1)}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-content-muted transition-colors hover:bg-surface-high hover:text-content"
+            aria-label="Previous period"
+          >
+            <ChevronLeft size={15} />
+          </button>
+          <label className="flex h-8 items-center gap-2 border-x border-border px-2 text-[12px] text-content-muted">
+            <CalendarDays size={13} />
+            <input
+              type={mode === "month" ? "month" : "date"}
+              value={periodInputValue}
+              onChange={(e) => changePeriodInput(e.target.value)}
+              className="w-[132px] bg-transparent text-[12.5px] text-content outline-none"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => shiftPeriod(1)}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-content-muted transition-colors hover:bg-surface-high hover:text-content"
+            aria-label="Next period"
+          >
+            <ChevronRight size={15} />
+          </button>
+        </div>
+        <Button size="sm" variant="ghost" onClick={() => setAnchorDate(new Date())}>
+          Current
+        </Button>
+      </div>
+
       {error ? (
         <ErrorState message={error} onRetry={load} />
-      ) : !transactions || !summary ? (
+      ) : !transactions || !report ? (
         <Loading />
       ) : (
         <div className="animate-fade-in space-y-5">
@@ -159,7 +333,7 @@ export default function FinancePage() {
                 </span>
               </div>
               <p className="mt-2 text-2xl font-semibold tabular-nums text-success">
-                {formatCurrency(summary.total_income, summary.currency)}
+                {formatCurrency(report.total_income, report.currency)}
               </p>
             </Card>
             <Card padding="md" hover>
@@ -170,7 +344,7 @@ export default function FinancePage() {
                 </span>
               </div>
               <p className="mt-2 text-2xl font-semibold tabular-nums text-danger">
-                {formatCurrency(summary.total_expense, summary.currency)}
+                {formatCurrency(report.total_expense, report.currency)}
               </p>
             </Card>
             <Card gradient padding="md" hover className="border-primary/30">
@@ -182,21 +356,71 @@ export default function FinancePage() {
               </div>
               <p className={cn(
                 "mt-2 text-2xl font-semibold tabular-nums",
-                summary.balance < 0 ? "text-danger" : "text-content",
+                report.balance < 0 ? "text-danger" : "text-content",
               )}>
-                {formatCurrency(summary.balance, summary.currency)}
+                {formatCurrency(report.balance, report.currency)}
               </p>
             </Card>
           </div>
 
           <div className="grid gap-5 lg:grid-cols-3">
             <Card className="lg:col-span-2">
-              <CardHeader title="Transactions" subtitle={`${summary.transaction_count} this month`} icon={<Wallet size={18} />} />
+              <CardHeader
+                title="Transactions"
+                subtitle={`${report.transaction_count} in this ${mode}`}
+                icon={<Wallet size={18} />}
+              />
               {transactions.length === 0 ? (
-                <EmptyState
-                  title="No transactions yet"
-                  description="Record income or expenses to build your monthly summary."
-                />
+                <div className="space-y-4">
+                  <EmptyState
+                    title="No transactions in this report"
+                    description="Change the period, or record a transaction for the selected report."
+                  />
+                  {latestOutsidePeriod.length ? (
+                    <div className="rounded-lg border border-border bg-surface-input/45 p-3">
+                      <div className="mb-2">
+                        <p className="text-[12px] font-medium text-content-muted">
+                          Archived records outside {period.label}
+                        </p>
+                        <p className="mt-0.5 text-[11.5px] text-content-subtle">
+                          These records are not counted because their dates are outside this report.
+                        </p>
+                      </div>
+                      <ul className="space-y-1.5">
+                        {latestOutsidePeriod.map((txn) => (
+                          <li key={txn.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md px-2 py-1.5">
+                            <span className="min-w-0">
+                              <span className="block truncate text-[13px] text-content">
+                                {txn.description || txn.category_name_snapshot || (txn.type === "INCOME" ? "Income" : "Expense")}
+                              </span>
+                              <span className="label-mono">
+                                {formatDate(txn.transaction_date)} - {txn.type === "INCOME" ? "+" : "-"}
+                                {formatCurrency(txn.amount, txn.currency)}
+                              </span>
+                            </span>
+                            <span className="flex shrink-0 flex-wrap items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => void moveTransactionToReport(txn)}
+                                disabled={saving}
+                                className="rounded-md border border-primary/40 px-2 py-1 text-[11.5px] text-primary transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Move to {mode}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setAnchorDate(parseLocalDate(txn.transaction_date))}
+                                className="rounded-md border border-border px-2 py-1 text-[11.5px] text-content-muted transition-colors hover:border-primary/50 hover:text-primary"
+                              >
+                                Open old period
+                              </button>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
               ) : (
                 <ul className="divide-y divide-border">
                   {transactions.map((txn) => {
@@ -220,13 +444,13 @@ export default function FinancePage() {
                             </p>
                             <p className="label-mono">
                               {formatDate(txn.transaction_date)}
-                              {txn.category_name_snapshot ? ` · ${txn.category_name_snapshot}` : ""}
+                              {txn.category_name_snapshot ? ` - ${txn.category_name_snapshot}` : ""}
                             </p>
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-3">
                           <span className={"text-sm font-semibold " + (income ? "text-success" : "text-danger")}>
-                            {income ? "+" : "−"}
+                            {income ? "+" : "-"}
                             {formatCurrency(txn.amount, txn.currency)}
                           </span>
                           <button
@@ -245,8 +469,12 @@ export default function FinancePage() {
             </Card>
 
             <Card>
-              <CardHeader title="Weekly spend" subtitle={monthLabel(year, month)} icon={<Wallet size={18} />} />
-              <BarChart data={weeklyBars} height={140} />
+              <CardHeader
+                title={mode === "month" ? "Weekly spend" : "Daily spend"}
+                subtitle={period.label}
+                icon={<Wallet size={18} />}
+              />
+              <BarChart data={trendBars} height={140} />
               <p className="mt-4 border-t border-border pt-3 text-[12px] text-content-subtle">
                 AllHaven tracks cashflow. It does not provide financial advice.
               </p>
@@ -255,7 +483,6 @@ export default function FinancePage() {
         </div>
       )}
 
-      {/* New transaction modal */}
       <Modal
         open={txnOpen}
         onClose={() => setTxnOpen(false)}
@@ -325,13 +552,12 @@ export default function FinancePage() {
         </form>
       </Modal>
 
-      {/* Categories modal */}
       <Modal open={catOpen} onClose={() => setCatOpen(false)} title="Categories">
         <form onSubmit={createCategory} className="mb-4 grid grid-cols-[1fr_auto_auto] items-end gap-2">
           <Input
             id="cat-name"
             label="New category"
-            placeholder="Salary, Food…"
+            placeholder="Salary, Food"
             value={catForm.name}
             onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
           />

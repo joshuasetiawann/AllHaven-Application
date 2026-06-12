@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Bot, Brain, Crown, Cpu, Eye, Handshake, ImageOff, ImagePlus, Layers, Loader2, PanelLeft, SendHorizonal, Sparkles, Swords, User, Wrench, X } from "lucide-react";
+import { AlertTriangle, BookOpenCheck, Bot, Brain, Crown, Cpu, Eye, Handshake, ImageOff, ImagePlus, Layers, Loader2, PanelLeft, SendHorizonal, Sparkles, Swords, User, Wrench, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -420,15 +420,22 @@ export default function AiChatPage() {
     const isError = !isUser && status && status !== "completed";
     const imgs = isUser ? imagesOf(m) : [];
     const toolCalls = !isUser && showToolActivity ? toolCallsOf(m) : [];
+    const usedMemory = !isUser && Boolean(m.meta?.used_memory);
+    const usedKnowledge = !isUser && Boolean(m.meta?.used_knowledge);
+    const activeTools = Array.isArray(m.meta?.active_tools) ? (m.meta?.active_tools as string[]) : [];
+    const visibleActiveTools = activeTools.slice(0, 2);
+    const hiddenActiveToolCount = Math.max(0, activeTools.length - visibleActiveTools.length);
+    const visibleToolCalls = toolCalls.slice(0, 2);
+    const hiddenToolCallCount = Math.max(0, toolCalls.length - visibleToolCalls.length);
     return (
-      <div className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
+      <div className={cn("flex gap-2.5", isUser ? "flex-row-reverse" : "flex-row")}>
         <span className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
+          "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
           isUser ? "border-border bg-surface-high text-content" : "border-primary/30 bg-primary/10 text-primary",
         )}>
-          {isUser ? <User size={15} /> : <Bot size={15} />}
+          {isUser ? <User size={14} /> : <Bot size={14} />}
         </span>
-        <div className="min-w-0 max-w-[82%]">
+        <div className="min-w-0 max-w-[78%] sm:max-w-[44rem]">
           {provider && !isUser ? (
             <p className="mb-0.5 flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-content-subtle">
               {provider}
@@ -439,7 +446,7 @@ export default function AiChatPage() {
             "rounded-xl border px-3.5 py-2.5 text-sm leading-relaxed",
             isUser ? "border-primary/30 bg-primary/10 text-content"
               : isError ? "border-warning/30 bg-warning/10 text-warning"
-              : "border-border bg-surface-input text-content-muted",
+              : "border-border bg-surface-input text-content",
           )}>
             {imgs.length ? (
               <div className={cn("flex flex-wrap gap-2", m.content ? "mb-2" : "")}>
@@ -455,9 +462,33 @@ export default function AiChatPage() {
               <MarkdownMessage content={m.content} />
             )}
           </div>
+          {usedMemory || usedKnowledge || activeTools.length ? (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {usedMemory ? (
+                <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10.5px] font-medium text-primary">
+                  <Brain size={10} /> used memory
+                </span>
+              ) : null}
+              {usedKnowledge ? (
+                <span className="inline-flex items-center gap-1 rounded-md border border-success/30 bg-success/10 px-2 py-0.5 text-[10.5px] font-medium text-success">
+                  <BookOpenCheck size={10} /> used knowledge
+                </span>
+              ) : null}
+              {visibleActiveTools.map((name) => (
+                <span key={name} className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-high px-2 py-0.5 text-[10.5px] font-medium text-content-subtle">
+                  <Wrench size={10} /> {name.replace(/_/g, " ")}
+                </span>
+              ))}
+              {hiddenActiveToolCount ? (
+                <span className="inline-flex items-center rounded-md border border-border bg-surface-high px-2 py-0.5 text-[10.5px] font-medium text-content-subtle">
+                  +{hiddenActiveToolCount} tools
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           {toolCalls.length ? (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {toolCalls.map((tc, i) => {
+              {visibleToolCalls.map((tc, i) => {
                 const chip = TOOL_CHIP[tc.status] ?? { cls: "border-border bg-surface-high text-content-muted", label: tc.status.replace(/_/g, " ") };
                 return (
                   <span
@@ -469,6 +500,11 @@ export default function AiChatPage() {
                   </span>
                 );
               })}
+              {hiddenToolCallCount ? (
+                <span className="inline-flex items-center rounded-md border border-border bg-surface-high px-2 py-0.5 text-[10.5px] font-medium text-content-subtle">
+                  +{hiddenToolCallCount} more
+                </span>
+              ) : null}
             </div>
           ) : null}
         </div>

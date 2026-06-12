@@ -15,10 +15,14 @@ import type {
   ChatMessage,
   ChatResponse,
   ChatSession,
+  DriveConfig,
   DriveFile,
   FinanceCategory,
+  FinanceReport,
   FinanceSummary,
   Integration,
+  KnowledgeDocument,
+  KnowledgeSearchResponse,
   Me,
   MemorySettings,
   MemorySuggestion,
@@ -181,14 +185,31 @@ export const financeApi = {
     request<FinanceCategory>("/finance/categories", { method: "POST", body: json(payload) }),
   removeCategory: (id: string) =>
     request<{ id: string }>(`/finance/categories/${id}`, { method: "DELETE" }),
-  listTransactions: () => request<Transaction[]>("/finance/transactions"),
+  listTransactions: (params?: { year?: number; month?: number; currency?: string; start?: string; end?: string; limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.year) qs.set("year", String(params.year));
+    if (params?.month) qs.set("month", String(params.month));
+    if (params?.currency) qs.set("currency", params.currency);
+    if (params?.start) qs.set("start", params.start);
+    if (params?.end) qs.set("end", params.end);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.offset) qs.set("offset", String(params.offset));
+    const query = qs.toString();
+    return request<Transaction[]>(`/finance/transactions${query ? `?${query}` : ""}`);
+  },
   createTransaction: (payload: Record<string, unknown>) =>
     request<Transaction>("/finance/transactions", { method: "POST", body: json(payload) }),
+  updateTransaction: (id: string, payload: Record<string, unknown>) =>
+    request<Transaction>(`/finance/transactions/${id}`, { method: "PATCH", body: json(payload) }),
   removeTransaction: (id: string) =>
     request<{ id: string }>(`/finance/transactions/${id}`, { method: "DELETE" }),
   summary: (year: number, month: number, currency = "IDR") =>
     request<FinanceSummary>(
       `/finance/summary?year=${year}&month=${month}&currency=${currency}`,
+    ),
+  report: (payload: { start: string; end: string; periodType?: string; currency?: string }) =>
+    request<FinanceReport>(
+      `/finance/report?start=${payload.start}&end=${payload.end}&period_type=${payload.periodType ?? "custom"}&currency=${payload.currency ?? "IDR"}`,
     ),
 };
 
@@ -215,10 +236,10 @@ export const aiApi = {
     request<{ id: string }>(`/ai/groups/${id}`, { method: "DELETE" }),
   listMessages: (sessionId: string) =>
     request<ChatMessage[]>(`/ai/sessions/${sessionId}/messages`),
-  chat: (message: string, sessionId?: string, providerId?: string, sectionKey = "general") =>
+  chat: (message: string, sessionId?: string, providerId?: string, sectionKey = "general", thinkingMode = "balance") =>
     request<ChatResponse>("/ai/chat", {
       method: "POST",
-      body: json({ message, session_id: sessionId || null, provider_id: providerId || null, section_key: sectionKey }),
+      body: json({ message, session_id: sessionId || null, provider_id: providerId || null, section_key: sectionKey, thinking_mode: thinkingMode }),
     }),
   // Fan a message out to up to 3 agents concurrently. `images` are data URLs;
   // `thinkingMode` controls reasoning depth + sampling.
@@ -248,7 +269,7 @@ export const aiApi = {
   editProposal: (id: string, toolPayload: Record<string, unknown>) =>
     request<ToolProposal>(`/ai/proposals/${id}`, { method: "PATCH", body: json({ tool_payload: toolPayload }) }),
   // AI tools (registry)
-  listTools: () => request<AiTool[]>("/ai/tools"),
+  listTools: (sectionKey?: string) => request<AiTool[]>(`/ai/tools${sectionKey ? `?section_key=${encodeURIComponent(sectionKey)}` : ""}`),
   setToolEnabled: (name: string, enabled: boolean) =>
     request<AiTool>(`/ai/tools/${name}`, { method: "PUT", body: json({ enabled }) }),
   // Chat behavior settings
@@ -365,6 +386,7 @@ export const calendarApi = {
 
 // --- Drive (file upload uses multipart, not JSON) ---
 export const driveApi = {
+  config: () => request<DriveConfig>("/drive/config"),
   list: () => request<DriveFile[]>("/drive/files"),
   upload: async (file: File): Promise<DriveFile> => {
     const form = new FormData();
@@ -390,6 +412,41 @@ export const driveApi = {
   },
   downloadUrl: (id: string) => `${API_BASE_URL}/drive/files/${id}/download`,
   remove: (id: string) => request<{ id: string }>(`/drive/files/${id}`, { method: "DELETE" }),
+};
+
+
+// --- AI Knowledge ---
+export const knowledgeApi = {
+  listDocuments: () => request<KnowledgeDocument[]>("/ai/knowledge/documents"),
+  uploadDocument: async (file: File, title?: string): Promise<KnowledgeDocument> => {
+    const form = new FormData();
+    form.append("file", file);
+    const csrf = getCsrfToken();
+    const qs = title?.trim() ? `?title=${encodeURIComponent(title.trim())}` : "";
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE_URL}/ai/knowledge/documents${qs}`, {
+        method: "POST",
+        headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
+        body: form,
+        credentials: "include",
+      });
+    } catch {
+      throw new ApiException("Cannot reach the AllHaven API. Is the backend running?", "NETWORK_ERROR", 0);
+    }
+    const body = (await res.json().catch(() => null)) as ApiEnvelope<KnowledgeDocument> | null;
+    if (!res.ok || body?.status === "error") {
+      if (res.status === 401) clearAuth();
+      throw new ApiException(body?.message || `Upload failed (${res.status})`, body?.error_code || "HTTP_ERROR", res.status);
+    }
+    return body?.data as KnowledgeDocument;
+  },
+  search: (q: string, limit = 5) =>
+    request<KnowledgeSearchResponse>(`/ai/knowledge/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  reindex: (id: string) =>
+    request<KnowledgeDocument>(`/ai/knowledge/documents/${id}/reindex`, { method: "POST" }),
+  remove: (id: string) =>
+    request<{ id: string }>(`/ai/knowledge/documents/${id}`, { method: "DELETE" }),
 };
 
 // --- Live n8n workflows (read + activate/deactivate the connected n8n) ---

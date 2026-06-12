@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "AllHaven Command Center"
     APP_ENV: str = "local"
     API_V1_PREFIX: str = "/api/v1"
+    # Used for deterministic local answers such as "sekarang jam berapa?"
+    APP_TIMEZONE: str = "Asia/Jakarta"
     # Comma-separated list (or JSON array) of allowed frontend origins.
     BACKEND_CORS_ORIGINS: str = "http://localhost:3000"
     # Allow any origin (no cookies; bearer-token auth only). Auto-on in local mode
@@ -87,6 +89,8 @@ class Settings(BaseSettings):
     DRIVE_STORAGE_PROVIDER: str = ""
     # Local Drive storage root for uploaded file bytes (metadata lives in the DB).
     DRIVE_STORAGE_DIR: str = ""
+    # Upload cap shown and enforced by both backend and frontend.
+    DRIVE_MAX_UPLOAD_MB: int = 250
     # Override the .env mirror path (tests point this at a temp file so the real
     # repo .env is never touched).
     ENV_SYNC_PATH: str = ""
