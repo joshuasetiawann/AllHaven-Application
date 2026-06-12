@@ -56,13 +56,11 @@ function ChatRow({
       <button
         onClick={() => onSelect(s.id)}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md border px-2.5 py-2 text-left text-[13px] transition-colors",
-          active
-            ? "border-primary/30 bg-[linear-gradient(90deg,rgb(var(--color-primary)/0.14),rgb(var(--color-secondary)/0.08))] text-content shadow-[0_0_20px_rgb(var(--color-primary)/0.12)]"
-            : "border-transparent text-content-muted hover:bg-surface-raised/60 hover:text-content",
+          "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors",
+          active ? "bg-surface-high text-content" : "text-content-muted hover:bg-surface-raised/60 hover:text-content",
         )}
       >
-        <span className={cn("min-w-0 flex-1 truncate", active && "font-semibold")}>{s.title || "New Chat"}</span>
+        <span className="min-w-0 flex-1 truncate">{s.title || "New Chat"}</span>
         <span
           role="button"
           tabIndex={0}
@@ -82,7 +80,7 @@ function ChatRow({
       {menu ? (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setMenu(false)} />
-          <div className="absolute right-1 top-9 z-40 w-44 animate-scale-in rounded-md border border-border bg-bg-deep/95 p-1 shadow-panel backdrop-blur-md">
+          <div className="absolute right-1 top-9 z-40 w-44 animate-scale-in rounded-lg border border-border bg-surface p-1 shadow-glow">
             <button
               onClick={() => { setMenu(false); onRenameChat(s); }}
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-content hover:bg-surface-raised/70"
@@ -154,34 +152,30 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
   };
 
   return (
-    <aside className="flex h-full w-full flex-col">
-      <div className="flex items-center justify-between gap-2 px-4 pb-1 pt-4">
-        <h2 className="text-sm font-semibold text-content">Conversations</h2>
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => props.onNewChat(null)}
-            aria-label="New chat"
-            title="New chat"
-            className="grad-primary flex h-[30px] w-[30px] items-center justify-center rounded-sm text-primary-fg shadow-[0_0_16px_rgb(var(--color-primary)/0.4)] transition-all hover:brightness-[1.06] focus-ring"
-          >
-            <MessageSquarePlus size={15} />
+    <aside className="flex h-full w-full flex-col bg-surface/40">
+      <div className="flex items-center justify-between gap-2 px-3 pt-3">
+        <p className="font-mono text-[10px] uppercase tracking-wide text-content-subtle">Conversations</p>
+        {props.onCloseMobile ? (
+          <button onClick={props.onCloseMobile} className="rounded p-1 text-content-subtle hover:text-content lg:hidden" aria-label="Close">
+            <X size={16} />
           </button>
-          {props.onCloseMobile ? (
-            <button onClick={props.onCloseMobile} className="rounded p-1 text-content-subtle hover:text-content lg:hidden" aria-label="Close">
-              <X size={16} />
-            </button>
-          ) : null}
-        </div>
+        ) : null}
       </div>
 
-      <div className="px-4 py-2.5">
-        <div className="flex items-center gap-2 rounded border border-border bg-white/[0.03] px-3">
+      <div className="space-y-2 px-3 py-2.5">
+        <button
+          onClick={() => props.onNewChat(null)}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-[13px] font-medium text-primary transition-colors hover:bg-primary/15"
+        >
+          <MessageSquarePlus size={15} /> New Chat
+        </button>
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-input px-2.5">
           <Search size={14} className="shrink-0 text-content-subtle" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search chats…"
-            className="h-9 min-w-0 flex-1 bg-transparent text-[12.5px] text-content placeholder:text-content-subtle focus:outline-none"
+            className="h-8 min-w-0 flex-1 bg-transparent text-[13px] text-content placeholder:text-content-subtle focus:outline-none"
           />
         </div>
       </div>
@@ -190,7 +184,7 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
         {/* Groups / Projects */}
         <div>
           <div className="flex items-center justify-between px-1.5 py-1">
-            <p className="label-mono">Groups</p>
+            <p className="font-mono text-[10px] uppercase tracking-wide text-content-subtle">Groups</p>
             <button onClick={props.onCreateGroup} className="rounded p-0.5 text-content-subtle hover:text-content" aria-label="New group">
               <FolderPlus size={14} />
             </button>
@@ -241,7 +235,7 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
 
         {/* Recent (ungrouped) */}
         <div>
-          <p className="label-mono px-1.5 py-1">Recent Chats</p>
+          <p className="px-1.5 py-1 font-mono text-[10px] uppercase tracking-wide text-content-subtle">Recent Chats</p>
           {ungrouped.length === 0 ? (
             <p className="px-2 py-1 text-[12px] text-content-subtle">{query ? "No matches." : "No chats yet — start one."}</p>
           ) : (
