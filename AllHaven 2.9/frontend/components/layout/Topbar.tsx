@@ -34,12 +34,17 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         setAiStatus(s === "online" ? "online" : ollama?.configured ? "configured" : "not_configured");
       })
       .catch(() => active && setAiStatus("not_configured"));
-    aiApi
-      .listProposals()
-      .then((p) => active && setProposals(p))
-      .catch(() => {});
+    const loadProposals = () => {
+      aiApi
+        .listProposals()
+        .then((p) => active && setProposals(p))
+        .catch(() => {});
+    };
+    loadProposals();
+    const interval = window.setInterval(loadProposals, 30000);
     return () => {
       active = false;
+      window.clearInterval(interval);
     };
   }, []);
 
@@ -66,7 +71,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-16 min-w-0 items-center gap-2 border-b border-border bg-bg/80 px-3 backdrop-blur-[12px] sm:gap-3 sm:px-6">
+      <header className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-2 border-b border-border bg-bg/80 px-3 backdrop-blur-[12px] sm:h-16 sm:gap-3 sm:px-6">
         <IconButton className="shrink-0 md:hidden" onClick={onMenu} aria-label="Open menu">
           <Menu size={18} />
         </IconButton>
@@ -77,7 +82,8 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-surface-input px-3 text-left text-content-subtle transition-colors hover:border-border-strong sm:max-w-md"
         >
           <Search size={15} className="shrink-0" />
-          <span className="min-w-0 flex-1 truncate text-[13px]">Search tasks, notes, pages…</span>
+          <span className="min-w-0 flex-1 truncate text-[13px] sm:hidden">Search</span>
+          <span className="hidden min-w-0 flex-1 truncate text-[13px] sm:block">Search tasks, notes, pages…</span>
           <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] sm:inline">⌘K</kbd>
         </button>
 
@@ -86,7 +92,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
         <span
           className={cn(
-            "hidden max-w-[220px] items-center gap-2 truncate rounded-full border px-3 py-1.5 text-[12px] font-medium md:inline-flex",
+            "hidden max-w-[220px] items-center gap-2 truncate rounded-full border px-3 py-1.5 text-[12px] font-medium lg:inline-flex",
             aiStatus === "online"
               ? "border-success/30 bg-success/10 text-success"
               : aiStatus === "configured"
@@ -123,7 +129,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
               ) : null}
             </IconButton>
             {notifOpen ? (
-              <div className="absolute right-0 top-11 z-40 w-72 animate-scale-in rounded-xl border border-border bg-surface p-2 shadow-glow">
+              <div className="absolute right-0 top-11 z-40 w-[min(92vw,20rem)] animate-scale-in rounded-xl border border-border bg-surface p-2 shadow-glow">
                 <p className="px-2 py-1.5 font-mono text-[10px] uppercase tracking-wide text-content-subtle">
                   Pending AI proposals
                 </p>
@@ -136,7 +142,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
                         <button
                           onClick={() => {
                             setNotifOpen(false);
-                            router.push("/dashboard/ai");
+                            router.push("/dashboard/approvals");
                           }}
                           className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-[13px] text-content hover:bg-surface-raised/60"
                         >
@@ -148,11 +154,11 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
                   </ul>
                 )}
                 <Link
-                  href="/dashboard/ai"
+                  href="/dashboard/approvals"
                   onClick={() => setNotifOpen(false)}
                   className="mt-1 block rounded-lg px-2 py-2 text-[13px] text-primary hover:bg-surface-raised/60"
                 >
-                  Open AI Chat →
+                  Open approvals
                 </Link>
               </div>
             ) : null}

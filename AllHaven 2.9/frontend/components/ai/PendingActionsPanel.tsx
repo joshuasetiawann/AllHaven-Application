@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
+import { useToast } from "@/components/ui/Toast";
 import { aiApi, ApiException } from "@/lib/api";
 import { cn, relativeTime } from "@/lib/format";
 import type { ToolProposal } from "@/types";
@@ -50,6 +51,7 @@ function omitKey<T>(map: Record<string, T>, key: string): Record<string, T> {
  * reject. Nothing runs without explicit approval. Shows brief notices after a decision.
  */
 export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
+  const toast = useToast();
   const [proposals, setProposals] = useState<ToolProposal[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<Record<string, "approve" | "reject">>({});
@@ -60,12 +62,30 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
   const [editError, setEditError] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const timersRef = useRef<number[]>([]);
+  const seenIdsRef = useRef<Set<string>>(new Set());
+
+  const loadProposals = useCallback(async () => {
+    try {
+      const rows = await aiApi.listProposals();
+      setProposals(rows);
+      const nextIds = new Set(rows.map((p) => p.id));
+      const hasNew = rows.some((p) => !seenIdsRef.current.has(p.id));
+      if (rows.length > 0 && hasNew) setOpen(true);
+      seenIdsRef.current = nextIds;
+    } catch {
+      /* non-blocking */
+    }
+  }, []);
 
   useEffect(() => {
-    let on = true;
-    aiApi.listProposals().then((p) => on && setProposals(p)).catch(() => { /* non-blocking */ });
-    return () => { on = false; };
-  }, [refreshKey]);
+    void loadProposals();
+    const retry = window.setTimeout(() => void loadProposals(), 1200);
+    const interval = window.setInterval(() => void loadProposals(), 7000);
+    return () => {
+      window.clearTimeout(retry);
+      window.clearInterval(interval);
+    };
+  }, [loadProposals, refreshKey]);
 
   useEffect(() => () => { timersRef.current.forEach((t) => window.clearTimeout(t)); }, []);
 
@@ -86,8 +106,11 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
       await aiApi.approveProposal(p.id);
       setProposals((cur) => cur.filter((x) => x.id !== p.id));
       addNotice({ id: `${p.id}-approved`, tone: "success", text: `${humanizeTool(p.tool_name)} approved and executed.` });
+      toast.success("Action approved", `${humanizeTool(p.tool_name)} executed successfully.`);
     } catch (err) {
+      const message = err instanceof ApiException ? err.message : "Approval failed.";
       fail(p.id, err, "Approval failed.");
+      toast.danger("Approval failed", message);
     } finally {
       setBusy((cur) => omitKey(cur, p.id));
     }
@@ -100,8 +123,11 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
       await aiApi.rejectProposal(p.id);
       setProposals((cur) => cur.filter((x) => x.id !== p.id));
       addNotice({ id: `${p.id}-rejected`, tone: "danger", text: `${humanizeTool(p.tool_name)} rejected.` });
+      toast.info("Action rejected", humanizeTool(p.tool_name));
     } catch (err) {
+      const message = err instanceof ApiException ? err.message : "Reject failed.";
       fail(p.id, err, "Reject failed.");
+      toast.danger("Reject failed", message);
     } finally {
       setBusy((cur) => omitKey(cur, p.id));
     }
@@ -136,8 +162,11 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
       const updated = await aiApi.editProposal(editing.id, payload as Record<string, unknown>);
       setProposals((cur) => cur.map((x) => (x.id === updated.id ? updated : x)));
       setEditing(null);
+      toast.success("Payload updated", "Review it once more, then approve when ready.");
     } catch (err) {
-      setEditError(err instanceof ApiException ? err.message : "Could not save the payload.");
+      const message = err instanceof ApiException ? err.message : "Could not save the payload.";
+      setEditError(message);
+      toast.danger("Edit failed", message);
     } finally {
       setSavingEdit(false);
     }
@@ -167,7 +196,7 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
       ) : null}
 
       {proposals.length ? (
-        <div className="mx-3 mb-1.5 animate-slide-up rounded-xl border border-warning/30 bg-warning/5">
+        <div className="mx-3 mb-2 animate-slide-up rounded-xl border border-warning/45 bg-warning/10 shadow-glow">
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
@@ -176,9 +205,9 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
           >
             {open ? <ChevronDown size={13} className="shrink-0 text-content-subtle" /> : <ChevronRight size={13} className="shrink-0 text-content-subtle" />}
             <ShieldAlert size={13} className="shrink-0 text-warning" />
-            <span className="text-[12.5px] font-medium text-content">Pending actions</span>
+            <span className="text-[12.5px] font-medium text-content">Tindakan tertunda</span>
             <Badge tone="warning">{proposals.length}</Badge>
-            <span className="ml-auto hidden text-[11px] text-content-subtle sm:inline">Approve before it runs.</span>
+            <span className="ml-auto hidden text-[11px] text-content-subtle sm:inline">Pending actions - approve before it runs.</span>
           </button>
           {open ? (
             <div className="custom-scrollbar max-h-56 space-y-2 overflow-y-auto border-t border-warning/20 px-3 py-2.5">
