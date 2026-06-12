@@ -17,7 +17,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, JSONType, StringArray, TimestampMixin, UUIDPrimaryKeyMixin
 
-PROPOSAL_STATUSES = ("PENDING", "REJECTED", "EXPIRED", "EXECUTED")
+PROPOSAL_STATUSES = ("PENDING", "NEEDS_EDIT", "APPROVED", "EXECUTED", "REJECTED", "FAILED", "EXPIRED")
+# Statuses that still appear in the pending list (failed/needs-edit must not vanish).
+PROPOSAL_OPEN_STATUSES = ("PENDING", "NEEDS_EDIT", "FAILED")
 RISK_LEVELS = ("LOW", "MEDIUM", "HIGH")
 
 # Multi-agent run statuses (the run aggregates per-agent results).
@@ -152,8 +154,15 @@ class AiToolProposal(UUIDPrimaryKeyMixin, Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING")
     risk_level: Mapped[str] = mapped_column(String(20), nullable=False, default="LOW")
     requires_confirmation: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Why a FAILED/NEEDS_EDIT proposal didn't execute — shown in the pending panel.
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    # updated_at lets the proposal participate in two-way LWW sync, so a status change
+    # (approve/reject on one device) converges across desktop + mobile.
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
