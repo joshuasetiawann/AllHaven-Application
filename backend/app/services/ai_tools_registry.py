@@ -345,6 +345,77 @@ def _h_current_weather(db, principal, args) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# handlers — AI memories (read from registry; write via proposals)
+# --------------------------------------------------------------------------- #
+
+
+def _h_list_memories(db, principal, args) -> dict:
+    from app.services import memory_service
+
+    category = args.get("category")
+    rows = memory_service.list_memories(db, principal, category=category, enabled_only=True, limit=20)
+    return {
+        "memories": [
+            {"id": str(m.id), "category": m.category, "title": m.title,
+             "content": m.content, "source": m.source}
+            for m in rows
+        ],
+        "count": len(rows),
+    }
+
+
+def _h_search_memories(db, principal, args) -> dict:
+    from app.services import memory_service
+
+    q = str(args.get("q") or "").strip()
+    if not q:
+        raise ToolError("Provide a search query 'q'.")
+    rows = memory_service.search_memories(db, principal, q, limit=10)
+    return {
+        "memories": [
+            {"id": str(m.id), "category": m.category, "title": m.title, "content": m.content}
+            for m in rows
+        ],
+        "count": len(rows),
+    }
+
+
+def _h_create_memory_tool(db, principal, args) -> dict:
+    from app.services import memory_service
+
+    m = memory_service.upsert_memory(
+        db, principal,
+        category=str(args.get("category") or "Profile"),
+        title=str(args.get("title") or ""),
+        content=str(args.get("content") or ""),
+        source="manual",
+        sensitivity="LOW",
+        confidence=1.0,
+    )
+    return {"memory": {"id": str(m.id), "category": m.category, "title": m.title, "content": m.content}}
+
+
+def _h_update_memory_tool(db, principal, args) -> dict:
+    from app.services import memory_service
+
+    memory_id = _uuid(args.get("memory_id"), "memory_id")
+    m = memory_service.update_memory(
+        db, principal, memory_id,
+        title=args.get("title"),
+        content=args.get("content"),
+    )
+    return {"memory": {"id": str(m.id), "title": m.title, "content": m.content}}
+
+
+def _h_delete_memory_tool(db, principal, args) -> dict:
+    from app.services import memory_service
+
+    memory_id = _uuid(args.get("memory_id"), "memory_id")
+    memory_service.delete_memory(db, principal, memory_id)
+    return {"deleted": True}
+
+
+# --------------------------------------------------------------------------- #
 # handlers — automations / workflows (drafts only; never auto-run)
 # --------------------------------------------------------------------------- #
 
@@ -535,6 +606,30 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
     ToolSpec("disable_workflow", "Disable a workflow.", "automation", "write", "LOW",
              _schema({"workflow_id": _str_prop("Workflow id")}, ["workflow_id"]),
              _h_set_workflow_enabled(False)),
+    # --- AI memories ---
+    ToolSpec("list_memories", "List the user's AI memories (optionally by category).", "memory", "read", "LOW",
+             _schema({"category": _str_prop("Category: Profile|Preferences|Projects|WorkStyle|Technical|Goals")}),
+             _h_list_memories),
+    ToolSpec("search_memories", "Search AI memories by keyword.", "memory", "read", "LOW",
+             _schema({"q": _str_prop("Search query")}, ["q"]),
+             _h_search_memories),
+    ToolSpec("create_memory", "Create an AI memory for the user.", "memory", "write", "LOW",
+             _schema({
+                 "category": _str_prop("Profile|Preferences|Projects|WorkStyle|Technical|Goals"),
+                 "title": _str_prop("Short descriptor (max 50 chars)"),
+                 "content": _str_prop("Complete sentence describing the memory"),
+             }, ["category", "title", "content"]),
+             _h_create_memory_tool),
+    ToolSpec("update_memory", "Update an existing AI memory.", "memory", "write", "LOW",
+             _schema({
+                 "memory_id": _str_prop("Memory id"),
+                 "title": _str_prop("New title"),
+                 "content": _str_prop("New content"),
+             }, ["memory_id"]),
+             _h_update_memory_tool),
+    ToolSpec("delete_memory", "Delete an AI memory.", "memory", "write", "MEDIUM",
+             _schema({"memory_id": _str_prop("Memory id")}, ["memory_id"]),
+             _h_delete_memory_tool),
     # --- system control (allowlisted services/actions; agent-proxied) ---
     ToolSpec("get_service_status", "Status of Haven services (backend, frontend, database…).",
              "system", "read", "LOW", _schema({}), _h_service_status),
