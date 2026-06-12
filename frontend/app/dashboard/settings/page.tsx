@@ -12,10 +12,13 @@ import {
   Database,
   Globe,
   HardDrive,
+  Languages,
   Network,
+  Palette,
   Plug,
   ShieldCheck,
   Sparkles,
+  SunMoon,
   Workflow,
   Zap,
 } from "lucide-react";
@@ -41,7 +44,15 @@ import SystemControl from "@/components/settings/SystemControl";
 import { aiApi, authApi, settingsApi } from "@/lib/api";
 import { getStoredUser, setStoredUser } from "@/lib/auth";
 import { cn, initials } from "@/lib/format";
-import { DEFAULT_PREFS, loadPrefs, savePrefs, type Prefs } from "@/lib/prefs";
+import {
+  ACCENT_OPTIONS,
+  DEFAULT_PREFS,
+  LANGUAGE_OPTIONS,
+  THEME_OPTIONS,
+  loadPrefs,
+  savePrefs,
+  type Prefs,
+} from "@/lib/prefs";
 import type { AiProvider, EnvSync, Integration, Me } from "@/types";
 
 const INTEGRATION_ICONS: Record<string, LucideIcon> = {
@@ -350,8 +361,73 @@ export default function SettingsPage() {
               </Card>
 
               <Card className="lg:col-span-2">
-                <CardHeader title="Appearance" subtitle="Device-local UI preferences." />
-                <ul className="divide-y divide-border">
+                <CardHeader title="Appearance" subtitle="Device-local language, theme, and color preferences." />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Select
+                    id="app_language"
+                    label="Language"
+                    value={prefs.language}
+                    onChange={(e) => updatePref({ language: e.target.value as Prefs["language"] })}
+                  >
+                    {LANGUAGE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </Select>
+                  <Select
+                    id="app_theme"
+                    label="Theme"
+                    value={prefs.theme}
+                    onChange={(e) => updatePref({ theme: e.target.value as Prefs["theme"] })}
+                  >
+                    {THEME_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </Select>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-border bg-surface-input/45 p-3">
+                  <div className="mb-2 flex items-start gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-primary">
+                      <Palette size={15} />
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-content">Color nuance</p>
+                      <p className="text-[12.5px] text-content-muted">Pick the accent mood for buttons, active states, and highlights.</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {ACCENT_OPTIONS.map((option) => {
+                      const active = prefs.accent === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => updatePref({ accent: option.value })}
+                          className={cn(
+                            "flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-[13px] transition-colors focus-ring",
+                            active ? "border-primary/50 bg-primary/10 text-content" : "border-border bg-surface hover:border-border-strong text-content-muted hover:text-content",
+                          )}
+                        >
+                          <span className="h-4 w-4 rounded-full border border-black/10" style={{ backgroundColor: option.swatch }} />
+                          <span>{option.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2 text-[12.5px] text-content-muted sm:grid-cols-2">
+                  <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-input px-3 py-2">
+                    <Languages size={14} className="mt-0.5 text-primary" />
+                    <span>{LANGUAGE_OPTIONS.find((o) => o.value === prefs.language)?.helper}</span>
+                  </div>
+                  <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-input px-3 py-2">
+                    <SunMoon size={14} className="mt-0.5 text-primary" />
+                    <span>{THEME_OPTIONS.find((o) => o.value === prefs.theme)?.helper}</span>
+                  </div>
+                </div>
+
+                <ul className="mt-4 divide-y divide-border">
                   <li className="flex items-center justify-between gap-3 py-3.5">
                     <div>
                       <p className="text-sm text-content">Glassmorphism</p>

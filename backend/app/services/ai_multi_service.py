@@ -107,6 +107,7 @@ def multi_chat(
     images: Optional[List[str]] = None,
     thinking_mode: str = "balance",
     section_key: Optional[str] = "general",
+    response_language: Optional[str] = None,
 ) -> dict:
     from app.services import ai_context_builder, ai_orchestrator, memory_extraction_service
 
@@ -162,7 +163,7 @@ def multi_chat(
     db.add(run)
     db.flush()
 
-    local = ai_local_answers.direct_answer(message)
+    local = ai_local_answers.direct_answer(message, response_language)
     if local:
         row = AiAgentResponse(
             workspace_id=principal.workspace_id,
@@ -234,6 +235,7 @@ def multi_chat(
         ai_context_builder.build(
             db, principal, message=message, session_id=session.id,
             section_key=section_key or "general", thinking_mode=thinking_mode,
+            response_language=response_language,
         )
         if runnable
         else {"context": None, "meta": {"section_key": section_key or "general", "thinking_mode": thinking_mode}}
@@ -272,6 +274,7 @@ def multi_chat(
             db, principal, message=message, session_id=session.id, provider_id=pid,
             extra_context=extra_context, section_key=section_key or "general",
             thinking_mode=thinking_mode, user_message_id=user_message.id,
+            response_language=response_language,
         )
         outcomes[pid] = {
             "status": "completed" if orchestrated.get("ok") else "error",

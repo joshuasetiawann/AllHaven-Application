@@ -236,29 +236,29 @@ export const aiApi = {
     request<{ id: string }>(`/ai/groups/${id}`, { method: "DELETE" }),
   listMessages: (sessionId: string) =>
     request<ChatMessage[]>(`/ai/sessions/${sessionId}/messages`),
-  chat: (message: string, sessionId?: string, providerId?: string, sectionKey = "general", thinkingMode = "balance") =>
+  chat: (message: string, sessionId?: string, providerId?: string, sectionKey = "general", thinkingMode = "balance", responseLanguage?: string) =>
     request<ChatResponse>("/ai/chat", {
       method: "POST",
-      body: json({ message, session_id: sessionId || null, provider_id: providerId || null, section_key: sectionKey, thinking_mode: thinkingMode }),
+      body: json({ message, session_id: sessionId || null, provider_id: providerId || null, section_key: sectionKey, thinking_mode: thinkingMode, response_language: responseLanguage || null }),
     }),
   // Fan a message out to up to 3 agents concurrently. `images` are data URLs;
   // `thinkingMode` controls reasoning depth + sampling.
-  multiChat: (message: string, providerIds: string[], sessionId?: string, images?: string[], thinkingMode = "balance", sectionKey = "general") =>
+  multiChat: (message: string, providerIds: string[], sessionId?: string, images?: string[], thinkingMode = "balance", sectionKey = "general", responseLanguage?: string) =>
     request<MultiChatResponse>("/ai/chat/multi", {
       method: "POST",
-      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, images: images?.length ? images : null, thinking_mode: thinkingMode, section_key: sectionKey }),
+      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, images: images?.length ? images : null, thinking_mode: thinkingMode, section_key: sectionKey, response_language: responseLanguage || null }),
     }),
   // Run a multi-agent debate: agents argue across `rounds`, then one synthesizes.
-  debateChat: (message: string, providerIds: string[], sessionId?: string, rounds = 2, images?: string[], thinkingMode = "balance", sectionKey = "general") =>
+  debateChat: (message: string, providerIds: string[], sessionId?: string, rounds = 2, images?: string[], thinkingMode = "balance", sectionKey = "general", responseLanguage?: string) =>
     request<MultiChatResponse>("/ai/chat/debate", {
       method: "POST",
-      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, rounds, images: images?.length ? images : null, thinking_mode: thinkingMode, section_key: sectionKey }),
+      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, rounds, images: images?.length ? images : null, thinking_mode: thinkingMode, section_key: sectionKey, response_language: responseLanguage || null }),
     }),
   // Run the reasoning council (Analyst -> Critic -> Synthesizer + quality gate).
-  reasonChat: (message: string, providerIds: string[], sessionId?: string, thinkingMode = "balance", images?: string[], sectionKey = "general") =>
+  reasonChat: (message: string, providerIds: string[], sessionId?: string, thinkingMode = "balance", images?: string[], sectionKey = "general", responseLanguage?: string) =>
     request<MultiChatResponse>("/ai/chat/reason", {
       method: "POST",
-      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, thinking_mode: thinkingMode, images: images?.length ? images : null, section_key: sectionKey }),
+      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, thinking_mode: thinkingMode, images: images?.length ? images : null, section_key: sectionKey, response_language: responseLanguage || null }),
     }),
   getRun: (runId: string) => request<MultiChatResponse>(`/ai/runs/${runId}`),
   listProposals: () => request<ToolProposal[]>("/ai/proposals"),
