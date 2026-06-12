@@ -6,9 +6,9 @@
 
 **A modular, local-first AI command center for personal &amp; company productivity.**
 
-_The AI proposes — a human approves every write action._
+_The AI acts fast, but risky writes still need human approval._
 
-[![Version](https://img.shields.io/badge/version-0.16.0%20·%20AllHaven%202.8-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.17.0%20·%20AllHaven%202.9-18E0D6?style=flat-square)](CHANGELOG.md)
 &nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 &nbsp;![Next.js 14](https://img.shields.io/badge/Next.js%2014-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 &nbsp;![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
@@ -22,12 +22,14 @@ _The AI proposes — a human approves every write action._
 
 > **AllHaven is _not_ an operating system.** It's a complete, runnable, local-first web
 > application (FastAPI + Next.js) that unifies tasks, notes, finance tracking, and a
-> **multi-agent AI** assistant — where **the AI proposes and humans approve** every write action.
+> **multi-agent AI** assistant — fast for low-risk memory/context work, cautious for
+> risky writes that need explicit human approval.
 
-**Version:** **v0.16.0** — archive [`AllHaven 2.8`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
+**Version:** **v0.17.0** — archive [`AllHaven 2.9`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
 
 ### 🆕 What's new
 
+- **v0.17.0 — AI Workspace, Knowledge, finance reports, and faster memory.** Adds **AI Knowledge** document ingestion/search/retrieval, section-aware context packets, dedicated `ai_tool_calls` logging, expanded Tool Registry coverage (**72 tools**), configurable Drive upload limits, and a polished AI Chat flow. Finance now supports **monthly and weekly reports**, clearly separates archived/out-of-period transactions (for example 2023 records outside a 2026 report), and lets you move old records into the active report. AI can answer local date/time without a provider, low-risk memory writes save directly, pending-action notifications are cleaner, and the assistant persona is tuned for direct Indonesian chat, coding help, jokes when invited, serious work, and schedule management. Requires migration `0008` (`python -m alembic upgrade head`). → [release notes](docs/releases/v0.17.0.md)
 - **v0.16.0 — Persistent AI memory system.** The AI now **auto-learns facts about your workspace** from chat (rule-based fast-path + async LLM extraction), with **secret detection** and an **approval queue** for sensitive items. Memory context is injected into all four chat modes (single, parallel, debate, reasoning) via per-section `section_key`. Five new **memory tools** (list/search/create/update/delete) follow the existing human-approval pattern. New **memory management page** (`/dashboard/ai/memory`), **in-chat indicator**, and **AI Memory nav**. Optional **Supabase background sync**. Requires migration `0007` (`python -m alembic upgrade head`). → [release notes](docs/releases/v0.16.0.md)
 - **v0.15.0 — Premium UI polish, persistent model selection & per-section chat memory.** The AI Chat now **remembers your model/agents, mode, and thinking depth** across navigation and refresh (with availability fallback + clear warnings). Each module — and each chat **project/group** — keeps its own **local, editable memory** the AI uses for more relevant answers (secret-redacted; clear per-section or all). Plus **smooth micro-animations** throughout (page transitions, dropdowns, message-in, pending actions) that **honor `prefers-reduced-motion`**, polished Finance/Settings, and a fix for the session-check flash on every navigation. → [release notes](docs/releases/v0.15.0.md)
 - **v0.14.0 — Terminal-only install + faster Docker check.** Install & start run **entirely in the terminal** again (`START_HAVEN_*` / `./install.sh` / `npm run setup`), with live Docker/`pip`/`npm` progress. The browser wizard is now **opt-in** (`HAVEN_SETUP_WEB=1`); the Docker daemon check is quicker (4s). → [release notes](docs/releases/v0.14.0.md)
@@ -99,7 +101,7 @@ service is down it starts it safely first. Manage services anytime in
 | **OpenRouter ×6** | OpenRouter | Cloud | Six independent agents (`openrouter_1..6`) with suggested roles (Main, Planner, Critic, Coding, Research, Synthesizer), each with its own key + model → route to *any* OpenRouter model. |
 
 - **Multi-agent:** send one prompt to up to **7 agents at once**, each with a distinct role (Main, Planner, Research, Coder, Critic/Risk, Product/UX, Synthesizer) — Parallel, **Debate** (transcript can be hidden → just the polished final answer), or **Reasoning** modes. Every provider also offers **2 model slots** ("Provider · Slot 2") so one provider can field two models.
-- **AI tools + human approval:** AI Chat reaches every module through an allowlisted **Tool Registry** — reads (schedule, notes, finance summary, weather, service status) run instantly; **writes always become pending approvals** you Approve/Edit/Reject. HIGH-risk actions (file delete, enabling workflows, service control) *always* require approval. Every call is audited.
+- **AI tools + human approval:** AI Chat reaches every module through an allowlisted **Tool Registry** — reads (schedule, notes, finance summary, weather, service status) run instantly; low-risk memory writes can save directly; risky writes become pending approvals you Approve/Edit/Reject. HIGH-risk actions (file delete, enabling workflows, service control) *always* require approval. Every call is audited.
 - **Honest status & privacy:** a provider is `online` only after a successful **Test Connection** (never faked); API keys stay **server-side**; a per-workspace policy can disable external providers entirely (local-only mode).
 
 ---
@@ -131,7 +133,7 @@ directly. Honest states when n8n isn't connected yet.
 - Tasks, Notes, Finance (categories, transactions, monthly summary) CRUD
 - **Multi-agent AI chat**: run up to **7 agents concurrently** with distinct roles, each answering in its own card
 - **12 AI providers**: Ollama (local) + GPT, Claude, Gemini, Grok, Blackbox, and **6 independent OpenRouter agents** — plus 2 model slots per provider
-- **AI Tool Registry + human approval**: 35 allowlisted tools across all modules; reads execute, writes await your approval (audited)
+- **AI Tool Registry + human approval**: 72 allowlisted tools across all modules; reads execute, low-risk memory can save directly, risky writes await your approval (audited)
 - **Human-in-the-loop AI**: honest "not configured" responses, no fake execution
 - Honest **integration status** & **real verification** (online only after a successful test; no faked connections, no secret leakage)
 - **Local `.env` mirror**: web Settings persist to the DB and mirror allowed keys to `.env` (allowlist + backup + atomic write)

@@ -12,7 +12,7 @@ from app.api.dependencies import get_current_principal
 from app.core.database import get_db
 from app.core.principal import Principal
 from app.core.responses import success_response
-from app.schemas.drive import DriveFileOut
+from app.schemas.drive import DriveConfigOut, DriveFileOut
 from app.services import drive_service as svc
 
 router = APIRouter(prefix="/drive", tags=["drive"])
@@ -23,6 +23,14 @@ _RISKY_CONTENT_TYPES = {
     "text/html", "application/xhtml+xml", "image/svg+xml",
     "text/xml", "application/xml", "application/javascript", "text/javascript",
 }
+
+
+@router.get("/config")
+def get_config() -> dict:
+    return success_response(
+        DriveConfigOut(max_upload_bytes=svc.upload_limit_bytes(), max_upload_mb=svc.upload_limit_mb()),
+        "Drive config",
+    )
 
 
 @router.get("/files")
