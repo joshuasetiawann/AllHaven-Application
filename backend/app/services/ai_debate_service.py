@@ -140,13 +140,18 @@ def debate_chat(
     rounds: int = DEFAULT_DEBATE_ROUNDS,
     images: Optional[List[str]] = None,
     thinking_mode: str = "balance",
+    section_key: Optional[str] = "general",
 ) -> dict:
+    from app.services import memory_context_builder, memory_extraction_service
+
     ids = _dedup(provider_ids)
     if not ids:
         raise ValidationAppError("Select at least one AI agent.")
     if len(ids) > MAX_AGENTS_PER_RUN:
         raise ValidationAppError(f"Maximum {MAX_AGENTS_PER_RUN} agents per run.")
     rounds = max(1, min(int(rounds or DEFAULT_DEBATE_ROUNDS), MAX_DEBATE_ROUNDS))
+
+    extra_context = memory_context_builder.build(db, principal, message, section_key)
 
     # Session + user message (persisted regardless of agent outcomes).
     if session_id is not None:
@@ -274,6 +279,13 @@ def debate_chat(
         db.refresh(run)
         for r in responses:
             db.refresh(r)
+        try:
+            memory_extraction_service.schedule_extraction(
+                db, principal, message, "", session.id
+            )
+            db.commit()
+        except Exception:  # noqa: BLE001
+            db.rollback()
         return {"run": run, "session_id": session.id, "responses": responses}
 
     # --- run the rounds (network calls in worker threads) ---
@@ -281,10 +293,11 @@ def debate_chat(
     last_answer: Dict[str, str] = {}  # pid -> most recent completed content
     rounds_to_run = rounds if n_runnable >= 2 else 1  # one agent => no rebuttal
 
+    mem_prefix = f"{extra_context}\n\n" if extra_context else ""
     for k in range(1, rounds_to_run + 1):
         if k == 1:
             prompts = {
-                pid: _opening_prompt(plans[pid].provider_name, n_runnable, message)
+                pid: mem_prefix + _opening_prompt(plans[pid].provider_name, n_runnable, message)
                 for pid in runnable
             }
         else:
@@ -392,4 +405,14 @@ def debate_chat(
     db.refresh(run)
     for r in responses:
         db.refresh(r)
+
+    # Trigger hybrid memory extraction using the synthesis content as the assistant reply.
+    try:
+        memory_extraction_service.schedule_extraction(
+            db, principal, message, final_content or "", session.id
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
+
     return {"run": run, "session_id": session.id, "responses": responses}
