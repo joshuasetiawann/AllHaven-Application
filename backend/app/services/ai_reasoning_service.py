@@ -80,7 +80,10 @@ def reasoning_chat(
     session_id: Optional[uuid.UUID] = None,
     thinking_mode: str = "balance",
     images: Optional[List[str]] = None,
+    section_key: Optional[str] = "general",
 ) -> dict:
+    from app.services import memory_context_builder, memory_extraction_service
+
     ids = _dedup(provider_ids)
     if not ids:
         raise ValidationAppError("Select at least one AI agent.")
@@ -179,15 +182,26 @@ def reasoning_chat(
         db.refresh(run)
         for r in responses:
             db.refresh(r)
+        try:
+            memory_extraction_service.schedule_extraction(
+                db, principal, message, "", session.id
+            )
+            db.commit()
+        except Exception:  # noqa: BLE001
+            db.rollback()
         return {"run": run, "session_id": session.id, "responses": responses}
 
     roles = roles_for(mode)
     runnable_ids = [pid for pid in ids if pid in runnable]
     role_provider = _assign_roles(roles, runnable_ids)
 
+    # Build memory context block (only after confirming runnable agents exist,
+    # so mark_used side effects are not triggered on dead-end paths).
+    extra_context = memory_context_builder.build(db, principal, message, section_key)
+
     # 1) Analyst.
     analyst_pid = role_provider["analyst"]
-    analyst_oc = _call(plans[analyst_pid], prompts.analyst_message(message, facts, task_type), gen_params, images)
+    analyst_oc = _call(plans[analyst_pid], prompts.analyst_message(message, facts, task_type, extra_context), gen_params, images)
     analyst_answer = analyst_oc["content"] or ""
     _record(analyst_pid, plans[analyst_pid].provider_name, analyst_oc["status"], analyst_oc["content"],
             analyst_oc["error"], analyst_oc["latency_ms"], plans[analyst_pid].external, phase="analyst")
@@ -270,4 +284,14 @@ def reasoning_chat(
     db.refresh(run)
     for r in responses:
         db.refresh(r)
+
+    # Trigger hybrid memory extraction using the synthesis content as the assistant reply.
+    try:
+        memory_extraction_service.schedule_extraction(
+            db, principal, message, final_answer or "", session.id
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
+
     return {"run": run, "session_id": session.id, "responses": responses}
