@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { PreferenceHydrator } from "@/components/layout/PreferenceHydrator";
+import { AppDialogProvider } from "@/components/ui/AppDialog";
 import { ToastProvider } from "@/components/ui/Toast";
 import "./globals.css";
 
@@ -28,7 +30,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <AppDialogProvider>
+            <PreferenceHydrator />
+            {children}
+          </AppDialogProvider>
+        </ToastProvider>
       </body>
     </html>
   );

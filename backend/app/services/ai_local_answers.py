@@ -28,6 +28,23 @@ _ID_MONTHS = (
     "November",
     "Desember",
 )
+_EN_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+_EN_MONTHS = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
+_ZH_WEEKDAYS = ("星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日")
+_ZH_MONTHS = ("1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月")
 
 _TIME_RE = re.compile(
     r"(jam\s*(berapa|brp|berapoa)|pukul\s*berapa|sekarang\s+jam|"
@@ -60,11 +77,24 @@ def time_payload() -> dict:
         "timezone": getattr(settings, "APP_TIMEZONE", "") or str(now.tzinfo),
         "utc_offset": now.strftime("%z"),
         "weekday": _ID_WEEKDAYS[now.weekday()],
+        "weekday_en": _EN_WEEKDAYS[now.weekday()],
+        "weekday_zh": _ZH_WEEKDAYS[now.weekday()],
         "date_label": f"{now.day} {_ID_MONTHS[now.month - 1]} {now.year}",
+        "date_label_en": f"{_EN_MONTHS[now.month - 1]} {now.day}, {now.year}",
+        "date_label_zh": f"{now.year}年{_ZH_MONTHS[now.month - 1]}{now.day}日",
     }
 
 
-def direct_answer(message: str) -> dict | None:
+def _preferred_language(message: str, response_language: str | None) -> str:
+    if response_language in {"id", "en", "zh-Hant"}:
+        return response_language
+    lower = (message or "").lower()
+    if any(token in lower for token in ("what time", "current time", "time now", "today", "current date")):
+        return "en"
+    return "id"
+
+
+def direct_answer(message: str, response_language: str | None = None) -> dict | None:
     """Return a direct local answer if the message is a known tiny query."""
     text = " ".join((message or "").lower().split())
     if not text:
@@ -76,13 +106,28 @@ def direct_answer(message: str) -> dict | None:
         return None
 
     p = time_payload()
+    lang = _preferred_language(message, response_language)
+    weekday = p["weekday_zh"] if lang == "zh-Hant" else p["weekday_en"] if lang == "en" else p["weekday"]
+    date_label = p["date_label_zh"] if lang == "zh-Hant" else p["date_label_en"] if lang == "en" else p["date_label"]
     if wants_time and wants_date:
-        content = (
-            f"Sekarang pukul {p['time']} ({p['timezone']}), "
-            f"{p['weekday']}, {p['date_label']}."
-        )
+        if lang == "en":
+            content = f"It is {p['time']} ({p['timezone']}), {weekday}, {date_label}."
+        elif lang == "zh-Hant":
+            content = f"現在是 {p['time']}（{p['timezone']}），{weekday}，{date_label}。"
+        else:
+            content = f"Sekarang pukul {p['time']} ({p['timezone']}), {weekday}, {date_label}."
     elif wants_time:
-        content = f"Sekarang pukul {p['time']} ({p['timezone']})."
+        if lang == "en":
+            content = f"It is {p['time']} ({p['timezone']})."
+        elif lang == "zh-Hant":
+            content = f"現在是 {p['time']}（{p['timezone']}）。"
+        else:
+            content = f"Sekarang pukul {p['time']} ({p['timezone']})."
     else:
-        content = f"Hari ini {p['weekday']}, {p['date_label']}."
+        if lang == "en":
+            content = f"Today is {weekday}, {date_label}."
+        elif lang == "zh-Hant":
+            content = f"今天是 {weekday}，{date_label}。"
+        else:
+            content = f"Hari ini {weekday}, {date_label}."
     return {"content": content, "payload": p, "tool": "get_current_time"}
