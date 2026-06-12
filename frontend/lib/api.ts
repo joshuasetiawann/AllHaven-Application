@@ -5,6 +5,7 @@
 import { clearAuth } from "@/lib/auth";
 import type {
   AiChatSettings,
+  AiMemory,
   AiProvider,
   AiTool,
   AuthToken,
@@ -19,6 +20,8 @@ import type {
   FinanceSummary,
   Integration,
   Me,
+  MemorySettings,
+  MemorySuggestion,
   ModelSlot,
   MultiChatResponse,
   N8nWorkflow,
@@ -212,29 +215,29 @@ export const aiApi = {
     request<{ id: string }>(`/ai/groups/${id}`, { method: "DELETE" }),
   listMessages: (sessionId: string) =>
     request<ChatMessage[]>(`/ai/sessions/${sessionId}/messages`),
-  chat: (message: string, sessionId?: string, providerId?: string) =>
+  chat: (message: string, sessionId?: string, providerId?: string, sectionKey = "general") =>
     request<ChatResponse>("/ai/chat", {
       method: "POST",
-      body: json({ message, session_id: sessionId || null, provider_id: providerId || null }),
+      body: json({ message, session_id: sessionId || null, provider_id: providerId || null, section_key: sectionKey }),
     }),
   // Fan a message out to up to 3 agents concurrently. `images` are data URLs;
   // `thinkingMode` controls reasoning depth + sampling.
-  multiChat: (message: string, providerIds: string[], sessionId?: string, images?: string[], thinkingMode = "balance") =>
+  multiChat: (message: string, providerIds: string[], sessionId?: string, images?: string[], thinkingMode = "balance", sectionKey = "general") =>
     request<MultiChatResponse>("/ai/chat/multi", {
       method: "POST",
-      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, images: images?.length ? images : null, thinking_mode: thinkingMode }),
+      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, images: images?.length ? images : null, thinking_mode: thinkingMode, section_key: sectionKey }),
     }),
   // Run a multi-agent debate: agents argue across `rounds`, then one synthesizes.
-  debateChat: (message: string, providerIds: string[], sessionId?: string, rounds = 2, images?: string[], thinkingMode = "balance") =>
+  debateChat: (message: string, providerIds: string[], sessionId?: string, rounds = 2, images?: string[], thinkingMode = "balance", sectionKey = "general") =>
     request<MultiChatResponse>("/ai/chat/debate", {
       method: "POST",
-      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, rounds, images: images?.length ? images : null, thinking_mode: thinkingMode }),
+      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, rounds, images: images?.length ? images : null, thinking_mode: thinkingMode, section_key: sectionKey }),
     }),
   // Run the reasoning council (Analyst -> Critic -> Synthesizer + quality gate).
-  reasonChat: (message: string, providerIds: string[], sessionId?: string, thinkingMode = "balance", images?: string[]) =>
+  reasonChat: (message: string, providerIds: string[], sessionId?: string, thinkingMode = "balance", images?: string[], sectionKey = "general") =>
     request<MultiChatResponse>("/ai/chat/reason", {
       method: "POST",
-      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, thinking_mode: thinkingMode, images: images?.length ? images : null }),
+      body: json({ message, provider_ids: providerIds, session_id: sessionId || null, thinking_mode: thinkingMode, images: images?.length ? images : null, section_key: sectionKey }),
     }),
   getRun: (runId: string) => request<MultiChatResponse>(`/ai/runs/${runId}`),
   listProposals: () => request<ToolProposal[]>("/ai/proposals"),
@@ -277,6 +280,43 @@ export interface AiPolicy {
   env_default: boolean;
   env_sync?: import("@/types").EnvSync;
 }
+
+// --- AI Memory ---
+export const memoryApi = {
+  list: (category?: string, status = "active") => {
+    const params = new URLSearchParams();
+    if (category) params.set("category", category);
+    if (status !== "active") params.set("status", status);
+    const qs = params.toString();
+    return request<AiMemory[]>(`/ai/memory${qs ? `?${qs}` : ""}`);
+  },
+  create: (payload: { category: string; title: string; content: string; sensitivity?: string }) =>
+    request<AiMemory>("/ai/memory", { method: "POST", body: json(payload) }),
+  search: (q: string) =>
+    request<AiMemory[]>(`/ai/memory/search?q=${encodeURIComponent(q)}`),
+  update: (id: string, payload: { title?: string; content?: string; category?: string }) =>
+    request<AiMemory>(`/ai/memory/${id}`, { method: "PATCH", body: json(payload) }),
+  remove: (id: string) =>
+    request<{ id: string }>(`/ai/memory/${id}`, { method: "DELETE" }),
+  enable: (id: string) =>
+    request<AiMemory>(`/ai/memory/${id}/enable`, { method: "POST" }),
+  disable: (id: string) =>
+    request<AiMemory>(`/ai/memory/${id}/disable`, { method: "POST" }),
+  listSuggestions: () =>
+    request<MemorySuggestion[]>("/ai/memory/suggestions"),
+  approveSuggestion: (id: string) =>
+    request<AiMemory>(`/ai/memory/suggestions/${id}/approve`, { method: "POST" }),
+  rejectSuggestion: (id: string) =>
+    request<{ id: string }>(`/ai/memory/suggestions/${id}/reject`, { method: "POST" }),
+  getSettings: () =>
+    request<MemorySettings>("/ai/memory/settings"),
+  updateSettings: (payload: Partial<MemorySettings>) =>
+    request<MemorySettings>("/ai/memory/settings", { method: "PUT", body: json(payload) }),
+  clearAll: () =>
+    request<{ deleted: number }>("/ai/memory/clear", { method: "POST" }),
+  syncSupabase: () =>
+    request<{ status: string; message: string }>("/ai/memory/sync/supabase", { method: "POST" }),
+};
 
 export interface ProposalApproval {
   proposal: ToolProposal;
