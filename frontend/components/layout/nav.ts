@@ -1,6 +1,7 @@
 import {
   Bot,
   Brain,
+  BookOpenCheck,
   Calculator,
   Calendar,
   Clock,
@@ -38,6 +39,7 @@ export const MODULE_NAV: NavItem[] = [
   { href: "/dashboard/calendar", label: "Calendar", icon: Calendar, badge: "MVP" },
   { href: "/dashboard/weather", label: "Weather", icon: CloudSun, badge: "MVP" },
   { href: "/dashboard/automations", label: "Automations", icon: Workflow, badge: "MVP" },
+  { href: "/dashboard/ai/knowledge", label: "AI Knowledge", icon: BookOpenCheck, badge: "NEW" },
   { href: "/dashboard/ai/memory", label: "AI Memory", icon: Brain, badge: "NEW" },
 ];
 

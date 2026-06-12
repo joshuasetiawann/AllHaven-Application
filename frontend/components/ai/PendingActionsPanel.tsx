@@ -16,6 +16,12 @@ const RISK_TONE: Record<string, "neutral" | "warning" | "danger"> = {
   HIGH: "danger",
 };
 
+type ActionNotice = {
+  id: string;
+  text: string;
+  tone: "success" | "danger";
+};
+
 // "calendar_create_event" -> "Calendar create event"
 function humanizeTool(name: string): string {
   const spaced = name.replace(/[_.-]+/g, " ").trim();
@@ -29,7 +35,7 @@ function previewJson(value: unknown, max = 140): string {
   } catch {
     text = String(value);
   }
-  return text.length > max ? `${text.slice(0, max)}…` : text;
+  return text.length > max ? `${text.slice(0, max)}...` : text;
 }
 
 function omitKey<T>(map: Record<string, T>, key: string): Record<string, T> {
@@ -41,14 +47,14 @@ function omitKey<T>(map: Record<string, T>, key: string): Record<string, T> {
 /**
  * Collapsible list of PENDING tool proposals (AI-requested write actions).
  * Humans approve (executes via the Tool Registry), edit the JSON payload, or
- * reject — nothing runs without explicit approval. Hidden entirely when empty.
+ * reject. Nothing runs without explicit approval. Shows brief notices after a decision.
  */
 export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
   const [proposals, setProposals] = useState<ToolProposal[]>([]);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<Record<string, "approve" | "reject">>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [executed, setExecuted] = useState<Record<string, Record<string, unknown>>>({});
+  const [notices, setNotices] = useState<ActionNotice[]>([]);
   const [editing, setEditing] = useState<ToolProposal | null>(null);
   const [editText, setEditText] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
@@ -66,17 +72,20 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
   const fail = (id: string, err: unknown, fallback: string) =>
     setErrors((cur) => ({ ...cur, [id]: err instanceof ApiException ? err.message : fallback }));
 
+  const addNotice = (notice: ActionNotice) => {
+    setNotices((cur) => [notice, ...cur].slice(0, 3));
+    timersRef.current.push(window.setTimeout(() => {
+      setNotices((cur) => cur.filter((x) => x.id !== notice.id));
+    }, 3200));
+  };
+
   const approve = async (p: ToolProposal) => {
     setBusy((cur) => ({ ...cur, [p.id]: "approve" }));
     setErrors((cur) => omitKey(cur, p.id));
     try {
-      const res = await aiApi.approveProposal(p.id);
-      // Show the execution result briefly, then drop the item from the list.
-      setExecuted((cur) => ({ ...cur, [p.id]: res.result }));
-      timersRef.current.push(window.setTimeout(() => {
-        setProposals((cur) => cur.filter((x) => x.id !== p.id));
-        setExecuted((cur) => omitKey(cur, p.id));
-      }, 5000));
+      await aiApi.approveProposal(p.id);
+      setProposals((cur) => cur.filter((x) => x.id !== p.id));
+      addNotice({ id: `${p.id}-approved`, tone: "success", text: `${humanizeTool(p.tool_name)} approved and executed.` });
     } catch (err) {
       fail(p.id, err, "Approval failed.");
     } finally {
@@ -90,6 +99,7 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
     try {
       await aiApi.rejectProposal(p.id);
       setProposals((cur) => cur.filter((x) => x.id !== p.id));
+      addNotice({ id: `${p.id}-rejected`, tone: "danger", text: `${humanizeTool(p.tool_name)} rejected.` });
     } catch (err) {
       fail(p.id, err, "Reject failed.");
     } finally {
@@ -133,74 +143,83 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
     }
   };
 
-  if (proposals.length === 0) return null;
+  if (proposals.length === 0 && notices.length === 0) return null;
 
   return (
     <>
-      <div className="mx-3 mb-1.5 animate-slide-up rounded-xl border border-warning/30 bg-warning/5">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          className="flex w-full items-center gap-2 px-3 py-2 text-left"
-        >
-          {open ? <ChevronDown size={13} className="shrink-0 text-content-subtle" /> : <ChevronRight size={13} className="shrink-0 text-content-subtle" />}
-          <ShieldAlert size={13} className="shrink-0 text-warning" />
-          <span className="text-[12.5px] font-medium text-content">Pending actions</span>
-          <Badge tone="warning">{proposals.length}</Badge>
-          <span className="ml-auto hidden text-[11px] text-content-subtle sm:inline">AI-proposed writes — nothing runs until you approve.</span>
-        </button>
-        {open ? (
-          <div className="space-y-2 border-t border-warning/20 px-3 py-2.5">
-            {proposals.map((p) => {
-              const result = executed[p.id];
-              const action = busy[p.id];
-              const risk = (p.risk_level || "").toUpperCase();
-              return (
-                <div
-                  key={p.id}
-                  className={cn("rounded-lg border px-3 py-2.5", result ? "border-success/30 bg-success/5" : "border-border bg-surface-input")}
-                >
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-[13px] font-medium text-content">{humanizeTool(p.tool_name)}</span>
-                    <Badge tone={RISK_TONE[risk] ?? "neutral"}>{risk || "UNKNOWN"} risk</Badge>
-                    <span className="text-[11px] text-content-subtle">{relativeTime(p.created_at)}</span>
-                  </div>
-                  <p className="mt-1 truncate font-mono text-[11px] text-content-muted" title={previewJson(p.tool_payload, 2000)}>
-                    {previewJson(p.tool_payload)}
-                  </p>
-                  {result ? (
-                    <p className="mt-1.5 flex items-start gap-1.5 break-all text-[11.5px] text-success">
-                      <CheckCircle2 size={12} className="mt-0.5 shrink-0" /> Executed — {previewJson(result, 200)}
+      {notices.length ? (
+        <div className="mx-3 mb-1.5 space-y-1.5">
+          {notices.map((notice) => (
+            <div
+              key={notice.id}
+              className={cn(
+                "flex items-center gap-2 rounded-lg border px-3 py-2 text-[12px]",
+                notice.tone === "success"
+                  ? "border-success/30 bg-success/10 text-success"
+                  : "border-danger/30 bg-danger/10 text-danger",
+              )}
+            >
+              <CheckCircle2 size={13} className="shrink-0" />
+              <span className="min-w-0 truncate">{notice.text}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {proposals.length ? (
+        <div className="mx-3 mb-1.5 animate-slide-up rounded-xl border border-warning/30 bg-warning/5">
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left"
+          >
+            {open ? <ChevronDown size={13} className="shrink-0 text-content-subtle" /> : <ChevronRight size={13} className="shrink-0 text-content-subtle" />}
+            <ShieldAlert size={13} className="shrink-0 text-warning" />
+            <span className="text-[12.5px] font-medium text-content">Pending actions</span>
+            <Badge tone="warning">{proposals.length}</Badge>
+            <span className="ml-auto hidden text-[11px] text-content-subtle sm:inline">Approve before it runs.</span>
+          </button>
+          {open ? (
+            <div className="custom-scrollbar max-h-56 space-y-2 overflow-y-auto border-t border-warning/20 px-3 py-2.5">
+              {proposals.map((p) => {
+                const action = busy[p.id];
+                const risk = (p.risk_level || "").toUpperCase();
+                return (
+                  <div key={p.id} className="rounded-lg border border-border bg-surface-input px-3 py-2.5">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-[13px] font-medium text-content">{humanizeTool(p.tool_name)}</span>
+                      <Badge tone={RISK_TONE[risk] ?? "neutral"}>{risk || "UNKNOWN"} risk</Badge>
+                      <span className="text-[11px] text-content-subtle">{relativeTime(p.created_at)}</span>
+                    </div>
+                    <p className="mt-1 truncate font-mono text-[11px] text-content-muted" title={previewJson(p.tool_payload, 2000)}>
+                      {previewJson(p.tool_payload)}
                     </p>
-                  ) : (
-                    <>
-                      {errors[p.id] ? <p className="mt-1.5 text-[11.5px] text-danger">{errors[p.id]}</p> : null}
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <Button size="sm" loading={action === "approve"} disabled={Boolean(action)} onClick={() => void approve(p)}>
-                          Approve
-                        </Button>
-                        <Button size="sm" variant="ghost" disabled={Boolean(action)} onClick={() => openEdit(p)}>
-                          Edit
-                        </Button>
-                        <Button size="sm" variant="danger" loading={action === "reject"} disabled={Boolean(action)} onClick={() => void reject(p)}>
-                          Reject
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-      </div>
+                    {errors[p.id] ? <p className="mt-1.5 text-[11.5px] text-danger">{errors[p.id]}</p> : null}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Button size="sm" loading={action === "approve"} disabled={Boolean(action)} onClick={() => void approve(p)}>
+                        Approve
+                      </Button>
+                      <Button size="sm" variant="ghost" disabled={Boolean(action)} onClick={() => openEdit(p)}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="danger" loading={action === "reject"} disabled={Boolean(action)} onClick={() => void reject(p)}>
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <Modal
         open={editing !== null}
         onClose={closeEdit}
         title="Edit proposed action"
-        description={editing ? `${humanizeTool(editing.tool_name)} — adjust the payload, then approve it to run.` : undefined}
+        description={editing ? `${humanizeTool(editing.tool_name)} - adjust the payload, then approve it to run.` : undefined}
         footer={
           <>
             <Button variant="ghost" onClick={closeEdit} disabled={savingEdit}>

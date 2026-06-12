@@ -198,6 +198,7 @@ def chat(
     session_id: Optional[uuid.UUID] = None,
     provider_id: Optional[str] = None,
     section_key: Optional[str] = "general",
+    thinking_mode: str = "balance",
 ) -> dict:
     """Persist the user message, route to the AI provider, persist the reply.
 
@@ -212,32 +213,41 @@ def chat(
             workspace_id=principal.workspace_id,
             created_by=principal.user_id,
             title=_auto_title(message),
+            section_key=section_key or "general",
         )
         db.add(session)
         db.flush()
     # Auto-title an untitled conversation from its first user message.
     if not (session.title or "").strip():
         session.title = _auto_title(message)
+    session.section_key = section_key or "general"
 
     user_message = ChatMessage(
         workspace_id=principal.workspace_id,
         session_id=session.id,
         role="user",
         content=message,
+        section_key=section_key or "general",
+        meta={"chat_mode": "single", "thinking_mode": thinking_mode, "section_key": section_key or "general"},
     )
     db.add(user_message)
     db.flush()
 
-    # Build memory context block (inject into system prompt).
-    from app.services import ai_orchestrator, memory_context_builder, memory_extraction_service
+    # Build a real context packet (memory, section, mode, summary, knowledge).
+    from app.services import ai_context_builder, ai_orchestrator, memory_extraction_service
 
-    extra_context = memory_context_builder.build(db, principal, message, section_key)
+    context_packet = ai_context_builder.build(
+        db, principal, message=message, session_id=session.id,
+        section_key=section_key or "general", thinking_mode=thinking_mode,
+    )
 
     # Orchestrated chat: history-aware, with a safe tool loop on tool-capable
     # providers (reads execute; writes become pending approvals — never silent).
     result = ai_orchestrator.run_with_tools(
         db, principal, message=message, session_id=session.id,
-        provider_id=provider_id, extra_context=extra_context,
+        provider_id=provider_id, extra_context=context_packet.get("context"),
+        section_key=section_key or "general", thinking_mode=thinking_mode,
+        user_message_id=user_message.id,
     )
     meta = {
         "source": "provider" if result["ok"] else "system",
@@ -245,6 +255,7 @@ def chat(
         "blocked": result.get("blocked", False),
         "ok": result["ok"],
         "error": result.get("error") or None,
+        **context_packet.get("meta", {}),
     }
     if result.get("tool_calls"):
         meta["tool_calls"] = result["tool_calls"]
@@ -255,6 +266,7 @@ def chat(
         session_id=session.id,
         role="assistant",
         content=result["content"],
+        section_key=section_key or "general",
         meta=meta,
     )
     db.add(assistant_message)
