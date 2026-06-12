@@ -66,9 +66,10 @@ def _guardrails(task_type: str) -> str:
     return f"\n\n{BUSINESS_GUARDRAILS}" if task_type in ("business", "finance", "analysis", "planning") else ""
 
 
-def analyst_message(user_text: str, facts: dict, task_type: str) -> str:
+def analyst_message(user_text: str, facts: dict, task_type: str, extra_context: str | None = None) -> str:
+    prefix = f"{extra_context}\n\n" if extra_context else ""
     return (
-        f"{SYSTEM_PROMPT_CORE}\n\n{ANALYST_PROMPT}\n\n"
+        f"{prefix}{SYSTEM_PROMPT_CORE}\n\n{ANALYST_PROMPT}\n\n"
         f"{_facts_block(facts)}{_guardrails(task_type)}\n\n"
         f"USER REQUEST:\n{user_text}\n\n"
         "Respond with: (1) Facts vs assumptions, (2) Analysis with any calculations shown and verified, "
