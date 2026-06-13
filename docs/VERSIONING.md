@@ -18,6 +18,7 @@ Earlier experimental releases used the `0.x` range. Starting with **AllHaven
 The current version is stored in **`/VERSION`**. These must always match it:
 
 - `/VERSION`
+- `/package.json` → `"version"`
 - `frontend/package.json` → `"version"`
 - `backend/pyproject.toml` → `version`
 - `frontend/components/layout/nav.ts` → `APP_VERSION` (shown in the sidebar, prefixed with `v`)
@@ -35,6 +36,7 @@ The current version is stored in **`/VERSION`**. These must always match it:
 
 | Version | Date | Title |
 |---------|------|-------|
+| [v3.3.1](releases/v3.3.1.md) | 2026-06-13 | AllHaven 3.3.1 local Routine UX polish |
 | [v3.3.0](releases/v3.3.0.md) | 2026-06-13 | AllHaven 3.3 Routine planner and sidebar flow |
 | [v3.2.0](releases/v3.2.0.md) | 2026-06-13 | AllHaven 3.2 repository hygiene and render skeletons |
 | [v3.1.0](releases/v3.1.0.md) | 2026-06-13 | AllHaven 3.1 expanded AI agents and settings UX |
