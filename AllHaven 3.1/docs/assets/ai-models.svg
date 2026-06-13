@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 520" role="img" aria-label="AllHaven AI providers and models">
+  <defs>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#18E0D6"/><stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+    <style>
+      .t{font-family:'Segoe UI',system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;}
+      .card{fill:#10151C;stroke:#1F2730;stroke-width:1.5;}
+      .name{fill:#E6EAF1;font-size:19px;font-weight:700;}
+      .ven{fill:#8B96A7;font-size:12.5px;}
+      .tag{font-size:11px;font-weight:600;text-anchor:middle;}
+    </style>
+  </defs>
+
+  <rect width="1280" height="520" fill="#0A0C10"/>
+  <circle cx="1160" cy="60" r="220" fill="#18E0D6" opacity="0.05"/>
+
+  <text class="t" x="40" y="62" font-size="30" font-weight="700" fill="#E6EAF1">🤖 Fifteen AI providers, one command center</text>
+  <text class="t" x="40" y="98" font-size="16" fill="#8B96A7">Run up to <tspan fill="#18E0D6" font-weight="700">10 agents concurrently</tspan> — Parallel, Debate, or Reasoning. The AI proposes; a human approves every write.</text>
+
+  <!-- Row 1 -->
+  <g>
+    <rect class="card" x="40" y="140" width="380" height="96" rx="14"/>
+    <rect x="40" y="160" width="4" height="56" rx="2" fill="#18E0D6"/>
+    <circle cx="74" cy="188" r="7" fill="#18E0D6"/>
+    <text class="t name" x="96" y="184">Ollama</text>
+    <text class="t ven" x="96" y="208">Local · private · free</text>
+    <rect x="318" y="176" width="86" height="24" rx="12" fill="#0E1A18"/><text class="t tag" x="361" y="192" fill="#18E0D6">★ Local</text>
+
+    <rect class="card" x="450" y="140" width="380" height="96" rx="14"/>
+    <rect x="450" y="160" width="4" height="56" rx="2" fill="#10A37F"/>
+    <circle cx="484" cy="188" r="7" fill="#10A37F"/>
+    <text class="t name" x="506" y="184">GPT</text>
+    <text class="t ven" x="506" y="208">OpenAI</text>
+    <rect x="744" y="176" width="70" height="24" rx="12" fill="#161C24"/><text class="t tag" x="779" y="192" fill="#8B96A7">Cloud</text>
+
+    <rect class="card" x="860" y="140" width="380" height="96" rx="14"/>
+    <rect x="860" y="160" width="4" height="56" rx="2" fill="#D97757"/>
+    <circle cx="894" cy="188" r="7" fill="#D97757"/>
+    <text class="t name" x="916" y="184">Claude</text>
+    <text class="t ven" x="916" y="208">Anthropic</text>
+    <rect x="1150" y="176" width="74" height="24" rx="12" fill="#1B1622"/><text class="t tag" x="1187" y="192" fill="#C9A6F0">Vision</text>
+  </g>
+
+  <!-- Row 2 -->
+  <g>
+    <rect class="card" x="40" y="252" width="380" height="96" rx="14"/>
+    <rect x="40" y="272" width="4" height="56" rx="2" fill="#4285F4"/>
+    <circle cx="74" cy="300" r="7" fill="#4285F4"/>
+    <text class="t name" x="96" y="296">Gemini</text>
+    <text class="t ven" x="96" y="320">Google</text>
+    <rect x="334" y="288" width="74" height="24" rx="12" fill="#1B1622"/><text class="t tag" x="371" y="304" fill="#C9A6F0">Vision</text>
+
+    <rect class="card" x="450" y="252" width="380" height="96" rx="14"/>
+    <rect x="450" y="272" width="4" height="56" rx="2" fill="#C7D0DC"/>
+    <circle cx="484" cy="300" r="7" fill="#C7D0DC"/>
+    <text class="t name" x="506" y="296">Grok</text>
+    <text class="t ven" x="506" y="320">xAI</text>
+    <rect x="744" y="288" width="70" height="24" rx="12" fill="#161C24"/><text class="t tag" x="779" y="304" fill="#8B96A7">Cloud</text>
+
+    <rect class="card" x="860" y="252" width="380" height="96" rx="14"/>
+    <rect x="860" y="272" width="4" height="56" rx="2" fill="#8B7CFF"/>
+    <circle cx="894" cy="300" r="7" fill="#8B7CFF"/>
+    <text class="t name" x="916" y="296">Blackbox</text>
+    <text class="t ven" x="916" y="320">Blackbox AI</text>
+    <rect x="1146" y="288" width="78" height="24" rx="12" fill="#171627"/><text class="t tag" x="1185" y="304" fill="#B3A8FF">Coding</text>
+  </g>
+
+  <!-- Row 3 -->
+  <g>
+    <rect class="card" x="40" y="364" width="380" height="96" rx="14"/>
+    <rect x="40" y="384" width="4" height="56" rx="2" fill="#34D399"/>
+    <circle cx="74" cy="412" r="7" fill="#34D399"/>
+    <text class="t name" x="96" y="408">OpenRouter <tspan fill="#34D399">#1</tspan></text>
+    <text class="t ven" x="96" y="432">OpenRouter · any model</text>
+    <rect x="330" y="400" width="78" height="24" rx="12" fill="#0F1A16"/><text class="t tag" x="369" y="416" fill="#34D399">Router</text>
+
+    <rect class="card" x="450" y="364" width="380" height="96" rx="14"/>
+    <rect x="450" y="384" width="4" height="56" rx="2" fill="#FBBF24"/>
+    <circle cx="484" cy="412" r="7" fill="#FBBF24"/>
+    <text class="t name" x="506" y="408">OpenRouter <tspan fill="#FBBF24">#2</tspan></text>
+    <text class="t ven" x="506" y="432">OpenRouter · any model</text>
+    <rect x="740" y="400" width="78" height="24" rx="12" fill="#1E1B0E"/><text class="t tag" x="779" y="416" fill="#FBBF24">Router</text>
+
+    <rect class="card" x="860" y="364" width="380" height="96" rx="14"/>
+    <rect x="860" y="384" width="4" height="56" rx="2" fill="#60A5FA"/>
+    <circle cx="894" cy="412" r="7" fill="#60A5FA"/>
+    <text class="t name" x="916" y="408">OpenRouter <tspan fill="#60A5FA">#3</tspan></text>
+    <text class="t ven" x="916" y="432">OpenRouter · any model</text>
+    <rect x="1150" y="400" width="74" height="24" rx="12" fill="#0E1722"/><text class="t tag" x="1187" y="416" fill="#60A5FA">Router</text>
+  </g>
+
+  <text class="t" x="40" y="498" font-size="13" fill="#5C6675">Honest status: a provider is “online” only after a successful Test Connection — never faked. Keys stay server-side.</text>
+</svg>
