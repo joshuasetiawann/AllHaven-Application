@@ -14,6 +14,7 @@ from app.core.principal import Principal
 from app.core.responses import success_response
 from app.schemas.drive import DriveConfigOut, DriveFileOut
 from app.services import drive_service as svc
+from app.services.local_first_sync import sync_after_write
 
 router = APIRouter(prefix="/drive", tags=["drive"])
 
@@ -55,6 +56,7 @@ async def upload_file(
         content_type=file.content_type or "application/octet-stream",
         data=data,
     )
+    sync_after_write(db, principal)
     return success_response(DriveFileOut.model_validate(row), "File uploaded")
 
 
@@ -77,4 +79,5 @@ def delete_file(
     db: Session = Depends(get_db),
 ) -> dict:
     svc.delete_file(db, principal, file_id)
+    sync_after_write(db, principal)
     return success_response({"id": str(file_id)}, "File deleted")

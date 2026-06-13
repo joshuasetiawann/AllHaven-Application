@@ -1,41 +1,39 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ComponentType, FormEvent } from "react";
+import type { FormEvent } from "react";
 import {
-  BookOpen,
-  Briefcase,
   CalendarDays,
-  CheckCircle2,
+  Check,
+  ChevronLeft,
+  ChevronRight,
   Clock,
-  Coffee,
-  Dumbbell,
-  Flame,
   MapPin,
   Moon,
   Pencil,
   Plus,
   Repeat2,
-  Sparkles,
-  Star,
-  SunMedium,
+  Search,
+  Sun,
+  Sunrise,
   Trash2,
+  type LucideIcon,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardHeader } from "@/components/ui/Card";
-import { Loading } from "@/components/ui/States";
 import { Input } from "@/components/ui/Input";
+import { Loading } from "@/components/ui/States";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
 import { Toggle } from "@/components/ui/Toggle";
+import { useAppDialog } from "@/components/ui/AppDialog";
 import { ApiException, routinesApi } from "@/lib/api";
 import { cn } from "@/lib/format";
 import type { RoutineEvent } from "@/types";
 
-type ViewMode = "today" | "selected" | "upcoming" | "all";
+type ViewMode = "selected" | "upcoming" | "all";
 type TimePeriod = "morning" | "afternoon" | "evening";
 type RepeatRule = "once" | "daily" | "weekly" | "monthly";
 
@@ -49,64 +47,19 @@ interface RoutineForm {
   time_period: TimePeriod;
   repeat_rule: RepeatRule;
   repeat_days: string[];
-  icon: string;
-  color: string;
 }
 
-const ICON_OPTIONS: { key: string; label: string; Icon: ComponentType<{ size?: number; className?: string }> }[] = [
-  { key: "star", label: "Focus", Icon: Star },
-  { key: "sparkles", label: "Create", Icon: Sparkles },
-  { key: "book", label: "Study", Icon: BookOpen },
-  { key: "briefcase", label: "Work", Icon: Briefcase },
-  { key: "dumbbell", label: "Health", Icon: Dumbbell },
-  { key: "coffee", label: "Break", Icon: Coffee },
-  { key: "flame", label: "Priority", Icon: Flame },
-  { key: "moon", label: "Rest", Icon: Moon },
-];
-
-const COLOR_OPTIONS = [
-  {
-    key: "cyan",
-    label: "Cyan",
-    swatch: "bg-primary",
-    soft: "border-primary/30 bg-primary/10 text-primary",
-    line: "bg-primary",
-  },
-  {
-    key: "violet",
-    label: "Violet",
-    swatch: "bg-secondary",
-    soft: "border-secondary/35 bg-secondary/15 text-secondary-soft",
-    line: "bg-secondary",
-  },
-  {
-    key: "green",
-    label: "Green",
-    swatch: "bg-success",
-    soft: "border-success/30 bg-success/10 text-success",
-    line: "bg-success",
-  },
-  {
-    key: "amber",
-    label: "Amber",
-    swatch: "bg-warning",
-    soft: "border-warning/35 bg-warning/10 text-warning",
-    line: "bg-warning",
-  },
-  {
-    key: "rose",
-    label: "Rose",
-    swatch: "bg-danger",
-    soft: "border-danger/35 bg-danger/10 text-danger",
-    line: "bg-danger",
-  },
-] as const;
-
-const PERIODS: { key: TimePeriod; label: string; helper: string; time: string; Icon: ComponentType<{ size?: number }> }[] = [
-  { key: "morning", label: "Pagi", helper: "05.00-11.59", time: "07:00", Icon: SunMedium },
-  { key: "afternoon", label: "Siang", helper: "12.00-16.59", time: "13:00", Icon: Coffee },
-  { key: "evening", label: "Malam", helper: "17.00+", time: "19:00", Icon: Moon },
-];
+const PERIODS = [
+  { key: "morning", label: "Pagi", helper: "05.00 - 11.59", time: "07:00", Icon: Sunrise },
+  { key: "afternoon", label: "Siang", helper: "12.00 - 16.59", time: "13:00", Icon: Sun },
+  { key: "evening", label: "Malam", helper: "17.00 ke atas", time: "19:00", Icon: Moon },
+] as const satisfies readonly {
+  key: TimePeriod;
+  label: string;
+  helper: string;
+  time: string;
+  Icon: LucideIcon;
+}[];
 
 const DAYS = [
   { key: "mon", label: "Sen" },
@@ -116,6 +69,13 @@ const DAYS = [
   { key: "fri", label: "Jum" },
   { key: "sat", label: "Sab" },
   { key: "sun", label: "Min" },
+];
+
+const REPEAT_OPTIONS: { key: RepeatRule; label: string }[] = [
+  { key: "once", label: "Sekali" },
+  { key: "daily", label: "Harian" },
+  { key: "weekly", label: "Mingguan" },
+  { key: "monthly", label: "Bulanan" },
 ];
 
 const emptyForm: RoutineForm = {
@@ -128,8 +88,6 @@ const emptyForm: RoutineForm = {
   time_period: "morning",
   repeat_rule: "daily",
   repeat_days: DAYS.map((day) => day.key),
-  icon: "star",
-  color: "cyan",
 };
 
 function pad(value: number): string {
@@ -170,21 +128,13 @@ function periodFromRoutine(routine: RoutineEvent): TimePeriod {
   return periodFromHour(new Date(routine.start_at).getHours());
 }
 
-function colorFor(key: string | null | undefined) {
-  return COLOR_OPTIONS.find((item) => item.key === key) ?? COLOR_OPTIONS[0];
-}
-
-function iconFor(key: string | null | undefined) {
-  return ICON_OPTIONS.find((item) => item.key === key) ?? ICON_OPTIONS[0];
-}
-
-function defaultStartFor(dateKeyValue: string, period: TimePeriod): string {
+function defaultStartFor(dateValue: string, period: TimePeriod): string {
   const time = PERIODS.find((item) => item.key === period)?.time ?? "07:00";
-  return `${dateKeyValue}T${time}`;
+  return `${dateValue}T${time}`;
 }
 
-function setTimeOnInput(value: string, dateKeyValue: string, time: string): string {
-  const date = value ? value.slice(0, 10) : dateKeyValue;
+function setTimeOnInput(value: string, dateValue: string, time: string): string {
+  const date = value ? value.slice(0, 10) : dateValue;
   return `${date}T${time}`;
 }
 
@@ -209,10 +159,6 @@ function eventDayKey(event: RoutineEvent): string {
   return dateKey(new Date(event.start_at));
 }
 
-function isToday(event: RoutineEvent): boolean {
-  return eventDayKey(event) === dateKey(new Date());
-}
-
 function eventStatus(event: RoutineEvent): "past" | "now" | "upcoming" {
   const now = Date.now();
   const startDate = new Date(event.start_at);
@@ -232,13 +178,13 @@ function eventStatus(event: RoutineEvent): "past" | "now" | "upcoming" {
 
 function repeatLabel(routine: RoutineEvent): string {
   const rule = routine.repeat_rule ?? "once";
-  if (rule === "daily") return "Daily";
-  if (rule === "weekly") return "Weekly";
-  if (rule === "monthly") return "Monthly";
-  return "Once";
+  if (rule === "daily") return "Harian";
+  if (rule === "weekly") return "Mingguan";
+  if (rule === "monthly") return "Bulanan";
+  return "Sekali";
 }
 
-function RoutineCard({
+function RoutineRow({
   routine,
   onEdit,
   onDelete,
@@ -248,117 +194,130 @@ function RoutineCard({
   onDelete: (routine: RoutineEvent) => void;
 }) {
   const status = eventStatus(routine);
-  const period = PERIODS.find((item) => item.key === periodFromRoutine(routine)) ?? PERIODS[0];
-  const color = colorFor(routine.color);
-  const icon = iconFor(routine.icon);
-  const Icon = icon.Icon;
   return (
-    <article className="group relative overflow-hidden rounded-xl border border-border bg-surface/80 p-4 transition-all hover:border-border-strong hover:bg-surface-raised/80">
-      <span className={cn("absolute inset-y-0 left-0 w-1", color.line)} />
-      <div className="flex items-start gap-3 pl-1">
-        <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border", color.soft)}>
-          <Icon size={20} />
+    <article className="group grid gap-3 border-b border-border/70 py-3 last:border-b-0 sm:grid-cols-[5.5rem_minmax(0,1fr)_auto] sm:items-start">
+      <div className="flex items-center gap-2 text-sm text-content">
+        <span className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
+          status === "now" ? "border-success/35 bg-success/10 text-success" : "border-border bg-surface-input text-content-muted",
+        )}>
+          {status === "now" ? <Check size={14} /> : <Clock size={14} />}
+        </span>
+        <div className="leading-tight">
+          <p className="font-semibold">{routine.all_day ? "All day" : formatTime(routine.start_at)}</p>
+          {routine.end_at && !routine.all_day ? <p className="text-[11px] text-content-subtle">{formatTime(routine.end_at)}</p> : null}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="min-w-0 truncate text-sm font-semibold text-content">{routine.title}</h3>
-            {status === "now" ? <Badge tone="success" dot>Now</Badge> : null}
-            {status === "past" ? <Badge tone="neutral">Past</Badge> : null}
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-content-subtle">
-            <Badge tone="secondary">{period.label}</Badge>
+      </div>
+
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="min-w-0 truncate text-sm font-semibold text-content">{routine.title}</h3>
+          {status === "now" ? <Badge tone="success" dot>Now</Badge> : null}
+          {status === "past" ? <Badge tone="neutral">Past</Badge> : null}
+          <Badge tone="secondary">{repeatLabel(routine)}</Badge>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-content-subtle">
+          <span className="inline-flex items-center gap-1">
+            <CalendarDays size={12} />
+            {formatShortDay(new Date(routine.start_at))}
+          </span>
+          {routine.location ? (
             <span className="inline-flex items-center gap-1">
-              <Clock size={12} />
-              {routine.all_day ? "All day" : `${formatTime(routine.start_at)}${routine.end_at ? ` - ${formatTime(routine.end_at)}` : ""}`}
+              <MapPin size={12} />
+              {routine.location}
             </span>
+          ) : null}
+          {routine.repeat_days?.length ? (
             <span className="inline-flex items-center gap-1">
               <Repeat2 size={12} />
-              {repeatLabel(routine)}
+              {routine.repeat_days.length === DAYS.length ? "Setiap hari" : `${routine.repeat_days.length} hari`}
             </span>
-          </div>
-          {routine.location ? (
-            <p className="mt-2 inline-flex items-center gap-1 text-[12px] text-content-subtle">
-              <MapPin size={12} /> {routine.location}
-            </p>
-          ) : null}
-          {routine.description ? (
-            <p className="mt-2 overflow-hidden text-ellipsis text-[13px] leading-relaxed text-content-muted">{routine.description}</p>
           ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-          <button
-            onClick={() => onEdit(routine)}
-            className="rounded-lg p-2 text-content-subtle transition-colors hover:bg-surface-high hover:text-primary focus-ring"
-            aria-label="Edit routine"
-          >
-            <Pencil size={15} />
-          </button>
-          <button
-            onClick={() => onDelete(routine)}
-            className="rounded-lg p-2 text-content-subtle transition-colors hover:bg-danger/10 hover:text-danger focus-ring"
-            aria-label="Delete routine"
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
+        {routine.description ? (
+          <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-content-muted">{routine.description}</p>
+        ) : null}
+      </div>
+
+      <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+        <button
+          onClick={() => onEdit(routine)}
+          className="rounded-lg p-2 text-content-subtle transition-colors hover:bg-surface-high hover:text-primary focus-ring"
+          aria-label="Edit routine"
+        >
+          <Pencil size={15} />
+        </button>
+        <button
+          onClick={() => onDelete(routine)}
+          className="rounded-lg p-2 text-content-subtle transition-colors hover:bg-danger/10 hover:text-danger focus-ring"
+          aria-label="Delete routine"
+        >
+          <Trash2 size={15} />
+        </button>
       </div>
     </article>
   );
 }
 
-function PeriodColumn({
+function PeriodSection({
   period,
   routines,
+  onAdd,
   onEdit,
   onDelete,
-  onAdd,
 }: {
   period: (typeof PERIODS)[number];
   routines: RoutineEvent[];
+  onAdd: () => void;
   onEdit: (routine: RoutineEvent) => void;
   onDelete: (routine: RoutineEvent) => void;
-  onAdd: () => void;
 }) {
   const Icon = period.Icon;
   return (
-    <section className="min-h-[240px] rounded-2xl border border-border bg-surface-low/35 p-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
-            <Icon size={17} />
-          </span>
-          <div>
-            <h2 className="text-sm font-semibold text-content">{period.label}</h2>
-            <p className="text-[11px] text-content-subtle">{period.helper}</p>
-          </div>
+    <section className="relative grid gap-3 sm:grid-cols-[9rem_minmax(0,1fr)]">
+      <div className="flex items-center gap-3 sm:block">
+        <span className="mb-0 flex h-10 w-10 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary sm:mb-3">
+          <Icon size={18} />
+        </span>
+        <div>
+          <h2 className="text-sm font-semibold text-content">{period.label}</h2>
+          <p className="text-[12px] text-content-subtle">{period.helper}</p>
         </div>
-        <Badge tone={routines.length ? "primary" : "neutral"}>{routines.length}</Badge>
       </div>
-      {routines.length ? (
-        <div className="space-y-2.5">
-          {routines.map((routine) => (
-            <RoutineCard key={routine.id} routine={routine} onEdit={onEdit} onDelete={onDelete} />
-          ))}
-        </div>
-      ) : (
-        <button
-          onClick={onAdd}
-          className="flex min-h-[150px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-input/25 px-4 text-center text-content-subtle transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-ring"
-        >
-          <Plus size={18} />
-          <span className="mt-2 text-sm font-medium">Add {period.label.toLowerCase()} routine</span>
-        </button>
-      )}
+
+      <div className="relative min-h-[86px] border-l border-border pl-4 sm:pl-6">
+        <span className="absolute -left-[5px] top-2 h-2.5 w-2.5 rounded-full bg-primary shadow-glow-primary" />
+        {routines.length ? (
+          <div className="divide-y-0">
+            {routines.map((routine) => (
+              <RoutineRow key={routine.id} routine={routine} onEdit={onEdit} onDelete={onDelete} />
+            ))}
+          </div>
+        ) : (
+          <button
+            onClick={onAdd}
+            className="flex min-h-[74px] w-full items-center justify-between rounded-xl border border-dashed border-border bg-surface-low/20 px-4 text-left text-content-muted transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-ring"
+          >
+            <span>
+              <span className="block text-sm font-medium text-content">Belum ada routine {period.label.toLowerCase()}</span>
+              <span className="mt-0.5 block text-[12px] text-content-subtle">Tambah jadwal untuk slot ini.</span>
+            </span>
+            <Plus size={17} />
+          </button>
+        )}
+      </div>
     </section>
   );
 }
 
 export default function RoutinesPage() {
+  const dialog = useAppDialog();
   const todayKey = dateKey(new Date());
   const [routines, setRoutines] = useState<RoutineEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<ViewMode>("today");
+  const [view, setView] = useState<ViewMode>("selected");
   const [selectedDate, setSelectedDate] = useState(todayKey);
+  const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<RoutineEvent | null>(null);
@@ -383,35 +342,38 @@ export default function RoutinesPage() {
   );
 
   const dayStrip = useMemo(() => {
-    const base = startOfLocalDay(new Date());
-    return Array.from({ length: 7 }, (_, index) => addDays(base, index));
-  }, []);
+    const base = startOfLocalDay(new Date(selectedDate ? `${selectedDate}T00:00:00` : new Date()));
+    return Array.from({ length: 9 }, (_, index) => addDays(base, index - 2));
+  }, [selectedDate]);
 
-  const todayRoutines = useMemo(() => sorted.filter(isToday), [sorted]);
-  const upcomingRoutines = useMemo(
-    () => sorted.filter((routine) => eventStatus(routine) !== "past"),
-    [sorted],
-  );
-  const selectedRoutines = useMemo(
-    () => sorted.filter((routine) => eventDayKey(routine) === selectedDate),
-    [selectedDate, sorted],
-  );
-  const visibleRoutines = useMemo(() => {
-    if (view === "today") return todayRoutines;
-    if (view === "selected") return selectedRoutines;
-    if (view === "upcoming") return upcomingRoutines;
-    return sorted;
-  }, [selectedRoutines, sorted, todayRoutines, upcomingRoutines, view]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const byView = view === "selected"
+      ? sorted.filter((routine) => eventDayKey(routine) === selectedDate)
+      : view === "upcoming"
+        ? sorted.filter((routine) => eventStatus(routine) !== "past")
+        : sorted;
+    if (!q) return byView;
+    return byView.filter((routine) =>
+      [routine.title, routine.description, routine.location]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(q)),
+    );
+  }, [query, selectedDate, sorted, view]);
 
   const routinesByPeriod = useMemo(() => {
     const map: Record<TimePeriod, RoutineEvent[]> = { morning: [], afternoon: [], evening: [] };
-    for (const routine of visibleRoutines) {
+    for (const routine of filtered) {
       map[periodFromRoutine(routine)].push(routine);
     }
     return map;
-  }, [visibleRoutines]);
+  }, [filtered]);
 
-  const nextRoutine = upcomingRoutines[0] ?? null;
+  const todayCount = useMemo(() => sorted.filter((routine) => eventDayKey(routine) === todayKey).length, [sorted, todayKey]);
+  const upcomingCount = useMemo(() => sorted.filter((routine) => eventStatus(routine) !== "past").length, [sorted]);
+  const repeatCount = useMemo(() => sorted.filter((routine) => (routine.repeat_rule ?? "once") !== "once").length, [sorted]);
+  const showRepeatDays = form.repeat_rule === "daily" || form.repeat_rule === "weekly";
+  const allDaysSelected = form.repeat_days.length === DAYS.length;
 
   const openCreate = (dateValue = selectedDate, period: TimePeriod = "morning") => {
     setEditing(null);
@@ -432,8 +394,6 @@ export default function RoutinesPage() {
       time_period: period,
       repeat_rule: (routine.repeat_rule ?? "once") as RepeatRule,
       repeat_days: routine.repeat_days?.length ? routine.repeat_days : [],
-      icon: routine.icon ?? "star",
-      color: routine.color ?? "cyan",
     });
     setOpen(true);
   };
@@ -442,6 +402,7 @@ export default function RoutinesPage() {
     event.preventDefault();
     if (!form.title.trim() || !form.start_at) return;
     setSaving(true);
+    setError(null);
     try {
       const payload = {
         title: form.title.trim(),
@@ -453,8 +414,6 @@ export default function RoutinesPage() {
         time_period: form.time_period,
         repeat_rule: form.repeat_rule,
         repeat_days: showRepeatDays ? form.repeat_days : [],
-        icon: form.icon,
-        color: form.color,
       };
       if (editing) {
         await routinesApi.update(editing.id, payload);
@@ -473,10 +432,18 @@ export default function RoutinesPage() {
   };
 
   const remove = async (routine: RoutineEvent) => {
+    const ok = await dialog.confirm({
+      title: "Delete routine?",
+      message: `Hapus "${routine.title}" dari jadwal lokal?`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     setRoutines((prev) => prev?.filter((item) => item.id !== routine.id) ?? prev);
     try {
       await routinesApi.remove(routine.id);
-    } catch {
+    } catch (err) {
+      setError(err instanceof ApiException ? err.message : "Failed to delete routine.");
       void load();
     }
   };
@@ -490,103 +457,120 @@ export default function RoutinesPage() {
     }));
   };
 
-  const allDaysSelected = form.repeat_days.length === DAYS.length;
-  const showRepeatDays = form.repeat_rule === "daily" || form.repeat_rule === "weekly";
-  const displayDate = view === "today" ? todayKey : selectedDate;
+  const shiftSelectedDate = (days: number) => {
+    const base = new Date(`${selectedDate}T00:00:00`);
+    setSelectedDate(dateKey(addDays(base, days)));
+    setView("selected");
+  };
 
   return (
     <AppShell>
       <PageHeader
         title="Routine"
-        subtitle="Jadwal pribadi yang tersimpan di database lokal AllHaven. Tidak perlu Google Calendar."
+        subtitle="Agenda lokal untuk rutinitas, jadwal harian, dan rencana berulang."
         actions={
-          <Button onClick={() => openCreate(displayDate, "morning")}>
+          <Button onClick={() => openCreate(selectedDate, "morning")}>
             <Plus size={16} /> Add routine
           </Button>
         }
       />
 
       {error ? (
-        <div className="rounded-2xl border border-danger/35 bg-danger/10 p-6 text-center">
-          <p className="text-sm font-semibold text-content">Routine belum bisa dimuat</p>
-          <p className="mx-auto mt-2 max-w-xl text-[13px] leading-relaxed text-content-muted">
-            Data Routine memakai database lokal. Kalau baru update, restart backend lalu coba lagi.
-          </p>
-          <Button className="mt-4" variant="danger" onClick={load}>
-            Try again
-          </Button>
+        <div className="mb-4 rounded-xl border border-danger/35 bg-danger/10 px-4 py-3 text-sm text-danger">
+          {error}
         </div>
-      ) : !routines ? (
+      ) : null}
+
+      {!routines ? (
         <Loading label="Loading routines..." />
       ) : (
         <div className="space-y-6">
-          <section className="rounded-2xl border border-border bg-surface/70 p-4 sm:p-5">
+          <section className="border-b border-border pb-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <Badge tone="primary" dot>Local DB</Badge>
-                  <Badge tone="secondary">Pagi / Siang / Malam</Badge>
-                  <Badge tone="neutral">{visibleRoutines.length} visible</Badge>
+                  <Badge tone="neutral">{todayCount} today</Badge>
+                  <Badge tone="neutral">{upcomingCount} upcoming</Badge>
+                  <Badge tone="secondary">{repeatCount} repeat</Badge>
                 </div>
-                <h2 className="text-xl font-semibold tracking-tight text-content">{formatLongDay(displayDate)}</h2>
+                <h2 className="text-xl font-semibold tracking-tight text-content">{formatLongDay(selectedDate)}</h2>
                 <p className="mt-1 max-w-2xl text-sm leading-relaxed text-content-muted">
-                  Buat rutinitas yang berulang, jadwal hari ini, atau rencana jauh ke depan. Tasks tetap untuk kerjaan; Routine untuk pola harian dan jam.
+                  Routine tersimpan di database lokal. Jika Supabase aktif, data akan dimirror di background tanpa mengganggu app.
                 </p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-[minmax(190px,1fr)_auto]">
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="relative sm:w-64">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-content-subtle" />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Cari routine..."
+                    className="h-10 w-full rounded-lg border border-border bg-surface-input pl-9 pr-3 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  />
+                </div>
                 <Input
                   id="routine-date"
-                  label="Pilih tanggal"
                   type="date"
                   value={selectedDate}
                   onChange={(event) => {
                     setSelectedDate(event.target.value || todayKey);
                     setView("selected");
                   }}
+                  className="sm:w-44"
                 />
-                <Button className="self-end" variant="ghost" onClick={() => openCreate(selectedDate, "morning")}>
-                  <Plus size={15} /> Add here
-                </Button>
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
-              {dayStrip.map((day) => {
-                const key = dateKey(day);
-                const count = sorted.filter((routine) => eventDayKey(routine) === key).length;
-                const active = selectedDate === key || (view === "today" && key === todayKey);
-                return (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      setSelectedDate(key);
-                      setView(key === todayKey ? "today" : "selected");
-                    }}
-                    className={cn(
-                      "rounded-xl border p-3 text-left transition-all focus-ring",
-                      active
-                        ? "border-primary/45 bg-primary/12 text-content shadow-glow-primary"
-                        : "border-border bg-surface-input/45 text-content-muted hover:border-border-strong hover:bg-surface-raised/70 hover:text-content",
-                    )}
-                  >
-                    <span className="block text-[11px] uppercase tracking-wide text-content-subtle">
-                      {day.toLocaleDateString("id-ID", { weekday: "short" })}
-                    </span>
-                    <span className="mt-1 block text-lg font-semibold text-content">{day.getDate()}</span>
-                    <span className="mt-1 block text-[11px] text-content-subtle">
-                      {count ? `${count} routine` : "Open"}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="mt-5 flex items-center gap-2">
+              <button
+                onClick={() => shiftSelectedDate(-1)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-content-muted transition-colors hover:border-border-strong hover:text-content focus-ring"
+                aria-label="Previous day"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <div className="custom-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1">
+                {dayStrip.map((day) => {
+                  const key = dateKey(day);
+                  const count = sorted.filter((routine) => eventDayKey(routine) === key).length;
+                  const active = selectedDate === key && view === "selected";
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        setSelectedDate(key);
+                        setView("selected");
+                      }}
+                      className={cn(
+                        "min-w-[5.25rem] rounded-full border px-3 py-2 text-left transition-colors focus-ring",
+                        active
+                          ? "border-primary/50 bg-primary text-primary-fg"
+                          : "border-border bg-surface-input/50 text-content-muted hover:border-border-strong hover:text-content",
+                      )}
+                    >
+                      <span className="block text-[11px] uppercase tracking-wide">{day.toLocaleDateString("id-ID", { weekday: "short" })}</span>
+                      <span className="block text-sm font-semibold">{day.getDate()}</span>
+                      <span className="block text-[10.5px] opacity-80">{count ? `${count} item` : "empty"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => shiftSelectedDate(1)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-content-muted transition-colors hover:border-border-strong hover:text-content focus-ring"
+                aria-label="Next day"
+              >
+                <ChevronRight size={16} />
+              </button>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
               {[
-                ["today", "Today"],
-                ["selected", "Selected"],
+                ["selected", "Tanggal ini"],
                 ["upcoming", "Upcoming"],
-                ["all", "All"],
+                ["all", "Semua"],
               ].map(([key, label]) => (
                 <Button
                   key={key}
@@ -600,72 +584,24 @@ export default function RoutinesPage() {
             </div>
           </section>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Card className="p-4">
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
-                <CalendarDays size={17} />
-              </div>
-              <p className="text-[11px] uppercase tracking-wide text-content-subtle">Today</p>
-              <p className="mt-1 text-2xl font-semibold text-content">{todayRoutines.length}</p>
-            </Card>
-            <Card className="p-4">
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg border border-success/20 bg-success/10 text-success">
-                <CheckCircle2 size={17} />
-              </div>
-              <p className="text-[11px] uppercase tracking-wide text-content-subtle">Upcoming</p>
-              <p className="mt-1 text-2xl font-semibold text-content">{upcomingRoutines.length}</p>
-            </Card>
-            <Card className="p-4">
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg border border-secondary/25 bg-secondary/10 text-secondary-soft">
-                <Repeat2 size={17} />
-              </div>
-              <p className="text-[11px] uppercase tracking-wide text-content-subtle">Repeat</p>
-              <p className="mt-1 text-2xl font-semibold text-content">
-                {sorted.filter((routine) => (routine.repeat_rule ?? "once") !== "once").length}
-              </p>
-            </Card>
-          </div>
-
-          {visibleRoutines.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border bg-surface-low/35 px-4 py-3 text-sm text-content-muted">
-              Pilih slot Pagi, Siang, atau Malam di bawah untuk mulai menyusun routine.
+          {filtered.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-surface-low/20 px-4 py-4 text-sm text-content-muted">
+              Belum ada routine untuk tampilan ini. Pilih Pagi, Siang, atau Malam di bawah untuk mulai.
             </div>
           ) : null}
 
-          <div className="grid gap-4 xl:grid-cols-3">
+          <div className="space-y-8">
             {PERIODS.map((period) => (
-              <PeriodColumn
+              <PeriodSection
                 key={period.key}
                 period={period}
                 routines={routinesByPeriod[period.key]}
+                onAdd={() => openCreate(selectedDate, period.key)}
                 onEdit={openEdit}
                 onDelete={remove}
-                onAdd={() => openCreate(displayDate, period.key)}
               />
             ))}
           </div>
-
-          <aside className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <Card>
-              <CardHeader
-                title="Next routine"
-                subtitle={nextRoutine ? formatShortDay(new Date(nextRoutine.start_at)) : "No upcoming schedule"}
-                icon={<Clock size={18} />}
-              />
-              {nextRoutine ? (
-                <RoutineCard routine={nextRoutine} onEdit={openEdit} onDelete={remove} />
-              ) : (
-                <p className="text-[13px] text-content-muted">Routine berikutnya akan muncul setelah kamu menambahkan jadwal.</p>
-              )}
-            </Card>
-            <Card>
-              <CardHeader title="Storage" subtitle="Local-first schedule" icon={<Repeat2 size={18} />} />
-              <div className="space-y-2 text-[13px] leading-relaxed text-content-muted">
-                <p>Routine memakai database backend AllHaven, bukan Google Calendar.</p>
-                <p>Jika nanti Supabase sync diaktifkan, data tetap lewat backend dan tidak mengirim status palsu.</p>
-              </div>
-            </Card>
-          </aside>
         </div>
       )}
 
@@ -673,7 +609,7 @@ export default function RoutinesPage() {
         open={open}
         onClose={() => setOpen(false)}
         title={editing ? "Edit routine" : "Add routine"}
-        description="Bangun rutinitas dengan nama, warna, repeat, dan slot waktu."
+        description="Isi yang penting saja: nama, repeat, dan waktu."
         size="lg"
         footer={
           <>
@@ -691,102 +627,84 @@ export default function RoutinesPage() {
           </>
         }
       >
-        <form id="routine-form" onSubmit={save} className="space-y-5">
+        <form id="routine-form" onSubmit={save} className="space-y-4">
           <Input
             id="title"
-            label="Name your routine"
+            label="Nama routine"
             required
-            placeholder="Morning review, kuliah, gym, coding session..."
+            placeholder="Kuliah, coding, review pagi..."
             value={form.title}
             onChange={(event) => setForm({ ...form, title: event.target.value })}
             className="h-12 text-base font-semibold"
           />
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
             <div>
-              <p className="mb-2 text-[12px] font-medium uppercase tracking-wide text-content-muted">Icon</p>
-              <div className="grid grid-cols-4 gap-2">
-                {ICON_OPTIONS.map(({ key, label, Icon }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    title={label}
-                    onClick={() => setForm({ ...form, icon: key })}
-                    className={cn(
-                      "flex h-12 items-center justify-center rounded-xl border transition-colors focus-ring",
-                      form.icon === key
-                        ? "border-primary/50 bg-primary/12 text-primary"
-                        : "border-border bg-surface-input/50 text-content-muted hover:border-border-strong hover:text-content",
-                    )}
-                  >
-                    <Icon size={20} />
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="mb-2 text-[12px] font-medium uppercase tracking-wide text-content-muted">Color</p>
-              <div className="grid grid-cols-5 gap-2">
-                {COLOR_OPTIONS.map((item) => (
+              <p className="mb-2 text-[12px] font-medium uppercase tracking-wide text-content-muted">Repeat</p>
+              <div className="grid grid-cols-2 gap-2">
+                {REPEAT_OPTIONS.map((item) => (
                   <button
                     key={item.key}
                     type="button"
-                    title={item.label}
-                    onClick={() => setForm({ ...form, color: item.key })}
+                    onClick={() => setForm({ ...form, repeat_rule: item.key })}
                     className={cn(
-                      "flex h-12 items-center justify-center rounded-xl border bg-surface-input/50 transition-colors focus-ring",
-                      form.color === item.key ? "border-primary/60" : "border-border hover:border-border-strong",
+                      "h-10 rounded-lg border text-sm font-medium transition-colors focus-ring",
+                      form.repeat_rule === item.key
+                        ? "border-primary/55 bg-primary text-primary-fg"
+                        : "border-border bg-surface-input/45 text-content-muted hover:border-border-strong hover:text-content",
                     )}
                   >
-                    <span className={cn("h-6 w-6 rounded-full", item.swatch)} />
+                    {item.label}
                   </button>
                 ))}
               </div>
             </div>
-          </div>
 
-          <div>
-            <p className="mb-2 text-[12px] font-medium uppercase tracking-wide text-content-muted">Repeat</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {[
-                ["once", "Once"],
-                ["daily", "Daily"],
-                ["weekly", "Weekly"],
-                ["monthly", "Monthly"],
-              ].map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setForm({ ...form, repeat_rule: key as RepeatRule })}
-                  className={cn(
-                    "h-10 rounded-xl border text-sm font-medium transition-colors focus-ring",
-                    form.repeat_rule === key
-                      ? "border-primary/55 bg-primary text-primary-fg"
-                      : "border-border bg-surface-input/45 text-content-muted hover:border-border-strong hover:text-content",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
+            <div>
+              <p className="mb-2 text-[12px] font-medium uppercase tracking-wide text-content-muted">Waktu</p>
+              <div className="grid grid-cols-3 gap-2">
+                {PERIODS.map((period) => {
+                  const Icon = period.Icon;
+                  const active = form.time_period === period.key;
+                  return (
+                    <button
+                      key={period.key}
+                      type="button"
+                      onClick={() => setPeriod(period.key)}
+                      className={cn(
+                        "flex h-10 items-center justify-center gap-1.5 rounded-lg border text-sm font-medium transition-colors focus-ring",
+                        active
+                          ? "border-primary/55 bg-primary text-primary-fg"
+                          : "border-border bg-surface-input/45 text-content-muted hover:border-border-strong hover:text-content",
+                      )}
+                    >
+                      <Icon size={15} /> {period.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           {showRepeatDays ? (
-            <div className="rounded-2xl border border-border bg-surface-low/35 p-4">
+            <div className="rounded-xl border border-border bg-surface-low/20 p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-content">Repeat days</p>
+                  <p className="text-sm font-semibold text-content">Hari repeat</p>
                   <p className="mt-0.5 text-[12px] text-content-subtle">Pilih hari routine ini berjalan.</p>
                 </div>
-                <Toggle
-                  checked={allDaysSelected}
-                  onChange={(checked) =>
-                    setForm({ ...form, repeat_days: checked ? DAYS.map((day) => day.key) : [] })
-                  }
-                  label="Every day"
-                />
+                <div className="flex items-center gap-2 text-[12px] text-content-muted">
+                  <span>Setiap hari</span>
+                  <Toggle
+                    checked={allDaysSelected}
+                    onChange={(checked) =>
+                      setForm({ ...form, repeat_days: checked ? DAYS.map((day) => day.key) : [] })
+                    }
+                    label="Every day"
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
                 {DAYS.map((day) => {
                   const active = form.repeat_days.includes(day.key);
                   return (
@@ -802,7 +720,7 @@ export default function RoutinesPage() {
                         })
                       }
                       className={cn(
-                        "flex aspect-square min-h-10 items-center justify-center rounded-full border text-[12px] font-semibold transition-colors focus-ring sm:text-sm",
+                        "flex aspect-square min-h-9 items-center justify-center rounded-full border text-[12px] font-semibold transition-colors focus-ring",
                         active
                           ? "border-primary/50 bg-primary text-primary-fg"
                           : "border-border bg-surface-input/45 text-content-muted hover:border-border-strong hover:text-content",
@@ -815,34 +733,6 @@ export default function RoutinesPage() {
               </div>
             </div>
           ) : null}
-
-          <div className="rounded-2xl border border-border bg-surface-low/35 p-4">
-            <div className="mb-3">
-              <p className="text-sm font-semibold text-content">Waktu routine</p>
-              <p className="mt-0.5 text-[12px] text-content-subtle">Pilih slot cepat, jamnya tetap bisa disesuaikan manual.</p>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {PERIODS.map((period) => {
-                const Icon = period.Icon;
-                const active = form.time_period === period.key;
-                return (
-                  <button
-                    key={period.key}
-                    type="button"
-                    onClick={() => setPeriod(period.key)}
-                    className={cn(
-                      "flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-medium transition-colors focus-ring",
-                      active
-                        ? "border-primary/55 bg-primary text-primary-fg"
-                        : "border-border bg-surface-input/45 text-content-muted hover:border-border-strong hover:text-content",
-                    )}
-                  >
-                    <Icon size={16} /> {period.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Input
@@ -866,27 +756,30 @@ export default function RoutinesPage() {
             />
           </div>
 
-          <label className="flex items-center gap-2 text-[13px] text-content-muted">
+          <div className="flex items-center justify-between rounded-xl border border-border bg-surface-low/20 px-3 py-2">
+            <div>
+              <p className="text-sm font-medium text-content">All day</p>
+              <p className="text-[12px] text-content-subtle">Gunakan kalau tidak perlu jam detail.</p>
+            </div>
             <Toggle
               checked={form.all_day}
               onChange={(next) => setForm({ ...form, all_day: next })}
               label="All day"
             />
-            All-day routine
-          </label>
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
               id="location"
-              label="Place or context"
-              placeholder="Home, campus, office, online..."
+              label="Tempat"
+              placeholder="Rumah, kampus, online..."
               value={form.location}
               onChange={(event) => setForm({ ...form, location: event.target.value })}
             />
             <Textarea
               id="description"
               label="Notes"
-              placeholder="Apa yang harus dilakukan di routine ini?"
+              placeholder="Catatan singkat untuk routine ini"
               value={form.description}
               onChange={(event) => setForm({ ...form, description: event.target.value })}
             />

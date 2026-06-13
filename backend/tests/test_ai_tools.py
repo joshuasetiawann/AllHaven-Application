@@ -35,7 +35,30 @@ def test_tools_endpoint_lists_registry(auth_client):
     # Modules span the whole app.
     modules = {t["module"] for t in data}
     assert {"time", "tasks", "calendar", "notes", "finance", "files",
-            "weather", "automation", "system"}.issubset(modules)
+            "weather", "automation", "system", "memory", "ai_knowledge"}.issubset(modules)
+
+
+def test_section_tool_priorities_cover_core_modules(auth_client, db_session):
+    principal = _principal(auth_client)
+    expectations = {
+        "tasks": {"list_tasks", "search_tasks", "create_task_draft"},
+        "routines": {"list_events", "create_event_draft"},
+        "finance": {"get_monthly_finance_summary", "list_transactions", "create_transaction_draft"},
+        "notes": {"list_notes", "search_notes", "create_note_draft"},
+        "ai_knowledge": {"list_knowledge_documents", "search_knowledge", "retrieve_knowledge_context"},
+        "files": {"list_files", "search_files", "summarize_file_if_supported"},
+    }
+    for section, names in expectations.items():
+        exported = {tool["function"]["name"] for tool in ai_tools_registry.tool_definitions(db_session, principal, section)}
+        assert names.issubset(exported)
+
+    routine_create = next(
+        tool for tool in ai_tools_registry.tool_definitions(db_session, principal, "routines")
+        if tool["function"]["name"] == "create_event"
+    )
+    props = routine_create["function"]["parameters"]["properties"]
+    assert "time_period" in props and "repeat_rule" in props
+    assert "icon" not in props and "color" not in props
 
 
 def test_tool_disable_enable(auth_client):
