@@ -6,8 +6,9 @@
 
 **The complete release history of [AllHaven Command Center](../../tree/main).**
 
-Every version is frozen in its own self-contained `CoreOS X.Y` or `AllHaven X.Y`
-folder — a full, runnable snapshot. The latest version also lives on the
+Every version is frozen in its own numbered, self-contained archive folder
+(`01 CoreOS 0.1` through `33 AllHaven 3.3`) — a full, runnable snapshot.
+The numeric prefix keeps GitHub's folder view chronological. The latest version also lives on the
 [`main`](../../tree/main) branch.
 
 ![Latest](https://img.shields.io/badge/latest-AllHaven%203.3%20·%20v3.3.0-18E0D6?style=flat-square)
@@ -21,12 +22,14 @@ folder — a full, runnable snapshot. The latest version also lives on the
 ## 📦 About this branch
 
 - **`master`** (this branch) — the **full archive**: every release in its own
-  `CoreOS X.Y` or `AllHaven X.Y` folder, a complete snapshot you can open and run on its own.
+  numbered `CoreOS X.Y` or `AllHaven X.Y` folder, a complete snapshot you can open and run on its own.
 - **[`main`](../../tree/main)** — only the **latest** version, flat at the repo root,
   ready to run or deploy.
 
-> **Numbering** runs `0.1 → 0.9`, `1.0 → 1.9`, then `2.0` onward, so the folders sort and
-> read naturally. **Era** marks the early **CoreOS** prototype vs. the **AllHaven** product
+> **Folder order** uses a two-digit prefix (`01`, `02`, ... `33`) so GitHub sorts the
+> archive chronologically. The prefix is only for folder ordering; it is not part of the
+> product version or semantic version. **Version numbering** runs `0.1 → 0.9`, `1.0 → 1.9`,
+> then `2.0` onward. **Era** marks the early **CoreOS** prototype vs. the **AllHaven** product
 > (rebranded at 1.4). **Semantic** is the internal `vX.Y.Z`; CoreOS 1.2 maps to
 > `v0.1.0`, CoreOS 1.3 maps to `v0.2.0`, and AllHaven 1.4 starts at `v0.3.0`.
 
@@ -72,8 +75,8 @@ folder — a full, runnable snapshot. The latest version also lives on the
 
 ## 🌱 How the two branches relate
 
-Each `CoreOS X.Y` or `AllHaven X.Y` folder is a complete, standalone snapshot you can open and run on
-its own; the latest (`AllHaven 3.3`) keeps its own `CHANGELOG.md`, `VERSION`, and
+Each numbered archive folder is a complete, standalone snapshot you can open and run on
+its own; the latest (`33 AllHaven 3.3`) keeps its own `CHANGELOG.md`, `VERSION`, and
 `docs/releases/` inside it. New releases add the next folder here, while
 [`main`](../../tree/main) is fast-forwarded to the same version.
 
