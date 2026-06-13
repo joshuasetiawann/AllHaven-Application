@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { AlertTriangle, Inbox, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/format";
@@ -12,8 +12,8 @@ export function Loading({ label = "Loading…" }: { label?: string }) {
   );
 }
 
-export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("skeleton h-4 w-full", className)} />;
+export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("skeleton h-4 w-full", className)} {...props} />;
 }
 
 export function SkeletonCard() {
