@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowUpRight,
   Bot,
+  CalendarDays,
   ClipboardCheck,
   ListTodo,
   ShieldCheck,
@@ -106,10 +107,16 @@ export default function DashboardOverview() {
             {greeting()}, {user?.full_name?.split(" ")[0] || "Operator"}
           </h1>
           <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-content-muted">
-            Your command center is ready: tasks, knowledge, finance, approvals, and AI context in one focused workspace.
+            Your command center is ready: routines, tasks, finance, notes, approvals, and AI context in one focused workspace.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/dashboard/routines"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-surface-input/55 px-3 text-[13px] font-medium text-content transition-colors hover:border-primary/45 hover:text-primary"
+          >
+            <CalendarDays size={15} /> Routine
+          </Link>
           <Link
             href="/dashboard/approvals"
             className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-surface-input/55 px-3 text-[13px] font-medium text-content transition-colors hover:border-primary/45 hover:text-primary"
