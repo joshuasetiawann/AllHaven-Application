@@ -14,6 +14,7 @@ from app.core.principal import Principal
 from app.core.responses import success_response
 from app.schemas.weather import WeatherLocationCreate, WeatherLocationOut
 from app.services import weather_service as svc
+from app.services.local_first_sync import sync_after_write
 
 router = APIRouter(prefix="/weather", tags=["weather"])
 
@@ -34,6 +35,7 @@ def add_location(
     db: Session = Depends(get_db),
 ) -> dict:
     row = svc.add_location(db, principal, payload.name, payload.is_default)
+    sync_after_write(db, principal)
     return success_response(WeatherLocationOut.model_validate(row), "Location saved")
 
 
@@ -44,6 +46,7 @@ def delete_location(
     db: Session = Depends(get_db),
 ) -> dict:
     svc.delete_location(db, principal, location_id)
+    sync_after_write(db, principal)
     return success_response({"id": str(location_id)}, "Location removed")
 
 

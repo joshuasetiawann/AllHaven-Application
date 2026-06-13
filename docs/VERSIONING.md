@@ -36,6 +36,7 @@ The current version is stored in **`/VERSION`**. These must always match it:
 
 | Version | Date | Title |
 |---------|------|-------|
+| [v3.4.0](releases/v3.4.0.md) | 2026-06-13 | AllHaven 3.4 voice, documents, Routine agenda, and local-first sync |
 | [v3.3.1](releases/v3.3.1.md) | 2026-06-13 | AllHaven 3.3.1 local Routine UX polish |
 | [v3.3.0](releases/v3.3.0.md) | 2026-06-13 | AllHaven 3.3 Routine planner and sidebar flow |
 | [v3.2.0](releases/v3.2.0.md) | 2026-06-13 | AllHaven 3.2 repository hygiene and render skeletons |
