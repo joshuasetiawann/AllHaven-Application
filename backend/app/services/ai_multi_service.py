@@ -1,4 +1,4 @@
-"""Multi-agent AI chat: fan one user message out to up to 3 agents at once.
+"""Multi-agent AI chat: fan one user message out to up to 10 agents at once.
 
 Design notes / safety:
     * Each selected provider is resolved to an honest ``ChatPlan`` on the request

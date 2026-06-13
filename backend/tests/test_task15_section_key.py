@@ -86,7 +86,7 @@ def test_multi_chat_forwards_section_key_to_service(auth_client, db_session, mon
     original = _ms.multi_chat
 
     def _spy(db, principal, *, message, provider_ids, session_id=None,
-             images=None, thinking_mode="balance", section_key="general"):
+             images=None, thinking_mode="balance", section_key="general", response_language=None):
         captured["section_key"] = section_key
         return original(
             db, principal,
@@ -96,6 +96,7 @@ def test_multi_chat_forwards_section_key_to_service(auth_client, db_session, mon
             images=images,
             thinking_mode=thinking_mode,
             section_key=section_key,
+            response_language=response_language,
         )
 
     monkeypatch.setattr(_ms, "multi_chat", _spy)
@@ -163,7 +164,7 @@ def test_debate_chat_forwards_section_key_to_service(auth_client, db_session, mo
     original = _ds.debate_chat
 
     def _spy(db, principal, *, message, provider_ids, session_id=None,
-             rounds=2, images=None, thinking_mode="balance", section_key="general"):
+             rounds=2, images=None, thinking_mode="balance", section_key="general", response_language=None):
         captured["section_key"] = section_key
         return original(
             db, principal,
@@ -174,6 +175,7 @@ def test_debate_chat_forwards_section_key_to_service(auth_client, db_session, mo
             images=images,
             thinking_mode=thinking_mode,
             section_key=section_key,
+            response_language=response_language,
         )
 
     monkeypatch.setattr(_ds, "debate_chat", _spy)
@@ -241,7 +243,7 @@ def test_reason_chat_forwards_section_key_to_service(auth_client, db_session, mo
     original = _rs.reasoning_chat
 
     def _spy(db, principal, *, message, provider_ids, session_id=None,
-             thinking_mode="balance", images=None, section_key="general"):
+             thinking_mode="balance", images=None, section_key="general", response_language=None):
         captured["section_key"] = section_key
         return original(
             db, principal,
@@ -251,6 +253,7 @@ def test_reason_chat_forwards_section_key_to_service(auth_client, db_session, mo
             thinking_mode=thinking_mode,
             images=images,
             section_key=section_key,
+            response_language=response_language,
         )
 
     monkeypatch.setattr(_rs, "reasoning_chat", _spy)

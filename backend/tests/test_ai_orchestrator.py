@@ -75,8 +75,9 @@ def test_extra_context_prepended_on_non_tool_path(auth_client, db_session, monke
         extra_context="## What I know about the user\n- Speaks Indonesian",
     )
     assert result["ok"] is True
+    system_turn = captured["messages"][0]
     user_turn = captured["messages"][-1]
-    assert user_turn["role"] == "user"
-    assert user_turn["content"].startswith("## What I know about the user")
-    assert "Speaks Indonesian" in user_turn["content"]
-    assert "Hello" in user_turn["content"]
+    assert system_turn["role"] == "system"
+    assert system_turn["content"].startswith(SYSTEM_PROMPT)
+    assert "Speaks Indonesian" in system_turn["content"]
+    assert user_turn == {"role": "user", "content": "Hello"}

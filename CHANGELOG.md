@@ -11,6 +11,29 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [3.1.0] - 2026-06-13 — AllHaven 3.1 expanded AI agents and settings UX
+
+Detailed notes: [`docs/releases/v3.1.0.md`](docs/releases/v3.1.0.md)
+
+AllHaven 3.1 focuses on the AI control room: more usable model selection,
+expanded provider coverage, stronger debate output, and a cleaner Settings layout.
+
+### Added
+- **10-agent multi-agent cap.** Parallel, Debate, and Reasoning now accept up to 10 selected agents per run, with new default roles for Data/Numbers, Scheduler, Creative/Tone, and Synthesizer coverage.
+- **Cursor AI provider.** Adds a Cursor-compatible coding provider with `Cursor 1` and `Cursor 2` model slots. It requires an explicit Cursor/OpenAI-compatible base URL so AllHaven never pretends a non-chat Cursor endpoint is online.
+- **DeepSeek and Qwen providers.** Adds first-class DeepSeek and Alibaba Qwen/DashScope providers through OpenAI-compatible chat adapters, with `.env` mirror keys for local persistence.
+- **Searchable model picker.** AI Chat's Add Agent menu now supports search, groups direct providers separately from OpenRouter, and labels slots as GPT 1/2, Gemini 1/2, Cursor 1/2, DeepSeek, Qwen, and so on.
+
+### Changed
+- **Debate output polish.** Debate prompts now keep each agent direct, concrete, and honest, carry memory/context into rebuttal rounds, and ask the synthesizer for a cleaner final answer with less repetition.
+- **Settings → AI Providers layout.** Provider setup now starts with compact health stats, then separates Direct model agents from OpenRouter agents for easier scanning.
+- **Provider cards and slot editor.** Cards preview available slots, and the configure modal has a wider, clearer two-column layout.
+- **AI Chat Behavior cap.** The workspace `max_active_agents` setting now allows 1-10 instead of 1-7.
+
+### Fixed
+- Provider tests and env-sync allowlists now cover Cursor, DeepSeek, and Qwen.
+- Version metadata is synchronized across `VERSION`, package files, backend metadata, and the in-app `APP_VERSION`.
+
 ## [3.0.0] - 2026-06-13 — AllHaven 3.0 launch-ready AI workspace
 
 Detailed notes: [`docs/releases/v3.0.0.md`](docs/releases/v3.0.0.md)

@@ -5,16 +5,16 @@ import json
 from tests.conftest import API
 
 
-def test_provider_list_has_six_apis_plus_ollama(auth_client):
+def test_provider_list_has_external_apis_plus_ollama(auth_client):
     data = auth_client.get(f"{API}/ai/providers").json()["data"]["providers"]
     ids = {p["id"] for p in data}
-    # Five single external providers + six OpenRouter slots + local Ollama.
+    # Eight direct external providers + six OpenRouter slots + local Ollama.
     assert {
-        "openai", "anthropic", "gemini", "grok", "blackbox",
+        "openai", "anthropic", "gemini", "grok", "blackbox", "cursor", "deepseek", "qwen",
         "openrouter_1", "openrouter_2", "openrouter_3",
         "openrouter_4", "openrouter_5", "openrouter_6", "ollama",
     }.issubset(ids)
-    assert len(data) == 12
+    assert len(data) == 15
     ollama = next(p for p in data if p["id"] == "ollama")
     assert ollama["external"] is False
     assert ollama["api_key_required"] is False
@@ -27,6 +27,9 @@ def test_provider_list_has_six_apis_plus_ollama(auth_client):
     anthropic = next(p for p in data if p["id"] == "anthropic")
     assert [s["slot"] for s in anthropic["model_slots"]] == [1, 2]
     assert anthropic["model_slots"][1]["configured"] is False  # no secondary model yet
+    cursor = next(p for p in data if p["id"] == "cursor")
+    assert [s["slot"] for s in cursor["model_slots"]] == [1, 2]
+    assert cursor["configured"] is False  # needs an explicit compatible base URL + key
 
 
 def test_ollama_configurable_without_api_key(auth_client):
