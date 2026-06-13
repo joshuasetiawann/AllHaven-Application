@@ -231,7 +231,7 @@ export default function AiKnowledgePage() {
           >
             <BookOpenCheck size={24} className="mb-3 text-primary" />
             <span className="text-sm font-medium text-content">{uploading ? "Uploading..." : "Upload document"}</span>
-            <span className="mt-1 text-[12px] text-content-subtle">Any file is accepted. Text/code is indexed; binary files are stored as metadata.</span>
+            <span className="mt-1 text-[12px] text-content-subtle">PDF, DOC, DOCX, text, and code can be uploaded. If text extraction fails, the file is kept as metadata.</span>
           </button>
           <div className="mt-3 grid gap-2 text-[12px] text-content-muted sm:grid-cols-2">
             <div className="rounded-lg border border-border bg-surface-input px-3 py-2">
