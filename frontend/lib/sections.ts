@@ -6,7 +6,7 @@
 import {
   BookOpenCheck,
   Bot,
-  Calendar,
+  CalendarDays,
   CloudSun,
   FolderGit2,
   HardDrive,
@@ -33,7 +33,7 @@ export const SECTIONS: SectionDef[] = [
   { key: "tasks", label: "Tasks", icon: ListTodo, hint: "Planning, priorities, and to-dos." },
   { key: "notes", label: "Notes", icon: StickyNote, hint: "Writing, knowledge, and references." },
   { key: "finance", label: "Finance", icon: Wallet, hint: "Cashflow, budgets, and money tracking." },
-  { key: "calendar", label: "Calendar", icon: Calendar, hint: "Events, scheduling, and time." },
+  { key: "routines", label: "Routine", icon: CalendarDays, hint: "Routines, schedules, and exact times." },
   { key: "drive", label: "Files", icon: HardDrive, hint: "Documents and file organization." },
   { key: "ai_knowledge", label: "AI Knowledge", icon: BookOpenCheck, hint: "Indexed documents for AI retrieval." },
   { key: "automations", label: "Automations", icon: Workflow, hint: "Workflows and automation ideas." },
@@ -45,6 +45,7 @@ export const SECTIONS: SectionDef[] = [
 export const DEFAULT_SECTION_KEY = "general";
 
 const BY_KEY: Record<string, SectionDef> = Object.fromEntries(SECTIONS.map((s) => [s.key, s]));
+BY_KEY.calendar = BY_KEY.routines;
 
 export function sectionByKey(key: string | null | undefined): SectionDef {
   return (key && BY_KEY[key]) || BY_KEY[DEFAULT_SECTION_KEY];
@@ -54,6 +55,7 @@ export function sectionByKey(key: string | null | undefined): SectionDef {
 export function sectionFromPath(pathname: string): SectionDef {
   const seg = pathname.replace(/^\/dashboard\/?/, "").split("/")[0] || "";
   if (seg === "ai" || seg === "") return sectionByKey("general");
+  if (seg === "calendar") return sectionByKey("routines");
   if (seg === "settings" && pathname.includes("/system")) return sectionByKey("system");
   return sectionByKey(seg);
 }

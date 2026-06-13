@@ -186,6 +186,8 @@ export interface CalendarEvent {
   updated_at: string;
 }
 
+export type RoutineEvent = CalendarEvent;
+
 export interface DriveFile {
   id: string;
   filename: string;

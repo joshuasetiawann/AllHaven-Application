@@ -29,6 +29,7 @@ _SECTION_CATEGORY_MAP = {
     "notes": ("Work context", "Writing style"),
     "tasks": ("Tasks context", "Work context"),
     "calendar": ("Work context",),
+    "routines": ("Work context",),
     "drive": ("Work context",),
     "files": ("Work context",),
     "ai_knowledge": ("Projects",),
