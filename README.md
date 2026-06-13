@@ -7,12 +7,12 @@
 **The complete release history of [AllHaven Command Center](../../tree/main).**
 
 Every version is frozen in its own numbered, self-contained archive folder
-(`01 CoreOS 0.1` through `33 AllHaven 3.3`) — a full, runnable snapshot.
+(`01 CoreOS 0.1` through `34 AllHaven 3.3.1`) — a full, runnable snapshot.
 The numeric prefix keeps GitHub's folder view chronological. The latest version also lives on the
 [`main`](../../tree/main) branch.
 
-![Latest](https://img.shields.io/badge/latest-AllHaven%203.3%20·%20v3.3.0-18E0D6?style=flat-square)
-&nbsp;![Releases](https://img.shields.io/badge/releases-33-2563EB?style=flat-square)
+![Latest](https://img.shields.io/badge/latest-AllHaven%203.3.1%20·%20v3.3.1-18E0D6?style=flat-square)
+&nbsp;![Releases](https://img.shields.io/badge/releases-34-2563EB?style=flat-square)
 &nbsp;![© 2026 Joshua Setiawan](https://img.shields.io/badge/©%202026-Joshua%20Setiawan-555?style=flat-square)
 
 </div>
@@ -22,11 +22,11 @@ The numeric prefix keeps GitHub's folder view chronological. The latest version 
 ## 📦 About this branch
 
 - **`master`** (this branch) — the **full archive**: every release in its own
-  numbered `CoreOS X.Y` or `AllHaven X.Y` folder, a complete snapshot you can open and run on its own.
+  numbered `CoreOS X.Y`, `AllHaven X.Y`, or patch folder, a complete snapshot you can open and run on its own.
 - **[`main`](../../tree/main)** — only the **latest** version, flat at the repo root,
   ready to run or deploy.
 
-> **Folder order** uses a two-digit prefix (`01`, `02`, ... `33`) so GitHub sorts the
+> **Folder order** uses a two-digit prefix (`01`, `02`, ... `34`) so GitHub sorts the
 > archive chronologically. The prefix is only for folder ordering; it is not part of the
 > product version or semantic version. **Version numbering** runs `0.1 → 0.9`, `1.0 → 1.9`,
 > then `2.0` onward. **Era** marks the early **CoreOS** prototype vs. the **AllHaven** product
@@ -69,14 +69,15 @@ The numeric prefix keeps GitHub's folder view chronological. The latest version 
 | **AllHaven 3.0** | 2026-06-13 | **AllHaven** | `v3.0.0` | **Launch-ready AI workspace** — app-wide layout polish, cleaner sidebar/topbar/dashboard, responsive shell refinements, AI Knowledge context available to every chat mode/model, language controls for Indonesian/English/Traditional Mandarin, dark/light theme and accent color preferences, in-app decision popups replacing browser `localhost says` dialogs, and language-aware local date/time answers. |
 | **AllHaven 3.1** | 2026-06-13 | **AllHaven** | `v3.1.0` | **Expanded AI agents and settings UX** — raises multi-agent runs to 10 agents, adds Cursor AI, DeepSeek, and Qwen provider support, improves Debate prompts/final output, adds a searchable grouped model picker, and reorganizes Settings → AI Providers into health stats plus Direct/OpenRouter sections with honest provider verification. |
 | **AllHaven 3.2** | 2026-06-13 | **AllHaven** | `v3.2.0` | **Repository hygiene and render skeletons** — removes local env files from the working tree, keeps clone-safe templates, adds app-wide and dashboard-specific skeleton loaders, and clarifies the CoreOS archive naming/semantic mapping. |
-| **⭐ AllHaven 3.3** | 2026-06-13 | **AllHaven** | `v3.3.0` | **Current.** **Routine planner and sidebar flow** — replaces Calendar with Routine, adds a polished date/time schedule planner, keeps calendar data compatible, and reorders the sidebar to Dashboard, AI Chat, Routine, Task, Finance, Notes, Approval. |
+| **AllHaven 3.3** | 2026-06-13 | **AllHaven** | `v3.3.0` | **Routine planner and sidebar flow** — replaces Calendar with Routine, adds a polished date/time schedule planner, keeps calendar data compatible, and reorders the sidebar to Dashboard, AI Chat, Routine, Task, Finance, Notes, Approval. |
+| **⭐ AllHaven 3.3.1** | 2026-06-13 | **AllHaven** | `v3.3.1` | **Current.** **Local Routine UX polish** — keeps Routine local-first, adds icon/color/repeat/Pagi-Siang-Malam metadata, removes the goal field, keeps empty time lanes visible, and falls back to compatible local schedule endpoints. |
 
 <sub>⭐ = current release. Dates reflect each version's build/release during the project's initial development sprint.</sub>
 
 ## 🌱 How the two branches relate
 
 Each numbered archive folder is a complete, standalone snapshot you can open and run on
-its own; the latest (`33 AllHaven 3.3`) keeps its own `CHANGELOG.md`, `VERSION`, and
+its own; the latest (`34 AllHaven 3.3.1`) keeps its own `CHANGELOG.md`, `VERSION`, and
 `docs/releases/` inside it. New releases add the next folder here, while
 [`main`](../../tree/main) is fast-forwarded to the same version.
 
