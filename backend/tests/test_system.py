@@ -5,11 +5,16 @@ from tests.conftest import API
 import app.services.system_service as sysmod
 
 
+def _agent_down(*args, **kwargs):
+    raise OSError("agent down")
+
+
 # --- status --------------------------------------------------------------- #
 
 
-def test_status_fallback_when_agent_down(auth_client):
+def test_status_fallback_when_agent_down(auth_client, monkeypatch):
     """With no agent running, status is read-only: nothing controllable."""
+    monkeypatch.setattr(sysmod, "_agent", _agent_down)
     data = auth_client.get(f"{API}/system/status").json()["data"]
     assert data["agent"]["running"] is False
     assert data["control_enabled"] is True  # local env in tests
@@ -48,7 +53,8 @@ def test_action_rejects_unknown_action(auth_client):
     assert auth_client.post(f"{API}/system/services/backend/status").status_code == 422
 
 
-def test_action_when_agent_down_is_honest(auth_client):
+def test_action_when_agent_down_is_honest(auth_client, monkeypatch):
+    monkeypatch.setattr(sysmod, "_agent", _agent_down)
     resp = auth_client.post(f"{API}/system/services/backend/restart")
     assert resp.status_code == 422
     assert "agent" in resp.json()["message"].lower()
@@ -72,7 +78,8 @@ def test_action_surfaces_agent_failure(auth_client, monkeypatch):
 # --- logs ----------------------------------------------------------------- #
 
 
-def test_logs_when_agent_down(auth_client):
+def test_logs_when_agent_down(auth_client, monkeypatch):
+    monkeypatch.setattr(sysmod, "_agent", _agent_down)
     resp = auth_client.get(f"{API}/system/logs/backend")
     assert resp.status_code == 422
 

@@ -14,7 +14,29 @@ import { ConfigStatusBadge } from "@/components/ui/meta";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { SecretInput } from "@/components/settings/SecretInput";
 import { aiApi, ApiException } from "@/lib/api";
+import { cn } from "@/lib/format";
 import type { AiProvider, ModelSlot } from "@/types";
+
+function providerBaseName(provider: AiProvider) {
+  if (provider.id.startsWith("openrouter_")) return provider.name;
+  const names: Record<string, string> = {
+    ollama: "Ollama",
+    openai: "GPT",
+    anthropic: "Claude",
+    gemini: "Gemini",
+    grok: "Grok",
+    blackbox: "Blackbox",
+    cursor: "Cursor",
+    deepseek: "DeepSeek",
+    qwen: "Qwen",
+  };
+  return names[provider.id] ?? provider.name.replace(/\s+Agent$/i, "");
+}
+
+function slotName(provider: AiProvider, slot: ModelSlot) {
+  if (provider.id.startsWith("openrouter_")) return provider.name;
+  return `${providerBaseName(provider)} ${slot.slot}`;
+}
 
 export function AiProviderCard({
   provider,
@@ -124,6 +146,24 @@ export function AiProviderCard({
           {provider.default_model ? <span className="font-mono">· {provider.default_model}</span> : null}
         </div>
 
+        {provider.model_slots?.length ? (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {provider.model_slots.map((slot) => (
+              <span
+                key={slot.ref}
+                className={cn(
+                  "rounded-full border px-2 py-0.5 text-[10.5px]",
+                  slot.configured && slot.enabled
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border bg-surface-input text-content-subtle",
+                )}
+              >
+                {slotName(provider, slot)}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
         <div className="mt-4 flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Toggle checked={provider.enabled} onChange={toggle} disabled={busy === "toggle"} label="Enabled" />
@@ -147,6 +187,7 @@ export function AiProviderCard({
         onClose={() => setOpen(false)}
         title={`Configure ${provider.name}`}
         description={provider.purpose}
+        size="lg"
         footer={
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             {keyField && provider.secrets?.[keyField.key]?.configured ? (
@@ -180,7 +221,7 @@ export function AiProviderCard({
           </p>
         )}
 
-        <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-2">
           {hasBaseUrl ? (
             <Input
               id="base_url"
@@ -230,7 +271,7 @@ export function AiProviderCard({
 // --- Model slots editor ----------------------------------------------------
 
 // Slot 1 follows the provider's default model and only its role is editable here.
-// Slot 2 (absent on OpenRouter agents — they are single-slot) gets its own model,
+// Slot 2 (absent on OpenRouter agents - they are single-slot) gets its own model,
 // role, and enabled toggle.
 function ModelSlotsSection({
   provider,
@@ -292,7 +333,12 @@ function ModelSlotsSection({
       <div className="mt-3 space-y-3">
         <div className="rounded-lg border border-border bg-surface-input px-3 py-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span className="label-mono">Slot 1</span>
+            <div className="flex items-center gap-2">
+              <span className="label-mono">{slotName(provider, slot1)}</span>
+              <Badge tone={slot1.configured ? "success" : "neutral"}>
+                {slot1.configured ? "Ready" : "Needs model"}
+              </Badge>
+            </div>
             <span className="font-mono text-[11px] text-content-subtle">
               {slot1.model || provider.default_model || "no model set"}
             </span>
@@ -315,7 +361,7 @@ function ModelSlotsSection({
           <div className="rounded-lg border border-border bg-surface-input px-3 py-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
-                <span className="label-mono">Slot 2</span>
+                <span className="label-mono">{slotName(provider, slot2)}</span>
                 <Badge tone={slot2.configured ? "success" : "neutral"}>
                   {slot2.configured ? "Configured" : "Not configured"}
                 </Badge>
@@ -347,8 +393,7 @@ function ModelSlotsSection({
 
       {slot2 ? (
         <p className="mt-2 text-[11.5px] leading-relaxed text-content-subtle">
-          Slot 2 lets one provider run two models — select it in AI Chat as
-          “{provider.name} · Slot 2”.
+          Slot 2 lets one provider run two models. Select it in AI Chat as {slotName(provider, slot2)}.
         </p>
       ) : null}
       {error ? <p className="mt-2 text-[12.5px] text-danger">{error}</p> : null}

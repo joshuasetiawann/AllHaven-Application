@@ -8,7 +8,7 @@
 
 _The AI acts fast, but risky writes still need human approval._
 
-[![Version](https://img.shields.io/badge/version-3.0.0%20·%20AllHaven%203.0-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.1.0%20·%20AllHaven%203.1-18E0D6?style=flat-square)](CHANGELOG.md)
 &nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 &nbsp;![Next.js 14](https://img.shields.io/badge/Next.js%2014-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 &nbsp;![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
@@ -25,10 +25,11 @@ _The AI acts fast, but risky writes still need human approval._
 > **multi-agent AI** assistant — fast for low-risk memory/context work, cautious for
 > risky writes that need explicit human approval.
 
-**Version:** **v3.0.0** — archive [`AllHaven 3.0`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
+**Version:** **v3.1.0** — archive [`AllHaven 3.1`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
 
 ### 🆕 What's new
 
+- **v3.1.0 — AllHaven 3.1 expanded AI agents and settings UX.** Raises multi-agent runs to **10 agents**, adds first-class **Cursor AI**, **DeepSeek**, and **Qwen** providers, improves Debate prompts and final output structure, and reorganizes Settings → AI Providers into compact health stats plus Direct/OpenRouter sections with clearer labels such as GPT 1/2, Gemini 1/2, Cursor 1/2, DeepSeek, and Qwen. Status remains honest: `online` appears only after a real Test Connection. → [release notes](docs/releases/v3.1.0.md)
 - **v3.0.0 — AllHaven 3.0 launch-ready AI workspace.** Refines the whole app shell: a cleaner sidebar hierarchy, more polished top navbar/search/approval popover, stronger page headers, sharper cards/buttons/inputs, a more useful dashboard overview, and more consistent responsive spacing across laptop, PC, tablet, and phone. AI Knowledge context is now available to every chat mode/model, Settings adds Bahasa Indonesia/English/Traditional Mandarin plus dark/light and color nuance controls, and browser `localhost says` decisions are replaced with in-app popups. → [release notes](docs/releases/v3.0.0.md)
 - **v0.17.0 — AI Workspace, Knowledge, finance reports, and faster memory.** Adds **AI Knowledge** document ingestion/search/retrieval, section-aware context packets, dedicated `ai_tool_calls` logging, expanded Tool Registry coverage (**72 tools**), configurable Drive upload limits, and a polished AI Chat flow. Finance now supports **monthly and weekly reports**, clearly separates archived/out-of-period transactions (for example 2023 records outside a 2026 report), and lets you move old records into the active report. AI can answer local date/time without a provider, low-risk memory writes save directly, pending-action notifications are cleaner, and the assistant persona is tuned for direct Indonesian chat, coding help, jokes when invited, serious work, and schedule management. Requires migration `0008` (`python -m alembic upgrade head`). → [release notes](docs/releases/v0.17.0.md)
 - **v0.16.0 — Persistent AI memory system.** The AI now **auto-learns facts about your workspace** from chat (rule-based fast-path + async LLM extraction), with **secret detection** and an **approval queue** for sensitive items. Memory context is injected into all four chat modes (single, parallel, debate, reasoning) via per-section `section_key`. Five new **memory tools** (list/search/create/update/delete) follow the existing human-approval pattern. New **memory management page** (`/dashboard/ai/memory`), **in-chat indicator**, and **AI Memory nav**. Optional **Supabase background sync**. Requires migration `0007` (`python -m alembic upgrade head`). → [release notes](docs/releases/v0.16.0.md)
@@ -90,13 +91,13 @@ available with `HAVEN_SETUP_WEB=1`.)_
 
 ![AI providers and models](docs/assets/ai-models.svg)
 
-![Settings → AI Providers — nine providers, each on its latest model](docs/assets/screenshot-ai-providers.png)
+![Settings → AI Providers — configurable providers and model slots](docs/assets/screenshot-ai-providers.png)
 
-<sub><b>Settings → AI Providers</b> — configure all twelve (Ollama local + GPT, Claude, Gemini, Grok, Blackbox, and six OpenRouter agents), each on the model you choose. Keys are stored server-side and shown masked; enable/disable and Test Connection per provider. (Screenshot shows an earlier nine-provider build.)</sub>
+<sub><b>Settings → AI Providers</b> — configure all fifteen (Ollama local + GPT, Claude, Gemini, Cursor, DeepSeek, Qwen, Grok, Blackbox, and six OpenRouter agents), each on the model you choose. Keys are stored server-side and shown masked; enable/disable and Test Connection per provider.</sub>
 
 ![Multi-agent AI chat](docs/assets/screenshot-ai-chat.png)
 
-<sub>Multi-agent chat — pick 1–7 agents and run them in <b>Parallel</b>, <b>Debate</b>, or <b>Reasoning</b>. Honest status; the AI never fabricates output.</sub>
+<sub>Multi-agent chat — pick 1–10 agents and run them in <b>Parallel</b>, <b>Debate</b>, or <b>Reasoning</b>. Honest status; the AI never fabricates output.</sub>
 
 </div>
 
@@ -108,9 +109,12 @@ available with `HAVEN_SETUP_WEB=1`.)_
 | **Gemini** | Google | Cloud | Multimodal; vision. |
 | **Grok** | xAI | Cloud | Conversational reasoning. |
 | **Blackbox** | Blackbox AI | Cloud | Coding-focused. |
+| **Cursor AI** | Cursor-compatible gateway | Cloud | Coding-focused model slot pair (`Cursor 1/2`) through an explicit OpenAI-compatible base URL. |
+| **DeepSeek** | DeepSeek | Cloud | Chat, coding, and reasoning models. |
+| **Qwen** | Alibaba DashScope | Cloud | Qwen chat/coding models via OpenAI-compatible API. |
 | **OpenRouter ×6** | OpenRouter | Cloud | Six independent agents (`openrouter_1..6`) with suggested roles (Main, Planner, Critic, Coding, Research, Synthesizer), each with its own key + model → route to *any* OpenRouter model. |
 
-- **Multi-agent:** send one prompt to up to **7 agents at once**, each with a distinct role (Main, Planner, Research, Coder, Critic/Risk, Product/UX, Synthesizer) — Parallel, **Debate** (transcript can be hidden → just the polished final answer), or **Reasoning** modes. Every provider also offers **2 model slots** ("Provider · Slot 2") so one provider can field two models.
+- **Multi-agent:** send one prompt to up to **10 agents at once**, each with a distinct role (Main, Planner, Research, Coder, Critic/Risk, Product/UX, Data/Numbers, Scheduler, Creative/Tone, Synthesizer) — Parallel, **Debate** (transcript can be hidden → just the polished final answer), or **Reasoning** modes. Every direct provider also offers **2 model slots** (for example GPT 1/2, Gemini 1/2, Cursor 1/2) so one provider can field two models.
 - **AI tools + human approval:** AI Chat reaches every module through an allowlisted **Tool Registry** — reads (schedule, notes, finance summary, weather, service status) run instantly; low-risk memory writes can save directly; risky writes become pending approvals you Approve/Edit/Reject. HIGH-risk actions (file delete, enabling workflows, service control) *always* require approval. Every call is audited.
 - **Honest status & privacy:** a provider is `online` only after a successful **Test Connection** (never faked); API keys stay **server-side**; a per-workspace policy can disable external providers entirely (local-only mode).
 
@@ -141,8 +145,8 @@ directly. Honest states when n8n isn't connected yet.
 - Local MVP **auth boundary** (register / login / me) — replaceable by Supabase Auth
 - **Workspace-scoped** business data, **soft deletes**, and **audit logging**
 - Tasks, Notes, Finance (categories, transactions, monthly summary, weekly/monthly reports) CRUD
-- **Multi-agent AI chat**: run up to **7 agents concurrently** with distinct roles, each answering in its own card
-- **12 AI providers**: Ollama (local) + GPT, Claude, Gemini, Grok, Blackbox, and **6 independent OpenRouter agents** — plus 2 model slots per provider
+- **Multi-agent AI chat**: run up to **10 agents concurrently** with distinct roles, each answering in its own card
+- **15 AI providers**: Ollama (local) + GPT, Claude, Gemini, Cursor, DeepSeek, Qwen, Grok, Blackbox, and **6 independent OpenRouter agents** — plus 2 model slots per direct provider
 - **AI Tool Registry + human approval**: 72 allowlisted tools across all modules; reads execute, low-risk memory can save directly, risky writes await your approval (audited)
 - **AI Knowledge**: upload any file; text/code/CSV is indexed for search/retrieval, while binary or secret-like files are safely stored as metadata-only
 - **App-wide toast notifications** for finance, AI Knowledge, memory, and pending AI action approvals
@@ -295,12 +299,13 @@ revokes it server-side), while API clients/tools can use a **bearer token**.
 
 ## Multi-agent AI, modules & `.env` sync
 
-- **Multi-agent chat** (`POST /ai/chat/multi`): send one message to up to **7 agents** at once
-  (`provider_ids: [...]`, max 7 — more returns HTTP 422). Agents run concurrently; one agent
+- **Multi-agent chat** (`POST /ai/chat/multi`): send one message to up to **10 agents** at once
+  (`provider_ids: [...]`, max 10 — more returns HTTP 422). Agents run concurrently; one agent
   failing never fails the others. Each result is persisted (`ai_multi_agent_runs` /
   `ai_agent_responses`) with an honest per-agent status: `completed`, `error`, `not_configured`,
   `disabled`, or `blocked` (external disabled by policy).
-- **Six OpenRouter agents** (`openrouter_1..6`): each has its own API key, default model,
+- **Direct providers + OpenRouter**: GPT, Claude, Gemini, Cursor, DeepSeek, Qwen, Grok, Blackbox,
+  and Ollama each expose model slots; `openrouter_1..6` each has its own API key, default model,
   status, and `OPENROUTER_{1..6}_API_KEY` / `_DEFAULT_MODEL` env keys.
 - **Real verification**: saving a key sets status `configured` — never `online`. `online`
   requires a successful Test Connection. Random/invalid keys fail; OpenRouter is verified via its
