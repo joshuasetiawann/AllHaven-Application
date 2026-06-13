@@ -28,14 +28,14 @@ Status of every release-readiness item. Run the commands, tick the boxes.
 - [x] Arbitrary keys rejected; `SECRET_KEY` / `DATABASE_URL` intentionally excluded (documented)
 
 ## AI providers (honest verification)
-- [x] 9 providers: Ollama + GPT + Claude + Gemini + Grok + Blackbox + OpenRouter 1/2/3
+- [x] 15 providers: Ollama + GPT + Claude + Gemini + Cursor + DeepSeek + Qwen + Grok + Blackbox + OpenRouter 1..6
 - [x] Save → `configured` (never Online); Online only after a real Test Connection
 - [x] Invalid/random key → error; network/allowlist block → `unavailable` (not "key rejected")
 - [x] Ollama verified via `/api/tags`; no auto model pull
 - [x] OpenRouter has Base URL + light default models; verified chat (Gemini 2.5 Flash Lite) live
 
 ## Multi-agent
-- [x] Up to 3 agents at once; >3 → HTTP 422
+- [x] Up to 10 agents at once; >10 -> HTTP 422
 - [x] Each agent answers in its own card; one agent failing doesn't fail the others
 - [x] Conversation + each agent result persisted
 

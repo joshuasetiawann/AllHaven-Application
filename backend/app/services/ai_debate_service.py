@@ -1,4 +1,4 @@
-"""Multi-agent debate: 2–3 agents argue across rounds, then one synthesizes.
+"""Multi-agent debate: up to 10 agents argue across rounds, then one synthesizes.
 
 How it differs from ``ai_multi_service`` (parallel fan-out):
     * Round 1 (opening): every runnable agent answers the question independently.
@@ -49,7 +49,7 @@ from app.services.ai_service import _auto_title
 from app.services.thinking import thinking_params
 
 # Number of debate rounds (round 1 opening + rebuttal rounds). Bounded so a run
-# never explodes into too many provider calls (3 agents x 4 rounds + synthesis).
+# never explodes into too many provider calls (10 agents x 4 rounds + synthesis).
 DEFAULT_DEBATE_ROUNDS = 2
 MAX_DEBATE_ROUNDS = 4
 
@@ -61,9 +61,14 @@ def _opening_prompt(agent_name: str, n_agents: int, question: str) -> str:
     return (
         f'You are "{agent_name}", one of {n_agents} AI agents on a panel answering the '
         f"same question.\n\nQUESTION:\n{question}\n\n"
-        "Start with the answer. Be substantive but concise. No basa-basi or generic filler. "
-        "Match the user's mode: casual if they are casual, serious for work, senior-level for coding. "
-        "You will later see the other agents' answers and get a chance to refine yours."
+        "Give your best independent answer.\n"
+        "- Start with the answer or decision; no greeting, praise, or generic filler.\n"
+        "- Be concrete: use exact steps, code-level detail, dates, numbers, or tradeoffs when useful.\n"
+        "- For coding, think like a senior engineer: root cause, fix, verification, and risks.\n"
+        "- For scheduling, turn the answer into practical time blocks or task steps.\n"
+        "- For casual chat, sound natural and warm without rambling.\n"
+        "- If data is missing, say what is missing instead of inventing it.\n"
+        "You will later see the other agents' answers and refine yours."
     )
 
 
@@ -72,10 +77,11 @@ def _rebuttal_prompt(agent_name: str, question: str, others: List[Tuple[str, str
     return (
         f'You are "{agent_name}" in a multi-agent debate about this QUESTION:\n{question}\n\n'
         f"Here are the other agents' latest answers:\n\n{blocks}\n\n"
-        "Critically evaluate their answers and your own: point out errors or gaps, defend or "
-        "revise your position with reasons, then give your improved answer. If another agent "
-        "made a better point, adopt it. Be concise, direct, and focus on getting the answer right."
-        " Match the user's tone without adding filler."
+        "Improve the answer now.\n"
+        "- Call out only meaningful gaps, wrong assumptions, security risks, or missing verification.\n"
+        "- Adopt stronger points from other agents instead of defending a weaker answer.\n"
+        "- Return the improved answer, not a long debate transcript.\n"
+        "- Stay direct, specific, and in the user's language/tone."
     )
 
 
@@ -92,17 +98,18 @@ def _synthesis_prompt(question: str, transcript: List[Tuple[str, List[Tuple[str,
         f"QUESTION:\n{question}\n\nDEBATE TRANSCRIPT:\n{body}\n\n"
         "Write the final answer with these rules:\n"
         "1. Start with the direct answer/decision - no preamble, no praise, no basa-basi.\n"
-        "2. Integrate the agents' best points; remove contradictions, repetition, and rambling — "
+        "2. Make the answer cleanly structured with short paragraphs, useful bullets, or numbered steps.\n"
+        "3. Integrate the agents' best points; remove contradictions, repetition, and rambling - "
         "but PRESERVE important warnings, risks, and security concerns.\n"
-        "3. Be concrete and specific (exact names, numbers, steps); never generic.\n"
-        "4. When agents disagree on something that matters, pick a position and say why in one "
+        "4. Be concrete and specific (exact names, numbers, steps); never generic.\n"
+        "5. When agents disagree on something that matters, pick a position and say why in one "
         "line — do not just list options.\n"
-        "5. Be honest about uncertainty and missing data; never invent facts the debate "
+        "6. Be honest about uncertainty and missing data; never invent facts the debate "
         "doesn't support.\n"
-        "6. End with next steps when the topic is actionable.\n"
-        "7. Match the user's mode: casual chat can be natural, serious work stays focused, "
+        "7. End with next steps when the topic is actionable.\n"
+        "8. Match the user's mode: casual chat can be natural, serious work stays focused, "
         "coding gets senior engineering help, and schedule requests get practical next steps.\n"
-        "8. Respect the preferred response language from the context packet.\n"
+        "9. Respect the preferred response language from the context packet.\n"
         "Do not mention that you are a moderator or that a debate happened — just give the answer."
     )
 
@@ -324,7 +331,7 @@ def debate_chat(
                     (plans[o].provider_name, last_answer[o])
                     for o in runnable if o != pid and o in last_answer
                 ]
-                prompts[pid] = _rebuttal_prompt(plans[pid].provider_name, message, others)
+                prompts[pid] = mem_prefix + _rebuttal_prompt(plans[pid].provider_name, message, others)
         outcomes = _run_round(runnable, prompts, images if k == 1 else None, params)
         round_outcomes.append(outcomes)
         for pid, oc in outcomes.items():

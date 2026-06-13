@@ -161,25 +161,19 @@ def test_multi_chat_injects_memory_context_into_system_messages(
         content = "Hello from fake agent"
         error = None
 
-    class FakePlan:
-        runnable = True
-        supports_image = True
-        external = False
-        provider_name = "fake"
-        status = "completed"
-        message = ""
-        slot_role = ""
-
-        def execute(self, messages, params=None):
-            captured_messages.append(messages)
-            return FakeResult()
+    def _runner(messages, params=None):
+        captured_messages.append(messages)
+        return FakeResult()
 
     import app.services.ai_provider_router as _router
 
     monkeypatch.setattr(
         _router,
         "plan_chat",
-        lambda db, principal, pid: FakePlan(),
+        lambda db, principal, pid: ChatPlan(
+            pid or "openai", "fake", False, True, True, "queued", "",
+            _runner, supports_image=True, supports_tool_loop=False,
+        ),
     )
 
     result = multi_chat(
