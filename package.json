@@ -1,6 +1,6 @@
 {
   "name": "allhaven",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "private": true,
   "description": "AllHaven Command Center — run `npm run setup` to install & start from the terminal.",
   "scripts": {

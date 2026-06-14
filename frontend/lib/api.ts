@@ -18,6 +18,8 @@ import type {
   DriveConfig,
   DriveFile,
   FinanceCategory,
+  RoutineGenerateResult,
+  RoutineSyncInfo,
   FinanceReport,
   FinanceSummary,
   Integration,
@@ -428,6 +430,20 @@ export const routinesApi = {
         return request<{ id: string }>(`/calendar/events/${id}`, { method: "DELETE" });
       }
       throw err;
+    }
+  },
+  // Generate-only: returns AI draft routines for review. Never saves on its own.
+  generate: (payload: { prompt: string; date: string; period: string; use_context?: boolean }) =>
+    request<RoutineGenerateResult>("/routines/generate", { method: "POST", body: json(payload) }),
+  // Atomic save of many reviewed drafts. If any item is invalid, none are saved.
+  createBatch: (items: Record<string, unknown>[]) =>
+    request<CalendarEvent[]>("/routines/events/batch", { method: "POST", body: json({ items }) }),
+  // Supabase mirror status for the Sync card; degrades to local-first if unavailable.
+  syncStatus: async (): Promise<RoutineSyncInfo> => {
+    try {
+      return await request<RoutineSyncInfo>("/routines/sync-status");
+    } catch {
+      return { status: "local_first", configured: false };
     }
   },
 };
