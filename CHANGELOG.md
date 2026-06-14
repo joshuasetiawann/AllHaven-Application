@@ -11,6 +11,29 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [3.5.0] - 2026-06-14 — AllHaven 3.5 AI routine generation and atomic save
+
+Detailed notes: [`docs/releases/v3.5.0.md`](docs/releases/v3.5.0.md)
+
+AllHaven 3.5 brings AI assistance to Routine. Describe your day and the
+configured AI provider drafts a short, realistic set of routine items for the
+chosen time-of-day window; you review and edit each draft, then save them
+together. Nothing is generated dishonestly and nothing is saved without your
+approval.
+
+### Added
+- **AI routine generation.** Routine has a "Generate with AI" flow: a prompt plus a Morning/Afternoon/Evening window produces draft routines via the workspace's configured provider, using your open tasks and same-day routines as optional context. Drafts are generate-only — they are never written to the database.
+- **Atomic batch save.** Reviewed drafts are persisted together through a new `POST /routines/events/batch` endpoint. Every item is validated first, so if any one is invalid nothing is saved — no partially-applied batches.
+- **Routine sync status card.** The Routine summary now shows whether the workspace Supabase mirror is `active` or running `local_first`, via a new `GET /routines/sync-status` endpoint that degrades gracefully.
+
+### Changed
+- **Routine page refactored into components.** The routines dashboard page is split into focused, reusable pieces (DateStrip, PeriodSection, SummaryCards, RoutineToolbar, GenerateModal, RoutineFormModal, and shared helpers) for a lighter, clearer UI.
+
+### Fixed
+- **Honest AI provider states.** Generation surfaces a clear `not_configured` state when no provider is set, preserves a configured-but-disabled provider's specific "enable it in Settings" message instead of telling you to configure it again, and reports an honest error on unparseable output rather than a silent empty success.
+- **Server-side draft validation.** Drafts are validated and normalized server-side — slot-aware times snapped into the chosen window, capped at 8, with title, length, repeat-rule, and weekday checks — before they reach the review modal.
+- **Save controls match what saves.** The review modal disables draft editing while a save is in flight and only enables "Save all (n)" for the count that will actually persist.
+
 ## [3.4.0] - 2026-06-13 — AllHaven 3.4 voice, documents, Routine agenda, and local-first sync
 
 Detailed notes: [`docs/releases/v3.4.0.md`](docs/releases/v3.4.0.md)
