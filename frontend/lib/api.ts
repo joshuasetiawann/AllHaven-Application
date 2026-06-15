@@ -166,15 +166,6 @@ export const aiApi = {
     request<AiProvider>(`/ai/providers/${id}/enable`, { method: "POST" }),
   disableProvider: (id: string) =>
     request<AiProvider>(`/ai/providers/${id}/disable`, { method: "POST" }),
-  getPolicy: () =>
-    request<{ allow_external: boolean; default_privacy_mode: string; env_default: boolean }>(
-      "/ai/policy",
-    ),
-  setPolicy: (allow_external: boolean) =>
-    request<{ allow_external: boolean; default_privacy_mode: string; env_default: boolean }>(
-      "/ai/policy",
-      { method: "PUT", body: json({ allow_external }) },
-    ),
 };
 
 // --- Settings ---
