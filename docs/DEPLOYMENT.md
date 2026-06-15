@@ -69,26 +69,6 @@ docker compose -f docker-compose.prod.yml exec db \
 
 ---
 
-## Stand up the Supabase database (v3.7)
-
-1. Create a Supabase project; copy the Postgres connection string and the
-   service_role key.
-2. Build the full schema + RLS on Supabase (run from `backend/`, using the
-   **direct** connection or **session** pooler — not the transaction pooler):
-
-   ```bash
-   DATABASE_URL="postgresql+psycopg://postgres:<pwd>@db.<ref>.supabase.co:5432/postgres" \
-   ALLHAVEN_DB_TARGET=supabase \
-   python -m alembic upgrade head
-   ```
-
-3. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the backend `.env` so
-   new signups provision a Supabase Auth user automatically.
-4. The local Postgres database is migrated normally (no `ALLHAVEN_DB_TARGET`),
-   so RLS is skipped there.
-
----
-
 ## Required production environment variables (backend)
 
 | Variable | Purpose |
