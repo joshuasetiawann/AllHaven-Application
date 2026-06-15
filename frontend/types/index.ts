@@ -193,6 +193,34 @@ export interface CalendarEvent {
 
 export type RoutineEvent = CalendarEvent;
 
+// A single AI-generated routine suggestion. Not persisted until the user saves.
+export interface RoutineDraft {
+  title: string;
+  description: string | null;
+  location: string | null;
+  start_at: string;
+  end_at: string | null;
+  all_day: boolean;
+  time_period: "morning" | "afternoon" | "evening";
+  repeat_rule: "once" | "daily" | "weekly" | "monthly";
+  repeat_days: string[];
+}
+
+export type RoutineGenerateStatus = "ok" | "not_configured" | "blocked" | "error";
+
+export interface RoutineGenerateResult {
+  status: RoutineGenerateStatus;
+  message: string;
+  drafts: RoutineDraft[];
+}
+
+export type RoutineSyncState = "active" | "local_first" | "error";
+
+export interface RoutineSyncInfo {
+  status: RoutineSyncState;
+  configured: boolean;
+}
+
 export interface DriveFile {
   id: string;
   filename: string;
