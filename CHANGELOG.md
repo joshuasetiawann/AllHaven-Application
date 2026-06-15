@@ -11,6 +11,20 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [3.6.0] - 2026-06-17 — AllHaven 3.6 privacy cleanup
+
+Detailed notes: [`docs/releases/v3.6.0.md`](docs/releases/v3.6.0.md)
+
+A housekeeping release that removes a personal local-path identifier from the
+in-repo development notes so the project ships clean as a personal project. No
+application code, API, or behavior changes.
+
+### Changed
+
+- **Privacy cleanup of development docs.** Replaced a hard-coded personal home
+  path (`/home/<user>/…`) in `docs/SESSION_MEMORY.md` with a generic
+  placeholder (`~/CORE-OS-APPLICATION`). The note's meaning is preserved.
+
 ## [3.5.0] - 2026-06-14 — AllHaven 3.5 AI routine generation and atomic save
 
 Detailed notes: [`docs/releases/v3.5.0.md`](docs/releases/v3.5.0.md)
