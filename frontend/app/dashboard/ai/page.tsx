@@ -173,14 +173,6 @@ export default function AiChatPage() {
               <div ref={endRef} />
             </div>
 
-            {activeProvider && !activeProvider.configured ? (
-              <p className="mx-3 mb-1 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-surface-input px-3 py-2 text-[12px] text-content-muted">
-                {activeProvider.name} is not configured.
-                <Link href="/dashboard/settings" className="text-primary hover:underline">
-                  Set it up in Settings →
-                </Link>
-              </p>
-            ) : null}
             {activeProvider?.external ? (
               <p className="mx-3 mb-1 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-warning">
                 <AlertTriangle size={13} className="mt-0.5 shrink-0" />

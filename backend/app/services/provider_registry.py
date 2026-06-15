@@ -105,16 +105,6 @@ INTEGRATIONS: tuple[ProviderSpec, ...] = (
             FieldSpec("api_key", "API key", secret=True, required=True),
         ),
     ),
-    ProviderSpec(
-        id="drive_storage",
-        name="Drive Storage",
-        provider_type="storage",
-        purpose="File storage (local or Supabase)",
-        fields=(
-            FieldSpec("provider", "Provider", placeholder="local", default="local"),
-            FieldSpec("bucket", "Bucket / folder (optional)", placeholder="coreos-files"),
-        ),
-    ),
 )
 
 
@@ -135,9 +125,9 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
     ),
     ProviderSpec(
         id="openai",
-        name="GPT Agent",
+        name="OpenAI Agent",
         provider_type="api_key",
-        purpose="OpenAI / GPT models",
+        purpose="OpenAI / OpenAI-compatible models",
         external=True,
         api_key_required=True,
         default_model="gpt-4.1-mini",
@@ -154,10 +144,10 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
         purpose="Anthropic Claude models",
         external=True,
         api_key_required=True,
-        default_model="claude-sonnet-4-5",
+        default_model="claude-sonnet-4-6",
         fields=(
             FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-ant-…"),
-            FieldSpec("default_model", "Default model", placeholder="claude-sonnet-4-5"),
+            FieldSpec("default_model", "Default model", placeholder="claude-sonnet-4-6"),
         ),
     ),
     ProviderSpec(
@@ -185,20 +175,6 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
             FieldSpec("api_key", "API key", secret=True, required=True),
             FieldSpec("default_model", "Default model", placeholder="grok-2-latest"),
             FieldSpec("base_url", "Base URL (optional)", placeholder="https://api.x.ai/v1"),
-        ),
-    ),
-    ProviderSpec(
-        id="blackbox",
-        name="Blackbox Agent",
-        provider_type="api_key",
-        purpose="Blackbox AI models",
-        external=True,
-        api_key_required=True,
-        default_model="blackbox-default",
-        fields=(
-            FieldSpec("api_key", "API key", secret=True, required=True),
-            FieldSpec("default_model", "Default model", placeholder="blackbox-default"),
-            FieldSpec("base_url", "Base URL (optional)", placeholder="https://api.blackbox.ai/v1"),
         ),
     ),
     ProviderSpec(
