@@ -64,6 +64,23 @@ _GREETING_RE = re.compile(
     re.IGNORECASE,
 )
 
+_EXPLICIT_MEMORY_RE = re.compile(
+    r"\b(?:ingat|simpan|catat)\s+(?:bahwa|ini\s+sebagai\s+memori|sebagai\s+memori)\b"
+    r"|\b(?:remember|save|note)\s+that\b"
+    r"|\bsave\b.{0,40}\bas\s+memory\b",
+    re.IGNORECASE,
+)
+
+_ABUSIVE_NOISE_RE = re.compile(
+    r"\b(?:babi|kontol|anjing|bangsat|goblok|tolol|idiot|bodoh)\b",
+    re.IGNORECASE,
+)
+
+_BAD_MEMORY_VALUES = {
+    "apa", "siapa", "mana", "dimana", "di mana", "kapan", "berapa",
+    "who", "what", "where", "when", "why", "how",
+}
+
 
 def _should_skip_memory(user_msg: str) -> bool:
     """3.9 gate: never extract memory from finance/task/note commands, greetings, or
@@ -71,7 +88,13 @@ def _should_skip_memory(user_msg: str) -> bool:
     text = (user_msg or "").strip()
     if len(text) < 6:
         return True
+    # Explicit memory commands survive the general filters below. Keep this
+    # narrow so "catat pengeluaran 50 ribu" remains a finance command.
+    if _EXPLICIT_MEMORY_RE.search(text):
+        return False
     if _GREETING_RE.match(text):
+        return True
+    if _ABUSIVE_NOISE_RE.search(text):
         return True
     from app.services import ai_intent_router, schedule_parser
 
@@ -104,6 +127,17 @@ _RULES: list[tuple] = [
      "Profile", "User name", "User prefers to be called {value}.", 0.9, "LOW"),
     (re.compile(r'my\s+name\s+is\s+([A-Za-z][A-Za-z\s]{1,40}?)(?:[.,!?]|$)', re.IGNORECASE),
      "Profile", "User name", "User's name is {value}.", 0.95, "LOW"),
+
+    # Relationships / people. These use stable titles so newer values replace
+    # older ones instead of piling up contradictory memories.
+    (re.compile(r'(?:pacar|pasangan)\s+saya\s+(?:adalah\s+|namanya\s+)?([A-Za-z][A-Za-z\s]{1,40}?)(?:[.,!?]|$)', re.IGNORECASE),
+     "Profile", "User partner", "User's partner is {value}.", 0.94, "LOW"),
+    (re.compile(r'(?:teman|sahabat)\s+saya\s+(?:adalah\s+|namanya\s+)?([A-Za-z][A-Za-z\s]{1,40}?)(?:[.,!?]|$)', re.IGNORECASE),
+     "Profile", "User friend", "User's friend is {value}.", 0.9, "LOW"),
+    (re.compile(r'my\s+(?:girlfriend|boyfriend|partner)\s+is\s+([A-Za-z][A-Za-z\s]{1,40}?)(?:[.,!?]|$)', re.IGNORECASE),
+     "Profile", "User partner", "User's partner is {value}.", 0.94, "LOW"),
+    (re.compile(r'my\s+friend\s+is\s+([A-Za-z][A-Za-z\s]{1,40}?)(?:[.,!?]|$)', re.IGNORECASE),
+     "Profile", "User friend", "User's friend is {value}.", 0.9, "LOW"),
 
     # Education / location
     (re.compile(r'saya\s+(?:sekolah|belajar|kuliah)\s+di\s+([A-Za-z0-9][A-Za-z0-9\s&._-]{1,60}?)(?:[.,!?]|$)', re.IGNORECASE),
@@ -197,6 +231,10 @@ def rule_based_extract(text: str) -> List[MemoryCandidate]:
             value = m.group(1).strip().rstrip(".,!?").strip()
             if not value or len(value) < 2:
                 continue
+            if value.lower() in _BAD_MEMORY_VALUES:
+                continue
+            if _ABUSIVE_NOISE_RE.search(value):
+                continue
             if _contains_secret(value):
                 continue
             c = MemoryCandidate(
@@ -230,16 +268,6 @@ def _auto_save_or_suggest(
     extraction_method: str = "rule_based",
 ) -> None:
     from app.services import ai_settings_service, memory_service
-
-    # Re-learn guard: if the user already DELETED a memory with this exact
-    # category+title, don't let background extraction re-suggest or re-save it. (An
-    # active twin is returned first by find_existing_memory, so this only short-circuits
-    # when the sole match is soft-deleted.)
-    twin = memory_service.find_existing_memory(
-        db, principal, candidate.category, candidate.title, include_deleted=True
-    )
-    if twin is not None and twin.is_deleted:
-        return
 
     require_approval_sensitive = ai_settings_service.is_memory_require_approval_sensitive(
         db, principal

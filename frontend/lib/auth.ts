@@ -8,8 +8,6 @@ import type { User } from "@/types";
 const USER_KEY = "allhaven_user";
 // Pre-cookie versions stored the bearer token here; always scrub it.
 const LEGACY_TOKEN_KEY = "allhaven_token";
-const SUPABASE_WORKSPACE_ID_KEY = "allhaven.supabase.workspace_id";
-const SUPABASE_APP_USER_ID_KEY = "allhaven.supabase.app_user_id";
 
 export function getStoredUser(): User | null {
   if (typeof window === "undefined") return null;
@@ -33,6 +31,4 @@ export function clearAuth(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(LEGACY_TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
-  window.localStorage.removeItem(SUPABASE_WORKSPACE_ID_KEY);
-  window.localStorage.removeItem(SUPABASE_APP_USER_ID_KEY);
 }

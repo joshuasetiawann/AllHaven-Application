@@ -18,7 +18,7 @@ export function Tabs({
   className?: string;
 }) {
   return (
-    <div className={cn("custom-scrollbar flex max-w-full flex-wrap gap-1 rounded-lg border border-border bg-surface-input p-1", className)}>
+    <div className={cn("custom-scrollbar flex max-w-full overflow-x-auto rounded-lg border border-border bg-surface-input p-1", className)}>
       {items.map((item) => {
         const active = item.value === value;
         return (

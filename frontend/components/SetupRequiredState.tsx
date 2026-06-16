@@ -38,30 +38,34 @@ export function SetupRequiredState({
 
       <div className="mt-4 rounded-xl border border-border bg-surface-input/40 p-3 text-left text-[12.5px] text-content-muted">
         <p className="flex items-center gap-1.5 font-medium text-content">
-          <ShieldCheck size={14} className="text-success" /> How to connect
+          <ShieldCheck size={14} className="text-success" /> What you need
         </p>
         <ul className="mt-1.5 list-disc space-y-1 pl-5">
-          <li>Turn Tailscale on (this device + the desktop, same tailnet).</li>
-          <li>
-            Top bar → the <span className="text-content">Connection</span> control (server icon) →
-            choose <span className="text-content">Tailscale</span> and paste your desktop URL
-            (e.g. <span className="font-mono text-[11.5px]">https://your-host.ts.net</span>), then Test.
-          </li>
-          <li>First time: link this device once on the desktop app (Settings → Connect to Supabase), so the backend trusts your login.</li>
+          {isBridge ? (
+            <>
+              <li>Tailscale on this device + the desktop (same tailnet).</li>
+              <li>Set the service&apos;s Connection mode to <span className="text-content">Tailscale Private</span> and Test it.</li>
+            </>
+          ) : (
+            <>
+              <li>The backend reachable (locally, or over Tailscale from mobile).</li>
+              <li>Then this feature works the same as on desktop.</li>
+            </>
+          )}
         </ul>
       </div>
 
       <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-center">
-        {onRetry ? (
-          <Button onClick={onRetry} className="w-full sm:w-auto">
-            <RefreshCw size={15} /> Retry connection
-          </Button>
-        ) : null}
-        <Link href="/dashboard/settings?tab=privacy">
-          <Button variant="ghost" className="w-full sm:w-auto">
-            Open profile & appearance <ArrowRight size={15} />
+        <Link href="/dashboard/settings?tab=tools">
+          <Button className="w-full sm:w-auto">
+            Open Settings → Desktop Bridge <ArrowRight size={15} />
           </Button>
         </Link>
+        {onRetry ? (
+          <Button variant="ghost" onClick={onRetry} className="w-full sm:w-auto">
+            <RefreshCw size={15} /> Retry
+          </Button>
+        ) : null}
       </div>
     </div>
   );

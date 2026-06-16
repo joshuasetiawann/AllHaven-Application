@@ -37,7 +37,7 @@ def list_memories(
     stmt = select(AiMemory).where(
         AiMemory.workspace_id == principal.workspace_id,
         AiMemory.status == status,
-        AiMemory.is_deleted == False,  # noqa: E712
+        AiMemory.is_deleted.is_(False),
     )
     if category:
         stmt = stmt.where(AiMemory.category == category)
@@ -57,7 +57,7 @@ def search_memories(db: Session, principal: Principal, query: str, limit: int = 
             AiMemory.workspace_id == principal.workspace_id,
             AiMemory.status == "active",
             AiMemory.enabled == True,  # noqa: E712
-            AiMemory.is_deleted == False,  # noqa: E712
+            AiMemory.is_deleted.is_(False),
             or_(
                 func.lower(AiMemory.title).contains(q, autoescape=True),
                 func.lower(AiMemory.content).contains(q, autoescape=True),
@@ -80,6 +80,7 @@ def get_memory(db: Session, principal: Principal, memory_id: uuid.UUID) -> AiMem
         select(AiMemory).where(
             AiMemory.id == memory_id,
             AiMemory.workspace_id == principal.workspace_id,
+            AiMemory.is_deleted.is_(False),
         )
     )
     if not m:
@@ -103,7 +104,7 @@ def create_memory(
         select(func.count()).where(
             AiMemory.workspace_id == principal.workspace_id,
             AiMemory.status == "active",
-            AiMemory.is_deleted == False,  # noqa: E712
+            AiMemory.is_deleted.is_(False),
         )
     ) or 0
     if count >= MAX_MEMORIES_PER_WORKSPACE:
@@ -153,27 +154,25 @@ def update_memory(
 
 
 def delete_memory(db: Session, principal: Principal, memory_id: uuid.UUID) -> None:
-    """Soft-delete: an UPDATE the two-way sync engine carries (via updated_at LWW), so a
-    deleted memory stays deleted across devices instead of being re-synced back in."""
     m = get_memory(db, principal, memory_id)
     m.is_deleted = True
     m.deleted_at = datetime.now(timezone.utc)
-    m.enabled = False
     db.flush()
 
 
 def clear_all_memories(db: Session, principal: Principal) -> int:
-    """Soft-delete ALL active memories for the workspace (sync-safe, like delete_memory).
+    """Soft-delete ALL memories for the workspace regardless of status.
 
-    Returns the number of rows affected.
+    Returns the number of rows deleted.
     """
+    now = datetime.now(timezone.utc)
     result = db.execute(
         update(AiMemory)
         .where(
             AiMemory.workspace_id == principal.workspace_id,
-            AiMemory.is_deleted == False,  # noqa: E712
+            AiMemory.is_deleted.is_(False),
         )
-        .values(is_deleted=True, deleted_at=datetime.now(timezone.utc), enabled=False)
+        .values(is_deleted=True, deleted_at=now, updated_at=now)
     )
     db.commit()
     return result.rowcount
@@ -185,7 +184,7 @@ def mark_used(db: Session, principal: Principal, memory_id: uuid.UUID) -> None:
         select(AiMemory).where(
             AiMemory.id == memory_id,
             AiMemory.workspace_id == principal.workspace_id,
-            AiMemory.is_deleted == False,  # noqa: E712
+            AiMemory.is_deleted.is_(False),
         )
     )
     if m:
@@ -199,33 +198,20 @@ def mark_used(db: Session, principal: Principal, memory_id: uuid.UUID) -> None:
 # --------------------------------------------------------------------------- #
 
 def find_existing_memory(
-    db: Session, principal: Principal, category: str, title: str,
-    *, include_deleted: bool = False,
+    db: Session, principal: Principal, category: str, title: str
 ) -> Optional[AiMemory]:
-    """Find a memory in the same category with the same (normalized) title — for dedup.
-
-    By default only ACTIVE, non-deleted rows match. ``include_deleted`` also matches a
-    soft-deleted twin, used by the re-learn guard so auto-extraction never silently
-    recreates a memory the user just deleted.
-    """
-    stmt = select(AiMemory).where(
-        AiMemory.workspace_id == principal.workspace_id,
-        AiMemory.category == category,
-        func.lower(func.trim(AiMemory.title)) == title[:200].lower().strip(),
-    )
-    if not include_deleted:
-        stmt = stmt.where(
+    """Find an active memory in the same category with a similar title (for dedup)."""
+    return db.scalar(
+        select(AiMemory)
+        .where(
+            AiMemory.workspace_id == principal.workspace_id,
             AiMemory.status == "active",
-            AiMemory.is_deleted == False,  # noqa: E712
+            AiMemory.is_deleted.is_(False),
+            AiMemory.category == category,
+            func.lower(func.trim(AiMemory.title)) == title[:200].lower().strip(),
         )
-    # Prefer an active row over a deleted twin when both somehow exist.
-    stmt = stmt.order_by(AiMemory.is_deleted.asc()).limit(1)
-    return db.scalar(stmt)
-
-
-# Sources that represent an explicit user action and so MAY revive a deleted memory.
-# Auto-extraction sources must respect a prior deletion (the re-learn guard).
-_EXPLICIT_SOURCES = {"manual", "approved_action"}
+        .limit(1)
+    )
 
 
 def upsert_memory(
@@ -240,25 +226,15 @@ def upsert_memory(
     confidence: float = 0.9,
     source_session_id: Optional[uuid.UUID] = None,
 ) -> AiMemory:
-    """Create memory or update existing one with same category+title.
-
-    Re-learn guard: if the only twin is a soft-deleted memory, an AUTO-extraction source
-    must respect that deletion (return the deleted row untouched, don't recreate it). Only
-    an explicit user action (manual/approved) revives a deleted memory.
-    """
-    existing = find_existing_memory(db, principal, category, title, include_deleted=True)
+    """Create memory or update existing one with same category+title."""
+    existing = find_existing_memory(db, principal, category, title)
     if existing:
-        if existing.is_deleted and source not in _EXPLICIT_SOURCES:
-            # The user deleted this; don't let background extraction resurrect it.
-            return existing
         existing.content = content
         existing.confidence = max(existing.confidence, confidence)
         existing.sensitivity = max(existing.sensitivity, sensitivity, key=SENSITIVITY_LEVELS.index)
         existing.source = source
         existing.status = "active"
         existing.enabled = True
-        existing.is_deleted = False
-        existing.deleted_at = None
         db.flush()
         return existing
     return create_memory(

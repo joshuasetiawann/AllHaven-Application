@@ -1,18 +1,12 @@
-"""ai_memories: add is_deleted + deleted_at for durable, sync-safe deletes.
-
-Deleting a memory used to be a HARD delete (db.delete). The two-way sync engine has no
-delete-propagation: push only sends rows still present locally and pull re-inserts the
-still-present remote row — so a memory deleted on desktop reappeared on the next sync
-tick (the user-reported "I delete it, refresh, and it comes back"). Soft-delete turns the
-delete into an UPDATE (is_deleted=true) that LWW sync carries in both directions, and all
-reads filter is_deleted=false, so the deletion is durable and converges across devices.
-
-Mirrors the tasks/notes pattern (is_deleted + deleted_at). Additive on both local
-Postgres and Supabase — run `alembic upgrade head` on BOTH targets.
+"""ai_memories soft-delete columns
 
 Revision ID: 0020_ai_memory_soft_delete
 Revises: 0019_proposal_dedup_key
-Create Date: 2026-06-23
+Create Date: 2026-06-28
+
+This revision existed in live/local databases but the file was missing from the
+repo, which made Alembic fail before the backend could start. Keep it idempotent
+so databases that already have the columns can still upgrade cleanly.
 """
 
 from typing import Sequence, Union
@@ -26,21 +20,24 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _has_column(table: str, column: str) -> bool:
+    bind = op.get_bind()
+    return column in {c["name"] for c in sa.inspect(bind).get_columns(table)}
+
+
 def upgrade() -> None:
-    # server_default false so existing rows backfill to "not deleted"; the ORM default
-    # keeps new inserts correct without relying on the server default afterwards.
-    op.add_column(
-        "ai_memories",
-        sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.false()),
-    )
-    op.add_column(
-        "ai_memories",
-        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
-    )
-    op.create_index("ix_ai_memories_is_deleted", "ai_memories", ["is_deleted"])
+    if not _has_column("ai_memories", "is_deleted"):
+        op.add_column(
+            "ai_memories",
+            sa.Column("is_deleted", sa.Boolean(), server_default=sa.false(), nullable=False),
+        )
+        op.alter_column("ai_memories", "is_deleted", server_default=None)
+    if not _has_column("ai_memories", "deleted_at"):
+        op.add_column("ai_memories", sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True))
 
 
 def downgrade() -> None:
-    op.drop_index("ix_ai_memories_is_deleted", table_name="ai_memories")
-    op.drop_column("ai_memories", "deleted_at")
-    op.drop_column("ai_memories", "is_deleted")
+    if _has_column("ai_memories", "deleted_at"):
+        op.drop_column("ai_memories", "deleted_at")
+    if _has_column("ai_memories", "is_deleted"):
+        op.drop_column("ai_memories", "is_deleted")

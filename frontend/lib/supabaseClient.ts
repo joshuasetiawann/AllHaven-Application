@@ -1,52 +1,20 @@
 // frontend/lib/supabaseClient.ts — lazy supabase-js singleton + DATA_MODE flag.
 // Session is persisted via Capacitor Preferences so it survives app restarts.
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ApiException } from "@/lib/apiRest";
 import { setBearerToken, clearBearerToken } from "@/lib/mobileAuth";
 
 export const DATA_MODE = process.env.NEXT_PUBLIC_DATA_MODE === "supabase";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-const SUPABASE_FETCH_TIMEOUT_MS = 7000;
-const WORKSPACE_ID_KEY = "allhaven.supabase.workspace_id";
-const APP_USER_ID_KEY = "allhaven.supabase.app_user_id";
 
 let client: SupabaseClient | null = null;
 let workspaceId: string | null = null;
 let appUserId: string | null = null;
 
-export function hasSupabaseConfig(): boolean {
-  return Boolean(SUPABASE_URL.trim() && SUPABASE_ANON_KEY.trim());
-}
-
-function readCachedId(key: string): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeCachedId(key: string, value: string | null): void {
-  if (typeof window === "undefined") return;
-  try {
-    if (value) window.localStorage.setItem(key, value);
-    else window.localStorage.removeItem(key);
-  } catch {
-    /* ignore unavailable storage; IDs are non-secret cache only */
-  }
-}
-
-export function getAppUserId(): string | null {
-  if (!appUserId) appUserId = readCachedId(APP_USER_ID_KEY);
-  return appUserId;
-}
-
-export function setAppUserId(id: string | null): void {
-  appUserId = id;
-  writeCachedId(APP_USER_ID_KEY, id);
-}
+export function getAppUserId(): string | null { return appUserId; }
+export function setAppUserId(id: string | null): void { appUserId = id; }
 
 // Async storage backed by Capacitor Preferences so the session survives app restarts.
 const capacitorStorage = {
@@ -66,30 +34,15 @@ const capacitorStorage = {
 
 export async function getSupabase(): Promise<SupabaseClient> {
   if (client) return client;
-  if (DATA_MODE && !hasSupabaseConfig()) {
-    throw new Error("Mobile build is missing Supabase URL or anon key. Set SUPABASE_URL and SUPABASE_ANON_KEY in the APK build environment.");
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new ApiException(
+      "Mobile login is missing Supabase configuration. Rebuild the APK with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      "SUPABASE_NOT_CONFIGURED",
+      500,
+    );
   }
   const { createClient } = await import("@supabase/supabase-js");
-  const timeoutFetch: typeof fetch = async (input, init) => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), SUPABASE_FETCH_TIMEOUT_MS);
-    const upstream = init?.signal;
-    const abort = () => controller.abort();
-    try {
-      if (upstream) {
-        if (upstream.aborted) controller.abort();
-        else upstream.addEventListener("abort", abort, { once: true });
-      }
-      return await fetch(input, { ...init, signal: controller.signal });
-    } finally {
-      clearTimeout(timer);
-      upstream?.removeEventListener?.("abort", abort);
-    }
-  };
   client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: {
-      fetch: timeoutFetch,
-    },
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -112,10 +65,8 @@ export async function getSupabase(): Promise<SupabaseClient> {
 }
 
 export function getWorkspaceId(): string | null {
-  if (!workspaceId) workspaceId = readCachedId(WORKSPACE_ID_KEY);
   return workspaceId;
 }
 export function setWorkspaceId(id: string | null): void {
   workspaceId = id;
-  writeCachedId(WORKSPACE_ID_KEY, id);
 }

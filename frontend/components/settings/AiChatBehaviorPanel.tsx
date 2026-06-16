@@ -7,29 +7,12 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Toggle } from "@/components/ui/Toggle";
 import { ErrorState, Loading } from "@/components/ui/States";
-import { NotConnectedNotice } from "@/components/settings/NotConnectedNotice";
 import { aiApi, ApiException } from "@/lib/api";
-import { needsBackendConnection } from "@/lib/connection";
-import { BACKEND_CHANGED_EVENT } from "@/lib/connectionMode";
 import type { AiChatSettings } from "@/types";
-
-// Shown when the backend isn't connected, so the controls are still visible/configurable
-// (changes save once you connect). Mirrors the backend defaults.
-const DEFAULT_CHAT_SETTINGS: AiChatSettings = {
-  default_mode: "single",
-  polish_level: "standard",
-  max_active_agents: 3,
-  show_debate_flow: true,
-  require_approval: true,
-  show_tool_activity: true,
-};
 
 export function AiChatBehaviorPanel() {
   const [settings, setSettings] = useState<AiChatSettings | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // Backend unreachable → render an honest connect-state instead of an endless spinner.
-  const [needsBackend, setNeedsBackend] = useState(false);
-  const [backendIssue, setBackendIssue] = useState<"unreachable" | "auth">("unreachable");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Local text state so the number field saves on commit, not per keystroke.
@@ -37,29 +20,17 @@ export function AiChatBehaviorPanel() {
 
   const load = useCallback(async () => {
     setLoadError(null);
-    setNeedsBackend(false);
-    setBackendIssue("unreachable");
     try {
       const data = await aiApi.getChatSettings();
       setSettings(data);
       setMaxAgents(String(data.max_active_agents));
     } catch (err) {
-      if (needsBackendConnection(err)) {
-        setBackendIssue(err instanceof ApiException && (err.statusCode === 401 || err.statusCode === 403) ? "auth" : "unreachable");
-        setNeedsBackend(true);
-        setSettings(DEFAULT_CHAT_SETTINGS);
-        setMaxAgents(String(DEFAULT_CHAT_SETTINGS.max_active_agents));
-        return;
-      }
       setLoadError(err instanceof ApiException ? err.message : "Failed to load chat settings.");
     }
   }, []);
 
   useEffect(() => {
     void load();
-    const onBackendChanged = () => void load();
-    window.addEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
-    return () => window.removeEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
   }, [load]);
 
   // Per-control optimistic save: apply immediately, sync with the response, revert on failure.
@@ -95,14 +66,11 @@ export function AiChatBehaviorPanel() {
     void save({ max_active_agents: num });
   };
 
-  if (loadError && !needsBackend) return <ErrorState message={loadError} onRetry={load} />;
+  if (loadError) return <ErrorState message={loadError} onRetry={load} />;
   if (!settings) return <Loading label="Loading chat settings…" />;
 
   return (
     <div className="space-y-4">
-      {needsBackend ? (
-        <NotConnectedNotice kind={backendIssue} what="Desktop-only chat defaults need the Desktop Bridge." onRetry={load} />
-      ) : null}
       {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
 
       <div className="grid gap-5 lg:grid-cols-2">

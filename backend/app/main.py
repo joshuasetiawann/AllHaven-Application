@@ -56,8 +56,9 @@ def create_app() -> FastAPI:
         title=settings.APP_NAME,
         version=_app_version(),
         description="Modular AI command center — local MVP backend.",
-        docs_url="/docs",
-        openapi_url="/openapi.json",
+        docs_url="/docs" if settings.api_docs_enabled else None,
+        redoc_url="/redoc" if settings.api_docs_enabled else None,
+        openapi_url="/openapi.json" if settings.api_docs_enabled else None,
         lifespan=lifespan,
     )
 
@@ -73,15 +74,22 @@ def create_app() -> FastAPI:
         return response
 
     # CORS. Browser auth is an HttpOnly SameSite=Lax cookie, so credentials must
-    # be allowed for the frontend origin. Local/dev (or BACKEND_CORS_ALLOW_ALL)
-    # echoes the requesting origin so the app works from any LAN device; that is
-    # safe with cookies because SameSite=Lax keeps them off cross-SITE fetches
-    # and state-changing requests additionally require the CSRF header.
-    # Production restricts to the explicit BACKEND_CORS_ORIGINS list.
-    if settings.BACKEND_CORS_ALLOW_ALL or settings.is_local_env:
+    # be allowed for trusted frontend origins. Local/dev accepts localhost,
+    # private LAN IPs, Tailscale CGNAT IPs, Tailscale Serve hostnames, and the
+    # Capacitor WebView origin. It does not echo arbitrary public origins unless
+    # BACKEND_CORS_ALLOW_ALL is explicitly enabled.
+    if settings.BACKEND_CORS_ALLOW_ALL:
         app.add_middleware(
             CORSMiddleware,
             allow_origin_regex=".*",
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    elif settings.is_local_env:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origin_regex=settings.cors_private_origin_regex,
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
@@ -118,25 +126,16 @@ def create_app() -> FastAPI:
     app.include_router(n8n.router, prefix=prefix)
     app.include_router(system.router, prefix=prefix)
 
-    @app.get(prefix, tags=["root"])
-    def api_root() -> dict:
-        return success_response(
-            {
-                "app": settings.APP_NAME,
-                "docs": "/docs",
-                "health": f"{prefix}/health",
-            },
-            "AllHaven API is running",
-        )
-
     @app.get("/", tags=["root"])
     def root() -> dict:
+        data = {
+            "app": settings.APP_NAME,
+            "health": f"{prefix}/health",
+        }
+        if settings.api_docs_enabled:
+            data["docs"] = "/docs"
         return success_response(
-            {
-                "app": settings.APP_NAME,
-                "docs": "/docs",
-                "health": f"{prefix}/health",
-            },
+            data,
             "AllHaven API is running",
         )
 
