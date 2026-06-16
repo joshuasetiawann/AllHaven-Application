@@ -7,12 +7,12 @@
 **The complete release history of [AllHaven Command Center](../../tree/main).**
 
 Every version is frozen in its own self-contained archive folder
-(`CoreOS 0.1` through `AllHaven 3.7`) — a full, runnable snapshot.
+(`CoreOS 0.1` through `AllHaven 4.0`) — a full, runnable snapshot.
 The latest version also lives on the
 [`main`](../../tree/main) branch.
 
-![Latest](https://img.shields.io/badge/latest-AllHaven%203.7%20·%20v3.7.0-18E0D6?style=flat-square)
-&nbsp;![Releases](https://img.shields.io/badge/releases-38-2563EB?style=flat-square)
+![Latest](https://img.shields.io/badge/latest-AllHaven%204.0%20·%20v4.0.0-18E0D6?style=flat-square)
+&nbsp;![Releases](https://img.shields.io/badge/releases-41-2563EB?style=flat-square)
 &nbsp;![© 2026 Joshua Setiawan](https://img.shields.io/badge/©%202026-Joshua%20Setiawan-555?style=flat-square)
 
 </div>
@@ -74,15 +74,18 @@ The latest version also lives on the
 | **AllHaven 3.4** | 2026-06-13 | **AllHaven** | `v3.4.0` | **Voice, documents, Routine agenda, and local-first sync** — adds voice dictation in AI Chat, PDF/DOC/DOCX/text/code upload into AI Knowledge (DOCX parsing hardened against XXE with `defusedxml`), redesigns Routine as a lighter agenda/timeline, and broadens local-first Supabase mirroring across the workspace while keeping the local DB as the source of truth. |
 | **AllHaven 3.5** | 2026-06-14 | **AllHaven** | `v3.5.0` | **AI routine generation and atomic save** — adds a "Generate with AI" flow to Routine that drafts realistic items for a Morning/Afternoon/Evening window for you to review and edit, saves reviewed drafts together atomically (an invalid item saves none), keeps generation honest (clear states when a provider is missing or disabled, never saves on its own), adds a Routine sync-status card, and refactors the routines page into focused components. |
 | **AllHaven 3.6** | 2026-06-17 | **AllHaven** | `v3.6.0` | **Privacy cleanup** — housekeeping release that removes a personal local-path identifier from the in-repo development notes so the project ships clean as a personal project. No application code, API, or behavior changes. |
-| **⭐ AllHaven 3.7** | 2026-06-19 | **AllHaven** | `v3.7.0` | **Current. Two-way Postgres⇄Supabase sync + mobile-on-Supabase** — desktop stays local-first Postgres with a new two-way incremental sync engine (LWW + tombstones + visible status); mobile talks directly to Supabase (Auth + RLS) for Tasks/Notes/Finance/Calendar/Routines/Automations/Weather; Supabase Auth provisioning + "Connect to Supabase"; migrations 0010–0015 (deleted_at, supabase_user_id, updated_at trigger, RLS + workspace_members hardening, sync_state); login timeout fix; checklist soft-delete for correct sync. |
+| **AllHaven 3.7** | 2026-06-19 | **AllHaven** | `v3.7.0` | **Two-way Postgres⇄Supabase sync + mobile-on-Supabase** — desktop stays local-first Postgres with a new two-way incremental sync engine (LWW + tombstones + visible status); mobile talks directly to Supabase (Auth + RLS) for Tasks/Notes/Finance/Calendar/Routines/Automations/Weather; Supabase Auth provisioning + "Connect to Supabase"; migrations 0010–0015 (deleted_at, supabase_user_id, updated_at trigger, RLS + workspace_members hardening, sync_state); login timeout fix; checklist soft-delete for correct sync. |
+| **AllHaven 3.8** | 2026-06-19 | **AllHaven** | `v3.8.0` | **Mobile full release, unified accounts, performance & Weather removal** — a stability audit (routine recurrence expansion + further bug fixes), unified desktop/mobile accounts, performance work, and the start of removing Weather from the product scope. |
+| **AllHaven 3.9** | 2026-06-20 | **AllHaven** | `v3.9.0` | **AI pipeline overhaul + cross-device approvals** — a deterministic intent router (finance-first, so money is never stored as memory; robust Indonesian/IDR parsing), proposal lifecycle with two-way sync (FAILED/NEEDS_EDIT, no double-execution), cross-device approvals (mobile and desktop act on the same pending list), readable proposal cards, plus a desktop CSS-on-update fix and standalone register. |
+| **⭐ AllHaven 4.0** | 2026-06-20 | **AllHaven** | `v4.0.0` | **Current. Full Mobile Parity + Tailscale Bridge + release-grade stability** — every active desktop module is reachable on mobile with honest setup-required states (no "use the desktop app"); a **Tailscale Desktop Bridge** for desktop-local Ollama/n8n (Funnel off by default) and a runtime **Backend Bridge** to point the installed app at your desktop with no rebuild; deployment profiles, end-to-end version visibility, Weather removal; an idempotent **self-healing installer** (native-Postgres detection, broken-venv repair, venv Alembic) + `scripts/doctor.sh`; backend 473 tests pass. |
 
 <sub>⭐ = current release. Dates reflect each version's build/release during the project's initial development sprint.</sub>
 
 ## 🌱 How the two branches relate
 
 Each archive folder is a complete, standalone snapshot you can open and run on
-its own; the latest (`AllHaven 3.7`) keeps its own `CHANGELOG.md`, `VERSION`, and
-`docs/releases/` inside it. New releases add the next folder here, while
+its own; the latest (`AllHaven 4.0`) keeps its own `CHANGELOG.md`, `VERSION`, and
+`docs/`/`docs/v4/` release notes inside it. New releases add the next folder here, while
 [`main`](../../tree/main) is fast-forwarded to the same version.
 
 ---
