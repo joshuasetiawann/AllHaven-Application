@@ -25,9 +25,55 @@ Design spec: [`docs/superpowers/specs/2026-06-17-mobile-apk-design.md`](superpow
   `NEXT_PUBLIC_AUTH_MODE=bearer`, which the `build:mobile` script **sets for you**.
   The token is stored natively via `@capacitor/preferences`
   (see `frontend/lib/mobileAuth.ts`). **No backend code change is required.**
-- **API URL is baked at build time** from `NEXT_PUBLIC_API_BASE_URL`. A shell value
-  overrides `frontend/.env.local`, so you point each build at the backend you want
-  without editing files. (This is the only env var you need to supply yourself.)
+- **API URL has a build-time default _and_ a runtime override.** The build bakes
+  `NEXT_PUBLIC_API_BASE_URL` as the default, but the installed app can be repointed
+  at runtime in **Settings → Backend Bridge** (see below) — essential because
+  inside the WebView `localhost` is the phone, not your desktop.
+
+---
+
+## Backend Bridge — point the installed app at your desktop (no rebuild)
+
+The backend URL is resolved **per request** by `frontend/lib/backendUrl.ts`, in
+priority order:
+
+1. **Runtime override** — a non-secret URL saved on the device in `localStorage`
+   (key `allhaven.backend_base_url`) via **Settings → Backend Bridge**.
+2. **Build-time default** — `NEXT_PUBLIC_API_BASE_URL` baked into the bundle.
+3. **Derived** — same host as the page on `:8000` (desktop dev / LAN browser).
+4. **Fallback** — `http://localhost:8000/api/v1` (desktop only).
+
+Because the override wins, a user can install the APK and **fix the connection
+from inside the app** — no CI rebuild. The Backend Bridge card is reachable even
+when the backend is unreachable: it appears on the **login screen** ("Configure
+backend connection"), on the **session-check error screen**, and in **Settings →
+Connected Tools**. It runs a real **Test Connection** against `GET /api/v1/health`
+and only shows **Online** when that truly responds — never inferred from a
+non-empty URL. A failed test keeps your previous working URL.
+
+**Set it on the phone:**
+1. Open AllHaven → if it can't connect, tap **Configure backend connection**
+   (or go to **Settings → Connected Tools → Backend Bridge**).
+2. Enter your desktop's address — a Tailscale IP (`http://100.x.y.z:8000`), a
+   MagicDNS name (`http://desktop-name.tailnet-name.ts.net:8000`), or a Tailscale
+   Serve URL (`https://desktop-name.tailnet-name.ts.net`). `/api/v1` is appended
+   automatically.
+3. Tap **Test Connection** → **Save & Use**.
+
+**Run the desktop backend so the phone can reach it** (bind all interfaces):
+```bash
+cd backend && source .venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000     # NOT 127.0.0.1
+```
+In local mode (`APP_ENV=local`) CORS already accepts any origin; the mobile build
+authenticates with a bearer token (no cookies), so there's no SameSite issue.
+
+**Cleartext HTTP to a Tailscale IP** (`http://100.x.y.z:8000`) is permitted by
+`frontend/android/app/src/main/res/xml/network_security_config.xml`. Tailscale
+already encrypts traffic between your devices at the WireGuard layer, and these
+addresses are only reachable inside your own tailnet. For HTTPS end-to-end (and
+no cleartext at all), prefer **Tailscale Serve** — see
+[`docs/v4/TAILSCALE_SETUP.md`](v4/TAILSCALE_SETUP.md).
 
 ---
 
@@ -96,7 +142,9 @@ on your PC over Wi-Fi. **Phone and PC must be on the same Wi-Fi network.**
 
 > **HTTP on the LAN:** phase 1 uses plain `http://` to your PC. That's fine for
 > local testing on your own network; do not use it over the public internet.
-> Android 9+ allows cleartext to private IPs by default for debug builds.
+> Cleartext HTTP is permitted by the bundled
+> `android/app/src/main/res/xml/network_security_config.xml` (private/local-first
+> profile). For encrypted transport, use Tailscale Serve (HTTPS).
 
 ---
 
