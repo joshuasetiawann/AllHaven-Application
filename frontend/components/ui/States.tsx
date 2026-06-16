@@ -3,9 +3,6 @@ import { AlertTriangle, Inbox, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/format";
 
-// Pure, hook-free so it can be rendered from Server Components too (e.g. app/loading.tsx).
-// Panels avoid an endless spinner by branching to SetupRequiredState on an unreachable
-// backend, so Loading itself does not need a self-timeout.
 export function Loading({ label = "Loading…" }: { label?: string }) {
   return (
     <div className="flex items-center justify-center gap-2 py-16 text-content-muted">

@@ -57,7 +57,6 @@ import type { AiProviderUpdatePayload, GoogleScopes } from "@/types/api";
 // WebView origin is always https://localhost (the phone), so a runtime override
 // is the only way to reach the desktop backend.
 import { getApiBaseUrl } from "@/lib/backendUrl";
-import { nativeJsonRequest } from "@/lib/nativeHttp";
 
 export { getApiBaseUrl } from "@/lib/backendUrl";
 
@@ -114,18 +113,11 @@ function authFetchInit(
   return { headers, credentials: "include" };
 }
 
-// Drop cached auth after an unauthorized response.
+// Drop cached auth after an unauthorized response (both build targets).
 function handleUnauthorized(status: number): void {
   if (status !== 401) return;
-  // On mobile (bearer build) the REST backend is only the OPTIONAL desktop bridge. A 401
-  // from it means the bridge rejected this token (account not linked / bridge auth), NOT
-  // that the Supabase session is invalid — clearing here logged the user OUT the moment a
-  // Settings/System probe hit a backend that doesn't accept them ("fake login"). The
-  // Supabase session is the source of truth on mobile and is managed by supabaseClient /
-  // apiSupabase (which raises its own 401 when the session is genuinely gone). So never
-  // touch it on a bridge 401.
-  if (BEARER_MODE) return;
   clearAuth();
+  if (BEARER_MODE) void clearBearerToken();
 }
 
 // Abort any request that stalls past this, so the UI fails fast with a clear
@@ -133,16 +125,9 @@ function handleUnauthorized(status: number): void {
 // (bearer build) talks to Supabase for data; the REST groups it still calls
 // (AI, settings, drive, …) point at an optional backend that's often
 // unreachable from the phone — fail those fast so they don't freeze the UI.
-// 3.5s so an unreachable desktop backend degrades quickly (the shared
-// backendReachable() gate usually skips these calls entirely first).
-const REQUEST_TIMEOUT_MS = BEARER_MODE ? 3500 : 20000;
-// AI generation (chat / multi-agent / debate / reasoning council) legitimately takes
-// far longer than a normal request — the 6s mobile fail-fast would abort a real reply
-// mid-stream. Give those calls a generous ceiling so AI works on mobile, while plain
-// reads/writes still fail fast. Callers opt in via the `timeoutMs` arg on request().
-const AI_TIMEOUT_MS = 120000;
+const REQUEST_TIMEOUT_MS = BEARER_MODE ? 6000 : 20000;
 
-async function request<T>(path: string, options: RequestInit = {}, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method || "GET").toUpperCase();
   // Mobile: make sure the persisted bearer token is loaded before the first
   // call, so a cold start can't fire requests with no Authorization header.
@@ -153,45 +138,17 @@ async function request<T>(path: string, options: RequestInit = {}, timeoutMs: nu
   });
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    let status = 0;
-    let ok = false;
-    let body: ApiEnvelope<T> | null = null;
+    let res: Response;
     try {
-      const base = getApiBaseUrl();
-      if (BEARER_MODE && !base) {
-        throw new ApiException(
-          "Desktop Bridge is not configured. Mobile data works through Supabase; configure a bridge only for Ollama/n8n desktop features.",
-          "BRIDGE_REQUIRED",
-          503,
-        );
-      }
-      const native = await nativeJsonRequest<ApiEnvelope<T>>(`${base}${path}`, {
+      res = await fetch(`${getApiBaseUrl()}${path}`, {
         ...options,
         headers,
-      }, timeoutMs);
-      if (native) {
-        status = native.status;
-        ok = native.status >= 200 && native.status < 300;
-        body = native.data;
-      } else {
-        const res = await fetch(`${base}${path}`, {
-          ...options,
-          headers,
-          credentials,
-          signal: controller.signal,
-        });
-        status = res.status;
-        ok = res.ok;
-        try {
-          body = (await res.json()) as ApiEnvelope<T>;
-        } catch {
-          body = null;
-        }
-      }
+        credentials,
+        signal: controller.signal,
+      });
     } catch (err) {
-      if (err instanceof ApiException) throw err;
       const timedOut = err instanceof DOMException && err.name === "AbortError";
       throw new ApiException(
         timedOut
@@ -202,12 +159,19 @@ async function request<T>(path: string, options: RequestInit = {}, timeoutMs: nu
       );
     }
 
-    if (!ok || body?.status === "error") {
-      handleUnauthorized(status);
+    let body: ApiEnvelope<T> | null = null;
+    try {
+      body = (await res.json()) as ApiEnvelope<T>;
+    } catch {
+      body = null;
+    }
+
+    if (!res.ok || body?.status === "error") {
+      handleUnauthorized(res.status);
       throw new ApiException(
-        body?.message || `Request failed (${status})`,
+        body?.message || `Request failed (${res.status})`,
         body?.error_code || "HTTP_ERROR",
-        status,
+        res.status,
         body?.details,
       );
     }
@@ -342,26 +306,26 @@ export const aiApi = {
     request<ChatResponse>("/ai/chat", {
       method: "POST",
       body: json({ message, session_id: sessionId || null, provider_id: providerId || null, section_key: sectionKey, thinking_mode: thinkingMode, response_language: responseLanguage || null }),
-    }, AI_TIMEOUT_MS),
+    }),
   // Fan a message out to up to 10 agents concurrently. `images` are data URLs;
   // `thinkingMode` controls reasoning depth + sampling.
   multiChat: (message: string, providerIds: string[], sessionId?: string, images?: string[], thinkingMode = "balance", sectionKey = "general", responseLanguage?: string) =>
     request<MultiChatResponse>("/ai/chat/multi", {
       method: "POST",
       body: json({ message, provider_ids: providerIds, session_id: sessionId || null, images: images?.length ? images : null, thinking_mode: thinkingMode, section_key: sectionKey, response_language: responseLanguage || null }),
-    }, AI_TIMEOUT_MS),
+    }),
   // Run a multi-agent debate: agents argue across `rounds`, then one synthesizes.
   debateChat: (message: string, providerIds: string[], sessionId?: string, rounds = 2, images?: string[], thinkingMode = "balance", sectionKey = "general", responseLanguage?: string) =>
     request<MultiChatResponse>("/ai/chat/debate", {
       method: "POST",
       body: json({ message, provider_ids: providerIds, session_id: sessionId || null, rounds, images: images?.length ? images : null, thinking_mode: thinkingMode, section_key: sectionKey, response_language: responseLanguage || null }),
-    }, AI_TIMEOUT_MS),
+    }),
   // Run the reasoning council (Analyst -> Critic -> Synthesizer + quality gate).
   reasonChat: (message: string, providerIds: string[], sessionId?: string, thinkingMode = "balance", images?: string[], sectionKey = "general", responseLanguage?: string) =>
     request<MultiChatResponse>("/ai/chat/reason", {
       method: "POST",
       body: json({ message, provider_ids: providerIds, session_id: sessionId || null, thinking_mode: thinkingMode, images: images?.length ? images : null, section_key: sectionKey, response_language: responseLanguage || null }),
-    }, AI_TIMEOUT_MS),
+    }),
   getRun: (runId: string) => request<MultiChatResponse>(`/ai/runs/${runId}`),
   listProposals: () => request<ToolProposal[]>("/ai/proposals"),
   rejectProposal: (id: string) =>
@@ -558,16 +522,12 @@ export const driveApi = {
   config: () => request<DriveConfig>("/drive/config"),
   list: () => request<DriveFile[]>("/drive/files"),
   upload: async (file: File): Promise<DriveFile> => {
-    const base = getApiBaseUrl();
-    if (BEARER_MODE && !base) {
-      throw new ApiException("Desktop Bridge is not configured. Drive uploads require the desktop/backend bridge.", "BRIDGE_REQUIRED", 503);
-    }
     const form = new FormData();
     form.append("file", file);
     const { headers, credentials } = authFetchInit("POST");
     let res: Response;
     try {
-      res = await fetch(`${base}/drive/files`, {
+      res = await fetch(`${getApiBaseUrl()}/drive/files`, {
         method: "POST",
         headers,
         body: form,
@@ -587,14 +547,10 @@ export const driveApi = {
   // an <a href> cannot carry the Authorization header, so callers must go
   // through this instead of building the download URL themselves.
   download: async (id: string): Promise<Blob> => {
-    const base = getApiBaseUrl();
-    if (BEARER_MODE && !base) {
-      throw new ApiException("Desktop Bridge is not configured. Drive downloads require the desktop/backend bridge.", "BRIDGE_REQUIRED", 503);
-    }
     const { headers, credentials } = authFetchInit("GET");
     let res: Response;
     try {
-      res = await fetch(`${base}/drive/files/${id}/download`, { headers, credentials });
+      res = await fetch(`${getApiBaseUrl()}/drive/files/${id}/download`, { headers, credentials });
     } catch {
       throw new ApiException("Cannot reach the AllHaven API. Is the backend running?", "NETWORK_ERROR", 0);
     }
@@ -612,17 +568,13 @@ export const driveApi = {
 export const knowledgeApi = {
   listDocuments: () => request<KnowledgeDocument[]>("/ai/knowledge/documents"),
   uploadDocument: async (file: File, title?: string): Promise<KnowledgeDocument> => {
-    const base = getApiBaseUrl();
-    if (BEARER_MODE && !base) {
-      throw new ApiException("Desktop Bridge is not configured. Knowledge uploads require the desktop/backend bridge.", "BRIDGE_REQUIRED", 503);
-    }
     const form = new FormData();
     form.append("file", file);
     const { headers, credentials } = authFetchInit("POST");
     const qs = title?.trim() ? `?title=${encodeURIComponent(title.trim())}` : "";
     let res: Response;
     try {
-      res = await fetch(`${base}/ai/knowledge/documents${qs}`, {
+      res = await fetch(`${getApiBaseUrl()}/ai/knowledge/documents${qs}`, {
         method: "POST",
         headers,
         body: form,
@@ -667,8 +619,6 @@ export const automationsApi = {
 // --- System Control (start/stop/restart & inspect Haven services) ---
 export const systemApi = {
   status: () => request<SystemStatus>("/system/status"),
-  startAgent: () =>
-    request<{ started: boolean; running: boolean; message: string }>("/system/agent/start", { method: "POST" }),
   action: (name: string, action: string) =>
     request<ServiceStatus>(`/system/services/${name}/${action}`, { method: "POST", body: json({}) }),
   logs: (name: string, lines = 300) => request<SystemLogs>(`/system/logs/${name}?lines=${lines}`),

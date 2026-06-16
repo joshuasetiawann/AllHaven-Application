@@ -17,6 +17,7 @@ SOFT_DELETE_TABLES = [
     "integration_configs",
     "ai_agent_configs",
     "automations",
+    "ai_memories",
 ]
 
 

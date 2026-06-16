@@ -6,10 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Toggle } from "@/components/ui/Toggle";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
-import { NotConnectedNotice } from "@/components/settings/NotConnectedNotice";
 import { aiApi, ApiException } from "@/lib/api";
-import { needsBackendConnection } from "@/lib/connection";
-import { BACKEND_CHANGED_EVENT } from "@/lib/connectionMode";
 import type { AiTool } from "@/types";
 
 // Known module display order; anything new from the backend registry is appended after.
@@ -28,34 +25,21 @@ const RISK_TONE: Record<AiTool["risk"], "neutral" | "warning" | "danger"> = {
 export function AiToolsPanel() {
   const [tools, setTools] = useState<AiTool[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // Backend unreachable → render an honest connect-state instead of an endless spinner.
-  const [needsBackend, setNeedsBackend] = useState(false);
-  const [backendIssue, setBackendIssue] = useState<"unreachable" | "auth">("unreachable");
   const [error, setError] = useState<string | null>(null);
   // Name of the tool whose toggle is being saved.
   const [busyTool, setBusyTool] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
-    setNeedsBackend(false);
-    setBackendIssue("unreachable");
     try {
       setTools(await aiApi.listTools());
     } catch (err) {
-      if (needsBackendConnection(err)) {
-        setBackendIssue(err instanceof ApiException && (err.statusCode === 401 || err.statusCode === 403) ? "auth" : "unreachable");
-        setNeedsBackend(true);
-        return;
-      }
       setLoadError(err instanceof ApiException ? err.message : "Failed to load AI tools.");
     }
   }, []);
 
   useEffect(() => {
     void load();
-    const onBackendChanged = () => void load();
-    window.addEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
-    return () => window.removeEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
   }, [load]);
 
   // Optimistic toggle: flip immediately, sync with the response, revert on failure.
@@ -74,23 +58,25 @@ export function AiToolsPanel() {
     }
   };
 
-  // Only a hard spinner/error when we're actually mid-load on a reachable backend.
-  if (loadError && !needsBackend) return <ErrorState message={loadError} onRetry={load} />;
-  if (!tools && !needsBackend) return <Loading label="Loading AI tools…" />;
+  if (loadError) return <ErrorState message={loadError} onRetry={load} />;
+  if (!tools) return <Loading label="Loading AI tools…" />;
+  if (!tools.length) {
+    return (
+      <EmptyState
+        title="No AI tools registered"
+        description="The backend Tool Registry has not published any tools yet."
+        icon={<Wrench size={20} />}
+      />
+    );
+  }
 
-  const list = tools ?? [];
   const modules = [
-    ...MODULE_ORDER.filter((m) => list.some((t) => t.module === m)),
-    ...Array.from(new Set(list.map((t) => t.module))).filter((m) => !MODULE_ORDER.includes(m)),
+    ...MODULE_ORDER.filter((m) => tools.some((t) => t.module === m)),
+    ...Array.from(new Set(tools.map((t) => t.module))).filter((m) => !MODULE_ORDER.includes(m)),
   ];
 
   return (
     <div className="space-y-4">
-      {/* Stay OPEN with or without the backend — show the registry + a slim notice. */}
-      {needsBackend ? (
-        <NotConnectedNotice kind={backendIssue} what="Backend-only AI tools load from your Desktop Bridge." onRetry={load} />
-      ) : null}
-
       <Card padding="md" className="border-primary/15">
         <div className="flex items-start gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -108,24 +94,13 @@ export function AiToolsPanel() {
 
       {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
 
-      {list.length === 0 ? (
-        <EmptyState
-          title={needsBackend ? "Tools load when you connect" : "No AI tools registered"}
-          description={
-            needsBackend
-              ? "Connect the Desktop Bridge from the server icon in the top bar to load backend-only tools."
-              : "The backend Tool Registry has not published any tools yet."
-          }
-          icon={<Wrench size={20} />}
-        />
-      ) : (
       <Card>
         <div className="space-y-5">
           {modules.map((module) => (
             <section key={module}>
               <p className="label-mono">{MODULE_LABELS[module] ?? module}</p>
               <ul className="mt-1 divide-y divide-border">
-                {list
+                {tools
                   .filter((t) => t.module === module)
                   .map((tool) => (
                     <li key={tool.name} className="flex items-center justify-between gap-3 py-3">
@@ -153,7 +128,6 @@ export function AiToolsPanel() {
           ))}
         </div>
       </Card>
-      )}
     </div>
   );
 }

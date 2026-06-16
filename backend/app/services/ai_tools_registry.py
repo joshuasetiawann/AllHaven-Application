@@ -531,40 +531,13 @@ def _h_list_categories(db, principal, args) -> dict:
 
 
 def _h_create_transaction(db, principal, args) -> dict:
-    from app.core.exceptions import ValidationAppError
-    from app.schemas.finance import CategoryCreate, TransactionCreate
+    from app.schemas.finance import TransactionCreate
     from app.services import finance_service
     from app.services.ai_local_answers import time_payload
 
     args = dict(args or {})
     if not args.get("transaction_date"):
         args["transaction_date"] = time_payload()["date"]
-    raw_category = str(args.get("category_id") or "").strip()
-    if raw_category:
-        try:
-            uuid.UUID(raw_category)
-        except (ValueError, TypeError):
-            # Models sometimes put a human category label ("makan") into category_id.
-            # Resolve plain labels, but reject strings that look like a broken UUID.
-            if "-" in raw_category or len(raw_category) >= 32:
-                raise ValidationAppError(
-                    "category_id must be a valid UUID. Pick an existing category or leave it empty.",
-                    details={"field": "category_id", "value": raw_category},
-                )
-            txn_type = str(args.get("type") or "EXPENSE").upper()
-            if txn_type not in ("INCOME", "EXPENSE"):
-                txn_type = "EXPENSE"
-            existing = next(
-                (
-                    c for c in finance_service.list_categories(db, principal)
-                    if c.type == txn_type and c.name.strip().lower() == raw_category.lower()
-                ),
-                None,
-            )
-            category = existing or finance_service.create_category(
-                db, principal, CategoryCreate(name=raw_category[:255], type=txn_type)
-            )
-            args["category_id"] = str(category.id)
     txn = finance_service.create_transaction(
         db, principal, TransactionCreate(**args), dedup_key=_dedup_key(),
     )

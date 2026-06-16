@@ -29,21 +29,13 @@ export function DesktopBridgePanel() {
 
   useEffect(() => {
     // Best-effort: /health is public and returns the deployment profile.
-    const base = getApiBaseUrl();
-    if (!base) return;
-    const ctrl = new AbortController();
-    const t = window.setTimeout(() => ctrl.abort(), 2500);
-    fetch(`${base}/health`, { signal: ctrl.signal })
+    fetch(`${getApiBaseUrl()}/health`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         const p = j?.data?.deployment_profile;
         if (p) setProfile(p);
       })
       .catch(() => {});
-    return () => {
-      window.clearTimeout(t);
-      ctrl.abort();
-    };
   }, []);
 
   return (

@@ -20,10 +20,7 @@ import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { ErrorState, Loading } from "@/components/ui/States";
-import { NotConnectedNotice } from "@/components/settings/NotConnectedNotice";
 import { systemApi, ApiException } from "@/lib/api";
-import { backendReachable, needsBackendConnection } from "@/lib/connection";
-import { BEARER_MODE } from "@/lib/mobileAuth";
 import { relativeTime } from "@/lib/format";
 import type {
   PortsApplyResult,
@@ -67,67 +64,31 @@ function err(e: unknown, fallback: string): string {
 export default function SystemControl() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Backend unreachable → render an honest connect-state instead of an endless spinner.
-  const [needsBackend, setNeedsBackend] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   // Tracks the in-flight action per service, keyed as `${name}:${action}`.
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [startingAgent, setStartingAgent] = useState(false);
   const [logsFor, setLogsFor] = useState<ServiceStatus | null>(null);
 
-  // Returns true when the status load SUCCEEDED — the caller uses this to decide
-  // whether to start the 10s poll (don't hammer an unreachable backend).
-  const loadStatus = useCallback(async (): Promise<boolean> => {
-    // Mobile (bearer build): short-circuit to the connect-state in ~2-3s (one shared,
-    // cached ping) when the desktop backend isn't reachable. Desktop/web passes through.
-    if (BEARER_MODE && !(await backendReachable())) {
-      setNeedsBackend(true);
-      return false;
-    }
+  const loadStatus = useCallback(async () => {
     try {
       setStatus(await systemApi.status());
       setError(null);
-      setNeedsBackend(false);
-      return true;
     } catch (e) {
-      if (needsBackendConnection(e)) {
-        setNeedsBackend(true);
-        return false;
-      }
       setError(err(e, "Failed to load system status."));
-      return false;
     }
   }, []);
 
-  // Initial load, then start the 10s poll ONLY if that first load succeeded — a
-  // down/unreachable backend gets no interval. Cleared on unmount.
+  // Initial load + 10s polling. Cleared on unmount.
   useEffect(() => {
-    let id: ReturnType<typeof setInterval> | null = null;
-    void loadStatus().then((ok) => {
-      if (ok) id = setInterval(() => void loadStatus(), POLL_MS);
-    });
-    return () => {
-      if (id) clearInterval(id);
-    };
+    void loadStatus();
+    const id = setInterval(() => void loadStatus(), POLL_MS);
+    return () => clearInterval(id);
   }, [loadStatus]);
 
   const refresh = async () => {
     setRefreshing(true);
     await loadStatus();
     setRefreshing(false);
-  };
-
-  const startAgent = async () => {
-    setStartingAgent(true);
-    setError(null);
-    try {
-      await systemApi.startAgent();
-      await loadStatus();
-    } catch (e) {
-      setError(err(e, "Failed to start the control agent."));
-    } finally {
-      setStartingAgent(false);
-    }
   };
 
   const runAction = async (svc: ServiceStatus, action: string) => {
@@ -147,28 +108,6 @@ export default function SystemControl() {
     }
   };
 
-  if (needsBackend) {
-    return (
-      <div className="space-y-4">
-        <NotConnectedNotice what="System Control manages services on your desktop." onRetry={refresh} />
-        <Card padding="md">
-          <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Server size={18} />
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-content">Start / stop / restart services</p>
-              <p className="mt-0.5 text-[13px] text-content-muted">
-                {BEARER_MODE
-                  ? "System Control runs on your desktop computer. Connect over Tailscale (Connection in the top bar) to view and control the backend, frontend, and database from your phone."
-                  : "Connect to the backend to view and control the backend, frontend, and database."}
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
-    );
-  }
   if (error && !status) return <ErrorState message={error} onRetry={refresh} />;
   if (!status) return <Loading label="Loading system status…" />;
 
@@ -214,24 +153,6 @@ export default function SystemControl() {
               <p className="mt-1 text-[12.5px] text-content-subtle">
                 Start / Stop / Restart need the desktop launcher running. Status and logs still work without it.
               </p>
-              {/* The agent is a desktop-local process. Offer to start it only on desktop
-                  (and only when control is enabled). On mobile, explain instead of teasing
-                  a button that controls a machine the phone can't reach. */}
-              {BEARER_MODE ? (
-                <p className="mt-2 text-[12.5px] text-content-subtle">
-                  System Control mengatur proses di komputer desktop — hanya tersedia di aplikasi desktop.
-                </p>
-              ) : status.control_enabled ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-3"
-                  loading={startingAgent}
-                  onClick={startAgent}
-                >
-                  <Play size={14} /> Start control agent
-                </Button>
-              ) : null}
             </div>
           </div>
         </Card>

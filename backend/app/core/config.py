@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     #   public_demo   → temporary public preview (Funnel optional, off by default).
     DEPLOYMENT_PROFILE: str = "private"
     API_V1_PREFIX: str = "/api/v1"
+    # Local developers keep Swagger/OpenAPI by default. Production/staging must
+    # opt in explicitly so public deployments don't advertise every route.
+    API_DOCS_ENABLED: bool | None = None
+    # Server-side integration checks/chat calls may contact user-configured URLs
+    # (Ollama/n8n/OpenAI-compatible gateways). Local mode allows private LAN and
+    # Tailscale addresses; production blocks them unless explicitly opted in.
+    ALLOW_PRIVATE_INTEGRATION_URLS: bool | None = None
     # Used for deterministic local answers such as "sekarang jam berapa?"
     APP_TIMEZONE: str = "Asia/Jakarta"
     # Comma-separated list (or JSON array) of allowed frontend origins. Includes
@@ -181,6 +188,20 @@ class Settings(BaseSettings):
         return (self.APP_ENV or "").strip().lower() in ("local", "dev", "development")
 
     @property
+    def api_docs_enabled(self) -> bool:
+        """Expose Swagger/OpenAPI only in local mode unless explicitly enabled."""
+        if self.API_DOCS_ENABLED is not None:
+            return bool(self.API_DOCS_ENABLED)
+        return self.is_local_env
+
+    @property
+    def integration_private_urls_allowed(self) -> bool:
+        """Allow server-side requests to private/local addresses only in local mode."""
+        if self.ALLOW_PRIVATE_INTEGRATION_URLS is not None:
+            return bool(self.ALLOW_PRIVATE_INTEGRATION_URLS)
+        return self.is_local_env
+
+    @property
     def cors_origins(self) -> List[str]:
         """Parse BACKEND_CORS_ORIGINS into a list of origins."""
         raw = (self.BACKEND_CORS_ORIGINS or "").strip()
@@ -189,6 +210,22 @@ class Settings(BaseSettings):
         if raw.startswith("["):
             return json.loads(raw)
         return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+    @property
+    def cors_private_origin_regex(self) -> str:
+        """Origins allowed in local mode without opening CORS to the internet."""
+        return (
+            r"^("
+            r"capacitor://localhost"
+            r"|https?://localhost(?::\d+)?"
+            r"|https?://127(?:\.\d{1,3}){3}(?::\d+)?"
+            r"|https?://10(?:\.\d{1,3}){3}(?::\d+)?"
+            r"|https?://192\.168(?:\.\d{1,3}){2}(?::\d+)?"
+            r"|https?://172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}(?::\d+)?"
+            r"|https?://100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])(?:\.\d{1,3}){2}(?::\d+)?"
+            r"|https?://[^/:]+\.ts\.net(?::\d+)?"
+            r")$"
+        )
 
     @model_validator(mode="after")
     def _require_strong_secret_in_production(self) -> "Settings":

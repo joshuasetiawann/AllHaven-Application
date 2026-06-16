@@ -12,17 +12,13 @@
 //      token stays in native @capacitor/preferences (see lib/mobileAuth.ts).
 //   2. NEXT_PUBLIC_API_BASE_URL baked at build time (CI APK / hosted web).
 //   3. Browser-derived: same scheme+host as the page on :8000 (desktop dev/LAN).
-//   4. http://localhost:8000/api/v1 (desktop SSR / final fallback).
-//
-// Mobile is intentionally different: if no bridge URL is configured, return ""
-// instead of localhost/placeholder. The APK's own WebView is localhost; trying to
-// fetch a fake backend there only causes long loading. Supabase-direct features do
-// not need this URL, and desktop-only features can fail fast with "bridge required".
+//   4. http://localhost:8000/api/v1 (SSR / final fallback).
 
 import { BEARER_MODE } from "@/lib/mobileAuth";
 
 const OVERRIDE_KEY = "allhaven.backend_base_url";
-export type BackendUrlSource = "override" | "env" | "derived" | "fallback" | "none";
+
+export type BackendUrlSource = "override" | "env" | "derived" | "fallback";
 
 /**
  * Normalise whatever the user typed into a usable API root:
@@ -37,11 +33,6 @@ export function normalizeBackendUrl(raw: string): string {
   if (!s) return "";
   if (!/^https?:\/\//i.test(s)) s = `http://${s}`;
   s = s.replace(/\/+$/, "");
-  // People naturally copy the URL they tested in Chrome. Accept the health URL too:
-  //   http://host:8000/api/v1/health -> http://host:8000/api/v1
-  //   http://host:8000/health        -> http://host:8000/api/v1
-  s = s.replace(/\/api(\/v\d+)?\/health$/i, "/api$1");
-  s = s.replace(/\/health$/i, "");
   if (!/\/api(\/v\d+)?$/i.test(s)) s = `${s}/api/v1`;
   return s;
 }
@@ -69,9 +60,6 @@ export function setBackendOverride(raw: string): string {
     } catch {
       /* private-mode / disabled storage — fall back to env/derived resolution */
     }
-    // Broadcast so live listeners (e.g. the Topbar connection switcher) refresh
-    // without a reload.
-    window.dispatchEvent(new Event("allhaven:backend-changed"));
   }
   return normalized;
 }
@@ -84,20 +72,14 @@ export function clearBackendOverride(): void {
   } catch {
     /* ignore */
   }
-  // Broadcast so live listeners (e.g. the Topbar connection switcher) refresh
-  // without a reload.
-  window.dispatchEvent(new Event("allhaven:backend-changed"));
 }
 
 function fromEnv(): string {
   const v = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (!v || !v.trim()) return "";
-  if (/PLACEHOLDER\.invalid/i.test(v)) return "";
-  return normalizeBackendUrl(v.trim());
+  return v && v.trim() ? v.trim() : "";
 }
 
 function derived(): string {
-  if (BEARER_MODE) return "";
   if (typeof window !== "undefined" && window.location?.hostname) {
     const { protocol, hostname, port } = window.location;
     // Dev: the Next server on :3000 talks to the backend on :8000 of the SAME
@@ -135,23 +117,18 @@ function sameSiteUsable(url: string): boolean {
 /** The active API root, resolved fresh on every call (override → env → derived → localhost). */
 export function getApiBaseUrl(): string {
   const override = getBackendOverride();
-  const env = fromEnv();
   if (sameSiteUsable(override)) return override;
+  const env = fromEnv();
   if (sameSiteUsable(env)) return env;
-  const d = derived();
-  if (d) return d;
-  return BEARER_MODE ? "" : "http://localhost:8000/api/v1";
+  return derived() || "http://localhost:8000/api/v1";
 }
 
 /** Which source is currently in effect — for honest status display in Settings. */
 export function getApiBaseUrlSource(): BackendUrlSource {
   // Mirror getApiBaseUrl(): a cross-site override/env is rejected in cookie mode,
   // so report the source that's ACTUALLY in effect, not merely what's configured.
-  const override = getBackendOverride();
-  const env = fromEnv();
-  if (sameSiteUsable(override)) return "override";
-  if (sameSiteUsable(env)) return "env";
+  if (sameSiteUsable(getBackendOverride())) return "override";
+  if (sameSiteUsable(fromEnv())) return "env";
   if (derived()) return "derived";
-  if (BEARER_MODE) return "none";
   return "fallback";
 }

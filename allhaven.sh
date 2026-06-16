@@ -45,14 +45,6 @@ require_tools() {
   [ "$missing" -eq 0 ] || { c_err "Please install the missing tools and retry."; exit 1; }
 }
 
-require_backend_tools() {
-  local missing=0
-  for t in python3; do
-    if ! need "$t"; then c_err "Missing required tool: $t"; missing=1; fi
-  done
-  [ "$missing" -eq 0 ] || { c_err "Please install the missing tools and retry."; exit 1; }
-}
-
 # -----------------------------------------------------------------------------
 # Ports — single source of truth is .env; an exported shell var still wins.
 # -----------------------------------------------------------------------------
@@ -123,11 +115,7 @@ _pids_on_port() {  # _pids_on_port <port> -> listening pids, one per line
   printf '%s' "$pids"
 }
 
-_tcp_accepts() {  # _tcp_accepts <port> -> true if localhost accepts TCP
-  (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
-}
-
-_port_busy() { [ -n "$(_pids_on_port "$1")" ] || _tcp_accepts "$1"; }
+_port_busy() { [ -n "$(_pids_on_port "$1")" ]; }
 
 _free_port() {  # _free_port <port> — stop any listener (process group, then pid)
   local port="$1" pid
@@ -406,26 +394,20 @@ cmd_stop() {
 # -----------------------------------------------------------------------------
 cmd_restart() {
   local target="${1:-all}"
+  require_tools
   case "$target" in
     all)
-      require_tools
       c_blue "Restarting AllHaven (backend + frontend + agent)…"
       cmd_stop; sleep 1; cmd_start ;;
     backend|be)
-      require_backend_tools
       ensure_postgres
       c_blue "Restarting backend on :${BACKEND_PORT}…"
-      _stop_one backend; _free_port "$BACKEND_PORT"; sleep 1; start_backend_bg
-      # Ensure the control agent is up too, so Settings → System Control can
-      # start/stop/restart services after a bare backend restart (no-op if already up).
-      start_agent_bg ;;
+      _stop_one backend; _free_port "$BACKEND_PORT"; sleep 1; start_backend_bg ;;
     frontend|fe|front)
-      require_tools
       c_blue "Restarting frontend on :${FRONTEND_PORT}…"
       _stop_one frontend; _free_port "$FRONTEND_PORT"; sleep 1; start_frontend_bg
       c_warn "First load recompiles routes — give it a few seconds before refreshing." ;;
     agent)
-      require_backend_tools
       c_blue "Restarting control agent on 127.0.0.1:${AGENT_PORT}…"
       _stop_one agent; _free_port "$AGENT_PORT"; sleep 1; start_agent_bg ;;
     *)
@@ -456,7 +438,7 @@ cmd_status() {
   _status_line frontend "$FRONTEND_PORT"
   _status_line agent    "$AGENT_PORT"
   if _pg_up; then
-    printf '  %-9s :%-5s %s\n' postgres "$POSTGRES_PORT" "running (accepting TCP)"
+    printf '  %-9s :%-5s %s\n' postgres "$POSTGRES_PORT" "running (Docker or native)"
   else
     printf '  %-9s :%-5s %s\n' postgres "$POSTGRES_PORT" "not reachable"
   fi

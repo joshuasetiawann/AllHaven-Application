@@ -1,6 +1,6 @@
 {
   "name": "allhaven-frontend",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "private": true,
   "scripts": {
     "predev": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
@@ -8,8 +8,6 @@
     "build": "next build",
     "start": "next start",
     "build:mobile": "cross-env BUILD_TARGET=mobile NEXT_PUBLIC_AUTH_MODE=bearer NEXT_PUBLIC_DATA_MODE=supabase next build && node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
-    "build:mobile:rest": "cross-env BUILD_TARGET=mobile NEXT_PUBLIC_AUTH_MODE=bearer NEXT_PUBLIC_DATA_MODE=rest next build && node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
-    "build:mobile:supabase": "npm run build:mobile",
     "cap:add:android": "cap add android",
     "cap:sync": "npm run build:mobile && cap sync android",
     "cap:open": "npm run cap:sync && cap open android"
@@ -20,7 +18,7 @@
     "@capacitor/preferences": "^8.0.1",
     "@supabase/supabase-js": "2.108.2",
     "lucide-react": "0.456.0",
-    "next": "^14.2.35",
+    "next": "15.5.19",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },

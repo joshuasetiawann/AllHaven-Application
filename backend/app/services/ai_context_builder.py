@@ -95,22 +95,11 @@ def _language_instruction(response_language: str | None) -> str:
     return _LANGUAGE_INSTRUCTIONS.get(key, _LANGUAGE_INSTRUCTIONS["id"])
 
 
-# A retrieved chunk must clear this relevance score before it is injected into the
-# prompt. _score is (token_overlap + phrase_bonus)/len(query_tokens), so this requires
-# more than a single shared stop-word on a short query (or a phrase match). Keeps weak,
-# irrelevant documents out of the context so knowledge feels real, not noisy.
-_MIN_KNOWLEDGE_SCORE = 0.34
-
-
 def _wants_knowledge(message: str, section_key: str, budget: ContextBudget) -> bool:
     lower = (message or "").lower()
     if budget.knowledge_chunks <= 0:
         return False
-    if section_key == "ai_knowledge" or any(t in lower for t in _KNOWLEDGE_TRIGGERS):
-        return True
-    # Otherwise attempt retrieval only for substantive questions (skip greetings/acks like
-    # "hai"/"ok"/"makasih"); the min-score gate then decides whether anything is injected.
-    return len(lower.split()) >= 3
+    return section_key == "ai_knowledge" or any(t in lower for t in _KNOWLEDGE_TRIGGERS) or bool(lower.strip())
 
 
 def build(
@@ -175,32 +164,23 @@ def build(
             blocks.append("[Recent Conversation Snippets]")
             blocks.append("\n".join(snippets[-12:]))
 
-    # Retrieve relevant document chunks (min-score gated) BEFORE deciding whether to
-    # advertise the knowledge inventory, so the overview only appears when knowledge is
-    # actually relevant — not dumped into every casual chat.
-    knowledge_block, sources = (None, [])
+    overview = knowledge_service.knowledge_overview(db, principal)
+    if overview:
+        blocks.append(overview)
+
     if _wants_knowledge(message, key, budget):
-        knowledge_block, sources = knowledge_service.retrieve_context(
-            db, principal, message, limit=budget.knowledge_chunks or 2,
-            min_score=_MIN_KNOWLEDGE_SCORE,
-        )
-
-    if key == "ai_knowledge" or sources:
-        overview = knowledge_service.knowledge_overview(db, principal)
-        if overview:
-            blocks.append(overview)
-
-    if knowledge_block:
-        meta["used_knowledge"] = True
-        meta["knowledge_sources"] = sources
-        blocks.append(knowledge_block)
+        knowledge_block, sources = knowledge_service.retrieve_context(db, principal, message, limit=budget.knowledge_chunks or 2)
+        if knowledge_block:
+            meta["used_knowledge"] = True
+            meta["knowledge_sources"] = sources
+            blocks.append(knowledge_block)
 
     blocks.append("[Tool and approval rules]")
     blocks.append("Read tools may run automatically. Most write/destructive tools create pending actions first; low-risk memory writes may save directly. Never claim pending actions are saved until approved.")
     blocks.append("Never store or repeat secrets/API keys as memory. Use app tools only; no SQL, shell, filesystem, or secrets access.")
     blocks.append("[Response style]")
-    blocks.append("Write like a warm, knowledgeable human (ChatGPT/Claude style): natural, conversational prose in complete sentences and short paragraphs. Actually answer the question with real substance — never a one-word status or a clipped fragment. Use bullets/headings only for genuinely list-like content; expand when the question deserves depth.")
-    blocks.append("Adapt to the user's mode: casual chat is warm and playful, serious work stays focused, coding gets senior engineering help, and scheduling uses task/routine context. Always reply in the user's language.")
+    blocks.append("No basa-basi. Start with the direct answer/action status. Routine replies should be 1-3 short sentences unless the user asks for detail.")
+    blocks.append("Adapt to the user's mode: casual chat can be warm and playful, serious work stays focused, coding gets senior engineering help, and scheduling uses task/routine context.")
     blocks.append("[End of AllHaven Context Packet]")
 
     context = "\n".join(blocks).strip()

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Bot,
   Box,
@@ -28,7 +28,7 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { DesktopBridgePanel } from "@/components/settings/DesktopBridgePanel";
 import { BackendBridgeCard } from "@/components/settings/BackendBridgeCard";
 import { APP_VERSION } from "@/components/layout/nav";
-import { NotConnectedNotice } from "@/components/settings/NotConnectedNotice";
+import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toggle } from "@/components/ui/Toggle";
@@ -44,10 +44,7 @@ import { AiToolsPanel } from "@/components/settings/AiToolsPanel";
 import { AiChatBehaviorPanel } from "@/components/settings/AiChatBehaviorPanel";
 import { GoogleOAuthCard } from "@/components/settings/GoogleOAuthCard";
 import SystemControl from "@/components/settings/SystemControl";
-import { aiApi, authApi, settingsApi, ApiException } from "@/lib/api";
-import { backendReachable } from "@/lib/connection";
-import { BACKEND_CHANGED_EVENT } from "@/lib/connectionMode";
-import { BEARER_MODE } from "@/lib/mobileAuth";
+import { aiApi, authApi, settingsApi } from "@/lib/api";
 import { getStoredUser, setStoredUser } from "@/lib/auth";
 import { cn, initials } from "@/lib/format";
 import {
@@ -89,23 +86,17 @@ const AI_ICONS: Record<string, LucideIcon> = {
   openrouter_6: Network,
 };
 
-type BackendIssue = "unreachable" | "auth" | null;
-
 export default function SettingsPage() {
   const user = getStoredUser();
   const [me, setMe] = useState<Me | null>(null);
   const [integrations, setIntegrations] = useState<Integration[] | null>(null);
   const [providers, setProviders] = useState<AiProvider[] | null>(null);
-  const [backendIssue, setBackendIssue] = useState<BackendIssue>(null);
   const [error, setError] = useState<string | null>(null);
   // First load attempt finished (success OR degraded). The page renders its tabs once
   // this is true; backend-dependent tabs show a per-tab connect-state if their data is
   // null, so a down Backend Bridge never blanks the whole Settings page.
-  const [loaded, setLoaded] = useState(BEARER_MODE);
-  // On mobile (no local backend) open on Privacy & Safety, whose Profile + Appearance
-  // work standalone — so Settings shows usable content immediately instead of a
-  // "connect a backend" state on the default Connected Tools tab.
-  const [tab, setTab] = useState(BEARER_MODE ? "privacy" : "tools");
+  const [loaded, setLoaded] = useState(false);
+  const [tab, setTab] = useState("tools");
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [configuring, setConfiguring] = useState<Integration | null>(null);
   const [allowExternal, setAllowExternal] = useState(false);
@@ -165,74 +156,36 @@ export default function SettingsPage() {
     }
   };
 
-  const load = useCallback(async () => {
+  const load = async () => {
     setError(null);
-    setBackendIssue(null);
-    // On mobile, Settings must be usable even while Supabase/profile refresh is
-    // slow and even when the optional Desktop Bridge is offline. Mark the shell
-    // loaded immediately so backend-only tabs show their connect-state instead
-    // of an inline spinner.
-    if (BEARER_MODE) setLoaded(true);
-    try {
-      // me() works on mobile (Supabase-direct), so it always runs. In the APK,
-      // aiApi is mobile-direct (device-local provider keys + Supabase chat rows), so
-      // it must NOT be gated by Desktop Bridge reachability. Only integration cards
-      // are backend-only and therefore wait for the optional bridge.
-      const meRes = await authApi.me().catch(() => null);
-      let integrationsRes: Awaited<ReturnType<typeof settingsApi.integrations>> | null = null;
-      let providersRes: Awaited<ReturnType<typeof aiApi.listProviders>> | null = null;
-      let policyRes: Awaited<ReturnType<typeof aiApi.getPolicy>> | null = null;
-      const bridgeReachable = !BEARER_MODE || (await backendReachable());
-      if (bridgeReachable) {
-        const [integrationsSettled] = await Promise.allSettled([settingsApi.integrations()]);
-        if (
-          integrationsSettled.status === "rejected" &&
-          integrationsSettled.reason instanceof ApiException &&
-          (integrationsSettled.reason.statusCode === 401 || integrationsSettled.reason.statusCode === 403)
-        ) {
-          setBackendIssue("auth");
-        } else if (integrationsSettled.status === "rejected" && BEARER_MODE) {
-          setBackendIssue("unreachable");
-        }
-        if (integrationsSettled.status === "fulfilled") integrationsRes = integrationsSettled.value;
-      } else {
-        setBackendIssue("unreachable");
-      }
-      const [providersSettled, policySettled] = await Promise.allSettled([
-        aiApi.listProviders(),
-        aiApi.getPolicy(),
-      ]);
-      if (providersSettled.status === "fulfilled") providersRes = providersSettled.value;
-      if (policySettled.status === "fulfilled") policyRes = policySettled.value;
-      if (policyRes) {
-        setAllowExternal(policyRes.allow_external);
-        setDefaultProvider(policyRes.default_provider);
-      }
-      if (meRes) {
-        setProfileForm({
-          full_name: meRes.user.full_name ?? "",
-          workspace_name: meRes.workspace.name ?? "",
-        });
-      }
-      setMe(meRes);
-      setIntegrations(integrationsRes?.integrations ?? null);
-      setProviders(providersRes?.providers ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load settings.");
-      setMe(null);
-      setIntegrations(null);
-      setProviders(null);
-    } finally {
-      setLoaded(true);
+    // Each call degrades to null on its own instead of one failure rejecting the whole
+    // batch — so a down Backend Bridge leaves Appearance (device-local) and the
+    // reconnect card usable rather than blanking the page (Promise.all → allSettled-ish).
+    const [meRes, integrationsRes, providersRes, policyRes] = await Promise.all([
+      authApi.me().catch(() => null),
+      settingsApi.integrations().catch(() => null),
+      aiApi.listProviders().catch(() => null),
+      aiApi.getPolicy().catch(() => null),
+    ]);
+    if (policyRes) {
+      setAllowExternal(policyRes.allow_external);
+      setDefaultProvider(policyRes.default_provider);
     }
-  }, []);
+    if (meRes) {
+      setProfileForm({
+        full_name: meRes.user.full_name ?? "",
+        workspace_name: meRes.workspace.name ?? "",
+      });
+    }
+    setMe(meRes);
+    setIntegrations(integrationsRes?.integrations ?? null);
+    setProviders(providersRes?.providers ?? null);
+    setLoaded(true);
+  };
 
   useEffect(() => {
     void load();
-    const onBackendChanged = () => void load();
-    window.addEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
-    return () => window.removeEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
-  }, [load]);
+  }, []);
 
   const updateIntegration = (updated: Integration) => {
     setIntegrations((prev) => prev?.map((i) => (i.key === updated.key ? updated : i)) ?? prev);
@@ -260,30 +213,11 @@ export default function SettingsPage() {
   const directAiProviders = providers?.filter((p) => !p.id.startsWith("openrouter_")) ?? [];
   const openRouterProviders = providers?.filter((p) => p.id.startsWith("openrouter_")) ?? [];
 
-  // For a backend-only tab whose data is null: a small inline spinner WHILE the first
-  // load is still running, then an honest connect-state. Never a full-page block — so
-  // Settings (and Appearance, which is device-local) open instantly even with no
-  // backend / no Tailscale.
-  const backendTabFallback = (feature: string, _reason: string) =>
-    loaded ? (
-      <NotConnectedNotice
-        kind={backendIssue === "auth" ? "auth" : "unreachable"}
-        what={`${feature} loads desktop-local data through the Desktop Bridge.`}
-        onRetry={load}
-      />
-    ) : (
-      <Loading />
-    );
-
   return (
     <AppShell>
       <PageHeader
         title="Command Center Settings"
-        subtitle={
-          BEARER_MODE
-            ? "Configure mobile AI, integrations, and privacy — cloud AI keys stay on this device; core data syncs through Supabase."
-            : "Configure integrations, AI providers, and privacy — credentials are stored securely server-side."
-        }
+        subtitle="Configure integrations, AI providers, and privacy — credentials are stored securely server-side."
         actions={<Badge tone="secondary">AllHaven {APP_VERSION}</Badge>}
       />
 
@@ -331,7 +265,10 @@ export default function SettingsPage() {
         </div>
       ) : null}
 
-      <div key={tab} className="animate-fade-in">
+      {!loaded ? (
+        <Loading />
+      ) : (
+        <div key={tab} className="animate-fade-in">
           {tab === "tools" ? (
             <>
               <BackendBridgeCard onConnected={load} />
@@ -352,10 +289,12 @@ export default function SettingsPage() {
                   ))}
                 </div>
               ) : (
-                backendTabFallback(
-                  "Connected Tools",
-                  "Integrations live behind the Desktop Bridge (secrets stay server-side). Connect above to configure them — Appearance settings work without it.",
-                )
+                <SetupRequiredState
+                  feature="Connected Tools"
+                  needs="backend"
+                  reason="Integrations live on the backend (secrets stay server-side). Connect via the Backend Bridge above to configure them — Appearance settings work without it."
+                  onRetry={load}
+                />
               )}
             </>
           ) : null}
@@ -392,7 +331,7 @@ export default function SettingsPage() {
                       <div>
                         <p className="text-sm font-semibold text-content">Allow external AI providers</p>
                         <p className="mt-0.5 text-[13px] text-content-muted">
-                          Enable GPT, Claude, Gemini, DeepSeek, Qwen, Grok, and OpenRouter.
+                          Enable GPT, Claude, Gemini, Cursor, DeepSeek, Qwen, Grok, Blackbox, and OpenRouter.
                           Off keeps chat local-only through Ollama.
                         </p>
                       </div>
@@ -429,7 +368,7 @@ export default function SettingsPage() {
                   <div>
                     <p className="text-sm font-semibold text-content">Direct model agents</p>
                     <p className="text-[13px] text-content-muted">
-                      GPT, Claude, Gemini, DeepSeek, Qwen, Grok, and local Ollama are grouped here for faster setup.
+                      GPT 1/2, Gemini 1/2, Cursor 1/2, DeepSeek, Qwen, and local Ollama are grouped here for faster setup.
                     </p>
                   </div>
                   <Badge tone="primary">{directAiProviders.length} providers</Badge>
@@ -475,24 +414,18 @@ export default function SettingsPage() {
               </section>
             </>
             ) : (
-              BEARER_MODE ? (
-                <ErrorState message="Could not load mobile AI providers." onRetry={load} />
-              ) : (
-                <>
-                  <BackendBridgeCard onConnected={load} />
-                  {backendTabFallback(
-                    "AI Providers",
-                    "Desktop AI-provider configuration lives on the backend. Connect via the Backend Bridge to manage providers — Appearance settings work without it.",
-                  )}
-                </>
-              )
+              <>
+                <BackendBridgeCard onConnected={load} />
+                <SetupRequiredState
+                  feature="AI Providers"
+                  needs="backend"
+                  reason="AI-provider configuration lives on the backend. Connect via the Backend Bridge to manage providers — Appearance settings work without it."
+                  onRetry={load}
+                />
+              </>
             )
           ) : null}
 
-          {/* These panels self-fetch and self-degrade: each renders a per-panel
-              SetupRequiredState when the backend is unreachable (and short-circuits
-              instantly on mobile), so they're rendered directly and never gated on the
-              page's global `loaded` flag — a down backend can't blank the Settings page. */}
           {tab === "ai-tools" ? <AiToolsPanel /> : null}
 
           {tab === "ai-chat" ? <AiChatBehaviorPanel /> : null}
@@ -666,11 +599,9 @@ export default function SettingsPage() {
             </div>
           ) : null}
 
-          {/* SystemControl self-fetches and self-degrades (per-panel SetupRequiredState
-              when unreachable, instant short-circuit on mobile), so it's rendered
-              directly and not gated on the page's global `loaded` flag. */}
           {tab === "system" ? <SystemControl /> : null}
-      </div>
+        </div>
+      )}
 
       <IntegrationConfigModal
         integration={configuring}

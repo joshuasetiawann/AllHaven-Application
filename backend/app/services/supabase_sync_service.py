@@ -16,7 +16,6 @@ Security:
 from __future__ import annotations
 
 import logging
-import re
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -29,7 +28,6 @@ from app.core.principal import Principal
 log = logging.getLogger(__name__)
 
 SUPABASE_PROVIDER_ID = "supabase"
-_MISSING_COLUMN_RE = re.compile(r"Could not find the '([^']+)' column .*schema cache", re.I)
 
 
 # ---------------------------------------------------------------------------
@@ -58,60 +56,30 @@ def _serialize(row) -> dict:
     return result
 
 
-def _missing_schema_cache_column(body: str) -> str | None:
-    match = _MISSING_COLUMN_RE.search(body or "")
-    return match.group(1) if match else None
-
-
 def _upsert(url: str, key: str, table: str, rows: list[dict]) -> None:
     """POST *rows* to ``{url}/rest/v1/{table}`` using PostgREST upsert semantics.
 
     Uses stdlib ``urllib.request`` (no httpx/requests).  Timeout: 10 s.
     """
     import json
-    import urllib.error
     import urllib.request
 
     if not rows:
         return
-
-    payload = [dict(row) for row in rows]
-    stripped: set[str] = set()
-    while True:
-        data = json.dumps(payload).encode()
-        req = urllib.request.Request(
-            f"{url.rstrip('/')}/rest/v1/{table}",
-            data=data,
-            headers={
-                "Content-Type": "application/json",
-                "apikey": key,
-                "Authorization": f"Bearer {key}",
-                "Prefer": "resolution=merge-duplicates,return=minimal",
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=10):
-                return
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode(errors="replace")
-            missing_col = _missing_schema_cache_column(body)
-            can_retry = (
-                exc.code == 400
-                and missing_col
-                and missing_col not in stripped
-                and any(missing_col in row for row in payload)
-            )
-            if not can_retry:
-                detail = f"HTTP {exc.code}: {body[:1000]}" if body else str(exc)
-                raise RuntimeError(detail) from exc
-            stripped.add(missing_col)
-            payload = [{k: v for k, v in row.items() if k != missing_col} for row in payload]
-            log.warning(
-                "Supabase %s schema is missing column %s; retrying sync without it",
-                table,
-                missing_col,
-            )
+    data = json.dumps(rows).encode()
+    req = urllib.request.Request(
+        f"{url.rstrip('/')}/rest/v1/{table}",
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Prefer": "resolution=merge-duplicates,return=minimal",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=10):
+        pass
 
 
 def _deserialize(model, row: dict) -> dict:
