@@ -1,0 +1,26 @@
+# AllHaven backend dependencies (MVP)
+# Minimum versions with open upper bounds so the project installs on Python
+# 3.11 through 3.14 (newer Python versions need newer wheels). Plain `uvicorn`
+# is used (not uvicorn[standard]) to avoid native uvloop/httptools builds on
+# brand-new Python releases.
+fastapi>=0.115.6
+uvicorn>=0.34.0
+sqlalchemy>=2.0.36
+alembic>=1.14.0
+pydantic>=2.10.4
+pydantic-settings>=2.7.0
+psycopg[binary]>=3.2.3
+httpx>=0.28.1
+# Multipart form parsing for Drive file uploads (UploadFile).
+python-multipart>=0.0.9
+# Safe XML parsing for DOCX/OOXML ingestion (refuses XXE / entity expansion).
+defusedxml>=0.7.1
+
+# Testing
+pytest>=8.3.4
+
+# NOTE on auth dependencies:
+# Password hashing (PBKDF2-HMAC-SHA256) and JWT (HS256) are implemented with the
+# Python standard library in app/core/security.py to avoid native build/version
+# conflicts in local MVP environments. They are isolated behind the auth boundary
+# and documented as replaceable by bcrypt/Supabase Auth in production.
