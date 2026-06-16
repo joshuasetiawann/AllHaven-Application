@@ -7,12 +7,12 @@
 **The complete release history of [AllHaven Command Center](../../tree/main).**
 
 Every version is frozen in its own self-contained archive folder
-(`CoreOS 0.1` through `AllHaven 3.6`) — a full, runnable snapshot.
+(`CoreOS 0.1` through `AllHaven 3.7`) — a full, runnable snapshot.
 The latest version also lives on the
 [`main`](../../tree/main) branch.
 
-![Latest](https://img.shields.io/badge/latest-AllHaven%203.6%20·%20v3.6.0-18E0D6?style=flat-square)
-&nbsp;![Releases](https://img.shields.io/badge/releases-37-2563EB?style=flat-square)
+![Latest](https://img.shields.io/badge/latest-AllHaven%203.7%20·%20v3.7.0-18E0D6?style=flat-square)
+&nbsp;![Releases](https://img.shields.io/badge/releases-38-2563EB?style=flat-square)
 &nbsp;![© 2026 Joshua Setiawan](https://img.shields.io/badge/©%202026-Joshua%20Setiawan-555?style=flat-square)
 
 </div>
@@ -73,14 +73,15 @@ The latest version also lives on the
 | **AllHaven 3.3.1** | 2026-06-13 | **AllHaven** | `v3.3.1` | **Local Routine UX polish** — keeps Routine local-first, adds icon/color/repeat/Pagi-Siang-Malam metadata, removes the goal field, keeps empty time lanes visible, and falls back to compatible local schedule endpoints. |
 | **AllHaven 3.4** | 2026-06-13 | **AllHaven** | `v3.4.0` | **Voice, documents, Routine agenda, and local-first sync** — adds voice dictation in AI Chat, PDF/DOC/DOCX/text/code upload into AI Knowledge (DOCX parsing hardened against XXE with `defusedxml`), redesigns Routine as a lighter agenda/timeline, and broadens local-first Supabase mirroring across the workspace while keeping the local DB as the source of truth. |
 | **AllHaven 3.5** | 2026-06-14 | **AllHaven** | `v3.5.0` | **AI routine generation and atomic save** — adds a "Generate with AI" flow to Routine that drafts realistic items for a Morning/Afternoon/Evening window for you to review and edit, saves reviewed drafts together atomically (an invalid item saves none), keeps generation honest (clear states when a provider is missing or disabled, never saves on its own), adds a Routine sync-status card, and refactors the routines page into focused components. |
-| **⭐ AllHaven 3.6** | 2026-06-17 | **AllHaven** | `v3.6.0` | **Current. Privacy cleanup** — housekeeping release that removes a personal local-path identifier from the in-repo development notes so the project ships clean as a personal project. No application code, API, or behavior changes. |
+| **AllHaven 3.6** | 2026-06-17 | **AllHaven** | `v3.6.0` | **Privacy cleanup** — housekeeping release that removes a personal local-path identifier from the in-repo development notes so the project ships clean as a personal project. No application code, API, or behavior changes. |
+| **⭐ AllHaven 3.7** | 2026-06-19 | **AllHaven** | `v3.7.0` | **Current. Two-way Postgres⇄Supabase sync + mobile-on-Supabase** — desktop stays local-first Postgres with a new two-way incremental sync engine (LWW + tombstones + visible status); mobile talks directly to Supabase (Auth + RLS) for Tasks/Notes/Finance/Calendar/Routines/Automations/Weather; Supabase Auth provisioning + "Connect to Supabase"; migrations 0010–0015 (deleted_at, supabase_user_id, updated_at trigger, RLS + workspace_members hardening, sync_state); login timeout fix; checklist soft-delete for correct sync. |
 
 <sub>⭐ = current release. Dates reflect each version's build/release during the project's initial development sprint.</sub>
 
 ## 🌱 How the two branches relate
 
 Each archive folder is a complete, standalone snapshot you can open and run on
-its own; the latest (`AllHaven 3.6`) keeps its own `CHANGELOG.md`, `VERSION`, and
+its own; the latest (`AllHaven 3.7`) keeps its own `CHANGELOG.md`, `VERSION`, and
 `docs/releases/` inside it. New releases add the next folder here, while
 [`main`](../../tree/main) is fast-forwarded to the same version.
 
