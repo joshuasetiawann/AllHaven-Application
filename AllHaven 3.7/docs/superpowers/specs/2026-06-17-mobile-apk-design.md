@@ -1,0 +1,142 @@
+# AllHaven Mobile (Android APK via Capacitor) — Design Spec
+
+**Date:** 2026-06-17
+**Branch:** `feat/mobile-apk`
+**Status:** Approved design — ready for implementation planning
+
+## 1. Goal
+
+Ship an installable Android app (`.apk`) of AllHaven that a user sideloads onto
+their own phone. The app reuses the existing Next.js frontend wrapped in a native
+shell and connects to the AllHaven FastAPI backend over the network.
+
+Two phases:
+
+- **Phase 1 (now):** test on the owner's own phone via sideload, pointing at the
+  dev backend on the PC's LAN IP.
+- **Phase 2 (later, "publish"):** after the cloud backend is deployed, rebuild the
+  APK pointed at the public HTTPS URL and release-sign it for distribution.
+
+## 2. Context (current state)
+
+- **Frontend:** Next.js 14 (App Router), React 18, Tailwind, TypeScript. Version
+  `3.5.0`. Currently `output: "standalone"`.
+- **Pages:** all under `app/login` + `app/dashboard/*` (23 pages). 41 files use
+  `"use client"`. **No** API route handlers, **no** server actions, **no**
+  middleware, **no** server-side data fetching, **no** `next/image`. Effectively a
+  client-rendered SPA — highly compatible with Next.js static export.
+- **Backend:** Python FastAPI on port `8000`, prefix `/api/v1`. Talks to the
+  frontend via REST through `frontend/lib/api.ts`.
+- **Auth (key finding):** the backend already supports **dual auth**:
+  - **Bearer token (JWT)** via `Authorization: Bearer <token>` — checked first in
+    `backend/app/api/dependencies.py`, no CSRF required. `/auth/login` and
+    `/auth/register` return `access_token` in the response body.
+  - **Cookie session** (HttpOnly + CSRF, `SameSite=Lax`) — the browser path.
+  - `BACKEND_CORS_ALLOW_ALL` auto-enables in local mode ("reachable from any device
+    on your LAN without listing IPs").
+  - Token lifetime: `ACCESS_TOKEN_EXPIRE_MINUTES = 60*24` (24h). No bearer refresh
+    endpoint (refresh rotates the cookie session only).
+- **Prod deployment (exists but not yet deployed):** `docker-compose.prod.yml` runs
+  Postgres + backend + frontend + Caddy. Caddy serves one domain and proxies
+  `/api/*` to the backend, so web frontend + API are **same-origin**. The real
+  `DOMAIN` lives in `.env.prod`, which **does not exist yet** (still placeholder
+  `yourdomain.com`). So there is currently no live cloud HTTPS URL.
+
+## 3. Approach
+
+Wrap the existing frontend with **Capacitor** (Android platform) as a static export.
+No UI rewrite. Chosen over PWA→TWA (needs the frontend always-online, weaker native
+story) and React Native (full rewrite, overkill).
+
+### 3.1 Auth: Bearer token, not cookies
+
+The single tricky part of putting a cookie-auth web app in a WebView is cross-origin
+cookies (the bundled app's origin is `https://localhost`, the API is a different
+host → SameSite/third-party-cookie blocking). We sidestep it entirely by using the
+**already-existing bearer-token path**:
+
+- On login/register, read `access_token` from the response body and store it in
+  `@capacitor/preferences` (native secure-ish storage).
+- Attach `Authorization: Bearer <token>` to every API request.
+- Skip the cookie + CSRF path entirely in mobile builds.
+- On `401`, clear the stored token and route to login.
+
+**Backend changes required: none.** Only `frontend/lib/api.ts` gains a bearer mode,
+gated by a build flag.
+
+Known limitation (acceptable for v1): the bearer token expires after 24h with no
+auto-refresh, so the user re-logs in once a day. A mobile refresh endpoint can be
+added later if desired.
+
+### 3.2 Two builds from one codebase
+
+Desktop must keep `output: "standalone"`. Mobile needs `output: "export"`. Make this
+conditional on an env var so neither build breaks:
+
+- `npm run build` → desktop (standalone, unchanged).
+- `BUILD_TARGET=mobile npm run build:mobile` → emits static `out/` for Capacitor.
+
+Mobile-specific build env:
+
+- `NEXT_PUBLIC_API_BASE_URL` → the target backend URL (LAN IP in phase 1, cloud
+  HTTPS in phase 2). Required for mobile because the runtime
+  `window.location.hostname:8000` fallback in `lib/api.ts` does not work inside the
+  Capacitor WebView (origin is `localhost`).
+- `NEXT_PUBLIC_AUTH_MODE=bearer` → switches `lib/api.ts` into bearer mode.
+
+## 4. Components / changes
+
+### Frontend (`frontend/`)
+- Add deps: `@capacitor/core`, `@capacitor/cli`, `@capacitor/android`,
+  `@capacitor/preferences`.
+- `capacitor.config.ts`: `appId: id.allhaven.app`, `appName: AllHaven`,
+  `webDir: out`, `server.androidScheme: https`.
+- `next.config.js`: conditional `output` (`export` when `BUILD_TARGET=mobile`, else
+  `standalone`). Add `images: { unoptimized: true }` defensively (no `next/image`
+  today, but keeps export safe).
+- `package.json`: add `build:mobile` and Capacitor sync scripts.
+- `lib/api.ts`: bearer-token mode — store/read token via `@capacitor/preferences`,
+  set `Authorization` header, bypass cookie/CSRF when `NEXT_PUBLIC_AUTH_MODE=bearer`.
+- `android/`: generated by `npx cap add android` (committed).
+- App icon + splash assets.
+
+### Backend (`backend/`)
+- **No code changes.** Bearer auth already exists; `BACKEND_CORS_ALLOW_ALL` is
+  auto-on in local mode for phase-1 LAN testing.
+
+## 5. Build & install flow
+
+**Phase 1 — own phone (LAN):**
+1. Ensure dev backend is running and reachable on the LAN (find PC IP, e.g.
+   `192.168.x.x:8000`).
+2. `NEXT_PUBLIC_API_BASE_URL=http://<PC-IP>:8000/api/v1 NEXT_PUBLIC_AUTH_MODE=bearer npm run build:mobile`
+3. `npx cap sync android`
+4. Build debug APK via Gradle (`./android/gradlew assembleDebug`) →
+   `app/build/outputs/apk/debug/app-debug.apk`.
+5. Transfer to phone, enable "install unknown apps", install, test login + features.
+   (Phone and PC on the same Wi-Fi. Alternative: `adb reverse tcp:8000 tcp:8000`
+   over USB.)
+
+**Phase 2 — publish:**
+1. Deploy prod stack: create `.env.prod` with a real `DOMAIN` + strong secrets,
+   point DNS A record at the VPS, `docker compose -f docker-compose.prod.yml
+   --env-file .env.prod up -d --build`.
+2. Cloud API URL becomes `https://<DOMAIN>/api/v1`.
+3. Rebuild APK with that URL, **release-sign** with a keystore (documented), then
+   distribute / Play Store.
+
+## 6. Out of scope (v1)
+
+Push notifications, biometric/PIN unlock, in-app Google OAuth (webview redirect
+handling needed — flagged as a future risk), iOS, bearer token auto-refresh.
+
+## 7. Risks
+
+- **Static export edge cases:** any reliance on Next server features would break
+  export. Current audit shows none; re-verify during implementation.
+- **Token expiry UX:** 24h re-login until refresh is added.
+- **Google OAuth:** redirect-based OAuth inside the WebView is unsolved here; the
+  Google integration features won't work in the APK until addressed.
+- **Mixed content (phase 1):** HTTP LAN backend works because dev cookies aren't
+  `Secure` and bearer tokens don't need TLS to function — but it's plaintext on the
+  LAN; fine for local testing only.
