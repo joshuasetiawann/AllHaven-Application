@@ -27,6 +27,8 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { DesktopBridgePanel } from "@/components/settings/DesktopBridgePanel";
 import { APP_VERSION } from "@/components/layout/nav";
+import { SetupRequiredState } from "@/components/SetupRequiredState";
+import { isBackendUnreachable } from "@/lib/connection";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toggle } from "@/components/ui/Toggle";
@@ -90,6 +92,7 @@ export default function SettingsPage() {
   const [integrations, setIntegrations] = useState<Integration[] | null>(null);
   const [providers, setProviders] = useState<AiProvider[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [setupNeeded, setSetupNeeded] = useState(false);
   const [tab, setTab] = useState("tools");
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [configuring, setConfiguring] = useState<Integration | null>(null);
@@ -152,6 +155,7 @@ export default function SettingsPage() {
 
   const load = async () => {
     setError(null);
+    setSetupNeeded(false);
     try {
       const [meRes, integrationsRes, providersRes, policyRes] = await Promise.all([
         authApi.me().catch(() => null),
@@ -173,7 +177,8 @@ export default function SettingsPage() {
       setIntegrations(integrationsRes.integrations);
       setProviders(providersRes.providers);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load settings.");
+      if (isBackendUnreachable(err)) setSetupNeeded(true);
+      else setError(err instanceof Error ? err.message : "Failed to load settings.");
     }
   };
 
@@ -253,7 +258,14 @@ export default function SettingsPage() {
         </div>
       ) : null}
 
-      {error ? (
+      {setupNeeded ? (
+        <SetupRequiredState
+          feature="Settings & Integrations"
+          needs="backend"
+          reason="Integrations and AI-provider settings live on the backend (secrets stay server-side). Connect to the backend to configure them."
+          onRetry={load}
+        />
+      ) : error ? (
         <ErrorState message={error} onRetry={load} />
       ) : !integrations || !providers ? (
         <Loading />
