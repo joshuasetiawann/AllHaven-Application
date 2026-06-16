@@ -1,5 +1,7 @@
 <div align="center">
 
+![AllHaven Command Center](docs/assets/banner.svg)
+
 # 🛡️ AllHaven — Version Archive
 
 **The complete release history of [AllHaven Command Center](../../tree/main).**
