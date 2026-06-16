@@ -31,7 +31,7 @@ _The AI acts fast, but risky writes still need human approval._
 
 ### 🆕 What's new
 
-- **v4.0.0 — Full Mobile Parity + Tailscale Bridge + Release-Grade Stability.** The biggest release so far. Every active desktop module is reachable from mobile; backend/bridge-dependent features (Drive, AI Knowledge, integration/AI-provider config, n8n) show an actionable **setup-required** state instead of a "use the desktop app" wall. New **Tailscale Desktop Bridge** lets mobile reach desktop-local **Ollama**/**n8n** (modes: local / tailscale-private / serve / funnel — **Funnel off by default**), with honest status (online only if the resolved endpoint responds); API-key AI providers stay independent of Tailscale. Adds **deployment profiles** (private / client_portal / public_demo), end-to-end **version visibility** (`/health` `app_version`, login/sidebar/settings), and **Weather removal**. Carries the v3.9 AI fixes (finance-first intent routing so money is never stored as memory, cross-device approvals, robust Indonesian money parsing). Backend **471 tests pass**; build clean. → [release notes](docs/v4/RELEASE_NOTES_v4.0.0.md) · ⚠️ apply Supabase migrations **0016/0017** before relying on mobile register + cross-device sync ([guide](docs/v4/SUPABASE_MIGRATION_GUIDE_v4.0.0.md)).
+- **v4.0.0 — Full Mobile Parity + Tailscale Bridge + Release-Grade Stability.** The biggest release so far. Every active desktop module is reachable from mobile; backend/bridge-dependent features (Drive, AI Knowledge, integration/AI-provider config, n8n) show an actionable **setup-required** state instead of a "use the desktop app" wall. New **Tailscale Desktop Bridge** lets mobile reach desktop-local **Ollama**/**n8n** (modes: local / tailscale-private / serve / funnel — **Funnel off by default**), with honest status (online only if the resolved endpoint responds); API-key AI providers stay independent of Tailscale. A new **Backend Bridge** lets the installed app point at your desktop's backend URL **at runtime** (Settings → Backend Bridge, also reachable on the login/connection screens) with a real Test Connection — no rebuild — so mobile is never a blank screen when the URL is wrong. Adds **deployment profiles** (private / client_portal / public_demo), end-to-end **version visibility** (`/health` `app_version`, login/sidebar/settings), and **Weather removal**. The installer is now **idempotent and self-healing** — it detects an existing/native PostgreSQL and uses it (no port-5432 fight), repairs a broken `.venv` (quarantine + rebuild), and runs Alembic through the venv — plus a read-only `./scripts/doctor.sh`. Carries the v3.9 AI fixes (finance-first intent routing so money is never stored as memory, cross-device approvals, robust Indonesian money parsing). Backend **473 tests pass**; build clean. → [release notes](docs/v4/RELEASE_NOTES_v4.0.0.md) · 📱 [mobile + Backend Bridge guide](docs/MOBILE.md) · ⚠️ apply Supabase migrations **0016/0017** before relying on mobile register + cross-device sync ([guide](docs/v4/SUPABASE_MIGRATION_GUIDE_v4.0.0.md)).
 - **v3.7.0 — AllHaven 3.7 two-way Supabase sync + mobile-on-Supabase.** Introduces a two-way incremental sync engine between local Postgres and Supabase (Last-Write-Wins by `updated_at`, soft-delete tombstones, echo-suppression) and a mobile Supabase data layer so the Android APK talks directly to Supabase with no AllHaven backend in the path. Mobile login switches to Supabase Auth; existing users link via a new "Connect to Supabase" button in Settings. Database migrations 0010 – 0015 add soft-delete columns, identity mapping, a DB-authoritative `updated_at` trigger, Supabase RLS with workspace-scoped helper functions, `workspace_members` RLS hardening (closes a privilege-escalation path), and a `sync_state` watermark table. Also fixes the infinite login/dashboard spinner, checklist item sync resurrection, and cross-device item ordering. → [release notes](docs/releases/v3.7.0.md)
 - **v3.6.0 — AllHaven 3.6 privacy cleanup.** Housekeeping release: removes a personal local-path identifier from the in-repo development notes so the project ships clean as a personal project. No application code, API, or behavior changes. → [release notes](docs/releases/v3.6.0.md)
 - **v3.5.0 — AllHaven 3.5 AI routine generation and atomic save.** Adds a "Generate with AI" flow to Routine: describe your day and the configured provider drafts realistic routine items for a Morning/Afternoon/Evening window, which you review and edit before saving them together in one atomic batch (an invalid item saves none). Generation is honest by design — it never fabricates routines, never saves on its own, and clearly reports when a provider is missing or disabled — plus a Routine sync-status card and a component refactor of the routines page. → [release notes](docs/releases/v3.5.0.md)
@@ -108,12 +108,13 @@ cd AllHaven-Application
 ./install.sh
 ```
 
-| Your OS | Run / double-click |
-|---------|--------------------|
-| **Windows** | **`START_HAVEN_WINDOWS.bat`** |
-| **macOS** | **`START_HAVEN_MAC.command`** (right-click → Open the first time) |
-| **Linux** | **`./START_HAVEN_LINUX.sh`** |
-| **Any terminal** | **`./install.sh`** &nbsp;or&nbsp; **`npm run setup`** |
+| Step | Command |
+|------|---------|
+| **Fresh install** (Linux/macOS) | **`./install.sh`** |
+| **Fresh install** (Windows) | **`python installer\haven_cli.py`** (or WSL + `./install.sh`) |
+| **Run** (already installed) | **`./allhaven.sh run`** (foreground) · **`./allhaven.sh start`** (background) |
+| **Restart / stop** | **`./allhaven.sh restart`** (all) · **`./allhaven.sh restart backend\|frontend`** · **`./allhaven.sh stop`** |
+| **Status / ports** | **`./allhaven.sh status`** · **`./allhaven.sh port`** (show) · **`./allhaven.sh port frontend 3001`** (set, then `restart`) |
 
 After setup, the **Haven desktop shortcut** (or the same launcher) starts services and
 opens the app — **no terminal needed**; if a service is down it starts it safely first.
@@ -154,7 +155,7 @@ available with `HAVEN_SETUP_WEB=1`.)_
 | **OpenRouter ×6** | OpenRouter | Cloud | Six independent agents (`openrouter_1..6`) with suggested roles (Main, Planner, Critic, Coding, Research, Synthesizer), each with its own key + model → route to *any* OpenRouter model. |
 
 - **Multi-agent:** send one prompt to up to **10 agents at once**, each with a distinct role (Main, Planner, Research, Coder, Critic/Risk, Product/UX, Data/Numbers, Scheduler, Creative/Tone, Synthesizer) — Parallel, **Debate** (transcript can be hidden → just the polished final answer), or **Reasoning** modes. Every direct provider also offers **2 model slots** (for example GPT 1/2, Gemini 1/2, Cursor 1/2) so one provider can field two models.
-- **AI tools + human approval:** AI Chat reaches every module through an allowlisted **Tool Registry** — reads (schedule, notes, finance summary, weather, service status) run instantly; low-risk memory writes can save directly; risky writes become pending approvals you Approve/Edit/Reject. HIGH-risk actions (file delete, enabling workflows, service control) *always* require approval. Every call is audited.
+- **AI tools + human approval:** AI Chat reaches every module through an allowlisted **Tool Registry** — reads (schedule, notes, finance summary, service status) run instantly; low-risk memory writes can save directly; risky writes become pending approvals you Approve/Edit/Reject. HIGH-risk actions (file delete, enabling workflows, service control) *always* require approval. Every call is audited.
 - **Honest status & privacy:** a provider is `online` only after a successful **Test Connection** (never faked); API keys stay **server-side**; a per-workspace policy can disable external providers entirely (local-only mode).
 
 ---
@@ -192,7 +193,7 @@ directly. Honest states when n8n isn't connected yet.
 - **Human-in-the-loop AI**: honest "not configured" responses, no fake execution
 - Honest **integration status** & **real verification** (online only after a successful test; no faked connections, no secret leakage)
 - **Local `.env` mirror**: web Settings persist to the DB and mirror allowed keys to `.env` (allowlist + backup + atomic write)
-- **MVP modules**: Routine (local schedules), Drive (local files), Weather (honest fetch), Automations (disabled-safe drafts)
+- **MVP modules**: Routine (local schedules), Drive (local files), Automations (disabled-safe drafts)
 - **Next.js (App Router)** + **TypeScript** + **Tailwind** premium dark UI, responsive, wired to the API
 
 ---
@@ -233,9 +234,10 @@ AllHaven-Application/
 
 ## Quick start
 
-> **Fastest for a fresh clone:** `./install.sh` (Linux/macOS) or `START_HAVEN_WINDOWS.bat`
-> (Windows) installs dependencies, runs migrations, starts backend + frontend, and opens
-> the app. `./scripts/healthcheck.sh` verifies running services. Full guide:
+> **Fastest for a fresh clone:** `./install.sh` (Linux/macOS) or `python installer\haven_cli.py`
+> (Windows) installs dependencies, runs migrations, starts backend + frontend, and opens the
+> app. Once installed, use `./allhaven.sh` (`run` | `start` | `restart` | `stop`).
+> `./scripts/doctor.sh` diagnoses setup (read-only); `./scripts/healthcheck.sh` verifies running services. Full guide:
 > [`docs/LOCAL_SETUP.md`](./docs/LOCAL_SETUP.md). Deploy: [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
 > Release status: [`docs/RELEASE_CHECKLIST.md`](./docs/RELEASE_CHECKLIST.md).
 
@@ -298,6 +300,57 @@ Open <http://localhost:3000>, register an account, and you're in.
 
 ---
 
+## Troubleshooting local setup
+
+Run **`./scripts/doctor.sh`** first — it's read-only and reports tools, ports, Docker,
+`.env`, the backend venv, frontend deps, and live health in one shot. `./install.sh`
+is **idempotent**: re-running it is safe and repairs most of the below automatically.
+
+**Port 5432 already in use** (`failed to bind host port 0.0.0.0:5432`)
+A PostgreSQL (or another container) already holds the port. The installer now
+**detects an existing PostgreSQL and uses it** — your data is untouched and no
+second database is started. If that server is a *different* app's PostgreSQL and you
+want AllHaven on its own database, pick a free host port:
+
+```bash
+# See what holds the port (no changes made):
+ss -ltnp | grep 5432           # or: lsof -iTCP:5432 -sTCP:LISTEN
+# Then run AllHaven's Postgres on another host port (container stays 5432 inside):
+POSTGRES_HOST_PORT=5433 docker compose up -d postgres
+# ...and point the backend at it (set both so DATABASE_URL matches):
+#   .env →  POSTGRES_PORT=5433   (DATABASE_URL is regenerated from it if left default)
+```
+
+No data volume is ever deleted (`docker compose down -v` is intentionally never run).
+
+**Broken `backend/.venv`** (`No module named pytest`, import/ABI errors after a Python upgrade)
+A venv whose interpreter no longer runs (e.g. its base Python was upgraded/removed)
+can't be fixed by `pip install`. The installer/launcher now **moves it aside to
+`backend/.venv.broken.<timestamp>`** (never deletes it) and rebuilds. To do it manually:
+
+```bash
+cd backend
+mv .venv ".venv.broken.$(date +%s)"   # keep it, don't delete
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+**Alembic: `No module named alembic.__main__`**
+Migrations must run **through the venv's `alembic` console script**, not
+`python -m alembic` (and never a system Python). The installer does this for you;
+manually:
+
+```bash
+cd backend
+.venv/bin/alembic upgrade head        # Windows: .venv\Scripts\alembic upgrade head
+```
+
+If it reports the database is unreachable, start PostgreSQL first (see step 2) — the
+message is intentionally explicit rather than hidden.
+
+---
+
 ## Testing & verification
 
 ```bash
@@ -327,7 +380,7 @@ cd frontend && npm run build
 | Routine | `GET/POST /routines/events`, `PUT/DELETE /routines/events/{id}` (`/calendar/events` remains compatible; local DB, no Google Calendar required) |
 | Drive    | `GET/POST /drive/files`, `GET /drive/files/{id}/download`, `DELETE /drive/files/{id}` |
 | Automations | `GET/POST /automations`, `PUT/DELETE /automations/{id}` |
-| Weather  | `GET/POST /weather/locations`, `DELETE /weather/locations/{id}`, `GET /weather/current` |
+| Settings (bridge) | `GET /settings/integrations` exposes connection modes for the Tailscale Desktop Bridge (Ollama/n8n); the mobile **Backend Bridge** URL is set client-side and verified via `GET /health` |
 
 All endpoints (except health and auth register/login) require authentication: the
 browser uses an **HttpOnly session cookie** (set on login; CSRF header required on
@@ -356,8 +409,7 @@ revokes it server-side), while API clients/tools can use a **bearer token**.
   rejected. Each save response includes an `env_sync` status (`success` / `failed` / `skipped`).
   Inspect with `cat .env` and `ls -lh .env.bak.*`.
 - **Modules**: Drive stores file bytes under a local storage root (metadata in `drive_files`,
-  path-traversal blocked); Routine schedules, Automations, and Weather-locations persist in PostgreSQL; Weather
-  returns `setup_required` until a Weather API key is configured (never faked data). AllHaven does
+  path-traversal blocked); Routine schedules and Automations persist in PostgreSQL. AllHaven does
   **not** execute automations — they are disabled-safe drafts.
 
 ### Ollama (local AI) setup

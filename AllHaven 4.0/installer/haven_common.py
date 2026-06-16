@@ -451,6 +451,10 @@ def frontend_command(port: int, host: str = "127.0.0.1", mode: str = "dev") -> l
     return [npm, "run", "dev", "--", "-p", str(int(port)), "-H", host]
 
 
+def venv_dir() -> Path:
+    return repo_root() / "backend" / ".venv"
+
+
 def venv_python() -> str:
     """Path to the backend venv's python, falling back to the current one."""
     root = repo_root()
@@ -464,6 +468,117 @@ def venv_python() -> str:
     import sys
 
     return sys.executable
+
+
+def venv_python_path() -> Path:
+    """The EXPECTED venv python path (no fallback). May not exist — use this when
+    you need to know about the venv itself, not 'some' python to run."""
+    d = venv_dir()
+    return (d / "Scripts" / "python.exe") if detect_os() == "windows" else (d / "bin" / "python")
+
+
+def venv_bin(name: str) -> Path:
+    """Path to a console script inside the venv (e.g. ``alembic``, ``pip``)."""
+    d = venv_dir()
+    return (d / "Scripts" / f"{name}.exe") if detect_os() == "windows" else (d / "bin" / name)
+
+
+def venv_alembic_argv(*args: str) -> list[str]:
+    """argv to run Alembic THROUGH THE VENV.
+
+    Prefer the venv console script (``.venv/bin/alembic``) — it is always correct
+    for the installed Alembic version and never depends on a non-venv interpreter.
+    This is the fix for ``python -m alembic`` failing with "No module named
+    alembic.__main__" when an older/foreign Alembic (e.g. the system one, picked up
+    after the venv fell back to ``sys.executable``) has no ``__main__`` module.
+    """
+    script = venv_bin("alembic")
+    if script.exists():
+        return [str(script), *args]
+    # Last resort only if the console script is somehow absent: use the venv python
+    # explicitly (never the system one) so we don't run a foreign Alembic.
+    py = venv_python_path()
+    return [str(py) if py.exists() else venv_python(), "-m", "alembic", *args]
+
+
+def _run_rc(argv: list[str], timeout: float = 20.0) -> int:
+    """Run argv quietly and return its exit code (127 if it can't be launched)."""
+    import subprocess
+
+    try:
+        return subprocess.run(  # noqa: S603 (fixed argv, no shell)
+            argv, capture_output=True, timeout=timeout
+        ).returncode
+    except FileNotFoundError:
+        return 127
+    except (OSError, subprocess.SubprocessError):
+        return 1
+
+
+def venv_interpreter_ok() -> bool:
+    """True if the venv's python exists AND can actually execute.
+
+    Catches a *dangling* interpreter — e.g. the base Python was upgraded/removed
+    out from under the venv — which ``pip install`` cannot repair. (Missing
+    dependencies are NOT a failure here; a fresh venv also has none.)
+    """
+    py = venv_python_path()
+    if not py.exists():
+        return False
+    return _run_rc([str(py), "-c", "import sys"], timeout=15) == 0
+
+
+def venv_deps_ok(probe: str = "fastapi") -> bool:
+    """True if the venv can import a core backend dependency (deps installed and
+    ABI-compatible). False on a fresh venv (needs ``pip install``) or a broken one."""
+    py = venv_python_path()
+    if not py.exists():
+        return False
+    return _run_rc([str(py), "-c", f"import {probe}"], timeout=30) == 0
+
+
+def backend_venv_broken() -> bool:
+    """A venv directory that exists but whose interpreter cannot run.
+
+    Distinct from 'needs dependencies': this state requires a rebuild, not a
+    ``pip install``. Based purely on EXECUTION — never on ``pyvenv.cfg`` metadata,
+    which can be stale (e.g. recorded version differs from the resolved binary)
+    yet still describe a perfectly working venv.
+    """
+    return venv_dir().exists() and not venv_interpreter_ok()
+
+
+def quarantine_broken_venv() -> str | None:
+    """Move a broken venv aside to ``.venv.broken.<timestamp>`` (NEVER delete).
+
+    Returns the new directory name, or None if there was nothing to move / the
+    rename failed. Renaming (not deleting) keeps any salvageable state for the user.
+    """
+    d = venv_dir()
+    if not d.exists():
+        return None
+    target = d.with_name(f".venv.broken.{_timestamp()}")
+    try:
+        d.rename(target)
+        return target.name
+    except OSError:
+        return None
+
+
+def db_settings_are_default(env: dict | None = None) -> bool:
+    """True when DATABASE_URL is unset/empty or equals the auto-generated local
+    form, so changing the Postgres port is safe. A CUSTOM DATABASE_URL returns
+    False and must be left untouched (never silently rewritten)."""
+    env = env if env is not None else read_env()
+    url = (env.get("DATABASE_URL") or "").strip()
+    if not url:
+        return True
+    user = env.get("POSTGRES_USER", "allhaven")
+    pw = env.get("POSTGRES_PASSWORD", "allhaven")
+    host = env.get("POSTGRES_HOST", "localhost")
+    db = env.get("POSTGRES_DB", "allhaven")
+    port = env.get("POSTGRES_PORT", "5432")
+    return url == f"postgresql+psycopg://{user}:{pw}@{host}:{port}/{db}"
 
 
 # --------------------------------------------------------------------------- #
@@ -590,6 +705,14 @@ def wait_for_port(port: int, host: str = "127.0.0.1", timeout: float = 60.0) -> 
 
 
 def wait_for_http(url: str, timeout: float = 60.0) -> bool:
+    """Poll ``url`` until it returns a real success (2xx), or time out.
+
+    urllib raises ``HTTPError`` (an ``OSError``) on 4xx/5xx and follows 3xx, so by
+    the time we read ``r.status`` it is already 2xx; the ``< 300`` bound keeps the
+    success condition honest (e.g. Next's dev "missing required error components"
+    placeholder is served as 404 → raises → we keep polling until the route's real
+    200, never accepting the placeholder).
+    """
     import time
     import urllib.request
 
@@ -597,7 +720,7 @@ def wait_for_http(url: str, timeout: float = 60.0) -> bool:
     while time.time() < deadline:
         try:
             with urllib.request.urlopen(url, timeout=3) as r:  # noqa: S310 (localhost)
-                if 200 <= r.status < 500:
+                if 200 <= r.status < 300:
                     return True
         except OSError:
             pass

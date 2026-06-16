@@ -3,7 +3,7 @@
 // otherwise falls back to the REST impl (web/desktop default).
 import { DATA_MODE } from "@/lib/supabaseClient";
 
-export { ApiException, API_BASE_URL } from "@/lib/apiRest";
+export { ApiException, getApiBaseUrl } from "@/lib/apiRest";
 export type { AiPolicy, ProposalApproval } from "@/lib/apiRest";
 
 import * as rest from "@/lib/apiRest";

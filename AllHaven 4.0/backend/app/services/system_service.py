@@ -233,14 +233,14 @@ def _fallback_status(enabled: bool) -> dict:
             "port": port,
             "controllable": False,
             "actions": [],
-            "message": "Start Haven via the desktop launcher to enable controls.",
+            "message": "Start Haven with ./allhaven.sh run (or start) to enable controls.",
             "last_checked": _now(),
         })
     return {
         "agent": {
             "running": False,
-            "message": "Haven Agent is not running. Start Haven via the desktop launcher "
-                       "(or the START_HAVEN_* file) to enable Start/Stop/Restart and logs. "
+            "message": "Haven Agent is not running. Start Haven with ./allhaven.sh run "
+                       "(or ./allhaven.sh start) to enable Start/Stop/Restart and logs. "
                        "Status below is read-only.",
         },
         "control_enabled": enabled,
@@ -273,7 +273,7 @@ def do_action(name: str, action: str) -> dict:
         code, body = _agent("POST", f"/service/{name}/{action}")
     except (urllib.error.URLError, OSError, ValueError, TimeoutError):
         raise ValidationAppError(
-            "Haven Agent is not running. Start Haven via the desktop launcher to control services."
+            "Haven Agent is not running. Start Haven with ./allhaven.sh run (or start) to control services."
         )
     if not isinstance(body, dict) or not body.get("ok", code == 200):
         msg = body.get("message", "Action failed.") if isinstance(body, dict) else "Action failed."
@@ -291,7 +291,7 @@ def get_logs(name: str, lines: int = 300) -> dict:
         _, body = _agent("GET", f"/logs/{name}?lines={lines}", timeout=30.0)
     except (urllib.error.URLError, OSError, ValueError, TimeoutError):
         raise ValidationAppError(
-            "Haven Agent is not running. Logs are available once Haven is started via the launcher."
+            "Haven Agent is not running. Logs are available once Haven is started with ./allhaven.sh run."
         )
     if isinstance(body, dict) and body.get("content"):
         body["content"] = mask_secrets(body["content"])  # defense in depth

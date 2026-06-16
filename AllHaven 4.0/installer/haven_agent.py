@@ -112,7 +112,7 @@ def _migrate_backend(env: dict) -> None:
         with open(_log_file("backend"), "ab") as lf:
             lf.write(b"\n--- alembic upgrade head ---\n")
             subprocess.run(  # noqa: S603 (fixed argv, no shell)
-                [hc.venv_python(), "-m", "alembic", "upgrade", "head"],
+                hc.venv_alembic_argv("upgrade", "head"),
                 cwd=str(hc.repo_root() / "backend"), env=env,
                 stdout=lf, stderr=subprocess.STDOUT, timeout=180,
             )
@@ -451,6 +451,11 @@ class _Handler(BaseHTTPRequestHandler):
             import webbrowser
 
             port = _configured_port("frontend") or 3000
+            # Warm the landing route to a real 200 first (bounded), so an "Open Haven"
+            # right after a restart doesn't race `next dev`'s lazy first compile and
+            # paint the "missing required error components, refreshing…" placeholder.
+            # No-op once the route is already compiled (returns immediately).
+            hc.wait_for_http(f"http://127.0.0.1:{port}/", timeout=30)
             webbrowser.open(f"http://localhost:{port}")
             return self._send(200, {"ok": True, "message": "Opening Haven…"})
         parts = path.strip("/").split("/")

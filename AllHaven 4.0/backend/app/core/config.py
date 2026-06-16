@@ -46,8 +46,15 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     # Used for deterministic local answers such as "sekarang jam berapa?"
     APP_TIMEZONE: str = "Asia/Jakarta"
-    # Comma-separated list (or JSON array) of allowed frontend origins.
-    BACKEND_CORS_ORIGINS: str = "http://localhost:3000"
+    # Comma-separated list (or JSON array) of allowed frontend origins. Includes
+    # the Capacitor WebView origins (https://localhost, capacitor://localhost) so
+    # the mobile APK can call a hosted/non-local backend; the mobile build uses
+    # bearer-token auth (no cookies), so this carries no cookie-CSRF risk. Local
+    # mode echoes any origin anyway (see main.py), so this matters only for
+    # client_portal/public_demo deployments.
+    BACKEND_CORS_ORIGINS: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,https://localhost,capacitor://localhost"
+    )
     # Allow any origin (no cookies; bearer-token auth only). Auto-on in local mode
     # so the app is reachable from any device on your LAN without listing IPs.
     BACKEND_CORS_ALLOW_ALL: bool = False
