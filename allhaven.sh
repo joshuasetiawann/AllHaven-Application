@@ -196,17 +196,29 @@ PY
 # -----------------------------------------------------------------------------
 # PostgreSQL (Docker preferred; otherwise assume a local server on :5432)
 # -----------------------------------------------------------------------------
+# True if something already accepts TCP on the Postgres port (native or container).
+_pg_up() { (exec 3<>"/dev/tcp/127.0.0.1/${POSTGRES_PORT}") 2>/dev/null; }
+
 ensure_postgres() {
+  # Already serving (e.g. a native/systemd PostgreSQL)? Use it — don't fight Docker
+  # for the port (that produced "address already in use" + a 30s wait on a
+  # container that never started).
+  if _pg_up; then
+    c_green "PostgreSQL already running on :${POSTGRES_PORT} — using it."
+    return 0
+  fi
   if need docker && docker compose version >/dev/null 2>&1; then
     c_blue "Starting PostgreSQL via Docker Compose…"
-    docker compose up -d postgres || c_warn "Docker compose could not start postgres (a local one on :${POSTGRES_PORT} may already be running)."
-    for _ in $(seq 1 30); do
-      if docker compose exec -T postgres pg_isready -U allhaven -d allhaven >/dev/null 2>&1; then
-        c_green "PostgreSQL is ready."; return 0
-      fi
-      sleep 1
-    done
-    c_warn "PostgreSQL did not report ready in time; continuing anyway."
+    if docker compose up -d postgres >/dev/null 2>&1; then
+      for _ in $(seq 1 30); do
+        if _pg_up; then c_green "PostgreSQL is ready."; return 0; fi
+        sleep 1
+      done
+      c_warn "PostgreSQL did not report ready in time; continuing anyway."
+    else
+      c_warn "Docker couldn't start PostgreSQL (port ${POSTGRES_PORT} may be held by a local one)."
+      c_warn "Continuing — AllHaven will use whatever PostgreSQL is on :${POSTGRES_PORT}."
+    fi
   else
     c_warn "Docker not found. Assuming a local PostgreSQL is running on :${POSTGRES_PORT}"
     c_warn "with user/pass/db = allhaven/allhaven/allhaven (see .env to change)."
