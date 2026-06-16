@@ -47,11 +47,11 @@ def _dedup(provider_ids: List[str]) -> List[str]:
     return ordered
 
 
-def _run_one(plan: ChatPlan, messages: list[dict]) -> dict:
+def _run_one(plan: ChatPlan, messages: list[dict], params: Optional[dict] = None) -> dict:
     """Execute a single runnable plan and capture an isolated result."""
     started = time.monotonic()
     try:
-        result = plan.execute(messages)
+        result = plan.execute(messages, params)
         latency = int((time.monotonic() - started) * 1000)
         if result.ok:
             return {"status": "completed", "content": result.content, "error": None, "latency_ms": latency}

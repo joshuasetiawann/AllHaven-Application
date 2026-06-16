@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Bot, Crown, Cpu, Layers, Loader2, PanelLeft, SendHorizonal, Sparkles, Swords, User } from "lucide-react";
+import { AlertTriangle, Bot, Brain, Crown, Cpu, Layers, Loader2, PanelLeft, SendHorizonal, Sparkles, Swords, User } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -13,7 +13,10 @@ import { aiApi, ApiException } from "@/lib/api";
 import { cn } from "@/lib/format";
 import type { AgentResponseStatus, AiProvider, ChatGroup, ChatMessage, ChatSession } from "@/types";
 
-type ChatMode = "parallel" | "debate";
+type ChatMode = "parallel" | "debate" | "reason";
+type ReasoningMode = "fast" | "balanced" | "deep";
+
+const ROLE_LABEL: Record<string, string> = { analyst: "Analyst", critic: "Critic", synthesis: "Synthesizer", synthesizer: "Synthesizer" };
 
 // Turn one persisted debate ChatMessage into the card model AgentResponseCard wants.
 function toCard(m: ChatMessage): AgentCardData {
@@ -35,6 +38,7 @@ type ThreadItem =
   | { kind: "user"; key: string; message: ChatMessage }
   | { kind: "agent"; key: string; message: ChatMessage }
   | { kind: "final"; key: string; message: ChatMessage }
+  | { kind: "rolecard"; key: string; message: ChatMessage }
   | { kind: "round"; key: string; round: number; phase: string; items: ChatMessage[] };
 
 // Fold the flat message list into render blocks: plain bubbles for user/single/
@@ -49,8 +53,11 @@ function buildThread(messages: ChatMessage[]): ThreadItem[] {
     if (m.role === "user") {
       items.push({ kind: "user", key: m.id, message: m });
       i += 1;
-    } else if (meta.debate && meta.debate_final) {
+    } else if ((meta.debate && meta.debate_final) || (meta.reasoning && meta.reasoning_final)) {
       items.push({ kind: "final", key: m.id, message: m });
+      i += 1;
+    } else if (meta.reasoning) {
+      items.push({ kind: "rolecard", key: m.id, message: m });
       i += 1;
     } else if (meta.debate) {
       const runId = meta.run_id;
@@ -79,6 +86,9 @@ export default function AiChatPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [mode, setMode] = useState<ChatMode>("parallel");
   const [rounds, setRounds] = useState(2);
+  const [reasoningMode, setReasoningMode] = useState<ReasoningMode>("balanced");
+  const [showSummary, setShowSummary] = useState(true);
+  const [debug, setDebug] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -191,7 +201,9 @@ export default function AiChatPage() {
     try {
       const run = mode === "debate"
         ? await aiApi.debateChat(text, selected, activeId ?? undefined, rounds)
-        : await aiApi.multiChat(text, selected, activeId ?? undefined);
+        : mode === "reason"
+          ? await aiApi.reasonChat(text, selected, activeId ?? undefined, reasoningMode)
+          : await aiApi.multiChat(text, selected, activeId ?? undefined);
       setActiveId(run.session_id);
       const msgs = await aiApi.listMessages(run.session_id);
       setMessages(msgs);
@@ -236,20 +248,53 @@ export default function AiChatPage() {
   };
 
   const renderFinal = (m: ChatMessage) => {
-    const status = (m.meta?.status as string) || "completed";
+    const meta = (m.meta ?? {}) as Record<string, unknown>;
+    const status = (meta.status as string) || "completed";
     const ok = status === "completed";
-    const name = (m.meta?.provider_name as string) || "Synthesis";
-    const nRounds = (m.meta?.rounds as number) || null;
-    const nAgents = (m.meta?.n_agents as number) || null;
+    const name = (meta.provider_name as string) || "Synthesis";
+    const isReasoning = Boolean(meta.reasoning);
+    const quality = (meta.quality ?? null) as Record<string, number> | null;
+    const conf = quality && quality.final_answer_confidence != null ? Number(quality.final_answer_confidence) : null;
+    const issues = (Array.isArray(quality?.issues) ? (quality!.issues as unknown as string[]) : []);
+    const summary = (meta.reasoning_summary as string) || "";
+    const lowConf = ok && isReasoning && ((conf != null && conf < 0.55) || issues.length > 0);
+    const nRounds = (meta.rounds as number) || null;
+    const nAgents = (meta.n_agents as number) || null;
     return (
       <div className={cn("rounded-xl border px-4 py-3", ok ? "border-primary/40 bg-primary/5" : "border-warning/40 bg-warning/10")}>
         <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary"><Crown size={13} /></span>
           <span className="text-[13px] font-semibold text-content">Final answer</span>
-          <span className="text-[11px] text-content-subtle">· synthesized by {name}</span>
+          <span className="text-[11px] text-content-subtle">· by {name}</span>
+          {isReasoning && debug && conf != null ? (
+            <Badge tone={conf >= 0.7 ? "success" : conf >= 0.55 ? "primary" : "warning"} className="ml-1">
+              {Math.round(conf * 100)}% confidence
+            </Badge>
+          ) : null}
         </div>
         <p className={cn("whitespace-pre-wrap break-words text-sm leading-relaxed", ok ? "text-content" : "text-warning")}>{m.content}</p>
-        {ok && nRounds ? (
+        {lowConf ? (
+          <p className="mt-2 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11.5px] text-warning">
+            <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+            <span>
+              This answer may be low-confidence or rely on assumptions{issues.length ? `: ${issues.slice(0, 2).join("; ")}` : ""}. Verify before relying on it.
+            </span>
+          </p>
+        ) : null}
+        {isReasoning && showSummary && summary ? (
+          <p className="mt-2 text-[11.5px] text-content-subtle">
+            <span className="font-medium text-content-muted">Reasoning:</span> {summary}
+          </p>
+        ) : null}
+        {isReasoning && debug && quality ? (
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10.5px] text-content-subtle">
+            <span>relevance {Math.round(Number(quality.input_relevance_score) * 100)}%</span>
+            <span>grounding {Math.round(Number(quality.grounding_score) * 100)}%</span>
+            <span>calc {Math.round(Number(quality.calculation_check_score) * 100)}%</span>
+            <span>hallucination risk {Math.round(Number(quality.hallucination_risk) * 100)}%</span>
+          </div>
+        ) : null}
+        {!isReasoning && ok && nRounds ? (
           <p className="mt-2 text-[10.5px] text-content-subtle">
             From {nAgents ?? "the"} agents across {nRounds} round{nRounds > 1 ? "s" : ""} of debate.
           </p>
@@ -322,6 +367,16 @@ export default function AiChatPage() {
                 >
                   <Swords size={13} /> Debate
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("reason")}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors",
+                    mode === "reason" ? "bg-surface-high text-primary" : "text-content-muted hover:text-content",
+                  )}
+                >
+                  <Brain size={13} /> Reason
+                </button>
               </div>
               {mode === "debate" ? (
                 <div className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-content-muted">
@@ -343,6 +398,45 @@ export default function AiChatPage() {
                   </div>
                 </div>
               ) : null}
+              {mode === "reason" ? (
+                <>
+                  <div className="inline-flex shrink-0 items-center rounded-lg border border-border bg-surface-input p-0.5 text-[12px]">
+                    {(["fast", "balanced", "deep"] as ReasoningMode[]).map((rm) => (
+                      <button
+                        key={rm}
+                        type="button"
+                        onClick={() => setReasoningMode(rm)}
+                        className={cn(
+                          "rounded-md px-2 py-1 capitalize transition-colors",
+                          reasoningMode === rm ? "bg-surface-high text-content" : "text-content-muted hover:text-content",
+                        )}
+                      >
+                        {rm}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowSummary((v) => !v)}
+                    className={cn(
+                      "shrink-0 rounded-md border px-2 py-1 text-[12px] transition-colors",
+                      showSummary ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-content-muted hover:text-content",
+                    )}
+                  >
+                    Summary
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDebug((v) => !v)}
+                    className={cn(
+                      "shrink-0 rounded-md border px-2 py-1 text-[12px] transition-colors",
+                      debug ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-content-muted hover:text-content",
+                    )}
+                  >
+                    Debug
+                  </button>
+                </>
+              ) : null}
               {anyLocal ? <Badge tone="success"><Cpu size={11} className="mr-1 inline" /> Local AI</Badge> : null}
               {anyExternal ? <Badge tone="warning"><AlertTriangle size={11} className="mr-1 inline" /> External AI</Badge> : null}
             </div>
@@ -350,7 +444,9 @@ export default function AiChatPage() {
               providers={providers}
               selected={selected}
               onChange={setSelected}
-              hint={mode === "debate" ? "they debate across rounds, then one synthesizes the final answer." : "they run at the same time."}
+              hint={mode === "debate" ? "they debate across rounds, then one synthesizes the final answer."
+                : mode === "reason" ? "they take roles (Analyst → Critic → Synthesizer) with grounded, verified reasoning."
+                : "they run at the same time."}
             />
           </div>
 
@@ -384,6 +480,20 @@ export default function AiChatPage() {
                       </div>
                     );
                   }
+                  if (item.kind === "rolecard") {
+                    // Reasoning role turns (Analyst/Critic) are detail — show only in Debug.
+                    if (!debug) return null;
+                    const rmeta = (item.message.meta ?? {}) as Record<string, unknown>;
+                    const label = ROLE_LABEL[String(rmeta.phase || "")] || "Agent";
+                    return (
+                      <div key={item.key} className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-content-subtle">
+                          <Brain size={12} className="text-primary" /> {label}
+                        </div>
+                        <AgentResponseCard data={toCard(item.message)} />
+                      </div>
+                    );
+                  }
                   if (item.kind === "final") return <div key={item.key}>{renderFinal(item.message)}</div>;
                   return <div key={item.key}>{renderBubble(item.message)}</div>;
                 })}
@@ -400,7 +510,7 @@ export default function AiChatPage() {
                   <div className="flex gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary"><Bot size={15} /></span>
                     <div className="rounded-xl border border-border bg-surface-input px-3.5 py-2.5 text-sm text-content-subtle">
-                      <Loader2 size={14} className="mr-1.5 inline animate-spin" /> {mode === "debate" ? `${selected.length} agents debating across ${rounds} rounds…` : selected.length > 1 ? `${selected.length} agents thinking…` : "Thinking…"}
+                      <Loader2 size={14} className="mr-1.5 inline animate-spin" /> {mode === "reason" ? `Reasoning (${reasoningMode})…` : mode === "debate" ? `${selected.length} agents debating across ${rounds} rounds…` : selected.length > 1 ? `${selected.length} agents thinking…` : "Thinking…"}
                     </div>
                   </div>
                 ) : null}

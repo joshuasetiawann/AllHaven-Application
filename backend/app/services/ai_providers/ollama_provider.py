@@ -10,6 +10,7 @@ from app.services.ai_providers.base import (
     VerifyResult,
     chat_error_message,
     interpret_http,
+    network_error_message,
     safe_request,
 )
 
@@ -36,14 +37,22 @@ class OllamaProvider(AIProvider):
         code, _, err = safe_request("GET", f"{self.base_url(public)}/api/tags", timeout=5.0)
         return interpret_http(code, err)
 
-    def chat(self, public: dict, secrets: dict, messages: list[dict], model: Optional[str] = None) -> ChatResult:
+    def chat(
+        self, public: dict, secrets: dict, messages: list[dict],
+        model: Optional[str] = None, params: Optional[dict] = None,
+    ) -> ChatResult:
         if not public.get("base_url"):
             return ChatResult(False, error="Base URL not set")
         chosen = model or public.get("default_model") or self.default_model
+        body_json = {"model": chosen, "messages": messages, "stream": False}
+        # Ollama takes sampling settings under "options".
+        options = {k: params[k] for k in ("temperature", "top_p") if params and params.get(k) is not None}
+        if options:
+            body_json["options"] = options
         code, body, err = safe_request(
             "POST",
             f"{self.base_url(public)}/api/chat",
-            json={"model": chosen, "messages": messages, "stream": False},
+            json=body_json,
             timeout=30.0,
         )
         if err:
