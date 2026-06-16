@@ -6,11 +6,12 @@
 
 **The complete release history of [AllHaven Command Center](../../tree/main).**
 
-Every version is frozen in its own self-contained `AllHaven X.Y` folder — a full,
-runnable snapshot. The latest version also lives on the [`main`](../../tree/main) branch.
+Every version is frozen in its own self-contained `CoreOS X.Y` or `AllHaven X.Y`
+folder — a full, runnable snapshot. The latest version also lives on the
+[`main`](../../tree/main) branch.
 
-![Latest](https://img.shields.io/badge/latest-AllHaven%203.1%20·%20v3.1.0-18E0D6?style=flat-square)
-&nbsp;![Releases](https://img.shields.io/badge/releases-31-2563EB?style=flat-square)
+![Latest](https://img.shields.io/badge/latest-AllHaven%203.2%20·%20v3.2.0-18E0D6?style=flat-square)
+&nbsp;![Releases](https://img.shields.io/badge/releases-32-2563EB?style=flat-square)
 &nbsp;![© 2026 Joshua Setiawan](https://img.shields.io/badge/©%202026-Joshua%20Setiawan-555?style=flat-square)
 
 </div>
@@ -20,31 +21,32 @@ runnable snapshot. The latest version also lives on the [`main`](../../tree/main
 ## 📦 About this branch
 
 - **`master`** (this branch) — the **full archive**: every release in its own
-  `AllHaven X.Y` folder, a complete snapshot you can open and run on its own.
+  `CoreOS X.Y` or `AllHaven X.Y` folder, a complete snapshot you can open and run on its own.
 - **[`main`](../../tree/main)** — only the **latest** version, flat at the repo root,
   ready to run or deploy.
 
 > **Numbering** runs `0.1 → 0.9`, `1.0 → 1.9`, then `2.0` onward, so the folders sort and
 > read naturally. **Era** marks the early **CoreOS** prototype vs. the **AllHaven** product
-> (rebranded at 1.4). **Semantic** is the internal `vX.Y.Z` used from the rebrand onward.
+> (rebranded at 1.4). **Semantic** is the internal `vX.Y.Z`; CoreOS 1.2 maps to
+> `v0.1.0`, CoreOS 1.3 maps to `v0.2.0`, and AllHaven 1.4 starts at `v0.3.0`.
 
 ## 🗓️ Release history
 
 | Version | Released | Era | Semantic | What this update introduced |
 |:--|:--|:--|:--|:--|
-| **AllHaven 0.1** | 2026-06-08 | CoreOS | — | Initial base — FastAPI + PostgreSQL backend, Next.js + TS + Tailwind frontend, auth, and the first modules (Tasks, Notes, Finance). |
-| **AllHaven 0.2** | 2026-06-08 | CoreOS | — | UI layer — app layout (PageHeader, nav) and a reusable UI kit (Avatar, BarChart, IconButton, Select, Tabs, Toggle) + user preferences. |
-| **AllHaven 0.3** | 2026-06-08 | CoreOS | — | AI provider system — provider router, provider registry, encrypted secrets, integration config service + schemas (migration `0002`). |
-| **AllHaven 0.4** | 2026-06-08 | CoreOS | — | New module pages (Drive, Calendar, Weather, Automations) + task checklists (migration `0003`) + the Blackbox provider. |
-| **AllHaven 0.5** | 2026-06-08 | CoreOS | — | Google OAuth foundation (router + service + card) and Ollama provider tests. |
-| **AllHaven 0.6** | 2026-06-08 | CoreOS | — | Per-workspace **AI policy** — allow/deny external AI providers. |
-| **AllHaven 0.7** | 2026-06-08 | CoreOS | — | Command palette (⌘K) for fast navigation/search. |
-| **AllHaven 0.8** | 2026-06-08 | CoreOS | — | One-command setup/run helper script. |
-| **AllHaven 0.9** | 2026-06-08 | CoreOS | — | Stability fixes and refinements (no new surface). |
-| **AllHaven 1.0** | 2026-06-09 | CoreOS | — | **Multi-agent chat + module backends** — concurrent agents and Drive/Calendar/Weather/Automations APIs (migration `0004`). |
-| **AllHaven 1.1** | 2026-06-09 | CoreOS | — | Session memory / project documentation. |
-| **AllHaven 1.2** | 2026-06-09 | CoreOS | — | **Production deployment** — Dockerfiles, prod compose with Caddy HTTPS, deploy guide. |
-| **AllHaven 1.3** | 2026-06-09 | CoreOS | — | Cross-OS run scripts + local-setup and release docs. |
+| **CoreOS 0.1** | 2026-06-08 | CoreOS | — | Initial base — FastAPI + PostgreSQL backend, Next.js + TS + Tailwind frontend, auth, and the first modules (Tasks, Notes, Finance). |
+| **CoreOS 0.2** | 2026-06-08 | CoreOS | — | UI layer — app layout (PageHeader, nav) and a reusable UI kit (Avatar, BarChart, IconButton, Select, Tabs, Toggle) + user preferences. |
+| **CoreOS 0.3** | 2026-06-08 | CoreOS | — | AI provider system — provider router, provider registry, encrypted secrets, integration config service + schemas (migration `0002`). |
+| **CoreOS 0.4** | 2026-06-08 | CoreOS | — | New module pages (Drive, Calendar, Weather, Automations) + task checklists (migration `0003`) + the Blackbox provider. |
+| **CoreOS 0.5** | 2026-06-08 | CoreOS | — | Google OAuth foundation (router + service + card) and Ollama provider tests. |
+| **CoreOS 0.6** | 2026-06-08 | CoreOS | — | Per-workspace **AI policy** — allow/deny external AI providers. |
+| **CoreOS 0.7** | 2026-06-08 | CoreOS | — | Command palette (⌘K) for fast navigation/search. |
+| **CoreOS 0.8** | 2026-06-08 | CoreOS | — | One-command setup/run helper script. |
+| **CoreOS 0.9** | 2026-06-08 | CoreOS | — | Stability fixes and refinements (no new surface). |
+| **CoreOS 1.0** | 2026-06-09 | CoreOS | — | **Multi-agent chat + module backends** — concurrent agents and Drive/Calendar/Weather/Automations APIs (migration `0004`). |
+| **CoreOS 1.1** | 2026-06-09 | CoreOS | — | Session memory / project documentation. |
+| **CoreOS 1.2** | 2026-06-09 | CoreOS | `v0.1.0` | **Production deployment** — Dockerfiles, prod compose with Caddy HTTPS, deploy guide. |
+| **CoreOS 1.3** | 2026-06-09 | CoreOS | `v0.2.0` | Cross-OS run scripts + local-setup and release docs. |
 | **AllHaven 1.4** | 2026-06-09 | **AllHaven** | `v0.3.0` | Rebrand to AllHaven + responsive UI, **multi-agent Debate** mode, and the **Reasoning Quality Layer** (Analyst → Critic → Synthesizer with grounded, verified reasoning). |
 | **AllHaven 1.5** | 2026-06-09 | **AllHaven** | `v0.4.0` | **Image input (vision)** — attach images and have agents respond to them — plus **Markdown-rendered chat output**. |
 | **AllHaven 1.6** | 2026-06-09 | **AllHaven** | `v0.5.0` | **Calculator** & **Clock** modules, **Thinking Mode** (Fast/Balance/Thinking/Deep), chat modes simplified to Parallel/Debate/Reasoning, and **vision routing** (images go only to vision-capable models). |
@@ -62,14 +64,15 @@ runnable snapshot. The latest version also lives on the [`main`](../../tree/main
 | **AllHaven 2.8** | 2026-06-12 | **AllHaven** | `v0.16.0` | **Persistent AI memory** — auto-learns user context from chat (secret-safe, approval flow), injects it into all four chat modes, adds memory tools with human approval, a memory management page, and optional Supabase sync (migration `0007`). |
 | **AllHaven 2.9** | 2026-06-13 | **AllHaven** | `v0.17.0` | **AI Workspace + Knowledge + finance reports + launch polish** — section-aware context packets, AI Knowledge document ingestion/search/retrieval with metadata-only storage for unsupported files, dedicated tool-call logging, 72 allowlisted tools, configurable Drive upload limits, monthly/weekly finance reports with archived/out-of-period records, local date/time answers, direct low-risk memory saves, a dedicated Approvals page, app-wide toast notifications, responsive UI across desktop/tablet/mobile, cleaner approval notifications, fresh-clone install guardrails, and a more direct conversational AI for coding and schedule management (migration `0008`). |
 | **AllHaven 3.0** | 2026-06-13 | **AllHaven** | `v3.0.0` | **Launch-ready AI workspace** — app-wide layout polish, cleaner sidebar/topbar/dashboard, responsive shell refinements, AI Knowledge context available to every chat mode/model, language controls for Indonesian/English/Traditional Mandarin, dark/light theme and accent color preferences, in-app decision popups replacing browser `localhost says` dialogs, and language-aware local date/time answers. |
-| **⭐ AllHaven 3.1** | 2026-06-13 | **AllHaven** | `v3.1.0` | **Current.** **Expanded AI agents and settings UX** — raises multi-agent runs to 10 agents, adds Cursor AI, DeepSeek, and Qwen provider support, improves Debate prompts/final output, adds a searchable grouped model picker, and reorganizes Settings → AI Providers into health stats plus Direct/OpenRouter sections with honest provider verification. |
+| **AllHaven 3.1** | 2026-06-13 | **AllHaven** | `v3.1.0` | **Expanded AI agents and settings UX** — raises multi-agent runs to 10 agents, adds Cursor AI, DeepSeek, and Qwen provider support, improves Debate prompts/final output, adds a searchable grouped model picker, and reorganizes Settings → AI Providers into health stats plus Direct/OpenRouter sections with honest provider verification. |
+| **⭐ AllHaven 3.2** | 2026-06-13 | **AllHaven** | `v3.2.0` | **Current.** **Repository hygiene and render skeletons** — removes local env files from the working tree, keeps clone-safe templates, adds app-wide and dashboard-specific skeleton loaders, and clarifies the CoreOS archive naming/semantic mapping. |
 
 <sub>⭐ = current release. Dates reflect each version's build/release during the project's initial development sprint.</sub>
 
 ## 🌱 How the two branches relate
 
-Each `AllHaven X.Y` folder is a complete, standalone snapshot you can open and run on
-its own; the latest (`AllHaven 3.1`) keeps its own `CHANGELOG.md`, `VERSION`, and
+Each `CoreOS X.Y` or `AllHaven X.Y` folder is a complete, standalone snapshot you can open and run on
+its own; the latest (`AllHaven 3.2`) keeps its own `CHANGELOG.md`, `VERSION`, and
 `docs/releases/` inside it. New releases add the next folder here, while
 [`main`](../../tree/main) is fast-forwarded to the same version.
 
