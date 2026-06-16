@@ -3,12 +3,16 @@ import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/format";
 import type { IntegrationStatusValue, TaskPriority, TaskStatus } from "@/types";
 
-const CONFIG_STATUS: Record<string, { label: string; tone: "success" | "primary" | "neutral" | "danger" }> = {
+const CONFIG_STATUS: Record<
+  string,
+  { label: string; tone: "success" | "primary" | "neutral" | "danger" | "warning" }
+> = {
   online: { label: "Online", tone: "success" },
   connected: { label: "Connected", tone: "success" },
   configured: { label: "Configured", tone: "primary" },
   not_configured: { label: "Not configured", tone: "neutral" },
   error: { label: "Error", tone: "danger" },
+  unavailable: { label: "Unavailable", tone: "warning" },
   disabled: { label: "Disabled", tone: "neutral" },
 };
 
