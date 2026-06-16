@@ -3,8 +3,8 @@
 
 import type { User } from "@/types";
 
-const TOKEN_KEY = "coreos_token";
-const USER_KEY = "coreos_user";
+const TOKEN_KEY = "allhaven_token";
+const USER_KEY = "allhaven_user";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;

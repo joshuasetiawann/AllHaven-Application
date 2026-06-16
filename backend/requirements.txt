@@ -1,4 +1,4 @@
-# CoreOS backend dependencies (MVP)
+# AllHaven backend dependencies (MVP)
 # Minimum versions with open upper bounds so the project installs on Python
 # 3.11 through 3.14 (newer Python versions need newer wheels). Plain `uvicorn`
 # is used (not uvicorn[standard]) to avoid native uvloop/httptools builds on

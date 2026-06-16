@@ -19,7 +19,7 @@ os.environ["AI_ALLOW_EXTERNAL_PROVIDERS"] = "false"
 os.environ["AI_DEFAULT_PROVIDER"] = "ollama"
 # Redirect the .env mirror and Drive storage to temp dirs so tests never touch
 # the real repo .env or pollute the working tree.
-_TMP = tempfile.mkdtemp(prefix="coreos-test-")
+_TMP = tempfile.mkdtemp(prefix="allhaven-test-")
 os.environ["ENV_SYNC_PATH"] = os.path.join(_TMP, ".env")
 os.environ["DRIVE_STORAGE_DIR"] = os.path.join(_TMP, "drive")
 # Force these empty so a local .env file can never make tests non-deterministic
