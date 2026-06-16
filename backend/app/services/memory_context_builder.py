@@ -100,6 +100,48 @@ def _format_block(memories: list[AiMemory]) -> str:
     return "\n".join(lines)
 
 
+def _fact_slot(memory: AiMemory) -> Optional[str]:
+    """Canonical slot for facts that should have one current value."""
+    text = f"{memory.title} {memory.content}".lower()
+    if "user's name" in text or "user name" in text or "nama" in text:
+        return "profile:name"
+    if any(word in text for word in ("partner", "pacar", "pasangan", "girlfriend", "boyfriend", "spouse")):
+        return "profile:partner"
+    if any(word in text for word in ("friend", "teman", "sahabat")):
+        return "profile:friend"
+    if "school" in text or "studies at" in text or "sekolah" in text or "kuliah" in text:
+        return "profile:school"
+    if "location" in text or "lives in" in text or "tinggal" in text:
+        return "profile:location"
+    return None
+
+
+def _latest_per_fact_slot(memories: list[AiMemory]) -> list[AiMemory]:
+    """Keep only the newest memory for single-value profile facts."""
+    latest: dict[str, AiMemory] = {}
+
+    def _stamp(memory: AiMemory):
+        return memory.updated_at or memory.created_at
+
+    for memory in memories:
+        slot = _fact_slot(memory)
+        if not slot:
+            continue
+        existing = latest.get(slot)
+        if existing is None or _stamp(memory) >= _stamp(existing):
+            latest[slot] = memory
+
+    if not latest:
+        return memories
+
+    out: list[AiMemory] = []
+    for memory in memories:
+        slot = _fact_slot(memory)
+        if not slot or latest.get(slot).id == memory.id:
+            out.append(memory)
+    return out
+
+
 def build(
     db: Session,
     principal: Principal,
@@ -147,6 +189,8 @@ def build(
 
     if not selected:
         return None
+
+    selected = _latest_per_fact_slot(selected)
 
     # Mark all selected memories as used
     for m in selected:
