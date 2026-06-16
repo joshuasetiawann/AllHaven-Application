@@ -168,7 +168,7 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
 
       {hasOverride && source !== "override" ? (
         <div className="mt-3 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[12.5px] leading-relaxed text-warning">
-          The saved Tailscale URL is not the active backend in this web browser. Browser login uses a same-site backend to avoid cookie loops; the mobile APK will use the saved URL.
+          The saved Tailscale URL is not the active backend on this device. The active URL shown above is being used instead.
         </div>
       ) : null}
 
@@ -190,7 +190,7 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
           placeholder="http://100.x.y.z:8000  or  https://desktop.tailnet.ts.net"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          hint="Use a Tailscale IP, MagicDNS name, or Tailscale Serve URL. We add /api/v1 for you. Plain http://localhost only works on the desktop itself."
+          hint="Use a Tailscale Serve URL when the raw 100.x IP is unreachable. We add /api/v1 for you. Plain http://localhost only works on the desktop itself."
         />
 
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -245,7 +245,7 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
           <li>
             On the desktop, run the backend with <span className="font-mono text-content">--host 0.0.0.0 --port 8000</span>.
           </li>
-          <li>Find the desktop&apos;s Tailscale IP (100.x.y.z) or MagicDNS host, paste it above, then Test.</li>
+          <li>Prefer the desktop&apos;s Tailscale Serve URL (https://name.ts.net). Use the 100.x IP only if Android can reach it.</li>
         </ol>
         <p className="mt-2 flex items-start gap-1.5 text-[11.5px] text-content-subtle">
           <ShieldAlert size={13} className="mt-0.5 shrink-0 text-warning" />

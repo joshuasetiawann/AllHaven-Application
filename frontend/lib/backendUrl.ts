@@ -94,7 +94,35 @@ function fromEnv(): string {
   const v = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!v || !v.trim()) return "";
   if (/PLACEHOLDER\.invalid/i.test(v)) return "";
-  return v.trim();
+  return normalizeBackendUrl(v.trim());
+}
+
+function isRawTailscaleIp(url: string): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname;
+    const parts = host.split(".").map((p) => Number(p));
+    return parts.length === 4
+      && parts.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)
+      && parts[0] === 100
+      && parts[1] >= 64
+      && parts[1] <= 127;
+  } catch {
+    return false;
+  }
+}
+
+function isTsNetUrl(url: string): boolean {
+  if (!url) return false;
+  try {
+    return new URL(url).hostname.toLowerCase().endsWith(".ts.net");
+  } catch {
+    return false;
+  }
+}
+
+function mobileEnvBeatsBrokenRawIp(override: string, env: string): boolean {
+  return BEARER_MODE && isRawTailscaleIp(override) && isTsNetUrl(env);
 }
 
 function derived(): string {
@@ -136,8 +164,12 @@ function sameSiteUsable(url: string): boolean {
 /** The active API root, resolved fresh on every call (override → env → derived → localhost). */
 export function getApiBaseUrl(): string {
   const override = getBackendOverride();
-  if (sameSiteUsable(override)) return override;
   const env = fromEnv();
+  // If an installed APK already saved a raw 100.x Tailscale IP that the phone
+  // cannot route, let a built-in Tailscale Serve HTTPS default take over. This
+  // keeps update installs from staying stuck on an unreachable local override.
+  if (mobileEnvBeatsBrokenRawIp(override, env)) return env;
+  if (sameSiteUsable(override)) return override;
   if (sameSiteUsable(env)) return env;
   const d = derived();
   if (d) return d;
@@ -148,8 +180,11 @@ export function getApiBaseUrl(): string {
 export function getApiBaseUrlSource(): BackendUrlSource {
   // Mirror getApiBaseUrl(): a cross-site override/env is rejected in cookie mode,
   // so report the source that's ACTUALLY in effect, not merely what's configured.
-  if (sameSiteUsable(getBackendOverride())) return "override";
-  if (sameSiteUsable(fromEnv())) return "env";
+  const override = getBackendOverride();
+  const env = fromEnv();
+  if (mobileEnvBeatsBrokenRawIp(override, env)) return "env";
+  if (sameSiteUsable(override)) return "override";
+  if (sameSiteUsable(env)) return "env";
   if (derived()) return "derived";
   if (BEARER_MODE) return "none";
   return "fallback";
