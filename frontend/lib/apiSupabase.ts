@@ -129,11 +129,28 @@ async function supabaseSignIn(email: string, password: string): Promise<AuthToke
   const sb = await getSupabase();
   const { data, error } = await withTimeout(sb.auth.signInWithPassword({ email, password }), 18_000);
   if (error) throw toApiException(error, 401);
-  // Best-effort self-provision (idempotent): covers first login after email
-  // confirmation and repairs unlinked/legacy accounts. Swallowed if the RPC isn't
-  // deployed yet — loadMe() stays the source of truth for whether the account works.
-  await withTimeout(sb.rpc("provision_me", { p_full_name: null }), 10_000).then(() => {}, () => {});
-  const meResult = await loadMe();
+  // Best-effort self-provision is idempotent, but waiting on it for every login
+  // makes already-linked mobile accounts feel stuck. Let ready accounts enter as
+  // soon as profile/workspace loads; only block on provisioning when loadMe proves
+  // the account still needs bootstrap.
+  void withTimeout(sb.rpc("provision_me", { p_full_name: null }), 2500).then(
+    ({ error }) => {
+      if (error) console.warn("provision_me background failed:", error);
+    },
+    () => {},
+  );
+  let meResult: Me;
+  try {
+    meResult = await loadMe();
+  } catch (err) {
+    const needsBootstrap =
+      err instanceof ApiException &&
+      (err.code === "PROFILE_NOT_INITIALIZED" || err.code === "WORKSPACE_NOT_INITIALIZED");
+    if (!needsBootstrap) throw err;
+    const { error: provisionError } = await withTimeout(sb.rpc("provision_me", { p_full_name: null }), 10_000);
+    if (provisionError) throw toApiException(provisionError, 502);
+    meResult = await loadMe();
+  }
   return {
     access_token: data.session?.access_token ?? "",
     token_type: "bearer",
