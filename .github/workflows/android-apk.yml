@@ -4,9 +4,9 @@ name: Build Android APK
 # no Android Studio or SDK needed on your machine. The .apk is attached to every
 # run as a downloadable artifact and published to the "mobile-latest" pre-release.
 #
-# Run it: Actions tab → "Build Android APK" → Run workflow, and enter your API
-# base URL only if you want to override the built-in Tailscale Serve bridge.
-# The mobile APK can run all normal data through the Desktop Bridge backend.
+# Run it: Actions tab → "Build Android APK" → Run workflow. The default APK uses
+# Supabase directly for login/data. Enter an API base URL only for the optional
+# Desktop Bridge used by Ollama/n8n/backend-only tools.
 
 on:
   workflow_dispatch:
@@ -16,9 +16,9 @@ on:
         required: false
         default: ""
       data_mode:
-        description: "Data source for the APK: rest = Desktop Bridge backend, supabase = Supabase-direct"
+        description: "Data source for the APK: supabase = Supabase-direct, rest = Desktop Bridge backend"
         required: false
-        default: "rest"
+        default: "supabase"
   push:
     branches: [mobile]
     paths:
@@ -41,7 +41,7 @@ jobs:
       # private Tailscale Serve URL. Raw 100.x Tailscale IPs are not reliable on
       # every Android/VPN setup; Serve gives the APK a stable HTTPS backend.
       API_URL: ${{ github.event.inputs.api_base_url || vars.MOBILE_API_BASE_URL || 'https://joo.tail01a7d3.ts.net/api/v1' }}
-      DATA_MODE: ${{ github.event.inputs.data_mode || vars.MOBILE_DATA_MODE || 'rest' }}
+      DATA_MODE: ${{ github.event.inputs.data_mode || vars.MOBILE_DATA_MODE || 'supabase' }}
       SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || vars.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
     steps:
@@ -91,7 +91,7 @@ jobs:
           if [ "$NEXT_PUBLIC_DATA_MODE" = "supabase" ]; then
             npm run build:mobile:supabase
           else
-            npm run build:mobile
+            npm run build:mobile:rest
           fi
           npx cap sync android
 
@@ -117,6 +117,6 @@ jobs:
           files: frontend/android/app/build/outputs/apk/debug/app-debug.apk
           body: |
             Debug APK of the AllHaven mobile app, built by CI.
-            Mobile data mode: `${{ env.DATA_MODE }}` (`rest` = Desktop Bridge backend).
-            Desktop Bridge default: `${{ env.API_URL }}`
+            Mobile data mode: `${{ env.DATA_MODE }}` (`supabase` = direct login/data; `rest` = Desktop Bridge backend).
+            Desktop Bridge default for backend-only tools: `${{ env.API_URL }}`
             Download `app-debug.apk` below → install on Android (enable "Install unknown apps").
