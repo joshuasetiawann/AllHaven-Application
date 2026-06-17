@@ -68,6 +68,7 @@ def multi_chat(
     message: str,
     provider_ids: List[str],
     session_id: Optional[uuid.UUID] = None,
+    images: Optional[List[str]] = None,
 ) -> dict:
     ids = _dedup(provider_ids)
     if not ids:
@@ -102,6 +103,7 @@ def multi_chat(
         session_id=session.id,
         role="user",
         content=message,
+        meta={"images": images} if images else None,
     )
     db.add(user_message)
     db.flush()
@@ -119,7 +121,7 @@ def multi_chat(
 
     # Resolve every provider on this thread (DB reads only).
     plans = {pid: ai_provider_router.plan_chat(db, principal, pid) for pid in ids}
-    messages = [{"role": "user", "content": message}]
+    messages = [{"role": "user", "content": message, "images": images or []}]
 
     # Execute only the runnable plans concurrently.
     runnable = {pid: p for pid, p in plans.items() if p.runnable}
