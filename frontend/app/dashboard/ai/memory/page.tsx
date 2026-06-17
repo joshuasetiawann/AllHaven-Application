@@ -9,6 +9,7 @@ import {
   Clock3,
   Pencil,
   Plus,
+  RefreshCw,
   Search,
   Shield,
   Trash2,
@@ -78,6 +79,7 @@ export default function MemoryPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchQ, setSearchQ] = useState("");
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{
@@ -123,6 +125,7 @@ export default function MemoryPage() {
       void load();
       return;
     }
+    setSearching(true);
     try {
       const results = await memoryApi.search(searchQ);
       setMemories(results);
@@ -131,6 +134,8 @@ export default function MemoryPage() {
       const message = e instanceof ApiException ? e.message : "Search failed.";
       setError(message);
       toast.danger("Search failed", message);
+    } finally {
+      setSearching(false);
     }
   };
 
@@ -170,12 +175,19 @@ export default function MemoryPage() {
   };
 
   const handleSaveEdit = async (id: string) => {
+    const title = editDraft.title.trim();
+    const content = editDraft.content.trim();
+    if (!title || !content) {
+      setError("Title and content are required.");
+      toast.warning("Missing memory details", "Title and content are required.");
+      return;
+    }
     setError(null);
     try {
       const updated = await memoryApi.update(id, {
-        title: editDraft.title,
+        title,
         category: editDraft.category,
-        content: editDraft.content,
+        content,
       });
       setMemories((prev) => prev.map((m) => (m.id === id ? updated : m)));
       setEditingId(null);
@@ -215,14 +227,16 @@ export default function MemoryPage() {
   };
 
   const handleAddMemory = async () => {
-    if (!newMemory.title.trim() || !newMemory.content.trim()) {
+    const title = newMemory.title.trim();
+    const content = newMemory.content.trim();
+    if (!title || !content) {
       setError("Title and content are required.");
       toast.warning("Missing memory details", "Title and content are required.");
       return;
     }
     setError(null);
     try {
-      const m = await memoryApi.create(newMemory);
+      const m = await memoryApi.create({ ...newMemory, title, content });
       setMemories((prev) => [m, ...prev]);
       setNewMemory({ category: "Profile", sensitivity: "LOW", title: "", content: "" });
       setShowAddForm(false);
@@ -292,6 +306,63 @@ export default function MemoryPage() {
     setEditDraft({ title: m.title, category: m.category, content: m.content });
   };
 
+  const resetSearch = () => {
+    setSearchQ("");
+    setTab("all");
+    void load();
+  };
+
+  const renderSuggestion = (s: MemorySuggestion) => (
+    <div
+      key={s.id}
+      className="flex flex-col gap-3 rounded-xl border border-warning/20 bg-warning/5 p-3 sm:flex-row sm:items-start"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span
+            className={cn(
+              "rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+              CATEGORY_COLORS[s.category as MemoryCategory] ?? "",
+            )}
+          >
+            {s.category}
+          </span>
+          <span className="text-[12px] font-medium text-content">
+            {s.title}
+          </span>
+          <Badge
+            tone={s.sensitivity === "LOW" ? "success" : "warning"}
+            className="text-[10px]"
+          >
+            {s.sensitivity}
+          </Badge>
+        </div>
+        <p className="mt-0.5 text-[12px] leading-relaxed text-content-muted">
+          {s.content}
+        </p>
+        {s.source_snippet && (
+          <p className="mt-0.5 text-[10.5px] text-content-subtle italic">
+            From: &ldquo;{s.source_snippet}&rdquo;
+          </p>
+        )}
+      </div>
+      <div className="flex shrink-0 flex-wrap gap-1.5 sm:justify-end">
+        <button
+          onClick={() => void handleApproveSuggestion(s.id)}
+          className="flex items-center gap-1 rounded-md border border-success/30 bg-success/10 px-2 py-1 text-[11px] text-success hover:bg-success/20"
+        >
+          <Check size={11} /> Save
+        </button>
+        <button
+          onClick={() => void handleRejectSuggestion(s.id)}
+          className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-content-muted hover:bg-surface-raised"
+        >
+          <X size={11} /> Dismiss
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-4xl space-y-6">
@@ -358,7 +429,7 @@ export default function MemoryPage() {
                 }
                 label="Auto-learning"
               />
-              <span>Auto-learning</span>
+              <span>Auto-learn new facts</span>
             </div>
             <div className="flex items-center gap-2 text-[12px] text-content-muted">
               <Toggle
@@ -449,63 +520,14 @@ export default function MemoryPage() {
         )}
 
         {/* Pending Suggestions */}
-        {suggestions.length > 0 && (
+        {suggestions.length > 0 && tab !== "pending" && (
           <div className="space-y-2">
             <p className="flex items-center gap-1.5 text-[12px] font-medium text-content-muted">
               <Zap size={13} className="text-warning" />
               {suggestions.length} pending suggestion
               {suggestions.length > 1 ? "s" : ""}
             </p>
-            {suggestions.map((s) => (
-              <div
-                key={s.id}
-                className="flex flex-col gap-3 rounded-xl border border-warning/20 bg-warning/5 p-3 sm:flex-row sm:items-start"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span
-                      className={cn(
-                        "rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
-                        CATEGORY_COLORS[s.category as MemoryCategory] ?? "",
-                      )}
-                    >
-                      {s.category}
-                    </span>
-                    <span className="text-[12px] font-medium text-content">
-                      {s.title}
-                    </span>
-                    <Badge
-                      tone={s.sensitivity === "LOW" ? "success" : "warning"}
-                      className="text-[10px]"
-                    >
-                      {s.sensitivity}
-                    </Badge>
-                  </div>
-                  <p className="mt-0.5 text-[12px] text-content-muted">
-                    {s.content}
-                  </p>
-                  {s.source_snippet && (
-                    <p className="mt-0.5 text-[10.5px] text-content-subtle italic">
-                      From: &ldquo;{s.source_snippet}&rdquo;
-                    </p>
-                  )}
-                </div>
-                <div className="flex shrink-0 flex-wrap gap-1.5 sm:justify-end">
-                  <button
-                    onClick={() => void handleApproveSuggestion(s.id)}
-                    className="flex items-center gap-1 rounded-md border border-success/30 bg-success/10 px-2 py-1 text-[11px] text-success hover:bg-success/20"
-                  >
-                    <Check size={11} /> Save
-                  </button>
-                  <button
-                    onClick={() => void handleRejectSuggestion(s.id)}
-                    className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-content-muted hover:bg-surface-raised"
-                  >
-                    <X size={11} /> Dismiss
-                  </button>
-                </div>
-              </div>
-            ))}
+            {suggestions.map(renderSuggestion)}
           </div>
         )}
 
@@ -526,7 +548,7 @@ export default function MemoryPage() {
                 {t === "all"
                   ? `All (${memories.length})`
                   : t === "pending"
-                    ? `Pending (${suggestions.length})`
+                    ? `Review (${suggestions.length})`
                     : t === "auto"
                       ? "Auto-learned"
                       : "Manual"}
@@ -555,6 +577,14 @@ export default function MemoryPage() {
               className="min-w-0 flex-1 bg-transparent py-1 text-[12px] text-content placeholder:text-content-subtle focus:outline-none"
             />
           </div>
+          <Button size="sm" variant="ghost" onClick={() => void handleSearch()} loading={searching} className="w-full sm:w-auto">
+            <Search size={13} /> Search
+          </Button>
+          {searchQ.trim() ? (
+            <Button size="sm" variant="secondary" onClick={resetSearch} className="w-full sm:w-auto">
+              <RefreshCw size={13} /> Reset
+            </Button>
+          ) : null}
         </div>
 
         {/* Error state */}
@@ -575,7 +605,9 @@ export default function MemoryPage() {
                 No pending suggestions.
               </p>
             </div>
-          ) : null
+          ) : (
+            <div className="space-y-2">{suggestions.map(renderSuggestion)}</div>
+          )
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center py-12 text-center">
             <Brain size={32} className="mb-3 text-content-subtle" />
