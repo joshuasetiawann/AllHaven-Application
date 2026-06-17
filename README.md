@@ -21,10 +21,10 @@ The latest version also lives on the
 
 ## 📦 About this branch
 
-- **`master`** (this branch) — the **full archive**: every release in its own
-  folder, a complete snapshot you can open and run on its own. Folders are
-  prefixed by era — `1 ` for the early **CoreOS** prototype, `2 ` for the
-  **AllHaven** product — so they always list in release order.
+- **`master`** (this branch) — the **full archive**: every release frozen in its
+  own `CoreOS X.Y` or `AllHaven X.Y` folder, a complete snapshot you can open and
+  run on its own. The release-history table below lists them in chronological
+  order (CoreOS first, then AllHaven).
 - **[`main`](../../tree/main)** — only the **latest** version, flat at the repo root,
   ready to run or deploy.
 
