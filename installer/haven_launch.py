@@ -66,10 +66,16 @@ def _agent_post(path: str, timeout: float = 130.0) -> tuple[int, dict]:
 
 
 def ensure_agent() -> bool:
-    if _agent_ping():
-        return True
+    # Ensure the shared localhost token file exists BEFORE we talk to the agent.
+    # Both the agent and this launcher read it fresh on every request, so
+    # (re)creating it here repairs a missing/stale token that would otherwise 401
+    # every control call — e.g. when an agent from an earlier run is still up but
+    # the token file was removed (which then makes service start/restart impossible,
+    # leaving a wedged server in place). Do this regardless of the ping result.
     hc.ensure_dirs()
     hc.ensure_token()
+    if _agent_ping():
+        return True
     log = open(hc.logs_dir() / "agent.log", "ab")  # noqa: SIM115
     kwargs: dict = {"stdout": log, "stderr": subprocess.STDOUT, "stdin": subprocess.DEVNULL,
                     "cwd": str(hc.repo_root()), "env": hc.enriched_env()}

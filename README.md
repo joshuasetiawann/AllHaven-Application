@@ -113,7 +113,8 @@ cd AllHaven-Application
 | **Fresh install** (Linux/macOS) | **`./install.sh`** |
 | **Fresh install** (Windows) | **`python installer\haven_cli.py`** (or WSL + `./install.sh`) |
 | **Run** (already installed) | **`./allhaven.sh run`** (foreground) · **`./allhaven.sh start`** (background) |
-| **Restart / stop** | **`./allhaven.sh restart`** · **`./allhaven.sh stop`** |
+| **Restart / stop** | **`./allhaven.sh restart`** (all) · **`./allhaven.sh restart backend\|frontend`** · **`./allhaven.sh stop`** |
+| **Status / ports** | **`./allhaven.sh status`** · **`./allhaven.sh port`** (show) · **`./allhaven.sh port frontend 3001`** (set, then `restart`) |
 
 After setup, the **Haven desktop shortcut** (or the same launcher) starts services and
 opens the app — **no terminal needed**; if a service is down it starts it safely first.
