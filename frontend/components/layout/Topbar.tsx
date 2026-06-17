@@ -63,34 +63,36 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-bg/80 px-4 backdrop-blur-[12px] sm:px-6">
-        <IconButton className="lg:hidden" onClick={onMenu} aria-label="Open menu">
+      <header className="sticky top-0 z-30 flex h-16 min-w-0 items-center gap-2 border-b border-border bg-bg/80 px-3 backdrop-blur-[12px] sm:gap-3 sm:px-6">
+        <IconButton className="shrink-0 lg:hidden" onClick={onMenu} aria-label="Open menu">
           <Menu size={18} />
         </IconButton>
 
-        {/* Working command palette trigger */}
+        {/* Working command palette trigger — shrinks gracefully on small screens */}
         <button
           onClick={() => setPaletteOpen(true)}
-          className="flex h-9 flex-1 items-center gap-2 rounded-md border border-border bg-surface-input px-3 text-left text-content-subtle transition-colors hover:border-border-strong sm:max-w-md"
+          className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-surface-input px-3 text-left text-content-subtle transition-colors hover:border-border-strong sm:max-w-md"
         >
-          <Search size={15} />
-          <span className="flex-1 text-[13px]">Search tasks, notes, pages…</span>
-          <kbd className="hidden rounded border border-border px-1.5 py-0.5 text-[10px] sm:inline">⌘K</kbd>
+          <Search size={15} className="shrink-0" />
+          <span className="min-w-0 flex-1 truncate text-[13px]">Search tasks, notes, pages…</span>
+          <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] sm:inline">⌘K</kbd>
         </button>
 
         <span
           className={cn(
-            "hidden items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] font-medium sm:inline-flex",
+            "hidden max-w-[200px] items-center gap-2 truncate rounded-full border px-3 py-1.5 text-[12px] font-medium md:inline-flex",
             aiConfigured
               ? "border-primary/30 bg-primary/10 text-primary"
               : "border-border bg-surface-high text-content-muted",
           )}
         >
-          <span className={cn("h-1.5 w-1.5 rounded-full", aiConfigured ? "bg-primary" : "bg-content-subtle")} />
-          Local AI · {aiConfigured === null ? "…" : aiConfigured ? "Connected" : "Not configured"}
+          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", aiConfigured ? "bg-primary" : "bg-content-subtle")} />
+          <span className="truncate">
+            Local AI · {aiConfigured === null ? "…" : aiConfigured ? "Configured" : "Not configured"}
+          </span>
         </span>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <div className="relative" ref={notifRef}>
             <IconButton aria-label="Notifications" active={notifOpen} onClick={() => setNotifOpen((o) => !o)}>
               <Bell size={17} />
