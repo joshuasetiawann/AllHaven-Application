@@ -8,6 +8,7 @@ MVP (human-in-the-loop, no autonomous execution).
 from __future__ import annotations
 
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -31,7 +32,8 @@ from app.services import ai_policy_service, ai_provider_router, ai_service
 
 
 class AiPolicyUpdate(BaseModel):
-    allow_external: bool
+    allow_external: Optional[bool] = None
+    default_provider: Optional[str] = None
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -53,7 +55,12 @@ def update_policy(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    data = ai_policy_service.set_allow_external(db, principal, payload.allow_external)
+    data = ai_policy_service.set_policy(
+        db,
+        principal,
+        allow_external=payload.allow_external,
+        default_provider=payload.default_provider,
+    )
     return success_response(data, "AI policy updated")
 
 

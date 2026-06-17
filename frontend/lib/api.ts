@@ -95,6 +95,8 @@ export const authApi = {
   login: (email: string, password: string) =>
     request<AuthToken>("/auth/login", { method: "POST", body: json({ email, password }) }),
   me: () => request<Me>("/auth/me"),
+  updateMe: (payload: { full_name?: string; workspace_name?: string }) =>
+    request<Me>("/auth/me", { method: "PATCH", body: json(payload) }),
 };
 
 // --- Tasks ---
@@ -166,16 +168,17 @@ export const aiApi = {
     request<AiProvider>(`/ai/providers/${id}/enable`, { method: "POST" }),
   disableProvider: (id: string) =>
     request<AiProvider>(`/ai/providers/${id}/disable`, { method: "POST" }),
-  getPolicy: () =>
-    request<{ allow_external: boolean; default_privacy_mode: string; env_default: boolean }>(
-      "/ai/policy",
-    ),
-  setPolicy: (allow_external: boolean) =>
-    request<{ allow_external: boolean; default_privacy_mode: string; env_default: boolean }>(
-      "/ai/policy",
-      { method: "PUT", body: json({ allow_external }) },
-    ),
+  getPolicy: () => request<AiPolicy>("/ai/policy"),
+  setPolicy: (payload: { allow_external?: boolean; default_provider?: string }) =>
+    request<AiPolicy>("/ai/policy", { method: "PUT", body: json(payload) }),
 };
+
+export interface AiPolicy {
+  allow_external: boolean;
+  default_provider: string;
+  default_privacy_mode: string;
+  env_default: boolean;
+}
 
 // --- Settings ---
 export const settingsApi = {

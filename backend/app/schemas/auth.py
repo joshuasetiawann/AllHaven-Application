@@ -55,3 +55,8 @@ class TokenData(BaseModel):
 class MeData(BaseModel):
     user: UserOut
     workspace: WorkspaceOut
+
+
+class MeUpdate(BaseModel):
+    full_name: Optional[str] = Field(default=None, max_length=255)
+    workspace_name: Optional[str] = Field(default=None, max_length=255)
