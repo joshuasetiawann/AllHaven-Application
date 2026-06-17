@@ -57,32 +57,45 @@ class AllHavenWebShell extends StatefulWidget {
 }
 
 class _AllHavenWebShellState extends State<AllHavenWebShell> {
+  static const _blockingLoadTimeout = Duration(seconds: 5);
+
   late final WebViewController _controller;
+  Timer? _loadingCoverTimer;
   var _progress = 0;
+  var _pageLoading = true;
+  var _blockingLoader = true;
+  var _firstPageReleased = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _armBlockingLoaderTimeout();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF070B10))
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (progress) {
-            if (mounted) {
-              setState(() => _progress = progress);
+            if (!mounted) {
+              return;
             }
-          },
-          onPageStarted: (_) {
-            if (mounted) {
-              setState(() => _error = null);
+            if (progress >= 100) {
+              _finishPageLoad();
+              return;
             }
+            setState(() {
+              _progress = progress;
+              _pageLoading = true;
+            });
           },
+          onPageStarted: (_) => _beginPageLoad(),
+          onPageFinished: (_) => _finishPageLoad(),
           onWebResourceError: (error) {
             if (error.isForMainFrame == false) {
               return;
             }
+            _finishPageLoad();
             if (mounted) {
               setState(() => _error = error.description);
             }
@@ -94,8 +107,53 @@ class _AllHavenWebShellState extends State<AllHavenWebShell> {
 
   @override
   void dispose() {
+    _loadingCoverTimer?.cancel();
     unawaited(widget.server.stop());
     super.dispose();
+  }
+
+  void _beginPageLoad() {
+    final shouldBlock = !_firstPageReleased;
+    if (shouldBlock) {
+      _armBlockingLoaderTimeout();
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _progress = 0;
+      _pageLoading = true;
+      _blockingLoader = shouldBlock;
+      _error = null;
+    });
+  }
+
+  void _finishPageLoad() {
+    _releaseBlockingLoader(markLoaded: true);
+  }
+
+  void _armBlockingLoaderTimeout() {
+    _loadingCoverTimer?.cancel();
+    _loadingCoverTimer = Timer(
+      _blockingLoadTimeout,
+      () => _releaseBlockingLoader(markLoaded: false),
+    );
+  }
+
+  void _releaseBlockingLoader({required bool markLoaded}) {
+    _loadingCoverTimer?.cancel();
+    _loadingCoverTimer = null;
+    _firstPageReleased = true;
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      if (markLoaded) {
+        _progress = 100;
+        _pageLoading = false;
+      }
+      _blockingLoader = false;
+    });
   }
 
   Future<void> _handleBack() async {
@@ -120,7 +178,19 @@ class _AllHavenWebShellState extends State<AllHavenWebShell> {
           child: Stack(
             children: [
               WebViewWidget(controller: _controller),
-              if (_progress < 100)
+              if (_pageLoading && !_blockingLoader && _progress < 100)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  child: LinearProgressIndicator(
+                    minHeight: 2,
+                    value: _progress <= 0 ? null : _progress / 100,
+                    backgroundColor: Colors.transparent,
+                    color: const Color(0xFF25D8D0),
+                  ),
+                ),
+              if (_blockingLoader)
                 const Positioned.fill(child: _AllHavenLoadingCover()),
               if (_error != null)
                 Positioned.fill(
