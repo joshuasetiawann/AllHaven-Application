@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Pin, Plus, Search, Sparkles, StickyNote, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Pin, Plus, Search, Sparkles, StickyNote, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -22,6 +22,7 @@ export default function NotesPage() {
   const [mobileReader, setMobileReader] = useState(false);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: "", content: "", tags: "", is_pinned: false });
 
   const load = async (selectFirst = false) => {
@@ -57,22 +58,43 @@ export default function NotesPage() {
     [notes, selectedId],
   );
 
-  const create = async (event: React.FormEvent) => {
+  const startCreate = () => {
+    setEditingId(null);
+    setForm({ title: "", content: "", tags: "", is_pinned: false });
+    setOpen(true);
+  };
+
+  const startEdit = (note: Note) => {
+    setEditingId(note.id);
+    setForm({
+      title: note.title,
+      content: note.content ?? "",
+      tags: note.tags.join(", "),
+      is_pinned: note.is_pinned,
+    });
+    setOpen(true);
+  };
+
+  const save = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
     try {
-      const note = await notesApi.create({
-        title: form.title,
-        content: form.content || undefined,
+      const payload: Partial<Note> = {
+        title: form.title.trim(),
+        content: form.content.trim() ? form.content : null,
         tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
         is_pinned: form.is_pinned,
-      });
+      };
+      const note = editingId
+        ? await notesApi.update(editingId, payload)
+        : await notesApi.create(payload);
       setOpen(false);
+      setEditingId(null);
       setForm({ title: "", content: "", tags: "", is_pinned: false });
       await load();
       setSelectedId(note.id);
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : "Failed to create note.");
+      setError(err instanceof ApiException ? err.message : "Failed to save note.");
     } finally {
       setSaving(false);
     }
@@ -112,7 +134,7 @@ export default function NotesPage() {
             {notes ? `${notes.length} entries` : "Your knowledge base"}
           </p>
         </div>
-        <Button onClick={() => setOpen(true)} className="w-full sm:w-auto">
+        <Button onClick={startCreate} className="w-full sm:w-auto">
           <Plus size={16} /> New note
         </Button>
       </div>
@@ -127,7 +149,7 @@ export default function NotesPage() {
           description="Capture ideas, meeting notes, and documentation."
           icon={<StickyNote size={20} />}
           action={
-            <Button onClick={() => setOpen(true)}>
+            <Button onClick={startCreate}>
               <Plus size={16} /> New note
             </Button>
           }
@@ -197,6 +219,13 @@ export default function NotesPage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <button
+                      onClick={() => startEdit(selected)}
+                      className="rounded-md border border-border p-2 text-content-subtle transition-colors hover:border-primary/40 hover:text-primary"
+                      aria-label="Edit note"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
                       onClick={() => togglePin(selected)}
                       className={cn(
                         "rounded-md border border-border p-2 transition-colors hover:border-border-strong",
@@ -260,21 +289,30 @@ export default function NotesPage() {
 
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
-        title="New note"
+        onClose={() => {
+          setOpen(false);
+          setEditingId(null);
+        }}
+        title={editingId ? "Edit note" : "New note"}
         size="lg"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setOpen(false);
+                setEditingId(null);
+              }}
+            >
               Cancel
             </Button>
             <Button form="note-form" type="submit" loading={saving} disabled={!form.title.trim()}>
-              Create note
+              {editingId ? "Save changes" : "Create note"}
             </Button>
           </>
         }
       >
-        <form id="note-form" onSubmit={create} className="space-y-4">
+        <form id="note-form" onSubmit={save} className="space-y-4">
           <Input
             id="title"
             label="Title"
