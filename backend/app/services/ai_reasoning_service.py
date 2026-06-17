@@ -83,7 +83,13 @@ def reasoning_chat(
     section_key: Optional[str] = "general",
     response_language: Optional[str] = None,
 ) -> dict:
-    from app.services import ai_context_builder, memory_extraction_service
+    from app.services import (
+        ai_context_builder,
+        ai_intent_router,
+        ai_orchestrator,
+        memory_extraction_service,
+        schedule_parser,
+    )
 
     ids = _dedup(provider_ids)
     if not ids:
@@ -192,6 +198,59 @@ def reasoning_chat(
             db.refresh(r)
         memory_extraction_service.extract_and_commit(
             db, principal, user_msg=message, assistant_msg="", session_id=session.id
+        )
+        return {"run": run, "session_id": session.id, "responses": responses}
+
+    # 4.0: money, schedule, and smalltalk turns never need the reasoning council —
+    # ONE deterministic proposal / one warm reply is the honest result (same rule
+    # as the parallel and debate paths). Turns with images still take the council.
+    is_finance = ai_intent_router.classify(message).is_finance
+    is_schedule = schedule_parser.parse_schedule(message) is not None
+    is_simple = not has_images and ai_intent_router.is_simple_message(message)
+    if is_finance or is_schedule or is_simple:
+        pid = next(p for p in ids if p in runnable)
+        # Context only matters for the smalltalk reply (a compact style packet);
+        # finance/schedule return deterministically before any model sees context.
+        context_packet = (
+            ai_context_builder.build(
+                db, principal, message=message, session_id=session.id,
+                section_key=section_key or "general", thinking_mode=thinking_mode,
+                response_language=response_language,
+            )
+            if is_simple
+            else {"context": None, "meta": context_meta}
+        )
+        context_meta = context_packet.get("meta", context_meta)
+        orchestrated = ai_orchestrator.run_with_tools(
+            db, principal, message=message, session_id=session.id, provider_id=pid,
+            extra_context=context_packet.get("context"), section_key=section_key or "general",
+            thinking_mode=thinking_mode, user_message_id=user_message.id,
+            response_language=response_language,
+        )
+        status = "completed" if orchestrated.get("ok") else "error"
+        content = orchestrated.get("content")
+        error = orchestrated.get("error") or None
+        tool_calls = orchestrated.get("tool_calls") or []
+        proposal_ids = orchestrated.get("proposal_ids") or []
+        final_extra = {
+            "reasoning_final": True, "mode": mode, "task_type": task_type,
+            "retried": False, "rejected_critique": False, "reasoning_summary": "",
+            **({"tool_calls": tool_calls} if tool_calls else {}),
+            **({"proposal_ids": proposal_ids} if proposal_ids else {}),
+            **({"quality": orchestrated["quality"]} if orchestrated.get("quality") else {}),
+        }
+        _record(pid, plans[pid].provider_name, status, content, error, None,
+                plans[pid].external, phase="synthesis", extra=final_extra)
+        run.status = "completed" if status == "completed" else "error"
+        db.flush()
+        db.commit()
+        db.refresh(run)
+        for r in responses:
+            db.refresh(r)
+        memory_extraction_service.extract_and_commit(
+            db, principal, user_msg=message,
+            assistant_msg=content if status == "completed" else "",
+            session_id=session.id,
         )
         return {"run": run, "session_id": session.id, "responses": responses}
 
