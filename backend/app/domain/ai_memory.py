@@ -45,8 +45,8 @@ class AiMemory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class AiMemorySuggestion(UUIDPrimaryKeyMixin, Base):
     """A memory candidate awaiting user approval.
 
-    Intentionally append-only — no TimestampMixin, no updated_at.
-    Status transitions (pending → approved/rejected) are tracked by the service layer.
+    Carries updated_at so accept/reject status transitions sync across desktop +
+    mobile (3.9: "Memory suggestions must sync across devices").
     """
 
     __tablename__ = "ai_memory_suggestions"
@@ -64,6 +64,9 @@ class AiMemorySuggestion(UUIDPrimaryKeyMixin, Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
 

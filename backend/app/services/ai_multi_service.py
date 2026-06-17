@@ -266,7 +266,14 @@ def multi_chat(
         ]
 
     outcomes: dict[str, dict] = {}
-    if runnable and len(ids) == 1 and not has_images:
+    # 3.9: a money message ALWAYS becomes ONE deterministic finance proposal, regardless
+    # of agent count or images — route it through the orchestrator (whose intent router
+    # owns finance) instead of fanning out to N free-form agents (which would mis-route to
+    # memory/"completed" and could create duplicate proposals).
+    from app.services import ai_intent_router
+
+    is_finance = ai_intent_router.classify(message).is_finance
+    if runnable and (is_finance or (len(ids) == 1 and not has_images)):
         # The main UI's one-agent Parallel mode should behave like real AI Chat:
         # history + context + safe tool loop + pending actions.
         pid = next(iter(runnable.keys()))
