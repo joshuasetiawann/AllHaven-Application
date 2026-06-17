@@ -1,0 +1,213 @@
+# Changelog
+
+All notable changes to **AllHaven Command Center** are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and the project follows [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`.
+A bigger change means a bigger bump (see [`docs/VERSIONING.md`](docs/VERSIONING.md)).
+Full, detailed notes for every release live in [`docs/releases/`](docs/releases/).
+
+## [Unreleased]
+
+- _Nothing yet._
+
+## [0.15.0] - 2026-06-12 — Premium UI polish, persistent model selection & per-section chat memory
+
+Detailed notes: [`docs/releases/v0.15.0.md`](docs/releases/v0.15.0.md)
+
+A frontend/UX release — no backend or API changes.
+
+### Added
+- **Persistent model selection.** AI Chat now remembers your selected **agents/model**, **chat mode** (Parallel/Debate/Reasoning), **Thinking depth**, and debate rounds across page navigation and browser refresh. On load the saved selection is **reconciled against available providers** — unavailable models are dropped with a clear notice and a sensible fallback (or "Configure an AI provider first"). The workspace default only applies on a fresh device.
+- **Per-section chat memory.** Each module section (General, Tasks, Notes, Finance, Calendar, Files, Automations, Weather, Settings, System Control) **and each chat project/group** keeps its own **local, editable memory** (`title` / `summary` / important-context bullets). Pick the section from the chat header, view/edit/clear it, and the AI uses it to give more relevant answers (injected once per thread). **Secrets are auto-redacted** before saving; clear per-section or all.
+- **Local storage abstraction** (`lib/storage.ts`) — namespaced, versioned, SSR-safe, IndexedDB-ready — backing both features.
+- **Smooth micro-animations** — route/page transitions, dropdown/popover entrances, chat message-in, and the pending-actions panel — all 120–250ms with soft easing and a global **`prefers-reduced-motion`** guard.
+
+### Changed
+- **Polished Finance & Settings.** Finance KPI cards gain clearer hierarchy (icon chips, tabular figures, hero balance with negative-aware color); Settings tab switches now fade in.
+- Chat header reorganized to surface the active **Section / Memory** controls without crowding.
+
+### Fixed
+- **No more session-check flash on every navigation** — the session is confirmed once per page-load, so moving between dashboard pages no longer flashes the "Checking your session…" loader.
+
+## [0.14.0] - 2026-06-11 — Terminal-only install (browser wizard now opt-in) + faster Docker check
+
+Detailed notes: [`docs/releases/v0.14.0.md`](docs/releases/v0.14.0.md)
+
+### Changed
+- **Install is terminal-only again.** `START_HAVEN_*`, `./install.sh`, and `npm run setup` now install & start Haven **entirely in the terminal** (the proven `haven_cli.py` flow, with live Docker/`pip`/`npm` progress). The browser Setup Wizard had recurring issues (the local setup server erroring on stop, and a slow Docker-detection step), so it is **no longer the default** — it remains available **opt-in** via `HAVEN_SETUP_WEB=1`.
+- **Launchers branch on setup state:** first run → terminal installer; already configured → start services + open the app (what the desktop shortcut uses). `HAVEN_FORCE_SETUP=1` re-runs the installer.
+- **Faster Docker check:** the daemon probe timeout dropped from 8s to **4s**, and the terminal path checks the daemon once (the web wizard's repeated multi-probe detection — the slow part — is no longer in the default flow).
+
+## [0.13.0] - 2026-06-11 — GUI-first install: terminal bootstraps the Setup Wizard
+
+Detailed notes: [`docs/releases/v0.13.0.md`](docs/releases/v0.13.0.md)
+
+### Changed
+- **Install is now GUI-first.** The terminal command is only a **bootstrapper**: it checks for Python, starts the local setup server, and **opens the browser Setup Wizard**, where ALL configuration happens (OS/Docker checks, Docker install guide, ports, `.env` setup/update with backup, start services, health check, desktop shortcut, open app). New entry points `./install.sh` and `npm run setup` join `START_HAVEN_*`.
+- **Launchers branch on setup state:** first run (no `.env`) → the **Setup Wizard**; already set up → the launcher that ensures services are running and opens the app. The **desktop shortcut** uses that same launcher, so clicking it post-install starts services safely and opens Haven — never the wizard. `HAVEN_FORCE_WIZARD=1` re-opens the wizard; `HAVEN_SETUP_CLI=1` keeps the terminal-only installer.
+
+### Added
+- **Live install progress in the wizard.** The Start step tails the install log (Docker image pull, `pip install`, `npm install`) + the backend log via a new masked `/api/setup/log` endpoint, so the first run shows real progress instead of appearing to hang — and auto-advances when the backend & frontend are healthy.
+
+## [0.12.0] - 2026-06-11 — App-wide AI tools with human approval, 6 OpenRouter slots, 7-agent roles
+
+Detailed report: [`docs/releases/v0.12.0.md`](docs/releases/v0.12.0.md)
+
+### Added
+- **AI Tool Registry** — 35 allowlisted, schema-typed tools connect AI Chat to every module (time, tasks, calendar, notes, finance, files, weather, automations, system control). **Read** tools execute instantly; **write** tools always create a **pending approval** — the AI can never change data silently. Every call is audited.
+- **Human approval execution** — Approve (executes via the registry), **Edit payload**, or Reject each pending action from the new in-chat **Pending actions** panel. HIGH-risk tools (file delete, enabling workflows, service control) require approval even when a workspace relaxes approvals.
+- **Native tool calling** on the OpenAI-compatible provider family (OpenAI, Grok, all OpenRouter agents); single-agent chat is now conversation-history-aware. Other providers chat honestly without tools (no fake claims).
+- **Six OpenRouter agents** (`openrouter_1..6`, each with its own key/model/suggested role) — 12 providers total.
+- **Model slots** — every other provider gets 2 slots (a secondary model selectable as "Provider · Slot 2"), with editable roles.
+- **Up to 7 agents per run** (was 3), each with a distinct role (Main, Planner, Research, Coder, Critic/Risk, Product/UX, Synthesizer) — slot roles override defaults.
+- **Debate-flow visibility toggle** — hide the transcript and show only the polished final answer ("N agents collaborated"), persisted per workspace.
+- **Settings → AI Tools** (enable/disable per tool, risk + approval badges) and **Settings → AI Chat** (default mode, approval requirement, tool activity, polish level, max agents).
+
+### Changed
+- Debate/Reasoning **synthesizer prompts** upgraded: direct answer first, concrete and specific, no generic filler, contradictions resolved, warnings preserved, honest uncertainty, replies in the user's language.
+
+## [0.11.0] - 2026-06-10 — Terminal installer + backend/.env sync + faster Docker check
+
+Detailed notes: [`docs/releases/v0.11.0.md`](docs/releases/v0.11.0.md)
+
+### Added
+- **Terminal installer** (`installer/haven_cli.py`). The `START_HAVEN_*` launchers now run a terminal-first setup **by default** that shows **live progress** for the slow steps (Docker image pull, `pip install`, `npm install`), then starts the app and opens the browser. Idempotent — first run installs everything, later runs just start. The browser wizard is still available via `HAVEN_SETUP_WEB=1`.
+
+### Fixed
+- **`backend/.env` now follows the repo-root `.env`.** Generating or updating `.env` (terminal installer, web wizard, or any service start) mirrors it to `backend/.env` and re-syncs whenever it changes — so the backend always sees the same configuration you just set.
+- **Docker check no longer appears to hang.** The daemon probe uses a lighter `docker version` query with a shorter (8s) timeout, and the terminal installer **streams `docker compose` output**, so a first-run image pull shows real progress instead of a frozen spinner.
+
+## [0.10.0] - 2026-06-10 — Reliable one-click startup + responsive menu
+
+Detailed notes: [`docs/releases/v0.10.0.md`](docs/releases/v0.10.0.md)
+
+### Fixed
+- **Services now start reliably from the launcher/wizard.** Previously the backend could be unreachable when started via the app even though manual runs worked. The launch path is now faithful to `allhaven.sh`: it binds services to `0.0.0.0` (not `127.0.0.1`, which a `localhost`→IPv6 lookup can miss), creates `frontend/.env.local`, **waits for PostgreSQL**, runs `alembic upgrade head`, **health-gates** the backend, enriches `PATH` for GUI launches, and **installs missing dependencies on first run** (venv + pip, `npm install`). Failures now surface a masked log tail instead of failing silently.
+- The setup wizard's "Start" step and the desktop shortcut both drive the one proven launcher path (`installer/haven_launch.py`).
+
+### Changed
+- **Responsive, polished navigation menu:** a collapsible desktop rail (persisted, with tooltips), a persistent icon rail on tablets (`md`+) with the full sidebar at `xl`, a signed-in user chip, refined active/hover states, and accessibility (`aria-current`, focus rings). The mobile drawer is retained for small screens.
+
+### Security
+- The control agent still binds **127.0.0.1 only**; only the managed app services bind `0.0.0.0` (LAN-reachable, matching the project's default `allhaven.sh` behavior). Logs remain masked.
+
+## [0.9.0] - 2026-06-10 — One-click desktop installer, setup wizard & System Control
+
+Detailed notes: [`docs/releases/v0.9.0.md`](docs/releases/v0.9.0.md)
+
+### Added
+- **One-click launchers** at the repo root — `START_HAVEN_WINDOWS.bat`, `START_HAVEN_MAC.command`, `START_HAVEN_LINUX.sh` — that run a **browser-based setup wizard** (`installer/haven_setup.py`, Python stdlib only): OS detect, Docker/ports/`.env` system check, Docker install guidance, port configuration (validation + free-port suggestions), safe `.env` write (backup + preserved secrets), service start, health check, and per-OS **desktop shortcut** creation.
+- **Haven Agent** (`installer/haven_agent.py`) — a localhost-only, token-gated process supervisor that safely starts/stops/restarts the backend & frontend (host processes) and Postgres/optional services (Docker Compose, non-destructive), with masked logs. No shell; fixed argv; service + action allowlists.
+- **Settings → System Control** (in-app): live service cards (status / port / last-checked), Start / Stop / Restart, a masked **Logs** viewer, and a **Ports editor** ("Save & Restart"). Backed by a new authenticated, allowlisted `/api/v1/system/*` API that forwards to the agent and falls back to read-only status when the agent is offline. Disabled outside local mode.
+
+### Security
+- Privileged actions live only in the localhost + token agent; the browser never touches Docker or a shell. Service/action **allowlists** are enforced in both the agent and the backend; secrets are **masked** in all logs/responses; `.env` writes are atomic with timestamped backups; Docker control **cannot express** destructive (`down` / volume) commands; the control surface requires auth and is off outside local mode.
+
+## [0.8.0] - 2026-06-10 — Live n8n workflows in Automations
+
+Detailed notes: [`docs/releases/v0.8.0.md`](docs/releases/v0.8.0.md)
+
+### Added
+- **Live n8n integration** on the Automations page: lists your real workflows from the connected n8n (`GET /n8n/workflows`), with **activate/deactivate** toggles (`POST /n8n/workflows/{id}/active`) and an **Open in n8n** link. Backed by the workspace's n8n Base URL + API key (server-side only — the key is never returned to the browser).
+- Honest states when n8n isn't ready: `not_configured` / `no_api_key` / `unauthorized` / `unavailable` / `error`, each with guidance to Settings → Connected Tools. No fake "run".
+- Local draft definitions are kept and clearly relabeled as **not executed** (the real, runnable automations are the n8n ones).
+
+## [0.7.0] - 2026-06-10 — Public-launch auth: cookie sessions, CSRF, rate limiting
+
+Detailed notes: [`docs/releases/v0.7.0.md`](docs/releases/v0.7.0.md) · Audit: [`LAUNCH_SECURITY_REPORT.md`](LAUNCH_SECURITY_REPORT.md)
+
+### Security
+- **HttpOnly cookie sessions replace localStorage tokens** (browser): hashed (SHA-256) server-side session records, `SameSite=Lax`, `Secure` outside local dev; **rotation** via `POST /auth/refresh`; **server-side revocation** via `POST /auth/logout`. Bearer JWT stays available for API clients/tools. A legacy-key scrub removes previously stored tokens from upgraders' browsers.
+- **CSRF protection** (double-submit): per-session token in a readable cookie must be echoed in `X-CSRF-Token` on every state-changing cookie-authenticated request (enforced centrally; 403 `CSRF_FAILED`).
+- **Auth rate limiting**: per-IP sliding-window cap on `/auth/*` POSTs (`AUTH_RATE_LIMIT_PER_MINUTE`; prod example 10) + gateway guidance for multi-replica.
+- **SECRET_KEY production guard**: startup fails in production/staging with the dev default or a key shorter than 32 chars.
+- Private routes verify auth via `GET /auth/me` (cookie) — survives refresh without exposing any token to JavaScript.
+
+### Changed
+- New table `user_sessions` (migration `0006`). Frontend API client sends `credentials: "include"` + CSRF header; Drive upload/download use cookies.
+
+## [0.6.0] - 2026-06-10 — Launch hardening: security headers, safe downloads & dep patches
+
+Detailed notes: [`docs/releases/v0.6.0.md`](docs/releases/v0.6.0.md) · Audit: [`LAUNCH_SECURITY_REPORT.md`](LAUNCH_SECURITY_REPORT.md)
+
+### Security
+- **Security headers** on every backend response (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`) and on the frontend via `next.config.js`, including a production **Content-Security-Policy** (`frame-ancestors 'none'`, `object-src 'none'`, no `unsafe-eval`).
+- **Drive downloads** force `Content-Disposition: attachment` and serve active types (HTML/SVG/JS/XML) as `application/octet-stream` — uploaded files can't render inline (XSS).
+- **Dependencies**: Next `14.2.18 → 14.2.35` (fixes the critical middleware-authorization-bypass) and `postcss → 8.5.15` tree-wide (fixes moderate stringify-XSS). One residual Next "high" (DoS/cache — features we don't use) documented in the security report.
+- Backend reports its real version from `VERSION` (was hardcoded).
+
+### Added
+- `LAUNCH_SECURITY_REPORT.md` — full audit (secrets, auth, API, DB, uploads, AI safety, integrations, deps, headers) with verdict + residual risks.
+
+
+## [0.5.1] - 2026-06-10 — Honest "model can't read images" status
+
+Detailed notes: [`docs/releases/v0.5.1.md`](docs/releases/v0.5.1.md)
+
+### Fixed
+- When a vision-capable **provider** (Ollama, OpenRouter, …) is given an image but the selected **model** is text-only, the provider's raw API error (`HTTP 400 multimodal`, `HTTP 404 no endpoints found that support image input`) is now translated into a clear **`unsupported`** status with guidance to pick a vision model — instead of leaking the raw error JSON. Applies to Parallel, Debate, and Reasoning.
+
+## [0.5.0] - 2026-06-09 — Calculator, Clock, Thinking Mode & vision routing
+
+Detailed notes: [`docs/releases/v0.5.0.md`](docs/releases/v0.5.0.md)
+
+### Added
+- **Calculator** module (`/dashboard/calculator`): +, −, ×, ÷, %, ±, decimal, clear, backspace, full keyboard support, responsive dark UI.
+- **Clock** module (`/dashboard/clock`): live local time/date/timezone, stopwatch with laps, countdown timer with alert, and an alarm foundation (saved locally, rings while open).
+- **Thinking Mode** (Fast / Balance / Thinking / Deep) near the chat input — controls reasoning depth + sampling (temperature/top_p), separate from Chat Mode. Default Balance.
+- **Provider capability metadata** (`supports_text` / `supports_image` / `supports_tools`) exposed in `GET /ai/providers`; vision-capable models show an eye icon in the agent picker.
+- **Vision routing**: images are sent only to vision-capable providers; non-vision providers return an honest `unsupported` status. The composer warns when an attached image won't reach a selected model, and confirms when it's vision-ready. Drag-and-drop image upload added.
+- Safe backend arithmetic evaluator (`calc_service`, no `eval`).
+
+### Changed
+- Chat modes simplified to exactly **Parallel · Debate · Reasoning**. The reasoning depth/summary controls moved into the bottom Thinking Mode selector. Reasoning depth now derives from Thinking Mode (fast→fast, balance→balanced, thinking/deep→deep).
+
+## [0.4.0] - 2026-06-09 — Image input (vision) & polished chat output
+
+Detailed notes: [`docs/releases/v0.4.0.md`](docs/releases/v0.4.0.md)
+
+### Added
+- **Image upload + vision**: attach up to 4 images to a chat turn; vision-capable models receive and respond to them. Images are downscaled client-side, formatted per provider (OpenAI/OpenRouter/Grok/Blackbox, Anthropic, Gemini, Ollama), shown in the thread, and persisted so they survive a reload.
+- **Markdown rendering** for AI output — headings, lists, code blocks, bold/italic, blockquotes, and links — so responses read cleanly instead of as one raw blob. Dependency-free renderer (no HTML-injection risk).
+
+### Fixed
+- Missing `network_error_message` import in the Ollama, Anthropic, and Gemini adapters (would raise `NameError` on a network failure during chat).
+
+## [0.3.0] - 2026-06-09 — Reasoning Quality Layer
+
+Detailed notes: [`docs/releases/v0.3.0.md`](docs/releases/v0.3.0.md)
+
+### Added
+- **Reasoning Quality Layer** (`backend/app/services/reasoning/`): deterministic, model-independent grounding, numeric verification (year-by-year growth, `EBITDA = revenue × margin`, `X% of Y` checks), Porter Five Forces validation, acquisition-direction check, and relevance/grounding/calculation/hallucination scoring with an honest confidence.
+- **Reasoning council** (`POST /ai/chat/reason`): Analyst → Critic → Synthesizer roles; the Synthesizer rejects irrelevant/invented critique; the final answer is verified and retried once with stricter grounding when it scores low.
+- **Reasoning modes** Fast / Balanced / Deep controlling pipeline depth and sampling temperature.
+- Generation parameters (`temperature`, `top_p`, penalties) threaded through every provider adapter.
+- Frontend **Reason** mode: Fast/Balanced/Deep selector, reasoning-summary toggle, debug toggle, and a low-confidence/assumptions warning.
+
+### Fixed
+- Ollama adapter: missing `network_error_message` import (raised `NameError` on a network failure).
+
+## [0.2.0] - 2026-06-09 — Multi-agent Debate
+
+Detailed notes: [`docs/releases/v0.2.0.md`](docs/releases/v0.2.0.md)
+
+### Added
+- **Debate mode** (`POST /ai/chat/debate`): a **Parallel ⇄ Debate** toggle; with 2–3 agents they answer, then critique and refine across rounds, and one agent synthesizes a single best final answer.
+- Rounds selector (2–4) and a responsive debate transcript UI (per-round agent cards + highlighted final answer).
+
+## [0.1.0] - 2026-06-09 — Initial AllHaven Command Center
+
+Detailed notes: [`docs/releases/v0.1.0.md`](docs/releases/v0.1.0.md)
+
+### Added
+- **Backend**: FastAPI + PostgreSQL, Alembic migrations, JWT auth + workspaces, audit log.
+- **Frontend**: Next.js + TypeScript + Tailwind, responsive app shell (mobile drawer), command palette.
+- **Modules**: Tasks, Notes, Finance, Drive, Calendar, Weather, Automations.
+- **AI**: 9 providers (Ollama, OpenAI, Anthropic, Gemini, Grok, Blackbox, OpenRouter ×3), parallel multi-agent chat, honest provider verification (no fake "online"), Settings with secure `.env` sync.
+- **Deploy**: Docker / docker-compose (dev + prod with Caddy HTTPS), `allhaven.sh` helper.
+
+[Unreleased]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/joshuasetiawann/AllHaven-Application/releases/tag/v0.1.0
