@@ -26,6 +26,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { DesktopBridgePanel } from "@/components/settings/DesktopBridgePanel";
+import { APP_VERSION } from "@/components/layout/nav";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toggle } from "@/components/ui/Toggle";
@@ -211,6 +212,7 @@ export default function SettingsPage() {
       <PageHeader
         title="Command Center Settings"
         subtitle="Configure integrations, AI providers, and privacy — credentials are stored securely server-side."
+        actions={<Badge tone="secondary">AllHaven {APP_VERSION}</Badge>}
       />
 
       <Tabs
