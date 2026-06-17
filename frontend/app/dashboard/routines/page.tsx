@@ -62,7 +62,7 @@ function ProgressCard({ label, done, total }: { label: string; done: number; tot
 }
 
 /** Habit-style list of the repeating blocks in view: green check tiles, pending unchecked. */
-function HabitsCard({ habits }: { habits: RoutineEvent[] }) {
+function HabitsCard({ habits, onSelect }: { habits: RoutineEvent[]; onSelect: (routine: RoutineEvent) => void }) {
   return (
     <Card padding="none" className="p-[22px]">
       <h2 className="text-[15px] font-semibold text-content">Habits</h2>
@@ -72,7 +72,13 @@ function HabitsCard({ habits }: { habits: RoutineEvent[] }) {
           {habits.map((habit) => {
             const status = eventStatus(habit);
             return (
-              <div key={habit.id} className="flex items-center justify-between gap-2">
+              <button
+                key={habit.id}
+                type="button"
+                onClick={() => onSelect(habit)}
+                className="flex w-full items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-white/[0.04] focus-ring"
+                aria-label={`Edit ${habit.title}`}
+              >
                 <span
                   className={cn(
                     "flex min-w-0 items-center gap-2.5 text-[13px]",
@@ -103,7 +109,7 @@ function HabitsCard({ habits }: { habits: RoutineEvent[] }) {
                     <Repeat2 size={13} /> {repeatLabel(habit)}
                   </span>
                 )}
-              </div>
+              </button>
             );
           })}
         </div>
@@ -217,9 +223,10 @@ export default function RoutinesPage() {
     // Deleting any occurrence removes the whole (possibly recurring) routine.
     const base = baseOf(routine);
     const ok = await dialog.confirm({
-      title: "Delete routine?",
-      message: `Remove "${base.title}" from your local schedule?`,
-      confirmLabel: "Delete",
+      title: "Anda yakin ingin menghapus?",
+      message: `Hapus routine "${base.title}" dari jadwal lokal?`,
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
       tone: "danger",
     });
     if (!ok) return;
@@ -335,7 +342,7 @@ export default function RoutinesPage() {
                 done={doneBlocks}
                 total={filtered.length}
               />
-              <HabitsCard habits={habitBlocks} />
+              <HabitsCard habits={habitBlocks} onSelect={openEdit} />
             </div>
           </div>
         </div>
