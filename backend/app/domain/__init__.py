@@ -12,6 +12,7 @@ from app.domain.ai import (
     ChatMessage,
     ChatSession,
 )
+from app.domain.ai_memory import AiMemory, AiMemorySuggestion, AiConversationSummary
 from app.domain.audit import AuditLog
 from app.domain.automations import Automation
 from app.domain.base import Base
@@ -51,4 +52,7 @@ __all__ = [
     "DriveFile",
     "Automation",
     "WeatherLocation",
+    "AiMemory",
+    "AiMemorySuggestion",
+    "AiConversationSummary",
 ]
