@@ -1,0 +1,82 @@
+"""AI schemas."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
+
+from app.schemas.common import ORMModel
+
+
+class SessionCreate(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=255)
+
+
+class SessionOut(ORMModel):
+    id: uuid.UUID
+    title: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class MessageOut(ORMModel):
+    id: uuid.UUID
+    session_id: Optional[uuid.UUID] = None
+    role: str
+    content: str
+    meta: Optional[dict] = None
+    created_at: datetime
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=8000)
+    session_id: Optional[uuid.UUID] = None
+    provider_id: Optional[str] = None
+
+
+class ChatResponse(BaseModel):
+    session_id: uuid.UUID
+    reply: MessageOut
+    ai_configured: bool
+    provider_id: Optional[str] = None
+    blocked: bool = False
+
+
+class MultiChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=8000)
+    session_id: Optional[uuid.UUID] = None
+    # 1–3 agents. >3 fails validation (HTTP 422: "Maximum 3 agents per run").
+    provider_ids: List[str] = Field(min_length=1, max_length=3)
+
+
+class AgentResponseOut(ORMModel):
+    id: uuid.UUID
+    run_id: uuid.UUID
+    provider_id: str
+    provider_name: str
+    status: str
+    content: Optional[str] = None
+    error_message: Optional[str] = None
+    latency_ms: Optional[int] = None
+    meta: Optional[dict] = None
+    created_at: datetime
+
+
+class MultiChatResponse(BaseModel):
+    run_id: uuid.UUID
+    session_id: uuid.UUID
+    status: str
+    agent_responses: List[AgentResponseOut]
+
+
+class ProposalOut(ORMModel):
+    id: uuid.UUID
+    tool_name: str
+    tool_payload: dict
+    status: str
+    risk_level: str
+    requires_confirmation: bool
+    created_at: datetime
