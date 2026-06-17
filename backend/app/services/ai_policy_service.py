@@ -87,7 +87,17 @@ def set_policy(
     row.public_config = config
     row.updated_by = principal.user_id
     db.commit()
-    return get_policy(db, principal)
+    result = get_policy(db, principal)
+    # Mirror policy to the local .env (allowed keys only).
+    from app.services import env_file_service
+
+    env_updates: dict[str, str] = {}
+    if allow_external is not None:
+        env_updates["AI_ALLOW_EXTERNAL_PROVIDERS"] = "true" if allow_external else "false"
+    if default_provider is not None:
+        env_updates["AI_DEFAULT_PROVIDER"] = default_provider
+    result["env_sync"] = env_file_service.sync_env(env_updates)
+    return result
 
 
 def set_allow_external(db: Session, principal: Principal, allow_external: bool) -> dict:
