@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     # Comma-separated list (or JSON array) of allowed frontend origins.
     BACKEND_CORS_ORIGINS: str = "http://localhost:3000"
+    # Allow any origin (no cookies; bearer-token auth only). Auto-on in local mode
+    # so the app is reachable from any device on your LAN without listing IPs.
+    BACKEND_CORS_ALLOW_ALL: bool = False
 
     # --- Auth / security (local MVP auth boundary) ---
     SECRET_KEY: str = "dev-insecure-secret-change-me"
