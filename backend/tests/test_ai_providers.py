@@ -5,14 +5,16 @@ import json
 from tests.conftest import API
 
 
-def test_provider_list_has_five_apis_plus_ollama(auth_client):
+def test_provider_list_has_six_apis_plus_ollama(auth_client):
     data = auth_client.get(f"{API}/ai/providers").json()["data"]["providers"]
     ids = {p["id"] for p in data}
-    assert {"openai", "anthropic", "gemini", "grok", "openrouter", "ollama"}.issubset(ids)
-    assert len(data) == 6
+    assert {"openai", "anthropic", "gemini", "grok", "blackbox", "openrouter", "ollama"}.issubset(ids)
+    assert len(data) == 7
     ollama = next(p for p in data if p["id"] == "ollama")
     assert ollama["external"] is False
     assert ollama["api_key_required"] is False
+    # GPT Agent display name
+    assert next(p for p in data if p["id"] == "openai")["name"] == "GPT Agent"
 
 
 def test_ollama_configurable_without_api_key(auth_client):
