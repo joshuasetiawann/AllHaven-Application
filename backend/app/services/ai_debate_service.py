@@ -154,7 +154,14 @@ def debate_chat(
     section_key: Optional[str] = "general",
     response_language: Optional[str] = None,
 ) -> dict:
-    from app.services import ai_context_builder, memory_extraction_service
+    from app.services import (
+        ai_context_builder,
+        ai_intent_router,
+        ai_orchestrator,
+        memory_extraction_service,
+        schedule_parser,
+    )
+    from app.services.reasoning import quality
 
     ids = _dedup(provider_ids)
     if not ids:
@@ -301,6 +308,72 @@ def debate_chat(
         )
         return {"run": run, "session_id": session.id, "responses": responses}
 
+    # 4.0: money, schedule, and smalltalk turns never fan out into a debate — ONE
+    # deterministic proposal / one warm reply is the honest result (same rule as
+    # the parallel path). Turns with images still take the full panel.
+    is_finance = ai_intent_router.classify(message).is_finance
+    is_schedule = schedule_parser.parse_schedule(message) is not None
+    is_simple = not has_images and ai_intent_router.is_simple_message(message)
+    if is_finance or is_schedule or is_simple:
+        pid = next(p for p in ids if p in runnable)
+        # Context only matters for the smalltalk reply (a compact style packet);
+        # finance/schedule return deterministically before any model sees context.
+        context_packet = (
+            ai_context_builder.build(
+                db, principal, message=message, session_id=session.id,
+                section_key=section_key or "general", thinking_mode=thinking_mode,
+                response_language=response_language,
+            )
+            if is_simple
+            else {"context": None, "meta": context_meta}
+        )
+        context_meta = context_packet.get("meta", context_meta)
+        orchestrated = ai_orchestrator.run_with_tools(
+            db, principal, message=message, session_id=session.id, provider_id=pid,
+            extra_context=context_packet.get("context"), section_key=section_key or "general",
+            thinking_mode=thinking_mode, user_message_id=user_message.id,
+            response_language=response_language,
+        )
+        status = "completed" if orchestrated.get("ok") else "error"
+        content = orchestrated.get("content")
+        error = orchestrated.get("error") or None
+        tool_calls = orchestrated.get("tool_calls") or []
+        proposal_ids = orchestrated.get("proposal_ids") or []
+        synth_row = AiAgentResponse(
+            workspace_id=principal.workspace_id, run_id=run.id, provider_id=pid,
+            provider_name=plans[pid].provider_name, status=status, content=content,
+            error_message=error, latency_ms=None,
+            meta={"external": plans[pid].external, "phase": "synthesis",
+                  **({"tool_calls": tool_calls} if tool_calls else {}),
+                  **({"proposal_ids": proposal_ids} if proposal_ids else {})},
+        )
+        db.add(synth_row)
+        responses.append(synth_row)
+        db.add(ChatMessage(
+            workspace_id=principal.workspace_id, session_id=session.id, role="assistant",
+            content=content if status == "completed" and content else (error or status),
+            section_key=section_key or "general",
+            meta={"provider_id": pid, "provider_name": plans[pid].provider_name,
+                  "status": status, "run_id": str(run.id), "latency_ms": None,
+                  "external": plans[pid].external, "debate": True, "debate_final": True,
+                  "rounds": 0, "n_agents": 1, **context_meta,
+                  **({"tool_calls": tool_calls} if tool_calls else {}),
+                  **({"proposal_ids": proposal_ids} if proposal_ids else {}),
+                  **({"quality": orchestrated["quality"]} if orchestrated.get("quality") else {})},
+        ))
+        run.status = "completed" if status == "completed" else "error"
+        db.flush()
+        db.commit()
+        db.refresh(run)
+        for r in responses:
+            db.refresh(r)
+        memory_extraction_service.extract_and_commit(
+            db, principal, user_msg=message,
+            assistant_msg=content if status == "completed" else "",
+            session_id=session.id,
+        )
+        return {"run": run, "session_id": session.id, "responses": responses}
+
     # --- run the rounds (network calls in worker threads) ---
     round_outcomes: List[Dict[str, dict]] = []
     last_answer: Dict[str, str] = {}  # pid -> most recent completed content
@@ -380,6 +453,14 @@ def debate_chat(
         final_error = oc["error"]
         final_latency = oc["latency_ms"]
 
+    # Deterministic quality score on the synthesis; low scores are flagged in
+    # metadata (never silently persisted as a good answer).
+    quality_meta = None
+    if final_status == "completed" and final_content:
+        score = quality.score_response(message, final_content)
+        if score.is_low():
+            quality_meta = score.to_meta()
+
     synth_name = plans[synth_pid].provider_name if synth_pid else "Debate"
     synth_external = plans[synth_pid].external if synth_pid else False
     synth_row = AiAgentResponse(
@@ -391,7 +472,8 @@ def debate_chat(
         content=final_content,
         error_message=final_error,
         latency_ms=final_latency,
-        meta={"external": synth_external, "phase": "synthesis"},
+        meta={"external": synth_external, "phase": "synthesis",
+              **({"quality": quality_meta} if quality_meta else {})},
     )
     db.add(synth_row)
     responses.append(synth_row)
@@ -414,6 +496,7 @@ def debate_chat(
                 "rounds": len(round_outcomes),
                 "n_agents": n_runnable,
                 **context_meta,
+                **({"quality": quality_meta} if quality_meta else {}),
             },
         )
     )
