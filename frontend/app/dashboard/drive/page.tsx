@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
+import { SetupRequiredState } from "@/components/SetupRequiredState";
+import { isBackendUnreachable } from "@/lib/connection";
 import { driveApi, ApiException } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import type { DriveConfig, DriveFile } from "@/types";
@@ -28,14 +30,17 @@ export default function DrivePage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const [setupNeeded, setSetupNeeded] = useState(false);
   const load = async () => {
     setError(null);
+    setSetupNeeded(false);
     try {
       const [cfg, rows] = await Promise.all([driveApi.config(), driveApi.list()]);
       setConfig(cfg);
       setFiles(rows);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load files.");
+      if (isBackendUnreachable(err)) setSetupNeeded(true);
+      else setError(err instanceof Error ? err.message : "Failed to load files.");
     }
   };
 
@@ -139,7 +144,9 @@ export default function DrivePage() {
         </div>
       ) : null}
 
-      {error ? (
+      {setupNeeded ? (
+        <SetupRequiredState feature="Drive" needs="backend" onRetry={load} />
+      ) : error ? (
         <ErrorState message={error} onRetry={load} />
       ) : !files ? (
         <Loading />
