@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Bot, Brain, Crown, Cpu, Layers, Loader2, PanelLeft, SendHorizonal, Sparkles, Swords, User } from "lucide-react";
+import { AlertTriangle, Bot, Brain, Crown, Cpu, ImagePlus, Layers, Loader2, PanelLeft, SendHorizonal, Sparkles, Swords, User, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ConversationSidebar } from "@/components/ai/ConversationSidebar";
 import { MultiAgentSelector } from "@/components/ai/MultiAgentSelector";
 import { AgentResponseCard, type AgentCardData } from "@/components/ai/AgentResponseCard";
+import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { aiApi, ApiException } from "@/lib/api";
 import { cn } from "@/lib/format";
 import type { AgentResponseStatus, AiProvider, ChatGroup, ChatMessage, ChatSession } from "@/types";
@@ -33,6 +34,14 @@ function toCard(m: ChatMessage): AgentCardData {
     external: Boolean(meta.external),
   };
 }
+
+// Attached image data URLs persisted on a message's metadata.
+function imagesOf(m: ChatMessage): string[] {
+  const imgs = ((m.meta ?? {}) as Record<string, unknown>).images;
+  return Array.isArray(imgs) ? (imgs as string[]) : [];
+}
+
+const MAX_IMAGES = 4;
 
 type ThreadItem =
   | { kind: "user"; key: string; message: ChatMessage }
@@ -96,7 +105,10 @@ export default function AiChatPage() {
   const [pendingUser, setPendingUser] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [images, setImages] = useState<string[]>([]);
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const providerById = useMemo(() => Object.fromEntries(providers.map((p) => [p.id, p])), [providers]);
   const anyExternal = selected.some((id) => providerById[id]?.external);
@@ -188,22 +200,69 @@ export default function AiChatPage() {
     void refreshSessions();
   };
 
+  // --- image attachments ---
+  const readAsDataURL = (file: File) => new Promise<string>((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result));
+    r.onerror = () => rej(new Error("read failed"));
+    r.readAsDataURL(file);
+  });
+  // Downscale large images client-side so the payload stays reasonable.
+  const downscale = (dataUrl: string, max = 1280) => new Promise<string>((res) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      if (scale >= 1) return res(dataUrl);
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      const ctx = c.getContext("2d");
+      if (!ctx) return res(dataUrl);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      res(c.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => res(dataUrl);
+    img.src = dataUrl;
+  });
+  const addImages = async (files: FileList | null) => {
+    if (!files) return;
+    setError(null);
+    const room = MAX_IMAGES - images.length;
+    if (room <= 0) { setError(`You can attach up to ${MAX_IMAGES} images.`); return; }
+    const picks = Array.from(files).filter((f) => f.type.startsWith("image/")).slice(0, room);
+    const out: string[] = [];
+    for (const f of picks) {
+      try {
+        const url = await downscale(await readAsDataURL(f));
+        if (url.length > 6_000_000) { setError("An image is too large even after resizing."); continue; }
+        out.push(url);
+      } catch { /* skip unreadable file */ }
+    }
+    if (out.length) setImages((cur) => [...cur, ...out]);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+  const removeImage = (idx: number) => setImages((cur) => cur.filter((_, i) => i !== idx));
+
   // --- send ---
   const send = async (event: React.FormEvent) => {
     event.preventDefault();
     const text = input.trim();
-    if (!text || sending) return;
+    const imgs = images;
+    if ((!text && imgs.length === 0) || sending) return;
     if (selected.length === 0) { setError("Select at least one AI agent."); return; }
+    const msg = text || "Describe the attached image(s).";
     setError(null);
     setSending(true);
-    setPendingUser(text);
+    setPendingUser(msg);
+    setPendingImages(imgs);
     setInput("");
+    setImages([]);
     try {
       const run = mode === "debate"
-        ? await aiApi.debateChat(text, selected, activeId ?? undefined, rounds)
+        ? await aiApi.debateChat(msg, selected, activeId ?? undefined, rounds, imgs)
         : mode === "reason"
-          ? await aiApi.reasonChat(text, selected, activeId ?? undefined, reasoningMode)
-          : await aiApi.multiChat(text, selected, activeId ?? undefined);
+          ? await aiApi.reasonChat(msg, selected, activeId ?? undefined, reasoningMode, imgs)
+          : await aiApi.multiChat(msg, selected, activeId ?? undefined, imgs);
       setActiveId(run.session_id);
       const msgs = await aiApi.listMessages(run.session_id);
       setMessages(msgs);
@@ -213,6 +272,7 @@ export default function AiChatPage() {
     } finally {
       setSending(false);
       setPendingUser(null);
+      setPendingImages([]);
     }
   };
 
@@ -222,6 +282,7 @@ export default function AiChatPage() {
     const provider = (m.meta?.provider_name as string) || null;
     const status = (m.meta?.status as string) || "";
     const isError = !isUser && status && status !== "completed";
+    const imgs = isUser ? imagesOf(m) : [];
     return (
       <div className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
         <span className={cn(
@@ -240,7 +301,19 @@ export default function AiChatPage() {
               : isError ? "border-warning/30 bg-warning/10 text-warning"
               : "border-border bg-surface-input text-content-muted",
           )}>
-            <p className="whitespace-pre-wrap break-words">{m.content}</p>
+            {imgs.length ? (
+              <div className={cn("flex flex-wrap gap-2", m.content ? "mb-2" : "")}>
+                {imgs.map((src, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={i} src={src} alt="attachment" className="max-h-44 max-w-[160px] rounded-lg border border-border object-cover" />
+                ))}
+              </div>
+            ) : null}
+            {isUser || isError ? (
+              <p className="whitespace-pre-wrap break-words">{m.content}</p>
+            ) : (
+              <MarkdownMessage content={m.content} />
+            )}
           </div>
         </div>
       </div>
@@ -272,7 +345,11 @@ export default function AiChatPage() {
             </Badge>
           ) : null}
         </div>
-        <p className={cn("whitespace-pre-wrap break-words text-sm leading-relaxed", ok ? "text-content" : "text-warning")}>{m.content}</p>
+        {ok ? (
+          <MarkdownMessage content={m.content} className="text-sm text-content" />
+        ) : (
+          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-warning">{m.content}</p>
+        )}
         {lowConf ? (
           <p className="mt-2 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11.5px] text-warning">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" />
@@ -502,6 +579,14 @@ export default function AiChatPage() {
                   <div className="flex flex-row-reverse gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-high text-content"><User size={15} /></span>
                     <div className="max-w-[82%] rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2.5 text-sm text-content">
+                      {pendingImages.length ? (
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          {pendingImages.map((src, i) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img key={i} src={src} alt="attachment" className="max-h-44 max-w-[160px] rounded-lg border border-border object-cover" />
+                          ))}
+                        </div>
+                      ) : null}
                       <p className="whitespace-pre-wrap break-words">{pendingUser}</p>
                     </div>
                   </div>
@@ -526,17 +611,54 @@ export default function AiChatPage() {
             </p>
           ) : null}
           {error ? <p className="px-5 pb-1 text-[12px] text-danger">{error}</p> : null}
-          <form onSubmit={send} className="flex items-center gap-2 border-t border-border p-3">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type a command or ask a question…"
-              className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-surface-input px-3.5 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
-            />
-            <Button type="submit" size="lg" loading={sending} disabled={!input.trim() || selected.length === 0} className="px-4">
-              {!sending ? <SendHorizonal size={16} /> : null}
-            </Button>
-          </form>
+          <div className="border-t border-border p-3">
+            {images.length ? (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {images.map((src, i) => (
+                  <div key={i} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt="attachment" className="h-16 w-16 rounded-lg border border-border object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      aria-label="Remove image"
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface text-content-subtle hover:text-danger"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <form onSubmit={send} className="flex items-center gap-2">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => addImages(e.target.files)}
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                aria-label="Attach image"
+                title="Attach image"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-content-muted transition-colors hover:border-primary/50 hover:text-content"
+              >
+                <ImagePlus size={17} />
+              </button>
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type a message, or attach an image…"
+                className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-surface-input px-3.5 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
+              <Button type="submit" size="lg" loading={sending} disabled={(!input.trim() && images.length === 0) || selected.length === 0} className="px-4">
+                {!sending ? <SendHorizonal size={16} /> : null}
+              </Button>
+            </form>
+          </div>
         </div>
       </div>
 

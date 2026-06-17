@@ -10,6 +10,8 @@ from app.services.ai_providers.base import (
     VerifyResult,
     chat_error_message,
     interpret_http,
+    network_error_message,
+    parse_data_url,
     safe_request,
 )
 
@@ -42,11 +44,18 @@ class GeminiProvider(AIProvider):
         if not key:
             return ChatResult(False, error="API key not set")
         chosen = model or public.get("default_model") or self.default_model
-        contents = [
-            {"role": "user" if m.get("role") != "assistant" else "model", "parts": [{"text": m.get("content", "")}]}
-            for m in messages
-            if m.get("role") in ("user", "assistant")
-        ]
+        contents: list[dict] = []
+        for m in messages:
+            role = m.get("role")
+            if role not in ("user", "assistant"):
+                continue
+            parts: list[dict] = []
+            if m.get("content"):
+                parts.append({"text": m["content"]})
+            for u in (m.get("images") or []):
+                media, b64 = parse_data_url(u)
+                parts.append({"inline_data": {"mime_type": media or "image/png", "data": b64}})
+            contents.append({"role": "user" if role != "assistant" else "model", "parts": parts or [{"text": ""}]})
         body_json: dict = {"contents": contents}
         gen_config = {}
         if params and params.get("temperature") is not None:
