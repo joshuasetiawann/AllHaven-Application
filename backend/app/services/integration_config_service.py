@@ -175,23 +175,29 @@ def _verify(db: Session, spec: ProviderSpec, public: dict, secrets: dict) -> tup
             return "error", str(exc)[:200]
 
     if pid == "ollama":
-        base = (public.get("base_url") or "").rstrip("/")
+        # Desktop Bridge: resolve the endpoint for the selected connection mode, then
+        # test it. Online ONLY if the resolved /api/tags responds (honest gating).
+        from app.services.connection_resolver import resolve
+
+        base, _mode, reason = resolve(public)
         if not base:
-            return "not_configured", "Base URL not set"
+            return "not_configured", reason or "Base URL not set"
         code, _, err = safe_request("GET", f"{base}/api/tags", timeout=5.0)
         result = interpret_http(code, err)
         return result.status, result.message
 
     if pid == "n8n":
-        base = (public.get("base_url") or "").rstrip("/")
+        from app.services.connection_resolver import resolve
+
+        base, mode, reason = resolve(public)
         if not base:
-            return "not_configured", "Base URL not set"
-        # A reachable n8n server (any non-5xx response) is considered online.
+            return "not_configured", reason or "Base URL not set"
+        # A reachable n8n server (any non-5xx response, no workflow execution) = online.
         code, _, err = safe_request("GET", f"{base}/healthz")
         if code is None and not err:
             code, _, err = safe_request("GET", base)
         if err or code is None:
-            return "unavailable", f"Could not reach n8n: {err}" if err else "No response"
+            return "unavailable", f"Could not reach n8n ({mode}): {err}" if err else "No response"
         return ("online", "") if code < 500 else ("error", f"n8n error (HTTP {code})")
 
     if pid == "supabase":
