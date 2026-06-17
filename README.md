@@ -8,7 +8,7 @@
 
 _The AI acts fast, but risky writes still need human approval._
 
-[![Version](https://img.shields.io/badge/version-3.5.0%20·%20AllHaven%203.5-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.6.0%20·%20AllHaven%203.6-18E0D6?style=flat-square)](CHANGELOG.md)
 &nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 &nbsp;![Next.js 14](https://img.shields.io/badge/Next.js%2014-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 &nbsp;![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
@@ -25,10 +25,11 @@ _The AI acts fast, but risky writes still need human approval._
 > **multi-agent AI** assistant — fast for low-risk memory/context work, cautious for
 > risky writes that need explicit human approval.
 
-**Version:** **v3.5.0** — archive [`AllHaven 3.5`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
+**Version:** **v3.6.0** — archive [`AllHaven 3.6`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
 
 ### 🆕 What's new
 
+- **v3.6.0 — AllHaven 3.6 privacy cleanup.** Housekeeping release: removes a personal local-path identifier from the in-repo development notes so the project ships clean as a personal project. No application code, API, or behavior changes. → [release notes](docs/releases/v3.6.0.md)
 - **v3.5.0 — AllHaven 3.5 AI routine generation and atomic save.** Adds a "Generate with AI" flow to Routine: describe your day and the configured provider drafts realistic routine items for a Morning/Afternoon/Evening window, which you review and edit before saving them together in one atomic batch (an invalid item saves none). Generation is honest by design — it never fabricates routines, never saves on its own, and clearly reports when a provider is missing or disabled — plus a Routine sync-status card and a component refactor of the routines page. → [release notes](docs/releases/v3.5.0.md)
 - **v3.4.0 — AllHaven 3.4 voice, documents, Routine agenda, and local-first sync.** Adds voice dictation in AI Chat, lets chat upload PDF/DOC/DOCX/text/code into AI Knowledge, extracts searchable text from PDF/DOCX and best-effort legacy DOC files, redesigns Routine into a lighter agenda/timeline, removes color/logo from Add Routine, and expands optional Supabase mirroring across the main workspace data while keeping local DB as the source of truth. → [release notes](docs/releases/v3.4.0.md)
 - **v3.3.1 — AllHaven 3.3.1 local Routine UX polish.** Makes Routine fully local-first in the UI, adds a lighter habit-style builder with icon/color/repeat/Pagi-Siang-Malam slots, removes the goal field, keeps empty time lanes visible, and falls back to the compatible local `/calendar/events` endpoint if the backend has not restarted yet. → [release notes](docs/releases/v3.3.1.md)
