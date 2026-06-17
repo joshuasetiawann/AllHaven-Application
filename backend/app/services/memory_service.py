@@ -183,7 +183,7 @@ def find_existing_memory(
             AiMemory.workspace_id == principal.workspace_id,
             AiMemory.status == "active",
             AiMemory.category == category,
-            func.lower(func.trim(AiMemory.title)) == title.lower().strip(),
+            func.lower(func.trim(AiMemory.title)) == title[:200].lower().strip(),
         )
         .limit(1)
     )
