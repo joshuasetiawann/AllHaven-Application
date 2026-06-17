@@ -90,9 +90,17 @@ export interface FinanceSummary {
   transaction_count: number;
 }
 
+export interface ChatGroup {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ChatSession {
   id: string;
   title: string | null;
+  group_id: string | null;
   created_at: string;
   updated_at: string;
 }
