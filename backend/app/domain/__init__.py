@@ -10,7 +10,7 @@ from app.domain.base import Base
 from app.domain.finance import FinanceCategory, Transaction
 from app.domain.integrations import AiAgentConfig, IntegrationConfig
 from app.domain.notes import Note
-from app.domain.tasks import Task
+from app.domain.tasks import Task, TaskChecklistItem
 from app.domain.users import LocalUser, Profile
 from app.domain.workspaces import Workspace, WorkspaceMember
 
@@ -21,6 +21,7 @@ __all__ = [
     "Workspace",
     "WorkspaceMember",
     "Task",
+    "TaskChecklistItem",
     "Note",
     "FinanceCategory",
     "Transaction",
