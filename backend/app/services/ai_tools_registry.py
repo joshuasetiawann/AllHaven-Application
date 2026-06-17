@@ -133,11 +133,13 @@ def normalize_tool_payload(tool_name: str, payload: dict) -> dict:
         # Currency: default IDR.
         if not str(normalized.get("currency") or "").strip():
             normalized["currency"] = "IDR"
-        # Type: infer INCOME/EXPENSE from the description when the model omitted it.
+        # Type: infer INCOME/EXPENSE from the description when the model omitted it;
+        # default EXPENSE as a last resort so the proposal is approvable (an empty type
+        # would otherwise fail validation on every approve attempt). The user can edit it.
         if not str(normalized.get("type") or "").strip():
-            inferred = ai_intent_router._detect_type(str(normalized.get("description") or ""))
-            if inferred:
-                normalized["type"] = inferred
+            normalized["type"] = ai_intent_router._detect_type(
+                str(normalized.get("description") or "")
+            ) or "EXPENSE"
         # Description: synthesize a meaningful label when empty.
         if not str(normalized.get("description") or "").strip():
             normalized["description"] = ai_intent_router._extract_description(
@@ -1221,10 +1223,12 @@ def run_tool_call(db: Session, principal: Principal, name: str, args: dict, *, s
 
 def approve_proposal(db: Session, principal: Principal, proposal_id: uuid.UUID) -> dict:
     """Execute a PENDING proposal after explicit human approval."""
+    # FOR UPDATE: serialize concurrent approvals of the same row so two clicks/devices
+    # on the same backend can't both execute the write (no double transaction).
     proposal = db.scalar(select(AiToolProposal).where(
         AiToolProposal.id == proposal_id,
         AiToolProposal.workspace_id == principal.workspace_id,
-    ))
+    ).with_for_update())
     if not proposal:
         raise NotFoundError("Tool proposal not found.")
     # Retryable while still open (a prior failure left it NEEDS_EDIT/FAILED, not terminal).
