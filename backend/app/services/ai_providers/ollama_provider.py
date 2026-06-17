@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from app.services.ai_providers.base import AIProvider, ChatResult, VerifyResult, interpret_http, safe_request
+from app.services.ai_providers.base import AIProvider, ChatResult, safe_request
 
 DEFAULT_BASE_URL = "http://localhost:11434"
 
@@ -22,12 +22,15 @@ class OllamaProvider(AIProvider):
     def is_configured(self, public: dict, secrets: dict) -> bool:
         return bool(public.get("base_url"))
 
-    def test_connection(self, public: dict, secrets: dict) -> VerifyResult:
+    def test_connection(self, public: dict, secrets: dict) -> tuple[bool, str]:
         if not public.get("base_url"):
-            return VerifyResult("not_configured", "Base URL not set")
-        # GET /api/tags lists local models; connection refused -> unavailable.
-        code, _, err = safe_request("GET", f"{self.base_url(public)}/api/tags", timeout=5.0)
-        return interpret_http(code, err)
+            return False, "Base URL not set"
+        code, _, err = safe_request("GET", f"{self.base_url(public)}/api/tags")
+        if err:
+            return False, err
+        if code == 200:
+            return True, ""
+        return False, f"Verification failed (HTTP {code})"
 
     def chat(self, public: dict, secrets: dict, messages: list[dict], model: Optional[str] = None) -> ChatResult:
         if not public.get("base_url"):

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Bot, Lock, SendHorizonal, ShieldCheck, Sparkles, User, XCircle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { AlertTriangle, Bot, Lock, SendHorizonal, ShieldCheck, Sparkles, User, XCircle } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
@@ -12,8 +13,6 @@ import { PrivacyModeBadge } from "@/components/ai/PrivacyModeBadge";
 import { aiApi, ApiException } from "@/lib/api";
 import { cn } from "@/lib/format";
 import type { AiProvider, ChatMessage, ToolProposal } from "@/types";
-
-const ALLOWED_TOOLS = ["create_task", "create_note", "create_transaction", "summarize_notes"];
 
 const ALLOWED_TOOLS = ["create_task", "create_note", "create_transaction", "summarize_notes"];
 
@@ -117,17 +116,22 @@ export default function AiChatPage() {
         {/* Chat */}
         <div className="lg:col-span-2">
           <Card padding="none" className="flex h-[calc(100vh-230px)] min-h-[460px] flex-col">
-            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Sparkles size={16} />
                 </span>
                 <div className="leading-tight">
                   <p className="text-sm font-semibold text-content">CoreOS Assistant</p>
-                  <p className="label-mono">{configured === null ? "Idle" : configured ? "Configured" : "Not configured"}</p>
+                  <p className="label-mono">
+                    {activeProvider ? activeProvider.detail : configured ? "Configured" : "Not configured"}
+                  </p>
                 </div>
               </div>
-              <Badge tone={configured ? "primary" : "neutral"}>{configured ? "Live off" : "Not configured"}</Badge>
+              <div className="flex items-center gap-2">
+                {activeProvider ? <PrivacyModeBadge external={activeProvider.external} /> : null}
+                <ProviderSelector providers={providers} value={providerId} onChange={setProviderId} />
+              </div>
             </div>
 
             <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
@@ -169,14 +173,6 @@ export default function AiChatPage() {
               <div ref={endRef} />
             </div>
 
-            {activeProvider && !activeProvider.configured ? (
-              <p className="mx-3 mb-1 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-surface-input px-3 py-2 text-[12px] text-content-muted">
-                {activeProvider.name} is not configured.
-                <Link href="/dashboard/settings" className="text-primary hover:underline">
-                  Set it up in Settings →
-                </Link>
-              </p>
-            ) : null}
             {activeProvider?.external ? (
               <p className="mx-3 mb-1 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-warning">
                 <AlertTriangle size={13} className="mt-0.5 shrink-0" />
@@ -206,10 +202,14 @@ export default function AiChatPage() {
             <CardHeader title="Assistant status" icon={<Bot size={18} />} />
             <dl className="space-y-2.5 text-[13px]">
               <div className="flex items-center justify-between">
-                <dt className="text-content-muted">State</dt>
+                <dt className="text-content-muted">Provider</dt>
+                <dd className="text-content">{activeProvider?.name ?? "—"}</dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-content-muted">Status</dt>
                 <dd>
-                  <Badge tone={configured ? "primary" : "neutral"}>
-                    {configured === null ? "Idle" : configured ? "Configured" : "Not configured"}
+                  <Badge tone={activeProvider?.configured ? "primary" : "neutral"}>
+                    {activeProvider?.detail ?? "Not configured"}
                   </Badge>
                 </dd>
               </div>
@@ -217,11 +217,13 @@ export default function AiChatPage() {
                 <dt className="text-content-muted">Mode</dt>
                 <dd className="text-content">Human-in-the-loop</dd>
               </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-content-muted">Execution</dt>
-                <dd className="text-content">Disabled in MVP</dd>
-              </div>
             </dl>
+            <Link
+              href="/dashboard/settings"
+              className="mt-3 inline-flex items-center gap-1 text-[13px] text-primary hover:underline"
+            >
+              Configure AI providers →
+            </Link>
           </Card>
 
           <Card>

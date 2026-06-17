@@ -15,7 +15,7 @@ import type { LucideIcon } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { PriorityBadge } from "@/components/ui/meta";
+import { ConfigStatusBadge, PriorityBadge } from "@/components/ui/meta";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { BarChart } from "@/components/ui/BarChart";
 import { ErrorState, Loading } from "@/components/ui/States";
@@ -235,17 +235,7 @@ export default function DashboardOverview() {
                       <StatusDot status={integration.status} pulse />
                       {integration.name}
                     </span>
-                    <Badge
-                      tone={
-                        integration.status === "connected"
-                          ? "success"
-                          : integration.configured
-                            ? "primary"
-                            : "neutral"
-                      }
-                    >
-                      {integration.configured ? integration.status : "Not configured"}
-                    </Badge>
+                    <ConfigStatusBadge status={integration.status} />
                   </li>
                 ))}
               </ul>

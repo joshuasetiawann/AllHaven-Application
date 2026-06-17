@@ -21,7 +21,7 @@ from app.core.exceptions import ForbiddenError, NotFoundError
 from app.core.principal import Principal
 from app.domain.integrations import IntegrationConfig
 from app.services import config_common as cc
-from app.services.ai_providers.base import interpret_http, safe_request
+from app.services.ai_providers.base import safe_request
 from app.services.audit_service import write_audit
 from app.services.integration_status_service import is_configured_value
 from app.services.provider_registry import INTEGRATIONS, ProviderSpec, get_integration_spec
@@ -33,7 +33,6 @@ GROUP_BY_TYPE = {
     "auth_storage": "auth_storage",
     "calendar": "calendar",
     "weather": "weather",
-    "storage": "storage",
 }
 
 
@@ -46,52 +45,14 @@ def _env_public(spec: ProviderSpec) -> dict:
         "n8n": {"base_url": settings.N8N_BASE_URL},
         "supabase": {"url": settings.SUPABASE_URL, "anon_key": settings.SUPABASE_ANON_KEY},
         "google_calendar": {"client_id": settings.GOOGLE_CALENDAR_CLIENT_ID},
-        "google": {"client_id": settings.GOOGLE_CLIENT_ID, "redirect_uri": settings.GOOGLE_REDIRECT_URI},
         "weather_api": {"provider": "openweathermap"},
     }
     return {k: v for k, v in mapping.get(spec.id, {}).items() if is_configured_value(v)}
 
 
 def _env_secret_present(spec: ProviderSpec) -> dict:
-    mapping = {
-        "weather_api": {"api_key": settings.WEATHER_API_KEY},
-        "google": {"client_secret": settings.GOOGLE_CLIENT_SECRET},
-    }
+    mapping = {"weather_api": {"api_key": settings.WEATHER_API_KEY}}
     return {k: v for k, v in mapping.get(spec.id, {}).items() if is_configured_value(v)}
-
-
-def effective_config(db: Session, principal: Principal, provider_id: str) -> tuple[dict, dict]:
-    """Public values + decrypted secrets for an integration (env + DB row)."""
-    spec = _require_spec(provider_id)
-    return _effective_config(_get_row(db, principal, provider_id), spec)
-
-
-def mark_oauth_connected(db: Session, principal: Principal, provider_id: str, tokens: dict) -> None:
-    """Store OAuth tokens (encrypted) and set the integration online.
-
-    Tokens are stored outside the registry's secret fields, so they are never
-    exposed by the masked-preview view.
-    """
-    from datetime import datetime, timezone
-
-    from app.core.secrets import encrypt_secret
-
-    spec = _require_spec(provider_id)
-    row = _get_or_create_row(db, principal, spec)
-    enc = dict(row.encrypted_secrets or {})
-    for key in ("access_token", "refresh_token"):
-        if tokens.get(key):
-            enc[key] = encrypt_secret(str(tokens[key]))
-    row.encrypted_secrets = enc
-    pub = dict(row.public_config or {})
-    if tokens.get("scope"):
-        pub["granted_scopes"] = tokens["scope"]
-    row.public_config = pub
-    row.status = "online"
-    row.last_error = None
-    row.last_verified_at = datetime.now(timezone.utc)
-    db.flush()
-    db.commit()
 
 
 def _env_configured(spec: ProviderSpec) -> bool:
@@ -165,59 +126,38 @@ def _verify(db: Session, spec: ProviderSpec, public: dict, secrets: dict) -> tup
     if pid == "ollama":
         base = (public.get("base_url") or "").rstrip("/")
         if not base:
-            return "not_configured", "Base URL not set"
-        code, _, err = safe_request("GET", f"{base}/api/tags", timeout=5.0)
-        result = interpret_http(code, err)
-        return result.status, result.message
+            return "error", "Base URL not set"
+        code, _, err = safe_request("GET", f"{base}/api/tags")
+        return ("online", "") if code == 200 else ("error", err or f"HTTP {code}")
 
     if pid == "n8n":
         base = (public.get("base_url") or "").rstrip("/")
         if not base:
-            return "not_configured", "Base URL not set"
-        # A reachable n8n server (any non-5xx response) is considered online.
+            return "error", "Base URL not set"
         code, _, err = safe_request("GET", f"{base}/healthz")
-        if code is None and not err:
+        if code is None:
             code, _, err = safe_request("GET", base)
-        if err or code is None:
-            return "unavailable", f"Could not reach n8n: {err}" if err else "No response"
-        return ("online", "") if code < 500 else ("error", f"n8n error (HTTP {code})")
+        return ("online", "") if code and 200 <= code < 500 else ("error", err or f"HTTP {code}")
 
     if pid == "supabase":
         url = (public.get("url") or "").rstrip("/")
         anon = secrets.get("anon_key") or public.get("anon_key") or ""
         if not url:
-            return "not_configured", "Project URL not set"
+            return "error", "Project URL not set"
         headers = {"apikey": anon} if anon else None
         code, _, err = safe_request("GET", f"{url}/auth/v1/health", headers=headers)
-        if err or code is None:
-            return "unavailable", f"Could not reach Supabase: {err}" if err else "No response"
-        return ("online", "") if code < 500 else ("error", f"Supabase error (HTTP {code})")
+        return ("online", "") if code and 200 <= code < 500 else ("error", err or f"HTTP {code}")
 
-    if pid in ("google_calendar", "google"):
-        # OAuth requires a user-consent flow; a static test can't reach "online".
-        required = ("client_id", "redirect_uri") if pid == "google_calendar" else ("client_id", "redirect_uri")
-        if all(public.get(f) for f in required):
-            return "configured", "Connect via OAuth to bring this online (consent required)"
-        return "not_configured", "client_id and redirect_uri are required"
-
-    if pid == "drive_storage":
-        # Local storage is available; file-upload wiring is not enabled yet.
-        provider = (public.get("provider") or "local").lower()
-        if provider == "local":
-            return "configured", "Local storage selected; file upload wiring not enabled yet"
-        return "configured", "Configured; verification not implemented for this provider"
-
-    if pid == "drive_storage":
-        # Local storage is available; file-upload wiring is not enabled yet.
-        provider = (public.get("provider") or "local").lower()
-        if provider == "local":
-            return "configured", "Local storage selected; file upload wiring not enabled yet"
-        return "configured", "Configured; verification not implemented for this provider"
+    if pid == "google_calendar":
+        # OAuth is intentionally not implemented; honest "configured", never online.
+        if public.get("client_id") and public.get("redirect_uri"):
+            return "configured", "OAuth verification not implemented in MVP"
+        return "error", "client_id and redirect_uri are required"
 
     if pid == "weather_api":
         key = secrets.get("api_key") or ""
         if not key:
-            return "not_configured", "API key not set"
+            return "error", "API key not set"
         provider = (public.get("provider") or "openweathermap").lower()
         if provider == "openweathermap":
             loc = public.get("default_location") or "Jakarta"
@@ -226,8 +166,7 @@ def _verify(db: Session, spec: ProviderSpec, public: dict, secrets: dict) -> tup
                 "https://api.openweathermap.org/data/2.5/weather",
                 params={"q": loc, "appid": key},
             )
-            result = interpret_http(code, err)  # 401 (bad key) -> error
-            return result.status, result.message
+            return ("online", "") if code == 200 else ("error", err or f"HTTP {code}")
         return "configured", "Verification not implemented for this provider"
 
     return "configured", ""
@@ -266,7 +205,7 @@ def _view(db: Session, principal: Principal, spec: ProviderSpec, row: Optional[I
 
 
 def _base_view(spec, group, *, enabled, status, public, secrets, last_verified_at, last_error, source="db") -> dict:
-    configured = status in cc.HAS_CONFIG_STATUSES
+    configured = status in ("configured", "online")
     detail = cc.STATUS_DETAIL.get(status, "Not configured")
     if spec.id == "postgresql" and status == "online":
         detail = "Connected"

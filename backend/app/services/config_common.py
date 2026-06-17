@@ -8,7 +8,6 @@ never leak secrets.
 from __future__ import annotations
 
 from app.core.secrets import decrypt_secret, encrypt_secret, mask_secret
-from app.services.integration_status_service import is_configured_value
 from app.services.provider_registry import ProviderSpec
 
 
@@ -27,18 +26,13 @@ def decrypt_all(row, secret_fields: list[str]) -> dict:
 
 
 def apply_secret_updates(row, spec: ProviderSpec, provided: dict) -> None:
-    """Update only provided secret fields.
-
-    Empty string clears a field. Obvious placeholders (e.g. ``sk-test``,
-    ``your-api-key``) are treated as "not configured" and are NOT stored, so a
-    placeholder can never make a provider appear configured/online.
-    """
+    """Update only provided secret fields. Empty string clears a field."""
     enc = dict(row.encrypted_secrets or {})
     for field in spec.secret_fields():
         if field not in provided:
             continue
         value = (provided.get(field) or "").strip()
-        if value == "" or not is_configured_value(value):
+        if value == "":
             enc.pop(field, None)
         else:
             enc[field] = encrypt_secret(value)
@@ -110,9 +104,5 @@ STATUS_DETAIL = {
     "configured": "Configured",
     "not_configured": "Not configured",
     "error": "Error",
-    "unavailable": "Unavailable",
     "disabled": "Disabled",
 }
-
-# Statuses that mean credentials/config exist (so a Test action is meaningful).
-HAS_CONFIG_STATUSES = ("configured", "online", "error", "unavailable")

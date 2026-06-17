@@ -40,16 +40,15 @@ def test_saving_secret_masks_and_never_returns_raw(auth_client):
     assert secret not in json.dumps(got.json())
 
 
-def test_test_connection_unreachable_is_unavailable(auth_client):
-    # Unreachable n8n URL → cannot connect → status unavailable (never online).
+def test_test_connection_failure_sets_error(auth_client):
+    # Unreachable n8n URL → verification fails → status error.
     auth_client.put(
         f"{API}/settings/integrations/n8n",
         json={"public_config": {"base_url": "http://127.0.0.1:1"}, "secrets": {}},
     )
     resp = auth_client.post(f"{API}/settings/integrations/n8n/test")
     assert resp.status_code == 200, resp.text
-    assert resp.json()["data"]["status"] in ("unavailable", "error")
-    assert resp.json()["data"]["status"] != "online"
+    assert resp.json()["data"]["status"] == "error"
 
 
 def test_disable_sets_disabled(auth_client):
