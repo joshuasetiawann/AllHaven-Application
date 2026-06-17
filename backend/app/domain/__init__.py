@@ -8,6 +8,7 @@ from app.domain.ai import (
     AiAgentResponse,
     AiMultiAgentRun,
     AiToolProposal,
+    ChatGroup,
     ChatMessage,
     ChatSession,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "Note",
     "FinanceCategory",
     "Transaction",
+    "ChatGroup",
     "ChatSession",
     "ChatMessage",
     "AiMultiAgentRun",

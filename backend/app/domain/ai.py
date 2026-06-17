@@ -27,12 +27,24 @@ AGENT_RESPONSE_STATUSES = (
 MAX_AGENTS_PER_RUN = 3
 
 
+class ChatGroup(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A project/group that conversations can be organized into."""
+
+    __tablename__ = "chat_groups"
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+
+
 class ChatSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "chat_sessions"
 
     workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
     created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Optional project/group the conversation belongs to.
+    group_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
 
 
 class ChatMessage(UUIDPrimaryKeyMixin, Base):
