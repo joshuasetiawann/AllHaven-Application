@@ -7,7 +7,7 @@
 **A local-first AI command center for personal productivity, workspace memory, finance tracking, routines, notes, and human-approved AI actions.**
 
 The desktop app owns the private backend. The Android APK is the mobile companion: it can run core workspace features through Supabase, and only uses the desktop bridge for local services such as Ollama and n8n.
-
+ 
 [![Version](https://img.shields.io/badge/version-4.1.0%20%7C%20AllHaven%204.1-18E0D6?style=flat-square)](CHANGELOG.md)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![Next.js 15](https://img.shields.io/badge/Next.js%2015-000000?style=flat-square&logo=nextdotjs&logoColor=white)
