@@ -25,6 +25,7 @@ import type { LucideIcon } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardHeader } from "@/components/ui/Card";
+import { DesktopBridgePanel } from "@/components/settings/DesktopBridgePanel";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toggle } from "@/components/ui/Toggle";
@@ -257,20 +258,23 @@ export default function SettingsPage() {
       ) : (
         <div key={tab} className="animate-fade-in">
           {tab === "tools" ? (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {integrations.map((integration) => (
-                <IntegrationCard
-                  key={integration.key}
-                  integration={integration}
-                  icon={(() => {
-                    const Icon = INTEGRATION_ICONS[integration.key] ?? Plug;
-                    return <Icon size={18} />;
-                  })()}
-                  onConfigure={() => setConfiguring(integration)}
-                  onChange={updateIntegration}
-                />
-              ))}
-            </div>
+            <>
+              <DesktopBridgePanel />
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {integrations.map((integration) => (
+                  <IntegrationCard
+                    key={integration.key}
+                    integration={integration}
+                    icon={(() => {
+                      const Icon = INTEGRATION_ICONS[integration.key] ?? Plug;
+                      return <Icon size={18} />;
+                    })()}
+                    onConfigure={() => setConfiguring(integration)}
+                    onChange={updateIntegration}
+                  />
+                ))}
+              </div>
+            </>
           ) : null}
 
           {tab === "ai" ? (
