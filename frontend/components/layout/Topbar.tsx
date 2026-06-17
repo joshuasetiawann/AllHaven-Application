@@ -1,50 +1,76 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { LogOut, Search } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { clearAuth, getStoredUser } from "@/lib/auth";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Bell, Menu, Search, Settings as SettingsIcon } from "lucide-react";
+import { Avatar } from "@/components/ui/Avatar";
+import { IconButton } from "@/components/ui/IconButton";
+import { settingsApi } from "@/lib/api";
+import { getStoredUser } from "@/lib/auth";
+import { cn, initials } from "@/lib/format";
 
-export function Topbar({ title, subtitle }: { title: string; subtitle?: string }) {
-  const router = useRouter();
+export function Topbar({ onMenu }: { onMenu: () => void }) {
   const user = getStoredUser();
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
 
-  const signOut = () => {
-    clearAuth();
-    router.replace("/login");
-  };
-
-  const initial = (user?.full_name || user?.email || "U").charAt(0).toUpperCase();
+  useEffect(() => {
+    let active = true;
+    settingsApi
+      .integrations()
+      .then((res) => {
+        if (!active) return;
+        const ollama = res.integrations.find((i) => i.key === "ollama");
+        setAiConfigured(Boolean(ollama?.configured));
+      })
+      .catch(() => active && setAiConfigured(false));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-bg/70 px-6 backdrop-blur-[12px]">
-      <div>
-        <h1 className="text-[17px] font-semibold tracking-tight text-content">{title}</h1>
-        {subtitle ? <p className="text-[13px] text-content-muted">{subtitle}</p> : null}
-      </div>
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-bg/80 px-4 backdrop-blur-[12px] sm:px-6">
+      <IconButton className="lg:hidden" onClick={onMenu} aria-label="Open menu">
+        <Menu size={18} />
+      </IconButton>
 
-      <div className="flex items-center gap-3">
-        <div className="hidden items-center gap-2 rounded-md border border-border bg-surface-input px-3 py-1.5 text-content-subtle md:flex">
+      {/* Search (decorative in MVP — honest placeholder) */}
+      <div className="hidden flex-1 items-center gap-2 sm:flex">
+        <div className="flex h-9 w-full max-w-md items-center gap-2 rounded-md border border-border bg-surface-input px-3 text-content-subtle">
           <Search size={15} />
           <span className="text-[13px]">Search is not wired in this MVP</span>
         </div>
+      </div>
+      <div className="flex-1 sm:hidden" />
 
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-high text-[13px] font-medium text-primary">
-            {initial}
-          </div>
-          <div className="hidden leading-tight sm:block">
-            <p className="max-w-[160px] truncate text-[13px] font-medium text-content">
-              {user?.full_name || user?.email || "Account"}
-            </p>
-            <p className="label-mono">Owner</p>
-          </div>
-        </div>
+      {/* Honest local-AI status pill */}
+      <span
+        className={cn(
+          "hidden items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] font-medium sm:inline-flex",
+          aiConfigured
+            ? "border-primary/30 bg-primary/10 text-primary"
+            : "border-border bg-surface-high text-content-muted",
+        )}
+      >
+        <span
+          className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            aiConfigured ? "bg-primary" : "bg-content-subtle",
+          )}
+        />
+        Local AI · {aiConfigured === null ? "…" : aiConfigured ? "Connected" : "Not configured"}
+      </span>
 
-        <Button variant="ghost" size="sm" onClick={signOut} aria-label="Sign out">
-          <LogOut size={15} />
-          <span className="hidden sm:inline">Sign Out</span>
-        </Button>
+      <div className="flex items-center gap-2">
+        <IconButton aria-label="Notifications" title="No notifications in MVP">
+          <Bell size={17} />
+        </IconButton>
+        <Link href="/dashboard/settings" aria-label="Settings">
+          <IconButton aria-label="Settings">
+            <SettingsIcon size={17} />
+          </IconButton>
+        </Link>
+        <Avatar initials={initials(user?.full_name || user?.email)} />
       </div>
     </header>
   );
