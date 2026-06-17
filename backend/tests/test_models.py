@@ -15,6 +15,8 @@ EXPECTED_TABLES = {
     "chat_messages",
     "ai_tool_proposals",
     "audit_logs",
+    "integration_configs",
+    "ai_agent_configs",
 }
 
 

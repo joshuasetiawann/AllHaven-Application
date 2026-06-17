@@ -17,8 +17,8 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import NotFoundError
 from app.core.principal import Principal
 from app.domain.ai import AiToolProposal, ChatMessage, ChatSession
+from app.services import ai_provider_router
 from app.services.audit_service import write_audit
-from app.services.llm_service import llm_service
 
 
 def list_sessions(db: Session, principal: Principal) -> List[ChatSession]:
@@ -75,8 +75,14 @@ def chat(
     *,
     message: str,
     session_id: Optional[uuid.UUID] = None,
+    provider_id: Optional[str] = None,
 ) -> dict:
-    """Persist the user message, generate an honest reply, persist it, return it."""
+    """Persist the user message, route to the AI provider, persist the reply.
+
+    The provider router is honest: if the selected/default provider is not
+    configured, disabled, or blocked (external disabled), it returns a clear
+    message instead of fake output. It never executes writes.
+    """
     if session_id is not None:
         session = get_session(db, principal, session_id)
     else:
@@ -97,13 +103,21 @@ def chat(
     db.add(user_message)
     db.flush()
 
-    reply = llm_service.generate_reply([{"role": "user", "content": message}])
+    result = ai_provider_router.run_chat(
+        db, principal, messages=[{"role": "user", "content": message}], provider_id=provider_id
+    )
     assistant_message = ChatMessage(
         workspace_id=principal.workspace_id,
         session_id=session.id,
         role="assistant",
-        content=reply["content"],
-        meta=reply["meta"],
+        content=result["content"],
+        meta={
+            "source": "provider" if result["ok"] else "system",
+            "provider_id": result.get("provider_id"),
+            "blocked": result.get("blocked", False),
+            "ok": result["ok"],
+            "error": result.get("error") or None,
+        },
     )
     db.add(assistant_message)
     db.commit()
@@ -112,7 +126,9 @@ def chat(
     return {
         "session_id": session.id,
         "reply": assistant_message,
-        "ai_configured": reply["configured"],
+        "ai_configured": result["ok"],
+        "provider_id": result.get("provider_id"),
+        "blocked": result.get("blocked", False),
     }
 
 
