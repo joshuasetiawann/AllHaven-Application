@@ -125,7 +125,9 @@ function handleUnauthorized(status: number): void {
 // (bearer build) talks to Supabase for data; the REST groups it still calls
 // (AI, settings, drive, …) point at an optional backend that's often
 // unreachable from the phone — fail those fast so they don't freeze the UI.
-const REQUEST_TIMEOUT_MS = BEARER_MODE ? 6000 : 20000;
+// 3.5s so an unreachable desktop backend degrades quickly (the shared
+// backendReachable() gate usually skips these calls entirely first).
+const REQUEST_TIMEOUT_MS = BEARER_MODE ? 3500 : 20000;
 // AI generation (chat / multi-agent / debate / reasoning council) legitimately takes
 // far longer than a normal request — the 6s mobile fail-fast would abort a real reply
 // mid-stream. Give those calls a generous ceiling so AI works on mobile, while plain

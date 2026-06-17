@@ -10,6 +10,7 @@ import { CommandPalette } from "@/components/layout/CommandPalette";
 import { ConnectionModeSwitcher } from "@/components/layout/ConnectionModeSwitcher";
 import { aiApi } from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
+import { BEARER_MODE } from "@/lib/mobileAuth";
 import { cn, initials } from "@/lib/format";
 import type { ToolProposal } from "@/types";
 
@@ -26,15 +27,20 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
 
   useEffect(() => {
     let active = true;
-    aiApi
-      .listProviders()
-      .then((res) => {
-        if (!active) return;
-        const ollama = res.providers.find((p) => p.id === "ollama");
-        const s = ollama?.status;
-        setAiStatus(s === "online" ? "online" : ollama?.configured ? "configured" : "not_configured");
-      })
-      .catch(() => active && setAiStatus("not_configured"));
+    // The "Local AI" provider pill is desktop-only (hidden < lg), and on mobile
+    // listProviders() is a doomed REST call to the desktop backend — skip it there so it
+    // doesn't add a slow background request to every page. Approvals below use Supabase.
+    if (!BEARER_MODE) {
+      aiApi
+        .listProviders()
+        .then((res) => {
+          if (!active) return;
+          const ollama = res.providers.find((p) => p.id === "ollama");
+          const s = ollama?.status;
+          setAiStatus(s === "online" ? "online" : ollama?.configured ? "configured" : "not_configured");
+        })
+        .catch(() => active && setAiStatus("not_configured"));
+    }
     let interval: number | undefined;
     const loadProposals = () => {
       aiApi

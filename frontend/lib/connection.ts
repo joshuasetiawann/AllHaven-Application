@@ -37,6 +37,42 @@ export async function pingBackend(timeoutMs = 4000): Promise<boolean> {
   }
 }
 
+// Shared, cached reachability so EVERY backend-only panel degrades fast from ONE probe
+// instead of each independently waiting the full request timeout. The previous gate keyed
+// off getApiBaseUrlSource()==='fallback', which is never true on the APK (the Tailscale
+// URL is baked in as 'env'), so panels still spun ~6s each. A single short ping fixes that.
+let _reachCache: { ok: boolean; at: number } | null = null;
+let _reachInflight: Promise<boolean> | null = null;
+const _REACH_TTL_MS = 8000;
+
+/** Drop the cached reachability result (e.g. when the backend URL/mode changes). */
+export function invalidateBackendReachable(): void {
+  _reachCache = null;
+  _reachInflight = null;
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("allhaven:backend-changed", invalidateBackendReachable);
+}
+
+/**
+ * Cached, de-duplicated reachability check. Returns the cached value within an 8s window;
+ * otherwise pings `/health` once (short timeout) and shares the in-flight promise across
+ * concurrent callers. Use this to gate backend-only UI on mobile so it shows a clear
+ * "connect a backend" state in ~2-3s instead of spinning for the full timeout.
+ */
+export async function backendReachable(timeoutMs = 2500): Promise<boolean> {
+  const now = Date.now();
+  if (_reachCache && now - _reachCache.at < _REACH_TTL_MS) return _reachCache.ok;
+  if (_reachInflight) return _reachInflight;
+  _reachInflight = pingBackend(timeoutMs).then((ok) => {
+    _reachCache = { ok, at: Date.now() };
+    _reachInflight = null;
+    return ok;
+  });
+  return _reachInflight;
+}
+
 /** Honest result of a Test Connection against a specific (or the active) backend URL. */
 export interface BackendTestResult {
   ok: boolean;

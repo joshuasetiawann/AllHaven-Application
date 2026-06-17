@@ -45,6 +45,8 @@ import { AiChatBehaviorPanel } from "@/components/settings/AiChatBehaviorPanel";
 import { GoogleOAuthCard } from "@/components/settings/GoogleOAuthCard";
 import SystemControl from "@/components/settings/SystemControl";
 import { aiApi, authApi, settingsApi } from "@/lib/api";
+import { backendReachable } from "@/lib/connection";
+import { BEARER_MODE } from "@/lib/mobileAuth";
 import { getStoredUser, setStoredUser } from "@/lib/auth";
 import { cn, initials } from "@/lib/format";
 import {
@@ -96,7 +98,10 @@ export default function SettingsPage() {
   // this is true; backend-dependent tabs show a per-tab connect-state if their data is
   // null, so a down Backend Bridge never blanks the whole Settings page.
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState("tools");
+  // On mobile (no local backend) open on Privacy & Safety, whose Profile + Appearance
+  // work standalone — so Settings shows usable content immediately instead of a
+  // "connect a backend" state on the default Connected Tools tab.
+  const [tab, setTab] = useState(BEARER_MODE ? "privacy" : "tools");
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [configuring, setConfiguring] = useState<Integration | null>(null);
   const [allowExternal, setAllowExternal] = useState(false);
@@ -158,15 +163,21 @@ export default function SettingsPage() {
 
   const load = async () => {
     setError(null);
-    // Each call degrades to null on its own instead of one failure rejecting the whole
-    // batch — so a down Backend Bridge leaves Appearance (device-local) and the
-    // reconnect card usable rather than blanking the page (Promise.all → allSettled-ish).
-    const [meRes, integrationsRes, providersRes, policyRes] = await Promise.all([
-      authApi.me().catch(() => null),
-      settingsApi.integrations().catch(() => null),
-      aiApi.listProviders().catch(() => null),
-      aiApi.getPolicy().catch(() => null),
-    ]);
+    // me() works on mobile (Supabase-direct), so it always runs. The other three are
+    // REST/backend-only: on mobile, gate them behind ONE fast reachability ping so an
+    // unreachable desktop backend degrades the page in ~2-3s instead of three doomed 3.5s
+    // requests stacking up (that was the "settings loading forever" on the phone).
+    const meRes = await authApi.me().catch(() => null);
+    let integrationsRes = null;
+    let providersRes = null;
+    let policyRes = null;
+    if (!BEARER_MODE || (await backendReachable())) {
+      [integrationsRes, providersRes, policyRes] = await Promise.all([
+        settingsApi.integrations().catch(() => null),
+        aiApi.listProviders().catch(() => null),
+        aiApi.getPolicy().catch(() => null),
+      ]);
+    }
     if (policyRes) {
       setAllowExternal(policyRes.allow_external);
       setDefaultProvider(policyRes.default_provider);

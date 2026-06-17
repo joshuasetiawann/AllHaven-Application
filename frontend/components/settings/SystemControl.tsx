@@ -22,9 +22,8 @@ import { Modal } from "@/components/ui/Modal";
 import { ErrorState, Loading } from "@/components/ui/States";
 import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { systemApi, ApiException } from "@/lib/api";
-import { isBackendUnreachable } from "@/lib/connection";
+import { backendReachable, isBackendUnreachable } from "@/lib/connection";
 import { BEARER_MODE } from "@/lib/mobileAuth";
-import { getApiBaseUrlSource } from "@/lib/backendUrl";
 import { relativeTime } from "@/lib/format";
 import type {
   PortsApplyResult,
@@ -79,9 +78,9 @@ export default function SystemControl() {
   // Returns true when the status load SUCCEEDED — the caller uses this to decide
   // whether to start the 10s poll (don't hammer an unreachable backend).
   const loadStatus = useCallback(async (): Promise<boolean> => {
-    // Mobile (bearer build) with no usable backend override: short-circuit to the
-    // connect-state without firing a doomed request. Desktop/web never enters here.
-    if (BEARER_MODE && getApiBaseUrlSource() === "fallback") {
+    // Mobile (bearer build): short-circuit to the connect-state in ~2-3s (one shared,
+    // cached ping) when the desktop backend isn't reachable. Desktop/web passes through.
+    if (BEARER_MODE && !(await backendReachable())) {
       setNeedsBackend(true);
       return false;
     }
