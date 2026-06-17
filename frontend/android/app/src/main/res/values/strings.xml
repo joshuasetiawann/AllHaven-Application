@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AllHaven</string>
+    <string name="title_activity_main">AllHaven</string>
+    <string name="package_name">id.allhaven.app</string>
+    <string name="custom_url_scheme">id.allhaven.app</string>
+</resources>

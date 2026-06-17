@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const isProd = process.env.NODE_ENV === "production";
+// Mobile build target (Capacitor): emit a static export in `out/` that the
+// Android WebView serves locally. Toggle with `BUILD_TARGET=mobile`.
+const isMobile = process.env.BUILD_TARGET === "mobile";
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -28,13 +31,28 @@ if (isProd) {
   });
 }
 
-const nextConfig = {
-  reactStrictMode: true,
-  // Lean production image: emit a self-contained server in .next/standalone.
-  output: "standalone",
-  async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
-  },
-};
+const nextConfig = isMobile
+  ? {
+      reactStrictMode: true,
+      // Static HTML/JS bundle for Capacitor (no Node server in the app).
+      output: "export",
+      // Required by `output: export` (no Image Optimization server). The app
+      // uses no next/image today; this keeps export safe if that changes.
+      images: { unoptimized: true },
+      // Emit each route as a folder with index.html so file-based serving in
+      // the WebView resolves routes without a server rewriter.
+      trailingSlash: true,
+      // No headers(): a static export cannot emit HTTP headers. Security posture
+      // for the app is governed by the native shell (capacitor.config.ts) and
+      // the API itself; see docs/MOBILE.md.
+    }
+  : {
+      reactStrictMode: true,
+      // Lean production image: emit a self-contained server in .next/standalone.
+      output: "standalone",
+      async headers() {
+        return [{ source: "/:path*", headers: securityHeaders }];
+      },
+    };
 
 module.exports = nextConfig;
