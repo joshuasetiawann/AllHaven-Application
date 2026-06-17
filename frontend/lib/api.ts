@@ -17,7 +17,7 @@ import type {
   ToolProposal,
   Transaction,
 } from "@/types";
-import type { AiProviderUpdatePayload, GoogleScopes } from "@/types/api";
+import type { AiProviderUpdatePayload } from "@/types/api";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -185,14 +185,4 @@ export const settingsApi = {
     request<Integration>(`/settings/integrations/${id}/disable`, { method: "POST" }),
   clearIntegration: (id: string) =>
     request<Integration>(`/settings/integrations/${id}`, { method: "DELETE" }),
-};
-
-// --- Google OAuth foundation ---
-export const googleApi = {
-  scopes: () => request<GoogleScopes>("/settings/google/scopes"),
-  loginUrl: (include?: string[]) =>
-    request<{ authorization_url: string; scopes: string[] }>(
-      `/auth/google/login${include && include.length ? `?include=${include.join(",")}` : ""}`,
-    ),
-  disconnect: () => request<Integration>("/settings/google/disconnect", { method: "POST" }),
 };

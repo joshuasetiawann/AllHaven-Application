@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from app.services.ai_providers.base import AIProvider, ChatResult, VerifyResult, interpret_http, safe_request
+from app.services.ai_providers.base import AIProvider, ChatResult, safe_request
 
 API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
@@ -19,13 +19,16 @@ class GeminiProvider(AIProvider):
     def is_configured(self, public: dict, secrets: dict) -> bool:
         return bool(secrets.get("api_key"))
 
-    def test_connection(self, public: dict, secrets: dict) -> VerifyResult:
+    def test_connection(self, public: dict, secrets: dict) -> tuple[bool, str]:
         key = secrets.get("api_key")
         if not key:
-            return VerifyResult("not_configured", "API key not set")
-        # The key is validated server-side; an invalid key returns 400/403.
+            return False, "API key not set"
         code, _, err = safe_request("GET", f"{API_BASE}/models", params={"key": key})
-        return interpret_http(code, err)
+        if err:
+            return False, err
+        if code == 200:
+            return True, ""
+        return False, f"Verification failed (HTTP {code})"
 
     def chat(self, public: dict, secrets: dict, messages: list[dict], model: Optional[str] = None) -> ChatResult:
         key = secrets.get("api_key")

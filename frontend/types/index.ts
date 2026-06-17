@@ -127,7 +127,6 @@ export type IntegrationStatusValue =
   | "configured"
   | "not_configured"
   | "error"
-  | "unavailable"
   | "disabled"
   // legacy value kept for safety in status colour maps
   | "connected";

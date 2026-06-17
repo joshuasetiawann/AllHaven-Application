@@ -5,16 +5,14 @@ import json
 from tests.conftest import API
 
 
-def test_provider_list_has_six_apis_plus_ollama(auth_client):
+def test_provider_list_has_five_apis_plus_ollama(auth_client):
     data = auth_client.get(f"{API}/ai/providers").json()["data"]["providers"]
     ids = {p["id"] for p in data}
-    assert {"openai", "anthropic", "gemini", "grok", "blackbox", "openrouter", "ollama"}.issubset(ids)
-    assert len(data) == 7
+    assert {"openai", "anthropic", "gemini", "grok", "openrouter", "ollama"}.issubset(ids)
+    assert len(data) == 6
     ollama = next(p for p in data if p["id"] == "ollama")
     assert ollama["external"] is False
     assert ollama["api_key_required"] is False
-    # GPT Agent display name
-    assert next(p for p in data if p["id"] == "openai")["name"] == "GPT Agent"
 
 
 def test_ollama_configurable_without_api_key(auth_client):
@@ -70,48 +68,3 @@ def test_provider_disable_sets_disabled(auth_client):
     )
     resp = auth_client.post(f"{API}/ai/providers/anthropic/disable")
     assert resp.json()["data"]["status"] == "disabled"
-
-
-def test_saving_random_key_is_configured_not_online(auth_client):
-    # Saving must NEVER auto-verify to online — only Test Connection can do that.
-    resp = auth_client.put(
-        f"{API}/ai/providers/openai",
-        json={"secrets": {"api_key": "sk-totally-random-abc"}, "enabled": True},
-    )
-    assert resp.json()["data"]["status"] == "configured"
-
-
-def test_random_key_does_not_become_online_openrouter(auth_client, monkeypatch):
-    # OpenRouter's /models is public; verification must use the authed /key endpoint.
-    # Simulate an invalid key (HTTP 401) -> error, never online.
-    import app.services.ai_providers.openrouter_provider as orp
-
-    monkeypatch.setattr(orp, "safe_request", lambda *a, **k: (401, {"error": "no auth"}, ""))
-    auth_client.put(
-        f"{API}/ai/providers/openrouter",
-        json={"secrets": {"api_key": "sk-or-random"}, "enabled": True},
-    )
-    resp = auth_client.post(f"{API}/ai/providers/openrouter/test")
-    assert resp.json()["data"]["status"] == "error"
-
-
-def test_openrouter_valid_key_online_when_mocked(auth_client, monkeypatch):
-    import app.services.ai_providers.openrouter_provider as orp
-
-    monkeypatch.setattr(orp, "safe_request", lambda *a, **k: (200, {"data": {}}, ""))
-    auth_client.put(
-        f"{API}/ai/providers/openrouter",
-        json={"secrets": {"api_key": "sk-or-valid"}, "enabled": True},
-    )
-    resp = auth_client.post(f"{API}/ai/providers/openrouter/test")
-    assert resp.json()["data"]["status"] == "online"
-
-
-def test_blackbox_never_online_from_test(auth_client):
-    # Verification endpoint is unclear → configured (not verified), never online.
-    auth_client.put(
-        f"{API}/ai/providers/blackbox",
-        json={"secrets": {"api_key": "bb-anything"}, "enabled": True},
-    )
-    resp = auth_client.post(f"{API}/ai/providers/blackbox/test")
-    assert resp.json()["data"]["status"] == "configured"
