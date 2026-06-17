@@ -48,7 +48,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21" # Capacitor 8 / AGP compiles with source release 21
 
       - uses: android-actions/setup-android@v3
 
