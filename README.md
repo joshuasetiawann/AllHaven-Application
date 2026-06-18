@@ -12,7 +12,7 @@ The latest version also lives on the
 [`main`](../../tree/main) branch.
 
 ![Latest](https://img.shields.io/badge/latest-AllHaven%204.2%20-%20v4.2.0-18E0D6?style=flat-square)
-&nbsp;![Releases](https://img.shields.io/badge/releases-44-2563EB?style=flat-square)
+&nbsp;![Releases](https://img.shields.io/badge/releases-45-2563EB?style=flat-square)
 &nbsp;![© 2026 Joshua Setiawan](https://img.shields.io/badge/©%202026-Joshua%20Setiawan-555?style=flat-square)
 
 </div>
@@ -37,6 +37,11 @@ The latest version also lives on the
 
 | Date | Branch | Commit | Summary |
 |:--|:--|:--|:--|
+| 2026-07-08 | `mobile` | `08cae48` | Rebuilt the standalone APK bundle at version `4.2.0+45` after the mobile smoothness, delete-confirmation, and Routine Habit tap fixes. |
+| 2026-07-08 | `mobile` | `d48c556` | Mobile source now lightens heavy glass animations, makes Routine Habits tappable, and confirms destructive deletes across modules. |
+| 2026-07-08 | `main` | `c74c41f` | Reduced mobile/touch compositing cost by lightening Aurora blur, hover transforms, and glow animations. |
+| 2026-07-08 | `main` | `59d9760` | Added app dialog confirmations before destructive deletes in Tasks, Notes, Finance, Drive, Automations, Clock alarms, and checklists. |
+| 2026-07-08 | `main` | `68d56fc` | Routine Habit rows are now tappable/clickable and open the edit flow on desktop and mobile. |
 | 2026-07-07 | `mobile` | `d536a66` | Rebuilt the standalone Flutter web assets and APK bundle at version `4.2.0+44` after the front-door, bridge, CSP, and Preferences fixes. |
 | 2026-07-07 | `mobile` | `d31a813` | Refreshed the mobile source entry flow, AI Backend Bridge setup handling, CSP font origins, and Capacitor Preferences wrapper. |
 | 2026-07-07 | `main` | `4250ea6` | Wrapped the Capacitor Preferences API so web/Capacitor runtimes no longer throw `Preferences.then()` during mobile auth hydration. |
