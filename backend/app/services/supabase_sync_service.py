@@ -16,6 +16,9 @@ Security:
 from __future__ import annotations
 
 import logging
+import uuid
+from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -25,6 +28,108 @@ from app.core.principal import Principal
 log = logging.getLogger(__name__)
 
 SUPABASE_PROVIDER_ID = "supabase"
+
+
+# ---------------------------------------------------------------------------
+# Reusable serialization helpers (also consumed by sync_engine)
+# ---------------------------------------------------------------------------
+
+def _serialize(row) -> dict:
+    """Serialize an ORM instance to a PostgREST-compatible dict.
+
+    Keys are the **DB column name** (``attr.columns[0].name``), so ORM attrs
+    whose Python name differs from the column name (e.g. ``meta`` → ``"metadata"``)
+    are correctly mapped.  Values are JSON-safe (datetime → ISO-8601 string, all
+    others pass through as-is or are coerced to ``str``).
+    """
+    import sqlalchemy
+
+    result = {}
+    for attr in sqlalchemy.inspect(row).mapper.column_attrs:
+        col_name = attr.columns[0].name  # actual DB column name (e.g. "metadata")
+        val = getattr(row, attr.key)      # Python attribute name (e.g. "meta")
+        if hasattr(val, "isoformat"):
+            val = val.isoformat()
+        elif not isinstance(val, (str, int, float, bool, type(None), dict, list)):
+            val = str(val)
+        result[col_name] = val
+    return result
+
+
+def _upsert(url: str, key: str, table: str, rows: list[dict]) -> None:
+    """POST *rows* to ``{url}/rest/v1/{table}`` using PostgREST upsert semantics.
+
+    Uses stdlib ``urllib.request`` (no httpx/requests).  Timeout: 10 s.
+    """
+    import json
+    import urllib.request
+
+    if not rows:
+        return
+    data = json.dumps(rows).encode()
+    req = urllib.request.Request(
+        f"{url.rstrip('/')}/rest/v1/{table}",
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Prefer": "resolution=merge-duplicates,return=minimal",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=10):
+        pass
+
+
+def _deserialize(model, row: dict) -> dict:
+    """Inverse of ``_serialize``: PostgREST row (DB-column keyed) → ORM kwargs (attr-key keyed).
+
+    Casts:
+    - GUID columns (custom TypeDecorator): ``str`` → ``uuid.UUID``
+    - DateTime columns: ISO-8601 ``str`` → ``datetime`` (tz-aware)
+    - Numeric columns: ``str``/``int``/``float`` → ``Decimal``
+    - Bool columns: any truthy value → ``bool``
+    - JSON/array/text/custom: passed through unchanged
+    - Unknown columns (Supabase extras): silently ignored
+    """
+    import sqlalchemy
+    from sqlalchemy import DateTime
+    from sqlalchemy.types import Boolean, Numeric
+
+    from app.domain.base import GUID as GUIDType
+
+    # Build a mapping: DB column name -> (ORM attr key, SQLAlchemy column type)
+    col_meta: dict[str, tuple[str, object]] = {}
+    for attr in sqlalchemy.inspect(model).mapper.column_attrs:
+        col = attr.columns[0]
+        col_meta[col.name] = (attr.key, col.type)
+
+    kwargs: dict = {}
+    for col_name, val in row.items():
+        meta = col_meta.get(col_name)
+        if meta is None:
+            continue  # unknown/extra column from Supabase — ignore
+        attr_key, coltype = meta
+        if val is None:
+            kwargs[attr_key] = None
+            continue
+        # Cast by SQLAlchemy type — detect custom GUID first, then standard types
+        if isinstance(coltype, GUIDType):
+            if not isinstance(val, uuid.UUID):
+                val = uuid.UUID(str(val))
+        elif isinstance(coltype, DateTime):
+            if isinstance(val, str):
+                val = datetime.fromisoformat(val.replace("Z", "+00:00"))
+        elif isinstance(coltype, Numeric):
+            if not isinstance(val, Decimal):
+                val = Decimal(str(val))
+        elif isinstance(coltype, Boolean):
+            if not isinstance(val, bool):
+                val = bool(val)
+        # else: String/Text/JSON/array/custom — pass through unchanged
+        kwargs[attr_key] = val
+    return kwargs
 
 
 def _get_credentials(db: Session, principal: Principal) -> tuple[Optional[str], Optional[str]]:
@@ -137,47 +242,9 @@ def _sync_thread(url: str, key: str, workspace_id: str) -> None:
 def _do_sync(db: Session, url: str, key: str, workspace_id: str) -> None:
     """Attempt to sync workspace tables to Supabase using REST (no SDK required).
 
-    Uses stdlib ``urllib.request`` POST to ``{url}/rest/v1/{table}`` with the
-    ``Prefer: resolution=merge-duplicates`` header so rows are upserted.
-    Timeout: 10 s per table request.
+    Uses module-level ``_serialize`` / ``_upsert`` helpers.  Timeout: 10 s per table.
     """
-    import json
-    import urllib.request
     import uuid as _uuid
-
-    ws = _uuid.UUID(workspace_id)
-
-    def _upsert(table: str, rows: list[dict]) -> None:
-        if not rows:
-            return
-        data = json.dumps(rows).encode()
-        req = urllib.request.Request(
-            f"{url.rstrip('/')}/rest/v1/{table}",
-            data=data,
-            headers={
-                "Content-Type": "application/json",
-                "apikey": key,
-                "Authorization": f"Bearer {key}",
-                "Prefer": "resolution=merge-duplicates,return=minimal",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=10):
-            pass
-
-    def _serialize(row) -> dict:
-        import sqlalchemy
-
-        result = {}
-        for attr in sqlalchemy.inspect(row).mapper.column_attrs:
-            col_name = attr.columns[0].name  # actual DB column name (e.g. "metadata")
-            val = getattr(row, attr.key)      # Python attribute name (e.g. "meta")
-            if hasattr(val, "isoformat"):
-                val = val.isoformat()
-            elif not isinstance(val, (str, int, float, bool, type(None), dict, list)):
-                val = str(val)
-            result[col_name] = val
-        return result
 
     from sqlalchemy import select
 
@@ -203,6 +270,8 @@ def _do_sync(db: Session, url: str, key: str, workspace_id: str) -> None:
     from app.domain.users import Profile
     from app.domain.weather import WeatherLocation
     from app.domain.workspaces import Workspace, WorkspaceMember
+
+    ws = _uuid.UUID(workspace_id)
 
     workspace_tables = [
         (Workspace, Workspace.id == ws),
@@ -246,7 +315,7 @@ def _do_sync(db: Session, url: str, key: str, workspace_id: str) -> None:
     for model, clause in workspace_tables:
         rows = list(db.scalars(select(model).where(clause)).all())
         try:
-            _upsert(model.__tablename__, [_serialize(row) for row in rows])
+            _upsert(url, key, model.__tablename__, [_serialize(row) for row in rows])
         except Exception as exc:
             # Supabase may not have every table yet. Keep the local app working
             # and continue mirroring the remaining tables.
