@@ -59,6 +59,9 @@ const nextConfig = isMobile
       // Emit each route as a folder with index.html so file-based serving in
       // the WebView resolves routes without a server rewriter.
       trailingSlash: true,
+      // Keep the static build-id directory stable for native APK bundling.
+      // Flutter assets are declared ahead of time in pubspec.yaml.
+      generateBuildId: async () => "allhaven-mobile",
       // No headers(): a static export cannot emit HTTP headers. Security posture
       // for the app is governed by the native shell (capacitor.config.ts) and
       // the API itself; see docs/MOBILE.md.

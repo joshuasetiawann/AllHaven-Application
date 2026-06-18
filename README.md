@@ -33,6 +33,13 @@ The latest version also lives on the
 > (rebranded at 1.4). **Semantic** is the internal `vX.Y.Z`; CoreOS 1.2 maps to
 > `v0.1.0`, CoreOS 1.3 maps to `v0.2.0`, and AllHaven 1.4 starts at `v0.3.0`.
 
+## Latest maintenance recap
+
+| Date | Branch | Commit | Summary |
+|:--|:--|:--|:--|
+| 2026-07-07 | `main` | `cb3034e` | Stabilized the mobile static export build id so desktop/latest source no longer emits random APK manifest folders. |
+| 2026-07-07 | `mobile` | `bdfa7ad` | Refreshed the standalone Flutter APK bundle to AllHaven 4.2, bumped APK version to `4.2.0+42`, and verified the Android debug build. |
+
 ## 🗓️ Release history
 
 | Version | Released | Era | Semantic | What this update introduced |
