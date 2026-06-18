@@ -104,3 +104,103 @@ def test_task_crud_lifecycle(auth_client):
 def test_task_invalid_status_rejected(auth_client):
     resp = auth_client.post(f"{API}/tasks", json={"title": "x", "status": "NONSENSE"})
     assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Soft-delete sync-correctness tests (fix: resurrection / cap-skew blockers)
+# ---------------------------------------------------------------------------
+
+
+def test_delete_checklist_item_is_soft_delete(auth_client, db_session):
+    """DELETE /checklist/:id must mark is_deleted=True, not physically remove the row."""
+    from app.domain.tasks import TaskChecklistItem
+    from sqlalchemy import select
+
+    created = auth_client.post(f"{API}/tasks", json={"title": "S", "checklist": ["X"]})
+    item_id = created.json()["data"]["checklist_items"][0]["id"]
+    task_id = created.json()["data"]["id"]
+
+    auth_client.delete(f"{API}/tasks/{task_id}/checklist/{item_id}")
+
+    # The row must still exist in the DB.
+    import uuid
+    row = db_session.scalar(
+        select(TaskChecklistItem).where(TaskChecklistItem.id == uuid.UUID(item_id))
+    )
+    assert row is not None, "Row was physically deleted — must be soft-deleted instead."
+    assert row.is_deleted is True
+    assert row.deleted_at is not None
+
+
+def test_deleted_checklist_item_excluded_from_response(auth_client):
+    """After deleting an item, the API response checklist_items must exclude the tombstone."""
+    created = auth_client.post(f"{API}/tasks", json={"title": "T", "checklist": ["keep", "drop"]})
+    task_id = created.json()["data"]["id"]
+    items = created.json()["data"]["checklist_items"]
+    drop_id = items[1]["id"]
+    keep_id = items[0]["id"]
+
+    result = auth_client.delete(f"{API}/tasks/{task_id}/checklist/{drop_id}")
+    returned_ids = [i["id"] for i in result.json()["data"]["checklist_items"]]
+    assert keep_id in returned_ids
+    assert drop_id not in returned_ids
+
+    # GET the task fresh — tombstone must still be hidden.
+    fetched = auth_client.get(f"{API}/tasks/{task_id}")
+    fetched_ids = [i["id"] for i in fetched.json()["data"]["checklist_items"]]
+    assert drop_id not in fetched_ids
+
+
+def test_mutating_deleted_item_raises_not_found(auth_client):
+    """Update and delete on an already-deleted item must return 404 (no tombstone mutation)."""
+    created = auth_client.post(f"{API}/tasks", json={"title": "T", "checklist": ["item"]})
+    task_id = created.json()["data"]["id"]
+    item_id = created.json()["data"]["checklist_items"][0]["id"]
+
+    # First delete succeeds.
+    first = auth_client.delete(f"{API}/tasks/{task_id}/checklist/{item_id}")
+    assert first.status_code == 200
+
+    # Second delete on the tombstone must be 404.
+    second_delete = auth_client.delete(f"{API}/tasks/{task_id}/checklist/{item_id}")
+    assert second_delete.status_code == 404
+
+    # Update on the tombstone must also be 404.
+    update_resp = auth_client.patch(
+        f"{API}/tasks/{task_id}/checklist/{item_id}", json={"is_done": True}
+    )
+    assert update_resp.status_code == 404
+
+
+def test_soft_deleted_items_do_not_count_toward_cap_or_skew_position(auth_client):
+    """Tombstones must not count toward the MAX_CHECKLIST_ITEMS=5 cap or inflate positions."""
+    # Create a task with 5 items (at the cap).
+    items_titles = ["a", "b", "c", "d", "e"]
+    created = auth_client.post(
+        f"{API}/tasks", json={"title": "Cap test", "checklist": items_titles}
+    )
+    assert created.status_code == 200
+    task_id = created.json()["data"]["id"]
+    items = created.json()["data"]["checklist_items"]
+    assert len(items) == 5
+
+    # Delete one item — now only 4 active items, 1 tombstone.
+    delete_id = items[2]["id"]  # position 2, "c"
+    auth_client.delete(f"{API}/tasks/{task_id}/checklist/{delete_id}")
+
+    # Should now be possible to add a 5th active item (tombstone doesn't count).
+    added = auth_client.post(f"{API}/tasks/{task_id}/checklist", json={"title": "f"})
+    assert added.status_code == 200, added.text
+    active_items = added.json()["data"]["checklist_items"]
+    assert len(active_items) == 5  # 4 survivors + 1 new = 5
+
+    # Position of the new item must be max(active positions) + 1 (not inflated by tombstone).
+    # The 5 active items had positions 0,1,3,4; next should be 5.
+    new_item = next(i for i in active_items if i["title"] == "f")
+    active_positions = sorted(i["position"] for i in active_items)
+    assert new_item["position"] == max(active_positions)  # highest position == the new item's
+
+    # Now at cap again — adding a 6th active item must be rejected.
+    over_cap = auth_client.post(f"{API}/tasks/{task_id}/checklist", json={"title": "g"})
+    assert over_cap.status_code == 400
+    assert over_cap.json()["error_code"] == "CHECKLIST_LIMIT"
