@@ -297,3 +297,20 @@ export interface AiProvider {
   last_error: string | null;
   env_sync?: EnvSync;
 }
+
+// --- Live n8n workflows (read + activate/deactivate via the connected n8n) ---
+export type N8nStatus = "online" | "not_configured" | "no_api_key" | "unavailable" | "unauthorized" | "error";
+
+export interface N8nWorkflow {
+  id: string;
+  name: string;
+  active: boolean;
+  updated_at?: string | null;
+}
+
+export interface N8nWorkflowList {
+  status: N8nStatus;
+  message: string;
+  base_url: string;
+  workflows: N8nWorkflow[];
+}

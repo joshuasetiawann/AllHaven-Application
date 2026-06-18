@@ -31,6 +31,7 @@ from app.api.routers import (
     finance,
     google,
     health,
+    n8n,
     notes,
     settings as settings_router,
     tasks,
@@ -99,6 +100,7 @@ def create_app() -> FastAPI:
     app.include_router(drive.router, prefix=prefix)
     app.include_router(automations.router, prefix=prefix)
     app.include_router(weather.router, prefix=prefix)
+    app.include_router(n8n.router, prefix=prefix)
 
     @app.get("/", tags=["root"])
     def root() -> dict:
