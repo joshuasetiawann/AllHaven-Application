@@ -12,7 +12,7 @@ The latest version also lives on the
 [`main`](../../tree/main) branch.
 
 ![Latest](https://img.shields.io/badge/latest-AllHaven%204.2%20-%20v4.2.0-18E0D6?style=flat-square)
-&nbsp;![Releases](https://img.shields.io/badge/releases-43-2563EB?style=flat-square)
+&nbsp;![Releases](https://img.shields.io/badge/releases-44-2563EB?style=flat-square)
 &nbsp;![© 2026 Joshua Setiawan](https://img.shields.io/badge/©%202026-Joshua%20Setiawan-555?style=flat-square)
 
 </div>
@@ -37,6 +37,12 @@ The latest version also lives on the
 
 | Date | Branch | Commit | Summary |
 |:--|:--|:--|:--|
+| 2026-07-07 | `mobile` | `d536a66` | Rebuilt the standalone Flutter web assets and APK bundle at version `4.2.0+44` after the front-door, bridge, CSP, and Preferences fixes. |
+| 2026-07-07 | `mobile` | `d31a813` | Refreshed the mobile source entry flow, AI Backend Bridge setup handling, CSP font origins, and Capacitor Preferences wrapper. |
+| 2026-07-07 | `main` | `4250ea6` | Wrapped the Capacitor Preferences API so web/Capacitor runtimes no longer throw `Preferences.then()` during mobile auth hydration. |
+| 2026-07-07 | `main` | `3c07db9` | Allowed the app's Google font origins in production CSP so desktop pages no longer log blocked stylesheet/font errors. |
+| 2026-07-07 | `main` | `d17bf0c` | AI Chat now shows a clear Backend Bridge setup state when REST-only desktop features are unreachable from mobile/Tailscale. |
+| 2026-07-07 | `main` | `acecaa8` | Replaced the old root landing screen with a direct Command Center routing screen for desktop and mobile. |
 | 2026-07-07 | `main` | `75cc121` | Mobile builds now require an explicit Backend Bridge URL for REST-only features instead of falling back to localhost. |
 | 2026-07-07 | `mobile` | `c266f81` | Rebuilt the standalone APK with Supabase configuration, direct `/login/` startup, Backend Bridge not-configured state, and APK version `4.2.0+43`. |
 | 2026-07-07 | `main` | `c6d796c` | Stabilized the mobile static export build id so desktop/latest source no longer emits random APK manifest folders. |
