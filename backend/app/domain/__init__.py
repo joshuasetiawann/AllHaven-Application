@@ -28,6 +28,7 @@ from app.domain.tasks import Task, TaskChecklistItem
 from app.domain.weather import WeatherLocation
 from app.domain.users import LocalUser, Profile
 from app.domain.workspaces import Workspace, WorkspaceMember
+from app.domain.sync_state import SyncState  # noqa: F401
 
 __all__ = [
     "Base",
@@ -60,4 +61,5 @@ __all__ = [
     "AiMemory",
     "AiMemorySuggestion",
     "AiConversationSummary",
+    "SyncState",
 ]
