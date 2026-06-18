@@ -19,6 +19,7 @@
 - **Migrations:** filenames `NNNN_snake_case.py`; `down_revision` is the predecessor's **revision string** (not filename); non-null columns always carry a `server_default`; Postgres-only DDL guarded by `op.get_bind().dialect.name == "postgresql"`.
 - **SQLAlchemy typing:** `from __future__ import annotations` at top; columns `name: Mapped[type] = mapped_column(...)`; nullable timestamps `Mapped[datetime | None]` with `DateTime(timezone=True)`.
 - **Run backend tests from `backend/`:** `cd backend && python -m pytest`. Run migrations from `backend/`: `python -m alembic upgrade head`.
+- **Environment prep before executing:** `backend/.venv` may be pinned to a Python version that is no longer present (e.g. 3.14 vs an available 3.13), which breaks `pytest`/`alembic`. Rebuild it first: `cd backend && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'` (or restore the pinned interpreter). Verified-against-code review could not execute the suite in-sandbox for this reason — run the test steps on a real machine.
 
 ---
 
@@ -259,13 +260,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.add_column("profiles", sa.Column("supabase_user_id", GUID(), nullable=True))
-    op.create_unique_constraint("uq_profiles_supabase_user_id", "profiles", ["supabase_user_id"])
-    op.create_index("ix_profiles_supabase_user_id", "profiles", ["supabase_user_id"])
+    # ORM declares unique=True + index=True, which SQLAlchemy folds into ONE unique
+    # index (ix_profiles_supabase_user_id) — mirror that exactly to avoid autogenerate drift.
+    op.create_index("ix_profiles_supabase_user_id", "profiles", ["supabase_user_id"], unique=True)
 
 
 def downgrade() -> None:
     op.drop_index("ix_profiles_supabase_user_id", table_name="profiles")
-    op.drop_constraint("uq_profiles_supabase_user_id", "profiles", type_="unique")
     op.drop_column("profiles", "supabase_user_id")
 ```
 
@@ -540,6 +541,7 @@ git commit -m "feat(auth): GoTrue admin create_user (best-effort, service-role)"
 
 **Interfaces:**
 - Consumes: `supabase_auth_service.get_service_credentials`, `supabase_auth_service.create_user`.
+- Requires: **Task 3 first** — `profile.supabase_user_id` must exist on the model or the assignment silently won't persist and this task's test fails.
 - Behavior: after `db.flush()` (user.id known) and before `db.commit()`, if env-level service creds exist, call `create_user` and set `profile.supabase_user_id` from the returned id. A Supabase failure must NOT raise or roll back local registration.
 
 - [ ] **Step 1: Write the failing test**
@@ -729,21 +731,21 @@ Expected: FAIL — 404 (route missing).
 
 - [ ] **Step 4: Implement the service `connect`**
 
-Append to `supabase_auth_service.py` (import the project's error type used for bad input — check `app/core/exceptions.py` for the right class, e.g. `ValidationError`/`InvalidCredentialsError`; use the one that maps to HTTP 400/422, NOT the 401 path):
+Append to `supabase_auth_service.py`. Use **`ValidationAppError`** (HTTP 422) — verified during review as the project's 4xx-not-401 class (siblings: `BadRequestError` 400, `ConflictError` 409; there is **no** `ValidationError` in `app/core/exceptions.py`):
 
 ```python
 def connect(db: Session, principal, password: str) -> dict:
     """Re-verify the user's password, then provision their Supabase Auth user."""
-    from app.core.exceptions import ValidationError
+    from app.core.exceptions import ValidationAppError
     from app.services import auth_service
 
     user = auth_service.authenticate(db, email=principal.email, password=password)
     if not user:
-        raise ValidationError("Incorrect password.", error_code="INVALID_PASSWORD")
+        raise ValidationAppError("Incorrect password.", error_code="INVALID_PASSWORD")
 
     url, key = get_service_credentials(db, principal.workspace_id)
     if not url or not key:
-        raise ValidationError(
+        raise ValidationAppError(
             "Supabase service role key is not configured.", error_code="SUPABASE_NOT_CONFIGURED"
         )
 
@@ -760,11 +762,18 @@ def connect(db: Session, principal, password: str) -> dict:
     return {"connected": bool(sb_id)}
 ```
 
-> Verify `ValidationError(message, error_code=...)` exists in `app/core/exceptions.py` and maps to a 4xx that is NOT 401. If the project's class name/signature differs, use the matching one (the codebase already raises `ConflictError(message, error_code="EMAIL_TAKEN")` from this module family).
+> `ValidationAppError` maps to HTTP 422 via the `AppException` handler (`JSONResponse(status_code=exc.status_code)`), satisfying the Task 7 test's `status_code in (400, 422)` and `!= 401` (so the client session is not cleared on a wrong password). `AppException` accepts `(message, *, error_code=...)`, same family as the `ConflictError(..., error_code="EMAIL_TAKEN")` already used.
 
 - [ ] **Step 5: Implement the route**
 
-In `backend/app/api/routers/settings.py`, add (mirror the existing handler signature; import `SupabaseConnectRequest` and `supabase_auth_service`):
+In `backend/app/api/routers/settings.py`, first extend the imports — `Principal`, `Depends`, `get_current_principal`, `get_db`, `success_response`, `Session`, and `router` are already imported; only these two are new:
+
+```python
+from app.schemas.integrations import IntegrationUpdateRequest, SupabaseConnectRequest  # extend the existing line
+from app.services import supabase_auth_service
+```
+
+Then add the route:
 
 ```python
 @router.post("/supabase/connect")
@@ -876,7 +885,7 @@ git commit -m "feat(settings): Connect to Supabase control (mobile auth provisio
 - Create: `backend/alembic/versions/0012_updated_at_trigger.py`
 
 **Interfaces:**
-- Produces: a `set_updated_at()` trigger function + `BEFORE UPDATE` triggers on every timestamped table, **on local Postgres and Supabase** (no-op on SQLite). Makes `updated_at` authoritative regardless of write path — required by Plan 2's LWW. The trigger **preserves an explicitly-supplied `updated_at`** (so the sync engine can apply a peer's timestamp): it only bumps `updated_at` when the writer left it unchanged.
+- Produces: a `set_updated_at()` trigger function + `BEFORE UPDATE` triggers on every timestamped table, **on local Postgres and Supabase** (no-op on SQLite). Stamps `updated_at` for write paths that don't already set it (raw SQL, PostgREST writes from mobile) — required by Plan 2's LWW; ORM writes keep their own `onupdate` value. The trigger **preserves an explicitly-supplied `updated_at`** (so the sync engine can apply a peer's timestamp): it only bumps `updated_at` when the writer left it unchanged.
 
 - [ ] **Step 1: Write the migration**
 
