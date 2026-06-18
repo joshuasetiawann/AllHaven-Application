@@ -58,6 +58,7 @@ export async function pingBackend(timeoutMs = 4000): Promise<boolean> {
 let _reachCache: { ok: boolean; at: number } | null = null;
 let _reachInflight: Promise<boolean> | null = null;
 const _REACH_TTL_MS = 8000;
+export const BACKEND_TEST_TIMEOUT_MS = 3500;
 
 /** Drop the cached reachability result (e.g. when the backend URL/mode changes). */
 export function invalidateBackendReachable(): void {
@@ -111,7 +112,7 @@ export interface BackendTestResult {
  */
 export async function testBackendConnection(
   rawUrl?: string,
-  timeoutMs = 6000,
+  timeoutMs = BACKEND_TEST_TIMEOUT_MS,
 ): Promise<BackendTestResult> {
   const base = rawUrl !== undefined ? normalizeBackendUrl(rawUrl) : getApiBaseUrl();
   if (!base) {
