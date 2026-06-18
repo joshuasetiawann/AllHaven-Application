@@ -32,6 +32,7 @@ EXPECTED_TABLES = {
     "ai_conversation_summaries",
     "ai_knowledge_documents",
     "ai_knowledge_chunks",
+    "sync_state",
 }
 
 
