@@ -106,3 +106,13 @@ def connect_supabase(
 ) -> dict:
     result = supabase_auth_service.connect(db, principal, payload.password)
     return success_response(result, "Supabase Auth connected")
+
+
+@router.get("/sync/status")
+def sync_status(
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Return watermark/cursor state for the current workspace's sync engine."""
+    from app.services import sync_engine
+    return success_response(sync_engine.last_sync_status(db, principal.workspace_id), "Sync status")
