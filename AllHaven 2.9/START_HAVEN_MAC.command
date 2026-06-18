@@ -6,7 +6,7 @@
 #                in your browser. (macOS runs .command files in Terminal.)
 #   After setup: the same double-click starts Haven and opens the app.
 #
-# Only Python 3 is required to run the wizard.
+# Python 3 and Node.js 18+ are required; the terminal installer checks both.
 # If macOS blocks it the first time: right-click → Open, or
 #   System Settings → Privacy & Security → "Open Anyway".
 # =============================================================================

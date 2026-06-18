@@ -63,6 +63,12 @@ class MemoryCandidate:
 # Each entry: (compiled_regex, category, title_template, content_template, confidence, sensitivity)
 # Capture group 1 is always the extracted value.
 _RULES: list[tuple] = [
+    # Explicit memory commands
+    (re.compile(r'(?:tolong\s+)?(?:ingat|simpan|catat)\s+(?:bahwa\s+)?(.{4,180}?)(?:[.!?]|$)', re.IGNORECASE),
+     "Other", "User-provided memory", "User explicitly asked the AI to remember: {value}.", 0.95, "LOW"),
+    (re.compile(r'(?:remember|save|note)\s+(?:that\s+)?(.{4,180}?)(?:[.!?]|$)', re.IGNORECASE),
+     "Other", "User-provided memory", "User explicitly asked the AI to remember: {value}.", 0.92, "LOW"),
+
     # Name
     (re.compile(r'nama\s+saya\s+(?:adalah\s+)?([A-Za-z][A-Za-z\s]{1,40}?)(?:[.,!?]|$)', re.IGNORECASE),
      "Profile", "User name", "User's name is {value}.", 0.95, "LOW"),
@@ -82,7 +88,7 @@ _RULES: list[tuple] = [
      "Profile", "School", "User studies at {value}.", 0.9, "LOW"),
 
     # Role / job
-    (re.compile(r'saya\s+(?:adalah\s+)?(?:seorang\s+)?([A-Za-z][A-Za-z\s]{1,50}?)\s+(?:di|pada|yang|bekerja)', re.IGNORECASE),
+    (re.compile(r'saya\s+(?:adalah\s+)?(?:seorang\s+)?([A-Za-z][A-Za-z\s]{1,50}?)\s+\b(?:di|pada|yang|bekerja)\b', re.IGNORECASE),
      "Profile", "User role", "User's role is {value}.", 0.75, "LOW"),
     (re.compile(r'(?:jabatan|posisi|pekerjaan)\s+saya\s+(?:adalah\s+)?([A-Za-z][A-Za-z\s]{1,50}?)(?:[.,!?]|$)', re.IGNORECASE),
      "Profile", "User role", "User's role is {value}.", 0.85, "LOW"),
@@ -119,6 +125,22 @@ _RULES: list[tuple] = [
      "Preferences", "AI usage needs", "User wants the AI to help with {value}.", 0.92, "LOW"),
     (re.compile(r'ai(?:nya)?\s+.*?(ngoding|coding|programming|jadwal|schedule).{0,120}', re.IGNORECASE),
      "Work context", "AI work focus", "User wants the AI to help with coding and schedule management.", 0.86, "LOW"),
+    (re.compile(r'saya\s+(?:suka|senang)\s+(.{3,120}?)(?:[.!?]|$)', re.IGNORECASE),
+     "Preferences", "User likes", "User likes {value}.", 0.82, "LOW"),
+    (re.compile(r'saya\s+(?:tidak\s+suka|ga\s+suka|gak\s+suka|nggak\s+suka|benci)\s+(.{3,120}?)(?:[.!?]|$)', re.IGNORECASE),
+     "Preferences", "User dislikes", "User dislikes {value}.", 0.82, "LOW"),
+    (re.compile(r'(?:i\s+)?(?:like|love)\s+(.{3,120}?)(?:[.!?]|$)', re.IGNORECASE),
+     "Preferences", "User likes", "User likes {value}.", 0.8, "LOW"),
+    (re.compile(r'(?:i\s+)?(?:dislike|hate|do\s+not\s+like|don\'t\s+like)\s+(.{3,120}?)(?:[.!?]|$)', re.IGNORECASE),
+     "Preferences", "User dislikes", "User dislikes {value}.", 0.8, "LOW"),
+    (re.compile(r'saya\s+(?:mau|ingin|pengen|butuh)\s+(.{5,160}?)(?:[.!?]|$)', re.IGNORECASE),
+     "Goals", "User intent", "User wants {value}.", 0.74, "LOW"),
+    (re.compile(r'i\s+(?:want|need|would\s+like)\s+(.{5,160}?)(?:[.!?]|$)', re.IGNORECASE),
+     "Goals", "User intent", "User wants {value}.", 0.74, "LOW"),
+    (re.compile(r'(?:jadwal|schedule)\s+saya\s+(.{5,160}?)(?:[.!?]|$)', re.IGNORECASE),
+     "Tasks context", "Schedule context", "User's schedule context: {value}.", 0.8, "LOW"),
+    (re.compile(r'(?:repo|repository|github)\s+saya\s+(.{5,160}?)(?:[.!?]|$)', re.IGNORECASE),
+     "Work context", "Repository context", "User's repository context: {value}.", 0.82, "LOW"),
 
     # Tech stack
     (re.compile(r'(?:saya\s+)?(?:menggunakan|pakai|pake)\s+([A-Za-z0-9][A-Za-z0-9\s+_/-]{1,60}?)\s+(?:sebagai\s+)?(?:untuk|framework|library|tech\s+stack)', re.IGNORECASE),
@@ -184,9 +206,9 @@ def _auto_save_or_suggest(
         db, principal
     )
 
-    # Low confidence → always suggest, never auto-save (regardless of setting).
+    # Very low confidence → suggest, never auto-save (regardless of setting).
     # Sensitivity-based approval only applies when require_approval_sensitive is ON.
-    needs_approval = candidate.confidence < 0.7 or (
+    needs_approval = candidate.confidence <= 0.55 or (
         require_approval_sensitive and candidate.sensitivity in ("MEDIUM", "HIGH")
     )
     if needs_approval:
@@ -341,8 +363,10 @@ def schedule_extraction(
             _auto_save_or_suggest(db, principal, c, session_id)
         db.flush()
 
-        # Start LLM background thread if rule-based found nothing but the turn seems informative.
-        if not candidates and len(user_msg) > 20:
+        # Start LLM background extraction for informative turns. Even when the
+        # rules catch a few explicit facts, the LLM can still find softer context
+        # (project names, working style, schedule needs) without blocking chat.
+        if len(user_msg) > 20 and len(candidates) < 4:
             t = threading.Thread(
                 target=_llm_extract_thread,
                 args=(
