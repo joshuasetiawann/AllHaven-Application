@@ -411,6 +411,11 @@ export const settingsApi = {
     request<Integration>(`/settings/integrations/${id}/disable`, { method: "POST" }),
   clearIntegration: (id: string) =>
     request<Integration>(`/settings/integrations/${id}`, { method: "DELETE" }),
+  connectSupabase: (password: string) =>
+    request<{ connected: boolean }>("/settings/supabase/connect", {
+      method: "POST",
+      body: json({ password }),
+    }),
 };
 
 // --- Google OAuth foundation ---
