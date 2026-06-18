@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from sqlalchemy.orm import Session
@@ -24,6 +24,15 @@ from app.services import supabase_sync_service as mirror
 from app.services.sync_registry import SyncSpec
 
 log = logging.getLogger(__name__)
+
+
+def _to_utc_naive(dt: Optional[datetime]) -> Optional[datetime]:
+    """Compare instants, not wall-clocks. Aware -> convert to UTC then drop tz; naive assumed UTC."""
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc)
+    return dt.replace(tzinfo=None)
 
 
 # ---------------------------------------------------------------------------
@@ -54,17 +63,17 @@ def _bump(state: SyncState, value: Optional[datetime], pk: Optional[uuid.UUID]) 
     Normalises to offset-naive UTC before comparison so that tz-aware datetimes
     (from remote JSON) compare correctly with tz-naive values read back from
     SQLite (which strips tzinfo on storage).
+
+    Stores the UTC-naive form of ``value`` into ``state.last_value`` so that
+    the in-Python comparison and the SQL ``col > state.last_value`` filter both
+    operate on the same UTC-naive convention.
     """
     if value is None:
         return
-    if state.last_value is None:
-        state.last_value = value
-        state.last_pk = pk
-        return
-    _new = value.replace(tzinfo=None) if value.tzinfo else value
-    _cur = state.last_value.replace(tzinfo=None) if state.last_value.tzinfo else state.last_value
-    if _new >= _cur:
-        state.last_value = value
+    _new = _to_utc_naive(value)
+    _cur = _to_utc_naive(state.last_value)
+    if _cur is None or _new >= _cur:
+        state.last_value = _new  # store UTC-naive so SQL filter agrees
         state.last_pk = pk
 
 
@@ -144,10 +153,9 @@ def lww_apply(db: Session, spec: SyncSpec, row: dict) -> Optional[datetime]:
 
     local_ts: Optional[datetime] = getattr(existing, "updated_at", None)
     if local_ts is not None and incoming_ts is not None:
-        # Normalise to offset-naive UTC for comparison (SQLite drops tz info)
-        _inc = incoming_ts.replace(tzinfo=None) if incoming_ts.tzinfo else incoming_ts
-        _loc = local_ts.replace(tzinfo=None) if local_ts.tzinfo else local_ts
-        if _inc < _loc:
+        # Convert to UTC-naive instants so wall-clock numbers from non-UTC
+        # sessions cannot make an older row look newer (LWW correctness).
+        if _to_utc_naive(incoming_ts) < _to_utc_naive(local_ts):
             return None  # local is strictly newer → LWW keeps local
 
     for k, v in kwargs.items():
