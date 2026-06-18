@@ -96,3 +96,31 @@ def create_user(
     except Exception as exc:  # pragma: no cover - network defensive
         log.debug("Supabase create_user failed: %s", type(exc).__name__)
         return None
+
+
+def connect(db: Session, principal, password: str) -> dict:
+    """Re-verify the user's password, then provision their Supabase Auth user."""
+    from app.core.exceptions import ValidationAppError
+    from app.services import auth_service
+
+    user = auth_service.authenticate(db, email=principal.email, password=password)
+    if not user:
+        raise ValidationAppError("Incorrect password.", error_code="INVALID_PASSWORD")
+
+    url, key = get_service_credentials(db, principal.workspace_id)
+    if not url or not key:
+        raise ValidationAppError(
+            "Supabase service role key is not configured.", error_code="SUPABASE_NOT_CONFIGURED"
+        )
+
+    sb_id = create_user(
+        url, key, email=principal.email, password=password, full_name=principal.full_name
+    )
+    if sb_id:
+        from app.domain.users import Profile
+
+        profile = db.get(Profile, principal.user_id)
+        if profile is not None:
+            profile.supabase_user_id = sb_id
+            db.commit()
+    return {"connected": bool(sb_id)}
