@@ -95,11 +95,22 @@ def _language_instruction(response_language: str | None) -> str:
     return _LANGUAGE_INSTRUCTIONS.get(key, _LANGUAGE_INSTRUCTIONS["id"])
 
 
+# A retrieved chunk must clear this relevance score before it is injected into the
+# prompt. _score is (token_overlap + phrase_bonus)/len(query_tokens), so this requires
+# more than a single shared stop-word on a short query (or a phrase match). Keeps weak,
+# irrelevant documents out of the context so knowledge feels real, not noisy.
+_MIN_KNOWLEDGE_SCORE = 0.34
+
+
 def _wants_knowledge(message: str, section_key: str, budget: ContextBudget) -> bool:
     lower = (message or "").lower()
     if budget.knowledge_chunks <= 0:
         return False
-    return section_key == "ai_knowledge" or any(t in lower for t in _KNOWLEDGE_TRIGGERS) or bool(lower.strip())
+    if section_key == "ai_knowledge" or any(t in lower for t in _KNOWLEDGE_TRIGGERS):
+        return True
+    # Otherwise attempt retrieval only for substantive questions (skip greetings/acks like
+    # "hai"/"ok"/"makasih"); the min-score gate then decides whether anything is injected.
+    return len(lower.split()) >= 3
 
 
 def build(
@@ -164,16 +175,25 @@ def build(
             blocks.append("[Recent Conversation Snippets]")
             blocks.append("\n".join(snippets[-12:]))
 
-    overview = knowledge_service.knowledge_overview(db, principal)
-    if overview:
-        blocks.append(overview)
-
+    # Retrieve relevant document chunks (min-score gated) BEFORE deciding whether to
+    # advertise the knowledge inventory, so the overview only appears when knowledge is
+    # actually relevant — not dumped into every casual chat.
+    knowledge_block, sources = (None, [])
     if _wants_knowledge(message, key, budget):
-        knowledge_block, sources = knowledge_service.retrieve_context(db, principal, message, limit=budget.knowledge_chunks or 2)
-        if knowledge_block:
-            meta["used_knowledge"] = True
-            meta["knowledge_sources"] = sources
-            blocks.append(knowledge_block)
+        knowledge_block, sources = knowledge_service.retrieve_context(
+            db, principal, message, limit=budget.knowledge_chunks or 2,
+            min_score=_MIN_KNOWLEDGE_SCORE,
+        )
+
+    if key == "ai_knowledge" or sources:
+        overview = knowledge_service.knowledge_overview(db, principal)
+        if overview:
+            blocks.append(overview)
+
+    if knowledge_block:
+        meta["used_knowledge"] = True
+        meta["knowledge_sources"] = sources
+        blocks.append(knowledge_block)
 
     blocks.append("[Tool and approval rules]")
     blocks.append("Read tools may run automatically. Most write/destructive tools create pending actions first; low-risk memory writes may save directly. Never claim pending actions are saved until approved.")
