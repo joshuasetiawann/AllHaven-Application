@@ -13,12 +13,7 @@ from app.core.ratelimit import auth_rate_limit_middleware
 from app.core.responses import success_response
 
 
-def _app_version() -> str:
-    """Read the repo VERSION file (kept next to the app), defaulting safely."""
-    try:
-        return (Path(__file__).resolve().parents[2] / "VERSION").read_text().strip() or "0.0.0"
-    except Exception:  # noqa: BLE001
-        return "0.0.0"
+from app.core.version import get_app_version as _app_version  # single source of truth
 
 # Import the domain package so all models are registered on the metadata.
 import app.domain  # noqa: F401
