@@ -9,17 +9,27 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
+from pathlib import Path
 from typing import List
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve .env locations relative to this file so it works from any CWD.
+# Priority (lowest → highest): repo-root .env, then backend/.env, then real
+# environment variables. This lets users edit a single .env at the repo root and
+# have the web app's Settings pick those values up as defaults.
+_CONFIG_FILE = Path(__file__).resolve()
+_BACKEND_DIR = _CONFIG_FILE.parents[2]  # .../backend
+_REPO_ROOT = _CONFIG_FILE.parents[3]  # repo root
+_ENV_FILES = (str(_REPO_ROOT / ".env"), str(_BACKEND_DIR / ".env"))
 
 
 class Settings(BaseSettings):
     """Strongly-typed application settings."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
