@@ -31,10 +31,13 @@
   html,
   body {
     height: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   body {
     @apply bg-bg text-content font-sans antialiased;
+    min-width: 320px;
     background-image:
       radial-gradient(1100px 600px at 8% -10%, rgba(24, 224, 214, 0.06), transparent 55%),
       radial-gradient(900px 600px at 100% -5%, rgba(139, 92, 246, 0.06), transparent 50%),

@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { BookOpenCheck, FileText, RefreshCw, Search, Trash2, UploadCloud } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BookOpenCheck, Database, FileArchive, FileText, RefreshCw, Search, ShieldCheck, Trash2, UploadCloud } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
+import { useToast } from "@/components/ui/Toast";
 import { knowledgeApi, ApiException } from "@/lib/api";
-import { formatDateTime } from "@/lib/format";
+import { cn, formatDateTime } from "@/lib/format";
 import type { KnowledgeDocument, KnowledgeSearchResult } from "@/types";
 
 function formatSize(bytes: number): string {
@@ -28,11 +29,13 @@ function statusTone(status: KnowledgeDocument["status"]): "success" | "warning" 
 }
 
 export default function AiKnowledgePage() {
+  const toast = useToast();
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null);
   const [results, setResults] = useState<KnowledgeSearchResult[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -48,20 +51,46 @@ export default function AiKnowledgePage() {
 
   useEffect(() => { void load(); }, []);
 
-  const upload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const stats = useMemo(() => {
+    const rows = documents ?? [];
+    return {
+      total: rows.length,
+      indexed: rows.filter((d) => d.status === "indexed").length,
+      metadataOnly: rows.filter((d) => d.meta?.metadata_only || d.status === "uploaded").length,
+      chunks: rows.reduce((sum, d) => sum + d.chunk_count, 0),
+    };
+  }, [documents]);
+
+  const uploadFile = async (file: File | undefined | null) => {
     if (!file) return;
     setUploading(true);
     setError(null);
     try {
-      await knowledgeApi.uploadDocument(file);
+      const doc = await knowledgeApi.uploadDocument(file);
       await load();
+      if (doc.status === "indexed") {
+        toast.success("File indexed", `${doc.filename} is ready for AI Knowledge search.`);
+      } else {
+        toast.warning("File stored", `${doc.filename} was uploaded. Text was not extracted, so it is searchable by metadata only.`);
+      }
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : "Upload failed.");
+      const message = err instanceof ApiException ? err.message : "Upload failed.";
+      setError(message);
+      toast.danger("Upload failed", message);
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
     }
+  };
+
+  const upload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    await uploadFile(event.target.files?.[0]);
+  };
+
+  const dropUpload = async (event: React.DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    await uploadFile(event.dataTransfer.files?.[0]);
   };
 
   const runSearch = async (event?: React.FormEvent) => {
@@ -73,8 +102,11 @@ export default function AiKnowledgePage() {
     try {
       const res = await knowledgeApi.search(q);
       setResults(res.results);
+      if (res.results.length === 0) toast.info("No matches", "Try another keyword or upload an indexed text/code file.");
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : "Search failed.");
+      const message = err instanceof ApiException ? err.message : "Search failed.";
+      setError(message);
+      toast.danger("Search failed", message);
     } finally {
       setLoading(false);
     }
@@ -84,10 +116,13 @@ export default function AiKnowledgePage() {
     setBusyId(doc.id);
     setError(null);
     try {
-      await knowledgeApi.reindex(doc.id);
+      const updated = await knowledgeApi.reindex(doc.id);
       await load();
+      toast.success("Re-index complete", `${updated.title} now has ${updated.chunk_count} chunks.`);
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : "Re-index failed.");
+      const message = err instanceof ApiException ? err.message : "Re-index failed.";
+      setError(message);
+      toast.danger("Re-index failed", message);
     } finally {
       setBusyId(null);
     }
@@ -100,8 +135,11 @@ export default function AiKnowledgePage() {
     setDocuments((prev) => prev?.filter((d) => d.id !== doc.id) ?? prev);
     try {
       await knowledgeApi.remove(doc.id);
+      toast.success("Knowledge removed", doc.title);
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : "Delete failed.");
+      const message = err instanceof ApiException ? err.message : "Delete failed.";
+      setError(message);
+      toast.danger("Delete failed", message);
       await load();
     } finally {
       setBusyId(null);
@@ -120,13 +158,28 @@ export default function AiKnowledgePage() {
         }
       />
 
-      <input ref={inputRef} type="file" className="hidden" accept=".txt,.md,.csv,.pdf,.docx,text/plain,text/markdown,text/csv,application/pdf" onChange={upload} />
+      <input ref={inputRef} type="file" className="hidden" onChange={upload} />
 
       {error ? <div className="mb-4"><ErrorState message={error} /></div> : null}
 
-      <div className="mb-5 grid gap-4 lg:grid-cols-[1fr_360px]">
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Card padding="sm">
+          <p className="label-mono">Documents</p>
+          <p className="mt-1 text-2xl font-semibold text-content">{stats.total}</p>
+        </Card>
+        <Card padding="sm">
+          <p className="label-mono">Indexed</p>
+          <p className="mt-1 text-2xl font-semibold text-success">{stats.indexed}</p>
+        </Card>
+        <Card padding="sm">
+          <p className="label-mono">Chunks</p>
+          <p className="mt-1 text-2xl font-semibold text-primary">{stats.chunks}</p>
+        </Card>
+      </div>
+
+      <div className="mb-5 grid gap-4 lg:grid-cols-[1fr_380px]">
         <Card className="p-4">
-          <form onSubmit={runSearch} className="flex gap-2">
+          <form onSubmit={runSearch} className="flex flex-col gap-2 sm:flex-row">
             <div className="relative min-w-0 flex-1">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-content-subtle" />
               <input
@@ -136,7 +189,7 @@ export default function AiKnowledgePage() {
                 className="h-10 w-full rounded-lg border border-border bg-surface-input pl-9 pr-3 text-sm text-content focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
             </div>
-            <Button type="submit" loading={loading}><Search size={15} /> Search</Button>
+            <Button type="submit" loading={loading} className="w-full sm:w-auto"><Search size={15} /> Search</Button>
           </form>
           {results.length ? (
             <div className="mt-4 space-y-2.5">
@@ -159,12 +212,29 @@ export default function AiKnowledgePage() {
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={uploading}
-            className="flex min-h-[150px] w-full flex-col items-center justify-center rounded-lg border border-dashed border-border bg-surface-input px-5 py-6 text-center transition-colors hover:border-primary/50 disabled:opacity-60"
+            onDragEnter={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragOver={(e) => e.preventDefault()}
+            onDragLeave={() => setDragging(false)}
+            onDrop={dropUpload}
+            className={cn(
+              "flex min-h-[170px] w-full flex-col items-center justify-center rounded-lg border border-dashed bg-surface-input px-5 py-6 text-center transition-colors disabled:opacity-60",
+              dragging ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
+            )}
           >
             <BookOpenCheck size={24} className="mb-3 text-primary" />
             <span className="text-sm font-medium text-content">{uploading ? "Uploading..." : "Upload document"}</span>
-            <span className="mt-1 text-[12px] text-content-subtle">TXT, MD, CSV index now; PDF/DOCX show parser status.</span>
+            <span className="mt-1 text-[12px] text-content-subtle">Any file is accepted. Text/code is indexed; binary files are stored as metadata.</span>
           </button>
+          <div className="mt-3 grid gap-2 text-[12px] text-content-muted sm:grid-cols-2">
+            <div className="rounded-lg border border-border bg-surface-input px-3 py-2">
+              <ShieldCheck size={14} className="mb-1 text-success" />
+              Secret-like text is protected from indexing.
+            </div>
+            <div className="rounded-lg border border-border bg-surface-input px-3 py-2">
+              <Database size={14} className="mb-1 text-primary" />
+              {stats.metadataOnly} metadata-only files stored.
+            </div>
+          </div>
         </Card>
       </div>
 
@@ -187,20 +257,25 @@ export default function AiKnowledgePage() {
                     <FileText size={18} />
                   </span>
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-sm font-semibold text-content">{doc.title}</p>
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <p className="min-w-0 truncate text-sm font-semibold text-content">{doc.title}</p>
                       <Badge tone={statusTone(doc.status)}>{doc.status}</Badge>
-                      {doc.status === "indexed" ? <Badge tone="success">usable by AI</Badge> : <Badge tone="warning">not usable yet</Badge>}
+                      {doc.status === "indexed" ? <Badge tone="success">usable by AI</Badge> : <Badge tone="warning">metadata only</Badge>}
                     </div>
-                    <p className="mt-0.5 text-[12px] text-content-subtle">
+                    <p className="mt-0.5 break-words text-[12px] text-content-subtle">
                       {doc.filename} · {formatSize(doc.size_bytes)} · {doc.chunk_count} chunks
                       {doc.last_indexed_at ? ` · indexed ${formatDateTime(doc.last_indexed_at)}` : ""}
                     </p>
                     {doc.error_message ? <p className="mt-1 text-[12px] text-warning">{doc.error_message}</p> : null}
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <Button variant="ghost" size="sm" onClick={() => reindex(doc)} loading={busyId === doc.id} disabled={busyId === doc.id}>
+                <div className="flex w-full shrink-0 flex-wrap items-center gap-1.5 sm:w-auto sm:justify-end">
+                  {doc.meta?.metadata_only ? (
+                    <span className="hidden items-center gap-1 rounded-md border border-warning/25 bg-warning/10 px-2 py-1 text-[11px] text-warning sm:inline-flex">
+                      <FileArchive size={12} /> Stored only
+                    </span>
+                  ) : null}
+                  <Button variant="ghost" size="sm" onClick={() => reindex(doc)} loading={busyId === doc.id} disabled={busyId === doc.id} className="flex-1 sm:flex-none">
                     <RefreshCw size={14} /> Re-index
                   </Button>
                   <button

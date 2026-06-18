@@ -105,14 +105,14 @@ export default function NotesPage() {
 
   return (
     <AppShell>
-      <div className="mb-5 flex items-center justify-between">
-        <div>
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-content sm:text-[28px]">Notes &amp; Knowledge</h1>
           <p className="mt-1 text-[13.5px] text-content-muted">
             {notes ? `${notes.length} entries` : "Your knowledge base"}
           </p>
         </div>
-        <Button onClick={() => setOpen(true)}>
+        <Button onClick={() => setOpen(true)} className="w-full sm:w-auto">
           <Plus size={16} /> New note
         </Button>
       </div>
@@ -142,7 +142,7 @@ export default function NotesPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-            <div className="custom-scrollbar max-h-[calc(100vh-230px)] space-y-2.5 overflow-y-auto pr-1">
+            <div className="custom-scrollbar max-h-[calc(100svh-210px)] space-y-2.5 overflow-y-auto pr-1 lg:max-h-[calc(100vh-230px)]">
               {filtered.map((note) => (
                 <button
                   key={note.id}
@@ -188,12 +188,12 @@ export default function NotesPage() {
                 >
                   <ArrowLeft size={15} /> Back to list
                 </button>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
                     <p className="font-mono text-[11px] uppercase tracking-widest text-content-subtle">
                       Knowledge entry
                     </p>
-                    <h2 className="mt-1 text-xl font-semibold tracking-tight text-content">{selected.title}</h2>
+                    <h2 className="mt-1 break-words text-xl font-semibold tracking-tight text-content">{selected.title}</h2>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     <button
@@ -236,7 +236,7 @@ export default function NotesPage() {
                   )}
                 </div>
 
-                <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
+                <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-[12px] text-content-subtle">Updated {formatDateTime(selected.updated_at)}</span>
                   <button
                     disabled

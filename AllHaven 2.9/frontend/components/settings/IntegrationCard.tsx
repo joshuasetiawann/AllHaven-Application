@@ -62,7 +62,7 @@ export function IntegrationCard({
         {integration.last_verified_at ? <span>· verified {relativeTime(integration.last_verified_at)}</span> : null}
       </div>
 
-      <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
+      <div className="mt-4 flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
         {integration.editable === false ? (
           <span className="text-[12px] text-content-subtle">Managed by system</span>
         ) : (
@@ -71,7 +71,7 @@ export function IntegrationCard({
             <span className="text-[12px] text-content-muted">{integration.enabled ? "Enabled" : "Disabled"}</span>
           </div>
         )}
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
           {integration.configured ? (
             <Button variant="ghost" size="sm" onClick={test} loading={busy}>
               <Wifi size={14} /> Test
