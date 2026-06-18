@@ -34,3 +34,4 @@ class CalendarEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     color: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
