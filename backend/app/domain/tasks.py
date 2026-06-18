@@ -32,13 +32,17 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Checklist items are hard-deleted on removal, so this list always reflects
-    # the active items (max 5, enforced in the service layer).
+    # Checklist items are soft-deleted (is_deleted=True) on removal; this
+    # relationship filters tombstones so only ACTIVE items are visible to the
+    # desktop API. MAX_CHECKLIST_ITEMS cap and position math therefore ignore
+    # tombstones automatically.
     checklist_items: Mapped[list["TaskChecklistItem"]] = relationship(
         "TaskChecklistItem",
+        primaryjoin="and_(Task.id == foreign(TaskChecklistItem.task_id), TaskChecklistItem.is_deleted == False)",
         order_by="TaskChecklistItem.position",
         cascade="all, delete-orphan",
         lazy="selectin",
+        viewonly=False,
     )
 
 
