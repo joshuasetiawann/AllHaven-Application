@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import urllib.error
 import uuid
 from unittest.mock import MagicMock, patch
 
@@ -26,3 +27,47 @@ def test_get_service_credentials_none_when_unset(db_session, monkeypatch):
     monkeypatch.setattr(settings, "SUPABASE_SERVICE_ROLE_KEY", "", raising=False)
 
     assert supabase_auth_service.get_service_credentials(db_session, workspace_id=None) == (None, None)
+
+
+def test_create_user_posts_admin_request_with_service_role():
+    captured = {}
+
+    def fake_urlopen(req, timeout=None):
+        captured["url"] = req.get_full_url()
+        captured["headers"] = {k.lower(): v for k, v in dict(req.headers).items()}
+        captured["body"] = json.loads(req.data.decode())
+        resp = MagicMock()
+        resp.__enter__ = lambda s: s
+        resp.__exit__ = MagicMock(return_value=False)
+        resp.read = lambda: b'{"id": "11111111-1111-1111-1111-111111111111", "email": "x@example.com"}'
+        return resp
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        sb_id = supabase_auth_service.create_user(
+            "https://proj.supabase.co",
+            "the-service-role-key",
+            email="x@example.com",
+            password="password123",
+            full_name="Ex",
+        )
+
+    assert sb_id == "11111111-1111-1111-1111-111111111111"
+    assert captured["url"] == "https://proj.supabase.co/auth/v1/admin/users"
+    assert captured["headers"]["apikey"] == "the-service-role-key"
+    assert captured["headers"]["authorization"] == "Bearer the-service-role-key"
+    assert captured["body"]["email"] == "x@example.com"
+    assert captured["body"]["email_confirm"] is True
+    assert captured["body"]["user_metadata"]["full_name"] == "Ex"
+
+
+def test_create_user_returns_none_on_http_error():
+    def boom(req, timeout=None):
+        raise urllib.error.URLError("connection refused")
+
+    with patch("urllib.request.urlopen", side_effect=boom):
+        assert (
+            supabase_auth_service.create_user(
+                "https://proj.supabase.co", "k", email="x@e.com", password="p", full_name=None
+            )
+            is None
+        )
