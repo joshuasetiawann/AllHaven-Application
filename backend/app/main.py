@@ -73,15 +73,22 @@ def create_app() -> FastAPI:
         return response
 
     # CORS. Browser auth is an HttpOnly SameSite=Lax cookie, so credentials must
-    # be allowed for the frontend origin. Local/dev (or BACKEND_CORS_ALLOW_ALL)
-    # echoes the requesting origin so the app works from any LAN device; that is
-    # safe with cookies because SameSite=Lax keeps them off cross-SITE fetches
-    # and state-changing requests additionally require the CSRF header.
-    # Production restricts to the explicit BACKEND_CORS_ORIGINS list.
-    if settings.BACKEND_CORS_ALLOW_ALL or settings.is_local_env:
+    # be allowed for trusted frontend origins. Local/dev accepts localhost,
+    # private LAN IPs, Tailscale CGNAT IPs, Tailscale Serve hostnames, and the
+    # Capacitor WebView origin. It does not echo arbitrary public origins unless
+    # BACKEND_CORS_ALLOW_ALL is explicitly enabled.
+    if settings.BACKEND_CORS_ALLOW_ALL:
         app.add_middleware(
             CORSMiddleware,
             allow_origin_regex=".*",
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    elif settings.is_local_env:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origin_regex=settings.cors_private_origin_regex,
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
