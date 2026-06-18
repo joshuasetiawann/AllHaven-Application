@@ -7,12 +7,12 @@
 **The complete release history of [AllHaven Command Center](../../tree/main).**
 
 Every version is frozen in its own self-contained archive folder
-(`CoreOS 0.1` through `AllHaven 3.3.1`) — a full, runnable snapshot.
+(`CoreOS 0.1` through `AllHaven 3.4`) — a full, runnable snapshot.
 The latest version also lives on the
 [`main`](../../tree/main) branch.
 
-![Latest](https://img.shields.io/badge/latest-AllHaven%203.3.1%20·%20v3.3.1-18E0D6?style=flat-square)
-&nbsp;![Releases](https://img.shields.io/badge/releases-34-2563EB?style=flat-square)
+![Latest](https://img.shields.io/badge/latest-AllHaven%203.4%20·%20v3.4.0-18E0D6?style=flat-square)
+&nbsp;![Releases](https://img.shields.io/badge/releases-35-2563EB?style=flat-square)
 &nbsp;![© 2026 Joshua Setiawan](https://img.shields.io/badge/©%202026-Joshua%20Setiawan-555?style=flat-square)
 
 </div>
@@ -68,14 +68,15 @@ The latest version also lives on the
 | **AllHaven 3.1** | 2026-06-13 | **AllHaven** | `v3.1.0` | **Expanded AI agents and settings UX** — raises multi-agent runs to 10 agents, adds Cursor AI, DeepSeek, and Qwen provider support, improves Debate prompts/final output, adds a searchable grouped model picker, and reorganizes Settings → AI Providers into health stats plus Direct/OpenRouter sections with honest provider verification. |
 | **AllHaven 3.2** | 2026-06-13 | **AllHaven** | `v3.2.0` | **Repository hygiene and render skeletons** — removes local env files from the working tree, keeps clone-safe templates, adds app-wide and dashboard-specific skeleton loaders, and clarifies the CoreOS archive naming/semantic mapping. |
 | **AllHaven 3.3** | 2026-06-13 | **AllHaven** | `v3.3.0` | **Routine planner and sidebar flow** — replaces Calendar with Routine, adds a polished date/time schedule planner, keeps calendar data compatible, and reorders the sidebar to Dashboard, AI Chat, Routine, Task, Finance, Notes, Approval. |
-| **⭐ AllHaven 3.3.1** | 2026-06-13 | **AllHaven** | `v3.3.1` | **Current.** **Local Routine UX polish** — keeps Routine local-first, adds icon/color/repeat/Pagi-Siang-Malam metadata, removes the goal field, keeps empty time lanes visible, and falls back to compatible local schedule endpoints. |
+| **AllHaven 3.3.1** | 2026-06-13 | **AllHaven** | `v3.3.1` | **Local Routine UX polish** — keeps Routine local-first, adds icon/color/repeat/Pagi-Siang-Malam metadata, removes the goal field, keeps empty time lanes visible, and falls back to compatible local schedule endpoints. |
+| **⭐ AllHaven 3.4** | 2026-06-13 | **AllHaven** | `v3.4.0` | **Current.** **Voice, documents, Routine agenda, and local-first sync** — adds voice dictation in AI Chat, PDF/DOC/DOCX/text/code upload into AI Knowledge (DOCX parsing hardened against XXE with `defusedxml`), redesigns Routine as a lighter agenda/timeline, and broadens local-first Supabase mirroring across the workspace while keeping the local DB as the source of truth. |
 
 <sub>⭐ = current release. Dates reflect each version's build/release during the project's initial development sprint.</sub>
 
 ## 🌱 How the two branches relate
 
 Each archive folder is a complete, standalone snapshot you can open and run on
-its own; the latest (`AllHaven 3.3.1`) keeps its own `CHANGELOG.md`, `VERSION`, and
+its own; the latest (`AllHaven 3.4`) keeps its own `CHANGELOG.md`, `VERSION`, and
 `docs/releases/` inside it. New releases add the next folder here, while
 [`main`](../../tree/main) is fast-forwarded to the same version.
 
