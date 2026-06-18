@@ -1,0 +1,72 @@
+// frontend/lib/supabaseClient.ts — lazy supabase-js singleton + DATA_MODE flag.
+// Session is persisted via Capacitor Preferences so it survives app restarts.
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { ApiException } from "@/lib/apiRest";
+import { setBearerToken, clearBearerToken } from "@/lib/mobileAuth";
+
+export const DATA_MODE = process.env.NEXT_PUBLIC_DATA_MODE === "supabase";
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+
+let client: SupabaseClient | null = null;
+let workspaceId: string | null = null;
+let appUserId: string | null = null;
+
+export function getAppUserId(): string | null { return appUserId; }
+export function setAppUserId(id: string | null): void { appUserId = id; }
+
+// Async storage backed by Capacitor Preferences so the session survives app restarts.
+const capacitorStorage = {
+  getItem: async (key: string) => {
+    const { Preferences } = await import("@capacitor/preferences");
+    return (await Preferences.get({ key })).value;
+  },
+  setItem: async (key: string, value: string) => {
+    const { Preferences } = await import("@capacitor/preferences");
+    await Preferences.set({ key, value });
+  },
+  removeItem: async (key: string) => {
+    const { Preferences } = await import("@capacitor/preferences");
+    await Preferences.remove({ key });
+  },
+};
+
+export async function getSupabase(): Promise<SupabaseClient> {
+  if (client) return client;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new ApiException(
+      "Mobile login is missing Supabase configuration. Rebuild the APK with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      "SUPABASE_NOT_CONFIGURED",
+      500,
+    );
+  }
+  const { createClient } = await import("@supabase/supabase-js");
+  client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      storage: capacitorStorage,
+      storageKey: "allhaven_supabase_session",
+    },
+  });
+  // Keep the Backend Bridge bearer token in sync with the live Supabase session.
+  // The bridge (Settings, AI providers, system, n8n, Ollama) authenticates with the
+  // Supabase access_token, but the login page only cached the profile and never
+  // persisted the token — so every bridge call went out with no Authorization header
+  // and 401'd (which then cleared what little there was). onAuthStateChange fires on
+  // the restored session (cold start), on sign-in, and on every ~1h token refresh, so
+  // the bridge token is always present and fresh; it's cleared on sign-out.
+  client.auth.onAuthStateChange((_event, session) => {
+    if (session?.access_token) void setBearerToken(session.access_token);
+    else void clearBearerToken();
+  });
+  return client;
+}
+
+export function getWorkspaceId(): string | null {
+  return workspaceId;
+}
+export function setWorkspaceId(id: string | null): void {
+  workspaceId = id;
+}
