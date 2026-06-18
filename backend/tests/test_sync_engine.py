@@ -290,3 +290,67 @@ def test_sync_after_write_invokes_two_way_engine(db_session):
         local_first_sync.sync_after_write(db_session, p)
     # the spawned worker targets the two-way engine
     assert calls.get("target") is not None
+
+
+# ---------------------------------------------------------------------------
+# Task 9: visible sync status + resumable watermark
+# ---------------------------------------------------------------------------
+
+def test_watermark_is_resumable_across_runs():
+    """Push once advances the watermark; a second push with no new writes sends nothing."""
+    db = SessionLocal()
+    try:
+        ws = uuid.uuid4()
+        spec = sync_registry.spec_for("tasks")
+        user = uuid.uuid4()
+        db.add(Task(workspace_id=ws, created_by=user, title="a", status="TODO"))
+        db.commit()
+
+        sent = []
+        sync_engine.push_table(db, "u", "k", ws, [], spec, upsert=lambda t, r: sent.extend(r))
+        st = sync_engine._state(db, ws, "tasks", "push")
+        assert st.last_value is not None  # watermark persisted after first push
+
+        # Simulate a new run: expire all cached objects so the engine re-loads from DB
+        db.expire_all()
+        sent2 = []
+        n = sync_engine.push_table(db, "u", "k", ws, [], spec, upsert=lambda t, r: sent2.extend(r))
+        assert n == 0 and sent2 == []  # watermark was read from DB; nothing re-sent
+    finally:
+        db.close()
+
+
+def test_last_sync_status_reports_watermarks():
+    """After a push, last_sync_status lists the tasks/push watermark."""
+    db = SessionLocal()
+    try:
+        ws = uuid.uuid4()
+        spec = sync_registry.spec_for("tasks")
+        user = uuid.uuid4()
+        db.add(Task(workspace_id=ws, created_by=user, title="a", status="TODO"))
+        db.commit()
+
+        sync_engine.push_table(db, "u", "k", ws, [], spec, upsert=lambda t, r: None)
+        status = sync_engine.last_sync_status(db, ws)
+
+        assert status["configured"] in (True, False)  # always a bool
+        assert any(
+            w["table"] == "tasks" and w["direction"] == "push"
+            for w in status["watermarks"]
+        )
+    finally:
+        db.close()
+
+
+def test_sync_status_route_returns_200(auth_client):
+    """GET /api/v1/settings/sync/status returns 200 with the expected envelope."""
+    resp = auth_client.get("/api/v1/settings/sync/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    # Envelope check: success wrapper used by all settings routes
+    assert "data" in data
+    inner = data["data"]
+    assert "configured" in inner
+    assert "tables" in inner
+    assert "watermarks" in inner
+    assert isinstance(inner["watermarks"], list)
