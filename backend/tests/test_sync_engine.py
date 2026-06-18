@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from app.domain.sync_state import SyncState
@@ -78,3 +78,94 @@ def test_deserialize_casts_uuid_datetime_and_is_serialize_inverse():
     back = supabase_sync_service._serialize(obj)
     assert back["id"] == str(pk)
     assert back["updated_at"].startswith("2026-01-02T03:04:05")
+
+
+# ---------------------------------------------------------------------------
+# Task 5: push_table
+# ---------------------------------------------------------------------------
+
+from app.services import sync_engine  # noqa: E402
+
+
+def _ws_with_task(db):
+    ws = uuid.uuid4()
+    user = uuid.uuid4()
+    t = Task(workspace_id=ws, created_by=user, title="t1", status="TODO")
+    db.add(t)
+    db.commit()
+    return ws
+
+
+def test_push_table_sends_new_rows_and_advances_watermark():
+    db = SessionLocal()
+    try:
+        ws = _ws_with_task(db)
+        spec = sync_registry.spec_for("tasks")
+        sent = {}
+
+        def fake_upsert(table, rows):
+            sent.setdefault(table, []).extend(rows)
+
+        n = sync_engine.push_table(db, "https://x.supabase.co", "svc", ws, [], spec, upsert=fake_upsert)
+        assert n == 1 and len(sent["tasks"]) == 1
+        # second push with no new writes sends nothing (watermark advanced)
+        n2 = sync_engine.push_table(db, "https://x.supabase.co", "svc", ws, [], spec, upsert=fake_upsert)
+        assert n2 == 0
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Task 6: pull_table — LWW merge + echo suppression
+# ---------------------------------------------------------------------------
+
+def test_pull_applies_remote_newer_and_suppresses_echo():
+    db = SessionLocal()
+    try:
+        ws = uuid.uuid4()
+        pk = uuid.uuid4()
+        user = uuid.uuid4()
+        local = Task(id=pk, workspace_id=ws, created_by=user, title="old", status="TODO",
+                     updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc))
+        db.add(local)
+        db.commit()
+        spec = sync_registry.spec_for("tasks")
+        remote_row = {
+            "id": str(pk), "workspace_id": str(ws), "title": "new-from-peer", "status": "TODO",
+            "is_deleted": False, "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-02-01T00:00:00+00:00",
+        }
+
+        def fake_fetch(table, col, since):
+            return [remote_row]
+
+        applied = sync_engine.pull_table(db, "https://x", "svc", ws, [], spec, fetch=fake_fetch)
+        assert applied == 1
+        db.refresh(local)
+        assert local.title == "new-from-peer"
+        # echo suppression: push watermark now covers the applied row -> push sends nothing
+        sent = []
+        n = sync_engine.push_table(db, "https://x", "svc", ws, [], spec, upsert=lambda t, r: sent.extend(r))
+        assert n == 0 and sent == []
+    finally:
+        db.close()
+
+
+def test_pull_keeps_local_when_local_is_newer():
+    db = SessionLocal()
+    try:
+        ws = uuid.uuid4()
+        pk = uuid.uuid4()
+        user = uuid.uuid4()
+        db.add(Task(id=pk, workspace_id=ws, created_by=user, title="local-newer", status="TODO",
+                    updated_at=datetime(2026, 3, 1, tzinfo=timezone.utc)))
+        db.commit()
+        spec = sync_registry.spec_for("tasks")
+        stale = {"id": str(pk), "workspace_id": str(ws), "title": "stale", "status": "TODO",
+                 "is_deleted": False, "created_at": "2026-01-01T00:00:00+00:00",
+                 "updated_at": "2026-01-05T00:00:00+00:00"}
+        applied = sync_engine.pull_table(db, "https://x", "svc", ws, [], spec, fetch=lambda *a: [stale])
+        local = db.get(Task, pk)
+        assert local.title == "local-newer"  # LWW: local wins, not overwritten
+    finally:
+        db.close()
