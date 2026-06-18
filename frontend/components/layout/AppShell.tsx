@@ -10,6 +10,7 @@ import { authApi } from "@/lib/api";
 import { clearAuth, setStoredUser } from "@/lib/auth";
 import { hydrateBearerToken } from "@/lib/mobileAuth";
 import { applyPrefs, loadPrefs } from "@/lib/prefs";
+import { DATA_MODE, getSupabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/format";
 
 const COLLAPSE_KEY = "allhaven.sidebar.collapsed";
@@ -36,9 +37,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     applyPrefs(loadPrefs());
-    // Mobile: load the persisted bearer token into memory before the first API
-    // call (no-op on web/desktop, which authenticates via the session cookie).
-    hydrateBearerToken()
+    // Supabase mode (mobile): restore the persisted session before the first
+    // API call so RLS-scoped queries succeed. Bearer mode (web/desktop): load
+    // the persisted bearer token into memory (no-op on web, cookie-authenticated).
+    const hydrate = DATA_MODE
+      ? getSupabase().then((sb) => sb.auth.getSession()).then(() => undefined)
+      : hydrateBearerToken();
+
+    hydrate
       .then(() => authApi.me())
       .then((me) => {
         if (!active) return;
