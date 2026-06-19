@@ -40,13 +40,13 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         .listProposals()
         .then((p) => active && setProposals(p))
         .catch(() => {
-          // Backend unreachable (e.g. mobile off Tailscale): stop re-polling a
-          // dead endpoint every 30s instead of hammering it forever.
-          if (interval !== undefined) window.clearInterval(interval);
+          /* transient (backend offline / Supabase blip): keep the badge as-is and retry next tick */
         });
     };
     loadProposals();
-    interval = window.setInterval(loadProposals, 30000);
+    // 3.9: 10-15s cadence so the badge converges with other devices. On mobile this
+    // reads Supabase directly (not the REST backend), so it works off-Tailscale.
+    interval = window.setInterval(loadProposals, 12000);
     return () => {
       active = false;
       if (interval !== undefined) window.clearInterval(interval);

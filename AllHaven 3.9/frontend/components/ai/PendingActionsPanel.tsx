@@ -29,6 +29,25 @@ function humanizeTool(name: string): string {
   return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : name;
 }
 
+function formatRupiah(amount: unknown): string {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return String(amount ?? "");
+  return "Rp" + Math.round(n).toLocaleString("id-ID");
+}
+
+/** A human-readable one-liner for a proposal — formatted for finance, JSON otherwise. */
+function proposalSummary(toolName: string, payload: Record<string, unknown>): string {
+  if (toolName.startsWith("create_transaction")) {
+    const label = String(payload.type).toUpperCase() === "INCOME" ? "Pendapatan" : "Pengeluaran";
+    const parts = [`${label} ${formatRupiah(payload.amount)}`];
+    if (payload.description) parts.push(`untuk ${payload.description}`);
+    if (payload.transaction_date) parts.push(`(${payload.transaction_date})`);
+    return parts.join(" ");
+  }
+  if (payload.title) return String(payload.title);
+  return previewJson(payload);
+}
+
 function previewJson(value: unknown, max = 140): string {
   let text: string;
   try {
@@ -80,7 +99,7 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
   useEffect(() => {
     void loadProposals();
     const retry = window.setTimeout(() => void loadProposals(), 1200);
-    const interval = window.setInterval(() => void loadProposals(), 7000);
+    const interval = window.setInterval(() => void loadProposals(), 12000); // 3.9 cross-device cadence
     return () => {
       window.clearTimeout(retry);
       window.clearInterval(interval);
@@ -219,11 +238,17 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="text-[13px] font-medium text-content">{humanizeTool(p.tool_name)}</span>
                       <Badge tone={RISK_TONE[risk] ?? "neutral"}>{risk || "UNKNOWN"} risk</Badge>
+                      {p.status && p.status !== "PENDING" ? (
+                        <Badge tone="danger">{p.status === "NEEDS_EDIT" ? "Perlu diedit" : p.status}</Badge>
+                      ) : null}
                       <span className="text-[11px] text-content-subtle">{relativeTime(p.created_at)}</span>
                     </div>
-                    <p className="mt-1 truncate font-mono text-[11px] text-content-muted" title={previewJson(p.tool_payload, 2000)}>
-                      {previewJson(p.tool_payload)}
+                    <p className="mt-1 text-[12px] text-content" title={previewJson(p.tool_payload, 2000)}>
+                      {proposalSummary(p.tool_name, (p.tool_payload ?? {}) as Record<string, unknown>)}
                     </p>
+                    {p.error_message ? (
+                      <p className="mt-1 text-[11.5px] text-warning">Gagal: {p.error_message}</p>
+                    ) : null}
                     {errors[p.id] ? <p className="mt-1.5 text-[11.5px] text-danger">{errors[p.id]}</p> : null}
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Button size="sm" loading={action === "approve"} disabled={Boolean(action)} onClick={() => void approve(p)}>
