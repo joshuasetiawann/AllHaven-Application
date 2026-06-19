@@ -172,16 +172,26 @@ def main() -> int:
         _say(_tail_log("backend") or "    (no backend log yet)")
         _say("  Tip: make sure Docker / the database is running, then run this launcher again.")
 
-    # Frontend
-    _say(f"Starting the frontend on port {fe_port}…")
+    # Frontend — RESTART (not just start) on every launch. `npm run dev`'s predev
+    # hook wipes `.next`, so a restart guarantees the latest pulled code is served
+    # from a clean cache. This fixes the recurring "desktop loads with no CSS after
+    # an update": a stale, already-running dev server kept serving old CSS chunk
+    # hashes that no longer existed (404 → unstyled page). Restart is a no-op-safe
+    # stop+start whether or not the frontend was already running.
+    _say(f"Starting the frontend on port {fe_port} (clean rebuild)…")
     try:
-        _, body = _agent_post("/service/frontend/start", timeout=60.0)
+        _, body = _agent_post("/service/frontend/restart", timeout=60.0)
         if not body.get("ok", True):
             _say(f"  {body.get('message', '')}")
     except OSError as exc:
         _say(f"  frontend: {hc.mask_secrets(str(exc))}")
     if hc.wait_for_port(fe_port, timeout=120):
-        _say("  Frontend is up.")
+        # `next dev` compiles routes on first request. The port opens before that
+        # first compile finishes, so opening the browser immediately can paint an
+        # unstyled page (CSS still building). Warm up the landing route and wait for
+        # a real 200 so the stylesheet is built BEFORE we open the browser.
+        _say("  Frontend is up; warming up the first build (so styles are ready)…")
+        hc.wait_for_http(f"http://127.0.0.1:{fe_port}/login", timeout=120)
     else:
         _say("  Frontend not up yet (the first build can take a minute). Recent frontend log:")
         _say(_tail_log("frontend") or "    (no frontend log yet)")
