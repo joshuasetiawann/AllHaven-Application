@@ -8,11 +8,12 @@ A modular **AI command center dashboard** for personal and company productivity.
 
 This repository is a complete, runnable **local MVP**.
 
-**Version:** **v0.10.0** — archive `AllHaven 2.2` · full history: [`CHANGELOG.md`](CHANGELOG.md)
+**Version:** **v0.11.0** — archive `AllHaven 2.3` · full history: [`CHANGELOG.md`](CHANGELOG.md)
 · how versions work: [`docs/VERSIONING.md`](docs/VERSIONING.md) · per-release notes: [`docs/releases/`](docs/releases/)
 
 ### 🆕 What's new
 
+- **v0.11.0 — Terminal installer + config sync.** The launchers now install & start Haven from the **terminal by default**, with live progress for the slow steps (Docker pull, `pip`, `npm`); `backend/.env` now mirrors the root `.env`; and the Docker check is faster (no more frozen "checking Docker"). The browser wizard is still available via `HAVEN_SETUP_WEB=1`. → [release notes](docs/releases/v0.11.0.md)
 - **v0.10.0 — Reliable one-click startup + responsive menu.** The launcher/setup wizard now start services reliably (bind `0.0.0.0`, wait for PostgreSQL, run migrations, health-gate the backend, install dependencies on first run, and surface logs on failure) — fixing *"works when run manually but not from the app"*. Plus a collapsible, responsive navigation menu (desktop rail, tablet icon rail, mobile drawer, signed-in user chip). → [release notes](docs/releases/v0.10.0.md)
 - **v0.9.0 — One-click desktop installer & System Control.** OS launchers (`START_HAVEN_*`) + a browser **setup wizard** (Docker/ports/`.env` checks), a localhost-only **Haven control agent**, and in-app **Settings → System Control** (start/stop/restart, ports, masked logs). → [release notes](docs/releases/v0.9.0.md) · [beginner guide](docs/DESKTOP_SETUP.md)
 
