@@ -10,7 +10,7 @@ import { aiApi, ApiException } from "@/lib/api";
 import type { AiTool } from "@/types";
 
 // Known module display order; anything new from the backend registry is appended after.
-const MODULE_ORDER = ["time", "tasks", "calendar", "notes", "finance", "files", "weather", "automation", "system"];
+const MODULE_ORDER = ["time", "tasks", "calendar", "notes", "finance", "files", "automation", "system"];
 const MODULE_LABELS: Record<string, string> = {
   calendar: "routine",
 };
