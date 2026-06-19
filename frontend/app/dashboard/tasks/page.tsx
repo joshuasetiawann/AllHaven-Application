@@ -22,6 +22,7 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Modal } from "@/components/ui/Modal";
 import { Tabs } from "@/components/ui/Tabs";
+import { useAppDialog } from "@/components/ui/AppDialog";
 import { PriorityBadge, TaskStatusLabel } from "@/components/ui/meta";
 import { ErrorState, Loading, EmptyState } from "@/components/ui/States";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
@@ -33,6 +34,7 @@ const PRIORITIES: TaskPriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
 const MAX_ITEMS = 5;
 
 export default function TasksPage() {
+  const dialog = useAppDialog();
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState("ALL");
@@ -111,6 +113,14 @@ export default function TasksPage() {
   };
 
   const remove = async (task: Task) => {
+    const ok = await dialog.confirm({
+      title: "Anda yakin ingin menghapus?",
+      message: `Hapus task "${task.title}"?`,
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      tone: "danger",
+    });
+    if (!ok) return;
     setTasks((prev) => prev?.filter((t) => t.id !== task.id) ?? prev);
     try {
       await tasksApi.remove(task.id);

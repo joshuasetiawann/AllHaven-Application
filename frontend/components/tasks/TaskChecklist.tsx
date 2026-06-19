@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { Check, Plus, X } from "lucide-react";
 import { tasksApi } from "@/lib/api";
+import { useAppDialog } from "@/components/ui/AppDialog";
 import { cn } from "@/lib/format";
 import type { Task } from "@/types";
 
 const MAX_ITEMS = 5;
 
 export function TaskChecklist({ task, onChange }: { task: Task; onChange: (t: Task) => void }) {
+  const dialog = useAppDialog();
   const [newItem, setNewItem] = useState("");
   const [busy, setBusy] = useState(false);
   const items = task.checklist_items ?? [];
@@ -28,6 +30,15 @@ export function TaskChecklist({ task, onChange }: { task: Task; onChange: (t: Ta
   };
 
   const remove = async (itemId: string) => {
+    const item = items.find((i) => i.id === itemId);
+    const ok = await dialog.confirm({
+      title: "Anda yakin ingin menghapus?",
+      message: `Hapus checklist "${item?.title ?? "item ini"}"?`,
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      tone: "danger",
+    });
+    if (!ok) return;
     onChange({ ...task, checklist_items: items.filter((i) => i.id !== itemId) });
     try {
       onChange(await tasksApi.deleteChecklistItem(task.id, itemId));
