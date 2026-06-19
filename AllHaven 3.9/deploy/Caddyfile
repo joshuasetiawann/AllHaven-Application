@@ -1,0 +1,13 @@
+# AllHaven reverse proxy with automatic HTTPS (Let's Encrypt).
+# One domain: /api/* → backend, everything else → frontend.
+{$DOMAIN} {
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
