@@ -18,9 +18,12 @@ export const financeApi = impl.financeApi;
 export const calendarApi = impl.calendarApi;
 export const routinesApi = impl.routinesApi;
 export const automationsApi = impl.automationsApi;
-// compute/file groups always come from REST (hidden on mobile in v3.7)
-export const aiApi = rest.aiApi;
-export const memoryApi = rest.memoryApi;
+// aiApi + memoryApi are HYBRID: proposal/suggestion reads + accept/reject/edit go
+// Supabase-direct on mobile so the pending list is shared with desktop; chat/providers
+// stay REST. (On desktop impl=rest, so these are the full REST impls.)
+export const aiApi = impl.aiApi;
+export const memoryApi = impl.memoryApi;
+// remaining compute/file groups always come from REST (hidden on mobile UI)
 export const knowledgeApi = rest.knowledgeApi;
 export const driveApi = rest.driveApi;
 export const systemApi = rest.systemApi;
