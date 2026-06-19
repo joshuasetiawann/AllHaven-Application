@@ -21,16 +21,29 @@ import { ApiException } from "@/lib/apiRest";
 import { getSupabase, getWorkspaceId, setWorkspaceId, getAppUserId, setAppUserId } from "@/lib/supabaseClient";
 import { toApiException } from "@/lib/supabaseError";
 
-// Every write is workspace-scoped. Until the post-login bootstrap (loadMe) sets
-// the workspace + app user, an insert would send null workspace_id/created_by and
-// fail Supabase RLS with an opaque error. Surface a clear, actionable one instead.
-function requireScope(): { workspace_id: string; created_by: string } {
+// The `id` PK has NO server-side default in Postgres — the SQLAlchemy models mint
+// UUIDs Python-side, so the DDL emits none. Desktop inserts via SQLAlchemy get an
+// id; mobile inserts via supabase-js do NOT, and fail with "null value in column
+// id violates not-null constraint". So mint the id on the client for every new row.
+function newId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  // Fallback for older WebViews without crypto.randomUUID.
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    return (ch === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+// Fields every new row needs: a fresh id + the workspace scope. Until the post-login
+// bootstrap (loadMe) sets the workspace + app user, an insert would send nulls and
+// fail RLS/NOT NULL — surface a clear, actionable error instead.
+function newRow(): { id: string; workspace_id: string; created_by: string } {
   const workspace_id = getWorkspaceId();
   const created_by = getAppUserId();
   if (!workspace_id || !created_by) {
     throw new ApiException("You're not signed in. Please sign in again.", "NOT_AUTHENTICATED", 401);
   }
-  return { workspace_id, created_by };
+  return { id: newId(), workspace_id, created_by };
 }
 
 async function loadMe(): Promise<Me> {
@@ -158,7 +171,7 @@ export const tasksApi = {
     const sb = await getSupabase();
     const { data, error } = await sb
       .from("tasks")
-      .insert({ status: "TODO", priority: "NORMAL", ...payload, ...requireScope() })
+      .insert({ status: "TODO", priority: "NORMAL", ...payload, ...newRow() })
       .select("id")
       .single();
     if (error) throw toApiException(error);
@@ -204,7 +217,7 @@ export const tasksApi = {
     const nextPosition = positions.length ? Math.max(...positions) + 1 : 0;
     const { error } = await sb
       .from("task_checklist_items")
-      .insert({ task_id: id, title, position: nextPosition, ...requireScope() });
+      .insert({ task_id: id, title, position: nextPosition, ...newRow() });
     if (error) throw toApiException(error);
     return fetchTask(id);
   },
@@ -251,7 +264,7 @@ export const notesApi = {
         is_pinned: false,
         tags: [],
         ...payload,
-        ...requireScope(),
+        ...newRow(),
       })
       .select("*")
       .single();
@@ -310,7 +323,7 @@ const financeCrud = {
       .from("finance_categories")
       .insert({
         ...payload,
-        ...requireScope(),
+        ...newRow(),
       })
       .select("*")
       .single();
@@ -381,7 +394,7 @@ const financeCrud = {
         ...payload,
         currency,
         category_name_snapshot,
-        ...requireScope(),
+        ...newRow(),
       })
       .select("*")
       .single();
@@ -545,7 +558,7 @@ async function calCreate(payload: Record<string, unknown>): Promise<CalendarEven
       // Caller payload wins over the above defaults:
       ...payload,
       // Stamp tenancy columns last so callers cannot override them:
-      ...requireScope(),
+      ...newRow(),
     })
     .select("*")
     .single();
@@ -611,7 +624,7 @@ export const routinesApi = {
       repeat_rule: "once",
       is_deleted: false,
       ...e,
-      ...requireScope(),
+      ...newRow(),
     }));
     const { data, error } = await sb.from("calendar_events").insert(rows).select("*");
     if (error) throw toApiException(error);
@@ -688,7 +701,7 @@ export const automationsApi = {
         // Caller payload wins:
         ...payload,
         // Tenancy columns last — cannot be overridden:
-        ...requireScope(),
+        ...newRow(),
       })
       .select("*")
       .single();
@@ -738,7 +751,7 @@ export const weatherApi = {
         // Required caller-supplied field:
         name,
         // Tenancy columns last:
-        ...requireScope(),
+        ...newRow(),
       })
       .select("*")
       .single();
