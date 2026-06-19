@@ -16,10 +16,12 @@ export function MultiAgentSelector({
   providers,
   selected,
   onChange,
+  hint = "they run at the same time.",
 }: {
   providers: AiProvider[];
   selected: string[];
   onChange: (ids: string[]) => void;
+  hint?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [warn, setWarn] = useState<string | null>(null);
@@ -107,7 +109,7 @@ export function MultiAgentSelector({
       </div>
 
       <p className="text-[11.5px] text-content-subtle">
-        {selected.length}/{MAX_AGENTS} agents selected — they run at the same time.
+        {selected.length}/{MAX_AGENTS} agents selected — {hint}
         {warn ? <span className="ml-1 text-warning">{warn}</span> : null}
       </p>
     </div>
