@@ -162,7 +162,7 @@ export default function NotesPage() {
                     <p className="mt-1 line-clamp-2 text-[12.5px] text-content-muted">{note.content}</p>
                   ) : null}
                   {note.tags.length > 0 ? (
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    <div className="mt-2.5 hidden flex-wrap gap-1.5 sm:flex">
                       {note.tags.slice(0, 3).map((tag) => (
                         <Badge key={tag} tone="secondary">
                           {tag}
