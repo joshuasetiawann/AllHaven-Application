@@ -26,6 +26,9 @@ EXPECTED_TABLES = {
     "drive_files",
     "automations",
     "weather_locations",
+    "ai_memories",
+    "ai_memory_suggestions",
+    "ai_conversation_summaries",
 }
 
 
