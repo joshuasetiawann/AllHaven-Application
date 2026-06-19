@@ -716,7 +716,7 @@ export const routinesApi = {
   }),
 };
 
-// ─── Task 8: automationsApi + weatherApi ─────────────────────────────────────
+// ─── Task 8: automationsApi ──────────────────────────────────────────────────
 //
 // NOT NULL columns in automations with no server default (must be stamped):
 //   workspace_id   → getWorkspaceId()
@@ -729,17 +729,8 @@ export const routinesApi = {
 //   is_deleted     → Boolean, default=False in ORM — Postgres column default; stamp defensively
 //
 // automations HAS is_deleted → list filters is_deleted=false; remove is soft-delete.
-//
-// NOT NULL columns in weather_locations with no server default (must be stamped):
-//   workspace_id → getWorkspaceId()
-//   created_by   → getAppUserId()
-//   name         → required caller-supplied field
-//   is_default   → Boolean, default=False in ORM / WeatherLocationCreate default=False
-//
-// weather_locations has NO is_deleted column → list has NO is_deleted filter;
-// removeLocation is a HARD DELETE.
 
-import type { Automation, WeatherLocation, WeatherCurrent } from "@/types";
+import type { Automation } from "@/types";
 
 export const automationsApi = {
   list: async (): Promise<Automation[]> => {
@@ -792,52 +783,6 @@ export const automationsApi = {
       .eq("id", id);
     if (error) throw toApiException(error);
     return { id };
-  },
-};
-
-export const weatherApi = {
-  listLocations: async (): Promise<WeatherLocation[]> => {
-    const sb = await getSupabase();
-    // weather_locations has NO is_deleted column — no filter applied.
-    const { data, error } = await sb
-      .from("weather_locations")
-      .select("*")
-      .order("created_at", { ascending: true });
-    if (error) throw toApiException(error);
-    return (data ?? []) as WeatherLocation[];
-  },
-  addLocation: async (name: string, isDefault = false): Promise<WeatherLocation> => {
-    const sb = await getSupabase();
-    const { data, error } = await sb
-      .from("weather_locations")
-      .insert({
-        // Defaults before payload so caller can override is_default:
-        is_default: isDefault,
-        // Required caller-supplied field:
-        name,
-        // Tenancy columns last:
-        ...newRow(),
-      })
-      .select("*")
-      .single();
-    if (error) throw toApiException(error);
-    return data as WeatherLocation;
-  },
-  // Hard delete — weather_locations has no is_deleted column.
-  removeLocation: async (id: string): Promise<{ id: string }> => {
-    const sb = await getSupabase();
-    const { error } = await sb.from("weather_locations").delete().eq("id", id);
-    if (error) throw toApiException(error);
-    return { id };
-  },
-  // Live weather requires a backend API secret — unavailable in mobile Supabase-direct mode.
-  current: async (_location?: string): Promise<WeatherCurrent> => {
-    throw new ApiException(
-      "Live weather runs on the desktop app",
-      "UNAVAILABLE_ON_MOBILE",
-      501,
-      null,
-    );
   },
 };
 
