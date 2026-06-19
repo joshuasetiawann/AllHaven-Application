@@ -10,8 +10,8 @@ Every version is frozen in its own self-contained `CoreOS X.Y` or `AllHaven X.Y`
 folder — a full, runnable snapshot. The latest version also lives on the
 [`main`](../../tree/main) branch.
 
-![Latest](https://img.shields.io/badge/latest-AllHaven%203.2%20·%20v3.2.0-18E0D6?style=flat-square)
-&nbsp;![Releases](https://img.shields.io/badge/releases-32-2563EB?style=flat-square)
+![Latest](https://img.shields.io/badge/latest-AllHaven%203.3%20·%20v3.3.0-18E0D6?style=flat-square)
+&nbsp;![Releases](https://img.shields.io/badge/releases-33-2563EB?style=flat-square)
 &nbsp;![© 2026 Joshua Setiawan](https://img.shields.io/badge/©%202026-Joshua%20Setiawan-555?style=flat-square)
 
 </div>
@@ -65,14 +65,15 @@ folder — a full, runnable snapshot. The latest version also lives on the
 | **AllHaven 2.9** | 2026-06-13 | **AllHaven** | `v0.17.0` | **AI Workspace + Knowledge + finance reports + launch polish** — section-aware context packets, AI Knowledge document ingestion/search/retrieval with metadata-only storage for unsupported files, dedicated tool-call logging, 72 allowlisted tools, configurable Drive upload limits, monthly/weekly finance reports with archived/out-of-period records, local date/time answers, direct low-risk memory saves, a dedicated Approvals page, app-wide toast notifications, responsive UI across desktop/tablet/mobile, cleaner approval notifications, fresh-clone install guardrails, and a more direct conversational AI for coding and schedule management (migration `0008`). |
 | **AllHaven 3.0** | 2026-06-13 | **AllHaven** | `v3.0.0` | **Launch-ready AI workspace** — app-wide layout polish, cleaner sidebar/topbar/dashboard, responsive shell refinements, AI Knowledge context available to every chat mode/model, language controls for Indonesian/English/Traditional Mandarin, dark/light theme and accent color preferences, in-app decision popups replacing browser `localhost says` dialogs, and language-aware local date/time answers. |
 | **AllHaven 3.1** | 2026-06-13 | **AllHaven** | `v3.1.0` | **Expanded AI agents and settings UX** — raises multi-agent runs to 10 agents, adds Cursor AI, DeepSeek, and Qwen provider support, improves Debate prompts/final output, adds a searchable grouped model picker, and reorganizes Settings → AI Providers into health stats plus Direct/OpenRouter sections with honest provider verification. |
-| **⭐ AllHaven 3.2** | 2026-06-13 | **AllHaven** | `v3.2.0` | **Current.** **Repository hygiene and render skeletons** — removes local env files from the working tree, keeps clone-safe templates, adds app-wide and dashboard-specific skeleton loaders, and clarifies the CoreOS archive naming/semantic mapping. |
+| **AllHaven 3.2** | 2026-06-13 | **AllHaven** | `v3.2.0` | **Repository hygiene and render skeletons** — removes local env files from the working tree, keeps clone-safe templates, adds app-wide and dashboard-specific skeleton loaders, and clarifies the CoreOS archive naming/semantic mapping. |
+| **⭐ AllHaven 3.3** | 2026-06-13 | **AllHaven** | `v3.3.0` | **Current.** **Routine planner and sidebar flow** — replaces Calendar with Routine, adds a polished date/time schedule planner, keeps calendar data compatible, and reorders the sidebar to Dashboard, AI Chat, Routine, Task, Finance, Notes, Approval. |
 
 <sub>⭐ = current release. Dates reflect each version's build/release during the project's initial development sprint.</sub>
 
 ## 🌱 How the two branches relate
 
 Each `CoreOS X.Y` or `AllHaven X.Y` folder is a complete, standalone snapshot you can open and run on
-its own; the latest (`AllHaven 3.2`) keeps its own `CHANGELOG.md`, `VERSION`, and
+its own; the latest (`AllHaven 3.3`) keeps its own `CHANGELOG.md`, `VERSION`, and
 `docs/releases/` inside it. New releases add the next folder here, while
 [`main`](../../tree/main) is fast-forwarded to the same version.
 
