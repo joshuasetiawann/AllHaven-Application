@@ -7,13 +7,16 @@ import { pingBackend, testBackendConnection, type BackendTestResult } from "@/li
 import {
   BACKEND_CHANGED_EVENT,
   getApiBaseUrl,
+  getApiBaseUrlSource,
   getConnectionMode,
   getRememberedUrl,
   setConnectionMode,
   TAILSCALE_DOWNLOAD_URL,
   type ConnectionMode,
 } from "@/lib/connectionMode";
+import { BEARER_MODE } from "@/lib/mobileAuth";
 import { cn } from "@/lib/format";
+import type { BackendUrlSource } from "@/lib/backendUrl";
 
 type LiveStatus = "checking" | "online" | "offline";
 
@@ -34,6 +37,7 @@ export function ConnectionModeSwitcher() {
   const [mode, setMode] = useState<ConnectionMode>("private");
   const [status, setStatus] = useState<LiveStatus>("checking");
   const [activeUrl, setActiveUrl] = useState("");
+  const [source, setSource] = useState<BackendUrlSource>("fallback");
   // Inline URL editor — which mode's URL we're editing, and its current text.
   const [editMode, setEditMode] = useState<ConnectionMode | null>(null);
   const [url, setUrl] = useState("");
@@ -46,6 +50,7 @@ export function ConnectionModeSwitcher() {
   const refresh = useCallback(() => {
     setMode(getConnectionMode());
     setActiveUrl(getApiBaseUrl());
+    setSource(getApiBaseUrlSource());
     setStatus("checking");
     let cancelled = false;
     pingBackend(3500).then((ok) => {
@@ -118,6 +123,9 @@ export function ConnectionModeSwitcher() {
     setOpen(false);
   };
 
+  const desktopNotUsingSelectedTailscale = !BEARER_MODE && mode !== "local" && source !== "override";
+  const hasSavedSelectedUrl = mode !== "local" && Boolean(getRememberedUrl(mode));
+  const displayMode: ConnectionMode = desktopNotUsingSelectedTailscale ? "local" : mode;
   const statusLabel = status === "checking" ? "Checking" : status === "online" ? "Online" : "Offline";
 
   return (
@@ -125,7 +133,7 @@ export function ConnectionModeSwitcher() {
       {/* Trigger: a compact pill on lg+, an icon-only button (with status dot) on phones. */}
       <button
         type="button"
-        aria-label={`Connection: ${MODE_LABEL[mode]} · ${statusLabel}`}
+        aria-label={`Connection: ${MODE_LABEL[displayMode]} · ${statusLabel}`}
         onClick={() => setOpen((o) => !o)}
         className={cn(
           "hidden max-w-[220px] items-center gap-2 truncate rounded-full border px-3 py-1.5 text-[12px] font-medium transition-all duration-200 lg:inline-flex",
@@ -137,9 +145,9 @@ export function ConnectionModeSwitcher() {
         )}
       >
         <Dot status={status} />
-        <span className="truncate">{MODE_LABEL[mode]} · {statusLabel}</span>
+        <span className="truncate">{MODE_LABEL[displayMode]} · {statusLabel}</span>
       </button>
-      <IconButton className="relative lg:hidden" aria-label={`Connection: ${MODE_LABEL[mode]}`} active={open} onClick={() => setOpen((o) => !o)}>
+      <IconButton className="relative lg:hidden" aria-label={`Connection: ${MODE_LABEL[displayMode]}`} active={open} onClick={() => setOpen((o) => !o)}>
         <Server size={17} />
         <span
           className={cn(
@@ -173,6 +181,12 @@ export function ConnectionModeSwitcher() {
               {statusLabel}
             </span>
           </div>
+
+          {desktopNotUsingSelectedTailscale && hasSavedSelectedUrl ? (
+            <div className="mx-1 mt-1 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[11.5px] leading-relaxed text-warning">
+              This desktop browser is using the same-site backend above. Your saved Tailscale URL is kept for the mobile APK, but it is ignored here to avoid cookie login loops.
+            </div>
+          ) : null}
 
           <ul className="mt-1 space-y-1">
             {MODES.map((m) => {

@@ -72,7 +72,7 @@ function newRow(): { id: string; workspace_id: string; created_by: string } {
 
 async function loadMe(): Promise<Me> {
   const sb = await getSupabase();
-  const { data: auth, error: ae } = await sb.auth.getUser();
+  const { data: auth, error: ae } = await withTimeout(sb.auth.getUser(), 10_000);
   if (ae || !auth?.user) {
     // No Supabase session (fresh install / cleared data / expired). Force a clean
     // 401 so AppShell routes to /login. AuthSessionMissingError.status is 400, which
@@ -84,7 +84,10 @@ async function loadMe(): Promise<Me> {
   // maybeSingle: if the account isn't linked yet (profiles.supabase_user_id null)
   // RLS returns 0 rows, and .single() would throw an opaque PGRST116 that breaks
   // login entirely. Surface a clear, actionable error instead.
-  const { data: profile, error: pe } = await sb.from("profiles").select("*").maybeSingle();
+  const { data: profile, error: pe } = await withTimeout(
+    sb.from("profiles").select("*").maybeSingle(),
+    10_000,
+  );
   if (pe) throw toApiException(pe);
   if (!profile) {
     // Self-provisioning (provision_me on sign-in) normally prevents this. If it
@@ -98,9 +101,10 @@ async function loadMe(): Promise<Me> {
   setAppUserId(profile.id);
   // Resolve the user's OWNED workspace (matches backend auth_service.get_default_workspace).
   // RLS policy p_owner restricts workspaces to rows where owner_id = app_user_id().
-  const { data: ws, error: we } = await sb
-    .from("workspaces").select("*")
-    .order("created_at", { ascending: true }).limit(1).maybeSingle();
+  const { data: ws, error: we } = await withTimeout(
+    sb.from("workspaces").select("*").order("created_at", { ascending: true }).limit(1).maybeSingle(),
+    10_000,
+  );
   if (we) throw toApiException(we);
   if (!ws) {
     throw new ApiException(
@@ -121,12 +125,12 @@ async function loadMe(): Promise<Me> {
 
 async function supabaseSignIn(email: string, password: string): Promise<AuthToken> {
   const sb = await getSupabase();
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  const { data, error } = await withTimeout(sb.auth.signInWithPassword({ email, password }), 18_000);
   if (error) throw toApiException(error, 401);
   // Best-effort self-provision (idempotent): covers first login after email
   // confirmation and repairs unlinked/legacy accounts. Swallowed if the RPC isn't
   // deployed yet — loadMe() stays the source of truth for whether the account works.
-  await sb.rpc("provision_me", { p_full_name: null }).then(() => {}, () => {});
+  await withTimeout(sb.rpc("provision_me", { p_full_name: null }), 10_000).then(() => {}, () => {});
   const meResult = await loadMe();
   return {
     access_token: data.session?.access_token ?? "",
@@ -143,18 +147,24 @@ export const authApi = {
   // exists (e.g. created on desktop first): provision_me adopts/links it.
   register: async (email: string, password: string, fullName?: string): Promise<AuthToken> => {
     const sb = await getSupabase();
-    const { error: signUpErr } = await sb.auth.signUp({
-      email,
-      password,
-      // Stash the name on the auth user so provisioning can recover it even when
-      // the profile is created on a later (post-confirmation) login.
-      options: fullName ? { data: { full_name: fullName } } : undefined,
-    });
+    const { error: signUpErr } = await withTimeout(
+      sb.auth.signUp({
+        email,
+        password,
+        // Stash the name on the auth user so provisioning can recover it even when
+        // the profile is created on a later (post-confirmation) login.
+        options: fullName ? { data: { full_name: fullName } } : undefined,
+      }),
+      18_000,
+    );
     // "already registered" is fine — fall through to sign-in + provision.
     if (signUpErr && !/already\s*(registered|exists|in use)/i.test(signUpErr.message)) {
       throw toApiException(signUpErr);
     }
-    const { data: signIn, error: signInErr } = await sb.auth.signInWithPassword({ email, password });
+    const { data: signIn, error: signInErr } = await withTimeout(
+      sb.auth.signInWithPassword({ email, password }),
+      18_000,
+    );
     if (signInErr) {
       // Most common standalone cause: project requires email confirmation, so no
       // session is issued until the link is clicked. Make that actionable.
@@ -163,7 +173,10 @@ export const authApi = {
         : "";
       throw toApiException({ ...signInErr, message: signInErr.message + hint }, 401);
     }
-    const { error: provErr } = await sb.rpc("provision_me", { p_full_name: fullName ?? null });
+    const { error: provErr } = await withTimeout(
+      sb.rpc("provision_me", { p_full_name: fullName ?? null }),
+      10_000,
+    );
     if (provErr) {
       // Never show the raw PostgREST/schema-cache text to users; log it for devs.
       console.error("provision_me failed:", provErr);
@@ -199,11 +212,15 @@ export const authApi = {
     // Populate cache if me() hasn't been called yet.
     if (!getAppUserId() || !getWorkspaceId()) await loadMe();
     if (payload.full_name !== undefined) {
-      const { error } = await sb.from("profiles").update({ full_name: payload.full_name }).eq("id", getAppUserId()!);
+      const { error } = await withTimeout(
+        sb.from("profiles").update({ full_name: payload.full_name }).eq("id", getAppUserId()!),
+      );
       if (error) throw toApiException(error);
     }
     if (payload.workspace_name !== undefined) {
-      const { error } = await sb.from("workspaces").update({ name: payload.workspace_name }).eq("id", getWorkspaceId()!);
+      const { error } = await withTimeout(
+        sb.from("workspaces").update({ name: payload.workspace_name }).eq("id", getWorkspaceId()!),
+      );
       if (error) throw toApiException(error);
     }
     return loadMe();

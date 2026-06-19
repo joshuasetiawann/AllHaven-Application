@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CheckCircle2,
   Globe,
@@ -16,24 +16,24 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import {
-  clearBackendOverride,
   getApiBaseUrl,
   getApiBaseUrlSource,
   getBackendOverride,
-  setBackendOverride,
   type BackendUrlSource,
 } from "@/lib/backendUrl";
 import { testBackendConnection, type BackendTestResult } from "@/lib/connection";
+import { BACKEND_CHANGED_EVENT, getConnectionMode, setConnectionMode } from "@/lib/connectionMode";
 
 // Honest status model (see CLAUDE.md status_truth_model). "online" is set ONLY by
 // a real /health success — never inferred from a non-empty URL. Saving a URL makes
 // it "configured" (active), and the immediate follow-up test reflects reality.
-type Status = "unknown" | "configured" | "online" | "error" | "unavailable" | "not_configured";
+type Status = "unknown" | "configured" | "online" | "ignored" | "error" | "unavailable" | "not_configured";
 
 const STATUS_BADGE: Record<Status, { tone: "neutral" | "primary" | "success" | "warning" | "danger"; label: string }> = {
   unknown: { tone: "neutral", label: "Not tested" },
   configured: { tone: "primary", label: "Configured" },
   online: { tone: "success", label: "Online" },
+  ignored: { tone: "warning", label: "Saved, not active here" },
   error: { tone: "danger", label: "Error" },
   unavailable: { tone: "warning", label: "Unreachable" },
   not_configured: { tone: "neutral", label: "Not configured" },
@@ -64,27 +64,37 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
   const [saving, setSaving] = useState(false);
   const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
 
-  // Read the current resolution on mount (client-only → no hydration mismatch).
-  useEffect(() => {
+  const overrideIgnoredHere = () => Boolean(getBackendOverride()) && getApiBaseUrlSource() !== "override";
+
+  const syncActiveState = useCallback((clearTransient = false) => {
     const override = getBackendOverride();
+    const activeSource = getApiBaseUrlSource();
     setActiveUrl(getApiBaseUrl());
-    setSource(getApiBaseUrlSource());
+    setSource(activeSource);
     setHasOverride(Boolean(override));
     setDraft(override);
-    setStatus(override ? "configured" : "unknown");
+    setStatus(override ? (activeSource === "override" ? "configured" : "ignored") : "unknown");
+    if (clearTransient) {
+      setResult(null);
+      setLastCheckedAt(null);
+    }
   }, []);
 
-  const refreshActive = () => {
-    setActiveUrl(getApiBaseUrl());
-    setSource(getApiBaseUrlSource());
-    setHasOverride(Boolean(getBackendOverride()));
-  };
+  // Read the current resolution on mount and whenever the topbar switcher changes it.
+  useEffect(() => {
+    syncActiveState();
+    const onBackendChanged = () => syncActiveState(true);
+    window.addEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
+    return () => window.removeEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
+  }, [syncActiveState]);
+
+  const refreshActive = () => syncActiveState();
 
   const applyResult = (r: BackendTestResult) => {
     setResult(r);
-    setStatus(r.status);
+    setStatus(overrideIgnoredHere() ? "ignored" : r.status);
     setLastCheckedAt(new Date().toLocaleTimeString());
-    if (r.ok) onConnected?.();
+    if (r.ok && !overrideIgnoredHere()) onConnected?.();
   };
 
   // Test WITHOUT saving — probe exactly what's typed (or the active URL if blank).
@@ -104,9 +114,11 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
   const handleSave = async () => {
     setSaving(true);
     try {
-      const normalized = setBackendOverride(draft);
+      const targetMode = getConnectionMode() === "funnel" ? "funnel" : "private";
+      setConnectionMode(targetMode, draft);
+      const normalized = getBackendOverride();
       refreshActive();
-      setStatus(normalized ? "configured" : "unknown");
+      setStatus(normalized ? (overrideIgnoredHere() ? "ignored" : "configured") : "unknown");
       if (normalized) {
         const r = await testBackendConnection(normalized);
         applyResult(r);
@@ -120,7 +132,7 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
 
   // Drop the override → fall back to the built-in/derived default.
   const handleReset = () => {
-    clearBackendOverride();
+    setConnectionMode("local");
     setDraft("");
     refreshActive();
     setStatus("unknown");
@@ -151,6 +163,12 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
           <span className="text-[12px] text-content-subtle">· checked {lastCheckedAt}</span>
         ) : null}
       </div>
+
+      {hasOverride && source !== "override" ? (
+        <div className="mt-3 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[12.5px] leading-relaxed text-warning">
+          The saved Tailscale URL is not the active backend in this desktop browser. Desktop web uses a same-site backend for cookie login; the mobile APK will use the saved URL.
+        </div>
+      ) : null}
 
       <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-border bg-surface-input/50 px-3 py-2 text-[12.5px]">
         <Link2 size={13} className="shrink-0 text-content-subtle" />
