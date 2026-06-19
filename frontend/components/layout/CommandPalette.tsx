@@ -23,7 +23,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const navItems: Item[] = useMemo(
     () =>
-      [...PRIMARY_NAV, ...MODULE_NAV, ...(SETTINGS_NAV ? [SETTINGS_NAV] : [])].map((n) => ({
+      [...PRIMARY_NAV, ...MODULE_NAV, SETTINGS_NAV].map((n) => ({
         id: `nav-${n.href}`,
         type: "nav" as const,
         label: n.label,
