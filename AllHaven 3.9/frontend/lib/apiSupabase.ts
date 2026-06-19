@@ -1,11 +1,11 @@
 // frontend/lib/apiSupabase.ts — Supabase-backed seam. Groups are replaced with real
 // Supabase impls task-by-task in later pairs; until then they passthrough to REST.
 //
-// Compute/file groups (ai/memory/knowledge/drive/system/n8n/google/settings) are NOT
-// ported in 3.7 — re-export the REST impl (they are hidden on mobile UI).
+// Compute/file groups (knowledge/drive/system/n8n/google/settings) stay REST-only
+// (hidden on mobile UI). aiApi + memoryApi are HYBRID (defined at the bottom of this
+// file): proposal/suggestion reads + accept/reject/edit go Supabase-direct so mobile
+// sees and acts on the same pending list as desktop; chat/providers stay REST.
 export {
-  aiApi,
-  memoryApi,
   knowledgeApi,
   driveApi,
   systemApi,
@@ -839,4 +839,155 @@ export const weatherApi = {
       null,
     );
   },
+};
+
+// ─── AI tool proposals + memory suggestions (cross-device via Supabase) ──────
+// Reads + accept/reject/edit run Supabase-direct so mobile sees and acts on the SAME
+// pending list as desktop (the rows are two-way synced on updated_at). Chat, providers,
+// and other compute stay on the REST backend.
+import { aiApi as restAiApi, memoryApi as restMemoryApi } from "@/lib/apiRest";
+import type { AiMemory, MemorySuggestion, ToolProposal } from "@/types";
+
+const _PROPOSAL_OPEN = ["PENDING", "NEEDS_EDIT", "FAILED"];
+
+const _PROPOSAL_COLS =
+  "id,tool_name,tool_payload,status,risk_level,requires_confirmation,error_message,executed_at,created_at,updated_at";
+
+async function supaListProposals(): Promise<ToolProposal[]> {
+  const sb = await getSupabase();
+  const ws = getWorkspaceId();
+  if (!ws) return [];
+  const { data, error } = await sb
+    .from("ai_tool_proposals")
+    .select(_PROPOSAL_COLS)
+    .eq("workspace_id", ws)
+    .in("status", _PROPOSAL_OPEN)
+    .order("created_at", { ascending: false });
+  if (error) throw toApiException(error);
+  return (data ?? []) as ToolProposal[];
+}
+
+/** Execute a proposal's write directly against Supabase, by tool name. */
+async function _executeProposal(tool: string, payload: Record<string, unknown>): Promise<unknown> {
+  if (tool.startsWith("create_transaction")) return financeApi.createTransaction(payload);
+  if (tool === "create_task") return tasksApi.create(payload);
+  if (tool === "create_note") return notesApi.create(payload as Partial<Note>);
+  if (tool === "create_event" || tool === "create_routine") return routinesApi.create(payload);
+  if (tool === "create_automation") return automationsApi.create(payload);
+  throw new ApiException(
+    `Aksi "${tool.replace(/_/g, " ")}" hanya bisa di-approve dari aplikasi desktop.`,
+    "UNSUPPORTED_ON_MOBILE",
+    501,
+  );
+}
+
+async function supaApproveProposal(id: string): Promise<{ proposal: ToolProposal; result: Record<string, unknown> }> {
+  const sb = await getSupabase();
+  // Re-read first: if another device already executed/rejected it, do NOT run again.
+  const { data: row, error: rErr } = await sb
+    .from("ai_tool_proposals").select(_PROPOSAL_COLS).eq("id", id).maybeSingle();
+  if (rErr) throw toApiException(rErr);
+  if (!row) throw new ApiException("Draft tidak ditemukan.", "NOT_FOUND", 404);
+  if (!_PROPOSAL_OPEN.includes((row as ToolProposal).status)) {
+    return { proposal: row as ToolProposal, result: {} };
+  }
+  let result: unknown;
+  try {
+    result = await _executeProposal((row as ToolProposal).tool_name, ((row as ToolProposal).tool_payload ?? {}) as Record<string, unknown>);
+  } catch (err) {
+    // Mirror the backend: a failed approval becomes NEEDS_EDIT and stays visible.
+    await sb.from("ai_tool_proposals").update({
+      status: "NEEDS_EDIT",
+      error_message: (err instanceof Error ? err.message : "Gagal menjalankan aksi.").slice(0, 500),
+      updated_at: new Date().toISOString(),
+    }).eq("id", id);
+    throw err instanceof ApiException ? err : toApiException(err);
+  }
+  const { data: updated, error: uErr } = await sb
+    .from("ai_tool_proposals")
+    .update({ status: "EXECUTED", error_message: null, executed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", id).select(_PROPOSAL_COLS).single();
+  if (uErr) throw toApiException(uErr);
+  return { proposal: updated as ToolProposal, result: (result ?? {}) as Record<string, unknown> };
+}
+
+async function supaRejectProposal(id: string): Promise<ToolProposal> {
+  const sb = await getSupabase();
+  const { data, error } = await sb
+    .from("ai_tool_proposals")
+    .update({ status: "REJECTED", updated_at: new Date().toISOString() })
+    .eq("id", id).select(_PROPOSAL_COLS).single();
+  if (error) throw toApiException(error);
+  return data as ToolProposal;
+}
+
+async function supaEditProposal(id: string, toolPayload: Record<string, unknown>): Promise<ToolProposal> {
+  const sb = await getSupabase();
+  const { data, error } = await sb
+    .from("ai_tool_proposals")
+    .update({ tool_payload: toolPayload, status: "PENDING", error_message: null, updated_at: new Date().toISOString() })
+    .eq("id", id).select(_PROPOSAL_COLS).single();
+  if (error) throw toApiException(error);
+  return data as ToolProposal;
+}
+
+export const aiApi = {
+  ...restAiApi,
+  listProposals: supaListProposals,
+  approveProposal: supaApproveProposal,
+  rejectProposal: supaRejectProposal,
+  editProposal: supaEditProposal,
+};
+
+async function supaListSuggestions(): Promise<MemorySuggestion[]> {
+  const sb = await getSupabase();
+  const ws = getWorkspaceId();
+  if (!ws) return [];
+  const { data, error } = await sb
+    .from("ai_memory_suggestions")
+    .select("*")
+    .eq("workspace_id", ws)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+  if (error) throw toApiException(error);
+  return (data ?? []) as MemorySuggestion[];
+}
+
+async function supaRejectSuggestion(id: string): Promise<{ id: string }> {
+  const sb = await getSupabase();
+  const { error } = await sb
+    .from("ai_memory_suggestions")
+    .update({ status: "rejected", updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw toApiException(error);
+  return { id };
+}
+
+async function supaApproveSuggestion(id: string): Promise<AiMemory> {
+  const sb = await getSupabase();
+  const { data: s, error: sErr } = await sb
+    .from("ai_memory_suggestions").select("*").eq("id", id).maybeSingle();
+  if (sErr) throw toApiException(sErr);
+  if (!s) throw new ApiException("Saran memori tidak ditemukan.", "NOT_FOUND", 404);
+  const sug = s as MemorySuggestion;
+  const { data: mem, error: mErr } = await sb
+    .from("ai_memories")
+    .insert({
+      category: sug.category, title: sug.title, content: sug.content,
+      sensitivity: sug.sensitivity ?? "LOW", source: "suggestion_approved", status: "active",
+      ...newRow(),
+    })
+    .select("*").single();
+  if (mErr) throw toApiException(mErr);
+  await sb.from("ai_memory_suggestions")
+    .update({ status: "approved", memory_id: (mem as { id: string }).id, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  return mem as AiMemory;
+}
+
+export const memoryApi = {
+  ...restMemoryApi,
+  listSuggestions: supaListSuggestions,
+  approveSuggestion: supaApproveSuggestion,
+  rejectSuggestion: supaRejectSuggestion,
 };
