@@ -30,13 +30,15 @@ also lives on the [`main`](../../tree/main) branch** as the runnable app at root
 | **AllHaven 1.7** | **AllHaven** | When a vision-capable provider gets an image but the chosen **model** is text-only, the raw API error is now an honest **"this model can't read images — pick a vision model"** status. Internally semantic `v0.5.1`. |
 | **AllHaven 1.8** | **AllHaven** | **Launch hardening** — HTTP security headers (backend + frontend CSP), safe Drive downloads (attachment + neutralized active types), and dependency patches (Next 14.2.35, postcss 8.5.15). Full audit in `LAUNCH_SECURITY_REPORT.md`. Internally semantic `v0.6.0`. |
 | **AllHaven 1.9** | **AllHaven** | **Public-launch auth** — HttpOnly **cookie sessions** (hashed server-side, rotation via refresh, revocation on logout), **CSRF** double-submit, `/auth/*` **rate limiting**, and a production **SECRET_KEY guard**. No auth token in localStorage anymore. Internally semantic `v0.7.0`. |
-| **AllHaven 2.0** | **AllHaven** | **Current.** **Live n8n workflows** in Automations — list your real workflows from the connected n8n, **activate/deactivate**, and **open in n8n** (API key stays server-side; honest states when n8n isn't ready). Internally semantic `v0.8.0`. |
+| **AllHaven 2.0** | **AllHaven** | **Live n8n workflows** in Automations — list your real workflows from the connected n8n, **activate/deactivate**, and **open in n8n** (API key stays server-side; honest states when n8n isn't ready). Internally semantic `v0.8.0`. |
+| **AllHaven 2.1** | **AllHaven** | **One-click desktop installer** — OS launchers (`START_HAVEN_*`) + a browser **setup wizard** (Docker / ports / `.env` checks, secrets generated & preserved), a localhost-only **token-gated control agent**, and in-app **Settings → System Control** (start/stop/restart, ports, masked logs). Internally semantic `v0.9.0`. |
+| **AllHaven 2.2** | **AllHaven** | **Current.** **Reliable one-click startup + responsive menu** — the launcher/wizard now start services faithfully like `allhaven.sh` (bind `0.0.0.0`, wait for PostgreSQL, run migrations, health-gate the backend, install deps on first run, surface logs), fixing *"works when run manually but not from the app"*. Plus a collapsible, responsive navigation menu (desktop rail, tablet icon rail, mobile drawer, user chip). Internally semantic `v0.10.0`. |
 
 ## How the two branches relate
 
-- **`main`** — only the **latest** version (`AllHaven 2.0`), flat at the repo root, ready to run/deploy.
+- **`main`** — only the **latest** version (`AllHaven 2.2`), flat at the repo root, ready to run/deploy.
 - **`master`** (this branch) — the **full archive**: every version frozen in its own folder.
 
 Each version folder is a complete snapshot you can open and run on its own; the
-latest one (`AllHaven 1.7`) keeps its own detailed `CHANGELOG.md`, `VERSION`, and
+latest one (`AllHaven 2.2`) keeps its own detailed `CHANGELOG.md`, `VERSION`, and
 `docs/releases/` inside it.
