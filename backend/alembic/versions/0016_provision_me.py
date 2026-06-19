@@ -5,13 +5,17 @@ Mobile registers directly against Supabase (no backend reachable). RLS has a
 chicken-and-egg: a brand-new user can't INSERT their own profile because
 p_self's WITH CHECK is `id = app_user_id()`, and app_user_id() resolves through
 a profile row that doesn't exist yet. This adds a SECURITY DEFINER RPC the client
-calls right after sign-in to provision profile + workspace + owner membership,
-bypassing RLS safely. It is idempotent and also LINKS an existing same-email
-profile (the desktop-first case), repairing the old "supabase_user_id null →
-login fails" bug for accounts created on desktop first.
+calls after sign-in to provision profile + workspace + owner membership,
+bypassing RLS safely. It is idempotent and LINKS an existing same-email profile
+(the desktop-first case), repairing the old "supabase_user_id null → login fails"
+bug for accounts created on desktop first. Returns a JSON status object.
 
 Guarded by ALLHAVEN_DB_TARGET=supabase (references auth.uid()/auth.users, which
 only exist on Supabase — running it on the local Postgres would fail).
+
+NOTE: applying this migration only CREATES the function. The mobile client reaches
+it through PostgREST, whose schema cache must include it — the migration issues
+`NOTIFY pgrst, 'reload schema'` so hosted Supabase exposes the RPC immediately.
 
 Revision ID: 0016_provision_me
 Revises: 0015_workspace_members_rls
@@ -29,9 +33,13 @@ down_revision: Union[str, None] = "0015_workspace_members_rls"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+# DROP first: the return type evolved (uuid → jsonb), and CREATE OR REPLACE cannot
+# change a function's return type. DROP IF EXISTS makes this safely re-runnable.
 _PROVISION_FN = """
-CREATE OR REPLACE FUNCTION public.provision_me(p_full_name text DEFAULT NULL)
-RETURNS uuid
+DROP FUNCTION IF EXISTS public.provision_me(text);
+
+CREATE FUNCTION public.provision_me(p_full_name text DEFAULT NULL)
+RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
@@ -42,10 +50,10 @@ DECLARE
   v_name text;
   v_profile_id uuid;
   v_ws_id uuid;
-  v_ws_name text;
+  v_created boolean := false;
 BEGIN
   IF v_uid IS NULL THEN
-    RAISE EXCEPTION 'not authenticated';
+    RAISE EXCEPTION 'not authenticated' USING errcode = '28000';
   END IF;
 
   -- Email + (fallback) display name from the auth user's signUp metadata.
@@ -62,10 +70,12 @@ BEGIN
       v_profile_id := gen_random_uuid();
       INSERT INTO profiles (id, email, full_name, supabase_user_id, created_at, updated_at)
         VALUES (v_profile_id, v_email, v_name, v_uid, now(), now());
+      v_created := true;
     ELSE
       UPDATE profiles
          SET supabase_user_id = v_uid,
-             full_name = COALESCE(full_name, v_name)
+             full_name = COALESCE(full_name, v_name),
+             updated_at = now()
        WHERE id = v_profile_id;
     END IF;
   END IF;
@@ -74,10 +84,10 @@ BEGIN
   SELECT id INTO v_ws_id FROM workspaces
     WHERE owner_id = v_profile_id ORDER BY created_at ASC LIMIT 1;
   IF v_ws_id IS NULL THEN
-    v_ws_name := COALESCE(v_name || '''s Workspace', 'My Workspace');
     v_ws_id := gen_random_uuid();
     INSERT INTO workspaces (id, name, owner_id, created_at, updated_at)
-      VALUES (v_ws_id, v_ws_name, v_profile_id, now(), now());
+      VALUES (v_ws_id, COALESCE(v_name || '''s Workspace', 'My Workspace'),
+              v_profile_id, now(), now());
   END IF;
 
   -- 3) Membership: ensure an owner row exists (no duplicates).
@@ -88,7 +98,12 @@ BEGIN
       WHERE workspace_id = v_ws_id AND user_id = v_profile_id
     );
 
-  RETURN v_profile_id;
+  RETURN jsonb_build_object(
+    'status', 'success',
+    'created', v_created,
+    'profile_id', v_profile_id,
+    'workspace_id', v_ws_id
+  );
 END;
 $$;
 
@@ -105,9 +120,13 @@ def upgrade() -> None:
     if not _enabled():
         return
     op.execute(sa.text(_PROVISION_FN))
+    # Make PostgREST expose the RPC immediately (otherwise the client gets
+    # "Could not find the function public.provision_me in the schema cache").
+    op.execute(sa.text("NOTIFY pgrst, 'reload schema';"))
 
 
 def downgrade() -> None:
     if not _enabled():
         return
     op.execute(sa.text("DROP FUNCTION IF EXISTS public.provision_me(text);"))
+    op.execute(sa.text("NOTIFY pgrst, 'reload schema';"))
