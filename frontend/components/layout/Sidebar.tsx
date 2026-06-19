@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  ChevronDown,
   ChevronsLeft,
   ChevronsRight,
   LogOut,
@@ -31,6 +33,9 @@ export function Sidebar({
 }) {
   const router = useRouter();
   const user = getStoredUser();
+  // Mobile drawer only: keep the secondary "Modules" group collapsed so the drawer
+  // isn't a wall of 14 links. Always expanded on desktop (md+) via `md:block`.
+  const [showModules, setShowModules] = useState(false);
 
   // Collect every href in the nav so we can detect a more-specific match.
   const allHrefs = [
@@ -159,11 +164,21 @@ export function Sidebar({
         {collapsed ? (
           <div className="mx-3 my-3 h-px bg-border" />
         ) : (
-          <p className="px-3 pb-1 pt-5 font-mono text-[10px] uppercase tracking-[0.16em] text-content-subtle">
+          <button
+            type="button"
+            onClick={() => setShowModules((v) => !v)}
+            className="flex w-full items-center justify-between px-3 pb-1 pt-5 font-mono text-[10px] uppercase tracking-[0.16em] text-content-subtle md:pointer-events-none"
+          >
             Modules
-          </p>
+            <ChevronDown
+              size={12}
+              className={cn("shrink-0 transition-transform md:hidden", showModules && "rotate-180")}
+            />
+          </button>
         )}
-        {MODULE_NAV.map(renderItem)}
+        <div className={cn("space-y-1", showModules ? "block" : "hidden", "md:block")}>
+          {MODULE_NAV.map(renderItem)}
+        </div>
 
         <div className="my-2 h-px bg-border" />
         {renderItem(SETTINGS_NAV)}
