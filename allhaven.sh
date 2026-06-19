@@ -437,7 +437,7 @@ cmd_status() {
   _status_line backend  "$BACKEND_PORT"
   _status_line frontend "$FRONTEND_PORT"
   _status_line agent    "$AGENT_PORT"
-  if _port_busy "$POSTGRES_PORT"; then
+  if _pg_up; then
     printf '  %-9s :%-5s %s\n' postgres "$POSTGRES_PORT" "running (Docker or native)"
   else
     printf '  %-9s :%-5s %s\n' postgres "$POSTGRES_PORT" "not reachable"
