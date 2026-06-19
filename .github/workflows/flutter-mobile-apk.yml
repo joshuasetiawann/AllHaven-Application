@@ -1,0 +1,91 @@
+name: Build Flutter Mobile APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - mobile
+    paths:
+      - "mobile_flutter/**"
+      - ".github/workflows/flutter-mobile-apk.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Flutter debug APK
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Supabase build config
+        run: |
+          test -n "$SUPABASE_URL" || { echo "::error::Missing repo variable SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL"; exit 1; }
+          test -n "$SUPABASE_ANON_KEY" || { echo "::error::Missing repo secret SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY"; exit 1; }
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare Android project
+        run: |
+          rm -rf /tmp/allhaven_flutter
+          flutter create --platforms=android --org id.allhaven --project-name allhaven_mobile /tmp/allhaven_flutter
+          rm -rf /tmp/allhaven_flutter/lib
+          cp -R mobile_flutter/lib /tmp/allhaven_flutter/lib
+          cp mobile_flutter/pubspec.yaml /tmp/allhaven_flutter/pubspec.yaml
+          cp mobile_flutter/analysis_options.yaml /tmp/allhaven_flutter/analysis_options.yaml
+
+      - name: Install dependencies
+        working-directory: /tmp/allhaven_flutter
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: /tmp/allhaven_flutter
+        run: flutter analyze
+
+      - name: Build APK
+        working-directory: /tmp/allhaven_flutter
+        run: >
+          flutter build apk --debug
+          --dart-define=SUPABASE_URL=$SUPABASE_URL
+          --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+
+      - name: Collect APK
+        run: |
+          mkdir -p dist
+          cp /tmp/allhaven_flutter/build/app/outputs/flutter-apk/app-debug.apk dist/allhaven-flutter-debug.apk
+          ls -lh dist/allhaven-flutter-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: allhaven-flutter-debug-apk
+          path: dist/allhaven-flutter-debug.apk
+          if-no-files-found: error
+
+      - name: Publish latest debug release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: flutter-mobile-latest
+          name: AllHaven Flutter Mobile Latest
+          body: |
+            Flutter mobile APK built from branch `${{ github.ref_name }}` at `${{ github.sha }}`.
+
+            This APK uses Supabase directly for auth/data. Desktop bridge is only for local services such as Ollama and n8n.
+          files: dist/allhaven-flutter-debug.apk
+          prerelease: true
