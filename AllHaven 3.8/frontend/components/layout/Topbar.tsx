@@ -189,14 +189,14 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
               ) : null}
             </div>
 
-            <Link href="/dashboard/settings" aria-label="Settings">
+            <Link href="/dashboard/settings" aria-label="Settings" className="hidden md:block">
               <IconButton aria-label="Settings">
                 <SettingsIcon size={17} />
               </IconButton>
             </Link>
             <div
               title={user?.full_name || user?.email || "Account"}
-              className="rounded-full border border-border bg-surface-input/45 p-0.5"
+              className="hidden rounded-full border border-border bg-surface-input/45 p-0.5 md:block"
             >
               <Avatar initials={initials(user?.full_name || user?.email)} />
             </div>

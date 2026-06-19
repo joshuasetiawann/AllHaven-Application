@@ -214,7 +214,9 @@ export default function TasksPage() {
                         {task.title}
                       </p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                        <PriorityBadge priority={task.priority} />
+                        <span className="hidden sm:inline-flex">
+                          <PriorityBadge priority={task.priority} />
+                        </span>
                         <TaskStatusLabel status={task.status} />
                         {task.due_at ? <span className="text-[12px] text-content-subtle">· {formatDate(task.due_at)}</span> : null}
                         {items.length > 0 ? (

@@ -17,20 +17,33 @@ export {
 // ─── Task 3: authApi (Supabase Auth + workspace bootstrap) ───────────────────
 
 import type { AuthToken, Me, User, Workspace } from "@/types";
-import { ApiException } from "@/lib/apiRest";
+import { ApiException, authApi as restAuthApi } from "@/lib/apiRest";
 import { getSupabase, getWorkspaceId, setWorkspaceId, getAppUserId, setAppUserId } from "@/lib/supabaseClient";
 import { toApiException } from "@/lib/supabaseError";
 
-// Every write is workspace-scoped. Until the post-login bootstrap (loadMe) sets
-// the workspace + app user, an insert would send null workspace_id/created_by and
-// fail Supabase RLS with an opaque error. Surface a clear, actionable one instead.
-function requireScope(): { workspace_id: string; created_by: string } {
+// The `id` PK has NO server-side default in Postgres — the SQLAlchemy models mint
+// UUIDs Python-side, so the DDL emits none. Desktop inserts via SQLAlchemy get an
+// id; mobile inserts via supabase-js do NOT, and fail with "null value in column
+// id violates not-null constraint". So mint the id on the client for every new row.
+function newId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  // Fallback for older WebViews without crypto.randomUUID.
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    return (ch === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+// Fields every new row needs: a fresh id + the workspace scope. Until the post-login
+// bootstrap (loadMe) sets the workspace + app user, an insert would send nulls and
+// fail RLS/NOT NULL — surface a clear, actionable error instead.
+function newRow(): { id: string; workspace_id: string; created_by: string } {
   const workspace_id = getWorkspaceId();
   const created_by = getAppUserId();
   if (!workspace_id || !created_by) {
     throw new ApiException("You're not signed in. Please sign in again.", "NOT_AUTHENTICATED", 401);
   }
-  return { workspace_id, created_by };
+  return { id: newId(), workspace_id, created_by };
 }
 
 async function loadMe(): Promise<Me> {
@@ -74,24 +87,28 @@ async function loadMe(): Promise<Me> {
   return { user, workspace: ws as Workspace };
 }
 
+async function supabaseSignIn(email: string, password: string): Promise<AuthToken> {
+  const sb = await getSupabase();
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) throw toApiException(error, 401);
+  const meResult = await loadMe();
+  return {
+    access_token: data.session?.access_token ?? "",
+    token_type: "bearer",
+    user: meResult.user,
+  };
+}
+
 export const authApi = {
-  register: async (): Promise<AuthToken> => {
-    throw new ApiException(
-      "Create your account on the AllHaven desktop app, then sign in here.",
-      "REGISTER_ON_DESKTOP", 501, null,
-    );
+  // Mobile registration provisions the full account through the backend (creates the
+  // LocalUser + a matching Supabase Auth user + profile + workspace, all with the same
+  // password), then signs into Supabase for the data session. Backend/validation errors
+  // surface to the user as-is — no "register on desktop" wall.
+  register: async (email: string, password: string, fullName?: string): Promise<AuthToken> => {
+    await restAuthApi.register(email, password, fullName);
+    return supabaseSignIn(email, password);
   },
-  login: async (email: string, password: string): Promise<AuthToken> => {
-    const sb = await getSupabase();
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) throw toApiException(error, 401);
-    const meResult = await loadMe();
-    return {
-      access_token: data.session?.access_token ?? "",
-      token_type: "bearer",
-      user: meResult.user,
-    };
-  },
+  login: (email: string, password: string): Promise<AuthToken> => supabaseSignIn(email, password),
   logout: async (): Promise<{ logged_out: boolean }> => {
     const sb = await getSupabase();
     await sb.auth.signOut();
@@ -156,13 +173,27 @@ export const tasksApi = {
   },
   create: async (payload: Record<string, unknown>): Promise<Task> => {
     const sb = await getSupabase();
+    // `checklist` is a list of step titles, NOT a column on `tasks` — spreading it
+    // into the insert caused "Could not find the 'checklist' column of 'tasks'".
+    // Create the task, then add normalized task_checklist_items (mirrors backend
+    // task_service.create_task, capped at 5).
+    const { checklist, ...taskFields } = payload;
     const { data, error } = await sb
       .from("tasks")
-      .insert({ status: "TODO", priority: "NORMAL", ...payload, ...requireScope() })
+      .insert({ status: "TODO", priority: "NORMAL", ...taskFields, ...newRow() })
       .select("id")
       .single();
     if (error) throw toApiException(error);
-    return fetchTask((data as { id: string }).id);
+    const taskId = (data as { id: string }).id;
+    const titles = Array.isArray(checklist)
+      ? (checklist as unknown[]).map((t) => String(t).trim()).filter(Boolean).slice(0, 5)
+      : [];
+    if (titles.length) {
+      const rows = titles.map((title, position) => ({ task_id: taskId, title, position, ...newRow() }));
+      const { error: ciErr } = await sb.from("task_checklist_items").insert(rows);
+      if (ciErr) throw toApiException(ciErr);
+    }
+    return fetchTask(taskId);
   },
   update: async (id: string, payload: Partial<Task>): Promise<Task> => {
     const sb = await getSupabase();
@@ -204,7 +235,7 @@ export const tasksApi = {
     const nextPosition = positions.length ? Math.max(...positions) + 1 : 0;
     const { error } = await sb
       .from("task_checklist_items")
-      .insert({ task_id: id, title, position: nextPosition, ...requireScope() });
+      .insert({ task_id: id, title, position: nextPosition, ...newRow() });
     if (error) throw toApiException(error);
     return fetchTask(id);
   },
@@ -251,7 +282,7 @@ export const notesApi = {
         is_pinned: false,
         tags: [],
         ...payload,
-        ...requireScope(),
+        ...newRow(),
       })
       .select("*")
       .single();
@@ -310,7 +341,7 @@ const financeCrud = {
       .from("finance_categories")
       .insert({
         ...payload,
-        ...requireScope(),
+        ...newRow(),
       })
       .select("*")
       .single();
@@ -381,7 +412,7 @@ const financeCrud = {
         ...payload,
         currency,
         category_name_snapshot,
-        ...requireScope(),
+        ...newRow(),
       })
       .select("*")
       .single();
@@ -545,7 +576,7 @@ async function calCreate(payload: Record<string, unknown>): Promise<CalendarEven
       // Caller payload wins over the above defaults:
       ...payload,
       // Stamp tenancy columns last so callers cannot override them:
-      ...requireScope(),
+      ...newRow(),
     })
     .select("*")
     .single();
@@ -611,7 +642,7 @@ export const routinesApi = {
       repeat_rule: "once",
       is_deleted: false,
       ...e,
-      ...requireScope(),
+      ...newRow(),
     }));
     const { data, error } = await sb.from("calendar_events").insert(rows).select("*");
     if (error) throw toApiException(error);
@@ -688,7 +719,7 @@ export const automationsApi = {
         // Caller payload wins:
         ...payload,
         // Tenancy columns last — cannot be overridden:
-        ...requireScope(),
+        ...newRow(),
       })
       .select("*")
       .single();
@@ -738,7 +769,7 @@ export const weatherApi = {
         // Required caller-supplied field:
         name,
         // Tenancy columns last:
-        ...requireScope(),
+        ...newRow(),
       })
       .select("*")
       .single();
