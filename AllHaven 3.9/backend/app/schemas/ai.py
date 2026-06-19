@@ -144,4 +144,7 @@ class ProposalOut(ORMModel):
     status: str
     risk_level: str
     requires_confirmation: bool
+    error_message: Optional[str] = None
+    executed_at: Optional[datetime] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None

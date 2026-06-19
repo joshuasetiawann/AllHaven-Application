@@ -117,9 +117,32 @@ def normalize_tool_payload(tool_name: str, payload: dict) -> dict:
     for key, value in list(normalized.items()):
         if key.endswith("_id") and isinstance(value, str) and not value.strip():
             normalized[key] = None
-    if tool_name in _TXN_CREATE_TOOLS and not normalized.get("transaction_date"):
+    if tool_name in _TXN_CREATE_TOOLS:
+        from app.services import ai_intent_router
         from app.services.ai_local_answers import time_payload
-        normalized["transaction_date"] = time_payload()["date"]
+
+        # Date: always present, default today.
+        if not normalized.get("transaction_date"):
+            normalized["transaction_date"] = time_payload()["date"]
+        # Amount: parse Indonesian money phrases ("500 ribu", "Rp 100.000", "1.5 juta").
+        amt = normalized.get("amount")
+        if isinstance(amt, str):
+            parsed = ai_intent_router.parse_idr_amount(amt)
+            if parsed is not None:
+                normalized["amount"] = parsed
+        # Currency: default IDR.
+        if not str(normalized.get("currency") or "").strip():
+            normalized["currency"] = "IDR"
+        # Type: infer INCOME/EXPENSE from the description when the model omitted it.
+        if not str(normalized.get("type") or "").strip():
+            inferred = ai_intent_router._detect_type(str(normalized.get("description") or ""))
+            if inferred:
+                normalized["type"] = inferred
+        # Description: synthesize a meaningful label when empty.
+        if not str(normalized.get("description") or "").strip():
+            normalized["description"] = ai_intent_router._extract_description(
+                "", normalized.get("type")
+            )
     return normalized
 
 
@@ -1156,17 +1179,22 @@ def run_tool_call(db: Session, principal: Principal, name: str, args: dict, *, s
         return {"status": "executed", "tool": name, "result": result}
 
     # WRITE: pending approval by default; HIGH risk always needs approval.
+    # Finance creates ALWAYS become a pending proposal regardless of the workspace
+    # approval setting (3.9: money is never recorded without explicit approval).
     # Low-risk memory writes are intentionally direct so user preferences can be
     # learned without a noisy approval loop.
     needs_approval = False if _executes_without_pending_approval(spec) else (
-        ai_settings_service.approval_required(db, principal) or spec.risk == "HIGH"
+        name in _TXN_CREATE_TOOLS
+        or ai_settings_service.approval_required(db, principal)
+        or spec.risk == "HIGH"
     )
     if needs_approval:
+        normalized = normalize_tool_payload(name, dict(args or {}))
         proposal = AiToolProposal(
             workspace_id=principal.workspace_id,
             created_by=principal.user_id,
             tool_name=name,
-            tool_payload=normalize_tool_payload(name, dict(args or {})),
+            tool_payload=normalized,
             status="PENDING",
             risk_level=spec.risk,
             requires_confirmation=True,
@@ -1177,6 +1205,7 @@ def run_tool_call(db: Session, principal: Principal, name: str, args: dict, *, s
         return {
             "status": "pending_approval", "tool": name,
             "proposal_id": str(proposal.id), "risk": spec.risk,
+            "payload": normalized,
             "note": ("A pending action was created and is awaiting HUMAN APPROVAL. "
                      "It has NOT been executed — tell the user to approve it in the Pending actions panel."),
         }
@@ -1198,7 +1227,8 @@ def approve_proposal(db: Session, principal: Principal, proposal_id: uuid.UUID) 
     ))
     if not proposal:
         raise NotFoundError("Tool proposal not found.")
-    if proposal.status != "PENDING":
+    # Retryable while still open (a prior failure left it NEEDS_EDIT/FAILED, not terminal).
+    if proposal.status not in ("PENDING", "NEEDS_EDIT", "FAILED"):
         raise ValidationAppError(f"This proposal is already {proposal.status.lower()}.")
     spec = TOOLS.get(proposal.tool_name)
     if spec is None:
@@ -1207,14 +1237,18 @@ def approve_proposal(db: Session, principal: Principal, proposal_id: uuid.UUID) 
     try:
         result = _execute(db, principal, spec, dict(proposal.tool_payload or {}))
     except ToolError as exc:
+        # 3.9: a failed approval must NOT disappear — mark NEEDS_EDIT with the reason so
+        # both devices keep showing it, and the same id can be edited + approved again.
+        proposal.status = "NEEDS_EDIT"
+        proposal.error_message = str(exc)[:500]
+        db.flush()
         _audit_call(db, principal, proposal.tool_name, dict(proposal.tool_payload or {}),
                     "approve_failed", {"proposal_id": str(proposal.id), "error": str(exc)})
         db.commit()
-        # Proposal stays PENDING (status was not advanced), so the user can edit the
-        # highlighted field and approve again — nothing was created.
         raise ValidationAppError(f"Could not execute this action — {exc}. Fix the field and approve again.")
 
     proposal.status = "EXECUTED"
+    proposal.error_message = None
     proposal.executed_at = datetime.now(timezone.utc)
     db.flush()
     _audit_call(db, principal, proposal.tool_name, dict(proposal.tool_payload or {}),
@@ -1232,11 +1266,14 @@ def edit_proposal(db: Session, principal: Principal, proposal_id: uuid.UUID, too
     ))
     if not proposal:
         raise NotFoundError("Tool proposal not found.")
-    if proposal.status != "PENDING":
-        raise ValidationAppError("Only pending proposals can be edited.")
+    if proposal.status not in ("PENDING", "NEEDS_EDIT", "FAILED"):
+        raise ValidationAppError("Only open proposals can be edited.")
     if not isinstance(tool_payload, dict):
         raise ValidationAppError("tool_payload must be an object.")
     proposal.tool_payload = normalize_tool_payload(proposal.tool_name, tool_payload)
+    # Editing a failed/needs-edit proposal makes it ready to approve again.
+    proposal.status = "PENDING"
+    proposal.error_message = None
     db.flush()
     write_audit(db, action="UPDATE", entity_name="ai_tool_proposal",
                 workspace_id=principal.workspace_id, user_id=principal.user_id,
