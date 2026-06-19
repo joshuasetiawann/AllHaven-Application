@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     N8N_API_KEY: str = ""
     SUPABASE_URL: str = ""
     SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
     GOOGLE_CALENDAR_CLIENT_ID: str = ""
     GOOGLE_CALENDAR_CLIENT_SECRET: str = ""
     GOOGLE_CALENDAR_REDIRECT_URI: str = ""
