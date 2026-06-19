@@ -130,7 +130,12 @@ def build(
         "used_knowledge": False,
         "knowledge_sources": [],
         "response_language": response_language or "id",
-        "active_tools": ai_tools_registry.active_tool_names_for_section(key),
+        # Chips: hide get-time/date (shown only if actually called) so they don't clutter
+        # every message (3.9: "don't show get current time/date tools unless needed").
+        "active_tools": [
+            t for t in ai_tools_registry.active_tool_names_for_section(key)
+            if t not in ("get_current_date", "get_current_time")
+        ],
     }
 
     blocks.append("[AllHaven Context Packet]")
