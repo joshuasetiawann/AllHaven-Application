@@ -37,7 +37,7 @@ export function ConnectionModeSwitcher() {
   const [mode, setMode] = useState<ConnectionMode>("private");
   const [status, setStatus] = useState<LiveStatus>("checking");
   const [activeUrl, setActiveUrl] = useState("");
-  const [source, setSource] = useState<BackendUrlSource>("fallback");
+  const [source, setSource] = useState<BackendUrlSource>("none");
   // Inline URL editor — which mode's URL we're editing, and its current text.
   const [editMode, setEditMode] = useState<ConnectionMode | null>(null);
   const [url, setUrl] = useState("");
