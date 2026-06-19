@@ -22,9 +22,11 @@ import {
   type TimePeriod,
   type ViewMode,
   addDays,
+  baseOf,
+  countOn,
   dateKey,
-  eventDayKey,
-  eventStatus,
+  expandForDay,
+  isUpcoming,
   formatLongDay,
   periodFromRoutine,
   startOfLocalDay,
@@ -75,11 +77,11 @@ export default function RoutinesPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const byView =
+    const byView: RoutineEvent[] =
       view === "selected"
-        ? sorted.filter((routine) => eventDayKey(routine) === selectedDate)
+        ? expandForDay(sorted, selectedDate)
         : view === "upcoming"
-          ? sorted.filter((routine) => eventStatus(routine) !== "past")
+          ? sorted.filter(isUpcoming)
           : sorted;
     if (!q) return byView;
     return byView.filter((routine) =>
@@ -97,11 +99,8 @@ export default function RoutinesPage() {
     return map;
   }, [filtered]);
 
-  const todayCount = useMemo(
-    () => sorted.filter((routine) => eventDayKey(routine) === todayKey).length,
-    [sorted, todayKey],
-  );
-  const upcomingCount = useMemo(() => sorted.filter((routine) => eventStatus(routine) !== "past").length, [sorted]);
+  const todayCount = useMemo(() => countOn(sorted, todayKey), [sorted, todayKey]);
+  const upcomingCount = useMemo(() => sorted.filter(isUpcoming).length, [sorted]);
   const repeatCount = useMemo(
     () => sorted.filter((routine) => (routine.repeat_rule ?? "once") !== "once").length,
     [sorted],
@@ -114,8 +113,10 @@ export default function RoutinesPage() {
   };
 
   const openEdit = (routine: RoutineEvent) => {
-    setEditing(routine);
-    setFormPeriod(periodFromRoutine(routine));
+    // Recurring instances are display-only clones; edit the underlying routine.
+    const base = baseOf(routine);
+    setEditing(base);
+    setFormPeriod(periodFromRoutine(base));
     setFormOpen(true);
   };
 
@@ -125,16 +126,18 @@ export default function RoutinesPage() {
   };
 
   const remove = async (routine: RoutineEvent) => {
+    // Deleting any occurrence removes the whole (possibly recurring) routine.
+    const base = baseOf(routine);
     const ok = await dialog.confirm({
       title: "Delete routine?",
-      message: `Remove "${routine.title}" from your local schedule?`,
+      message: `Remove "${base.title}" from your local schedule?`,
       confirmLabel: "Delete",
       tone: "danger",
     });
     if (!ok) return;
-    setRoutines((prev) => prev?.filter((item) => item.id !== routine.id) ?? prev);
+    setRoutines((prev) => prev?.filter((item) => item.id !== base.id) ?? prev);
     try {
-      await routinesApi.remove(routine.id);
+      await routinesApi.remove(base.id);
     } catch (err) {
       setError(err instanceof ApiException ? err.message : "Failed to delete routine.");
       void load();
@@ -195,7 +198,7 @@ export default function RoutinesPage() {
             days={dayStrip}
             selectedDate={selectedDate}
             isActive={view === "selected"}
-            countFor={(key) => sorted.filter((routine) => eventDayKey(routine) === key).length}
+            countFor={(key) => countOn(sorted, key)}
             onSelect={selectDate}
             onShift={shiftSelectedDate}
           />

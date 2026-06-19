@@ -339,7 +339,7 @@ export default function FinancePage() {
         <Loading />
       ) : (
         <div className="animate-fade-in space-y-5">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
             <Card padding="md" hover>
               <div className="flex items-center justify-between gap-2">
                 <p className="label-mono">Income</p>
@@ -347,7 +347,7 @@ export default function FinancePage() {
                   <ArrowDownLeft size={14} />
                 </span>
               </div>
-              <p className="mt-2 text-2xl font-semibold tabular-nums text-success">
+              <p className="mt-2 text-xl font-semibold tabular-nums text-success sm:text-2xl">
                 {formatCurrency(report.total_income, report.currency)}
               </p>
             </Card>
@@ -358,11 +358,11 @@ export default function FinancePage() {
                   <ArrowUpRight size={14} />
                 </span>
               </div>
-              <p className="mt-2 text-2xl font-semibold tabular-nums text-danger">
+              <p className="mt-2 text-xl font-semibold tabular-nums text-danger sm:text-2xl">
                 {formatCurrency(report.total_expense, report.currency)}
               </p>
             </Card>
-            <Card gradient padding="md" hover className="border-primary/30">
+            <Card gradient padding="md" hover className="col-span-2 border-primary/30 sm:col-span-1">
               <div className="flex items-center justify-between gap-2">
                 <p className="label-mono">Balance</p>
                 <span className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
@@ -370,7 +370,7 @@ export default function FinancePage() {
                 </span>
               </div>
               <p className={cn(
-                "mt-2 text-2xl font-semibold tabular-nums",
+                "mt-2 text-xl font-semibold tabular-nums sm:text-2xl",
                 report.balance < 0 ? "text-danger" : "text-content",
               )}>
                 {formatCurrency(report.balance, report.currency)}
