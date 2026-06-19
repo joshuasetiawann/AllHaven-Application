@@ -54,6 +54,29 @@ class MemoryCandidate:
     confidence: float   # 0.0–1.0
     sensitivity: str    # "LOW" | "MEDIUM" | "HIGH"
     snippet: str        # the raw phrase that triggered this
+    explicit: bool = False  # user explicitly said "ingat/remember" → may auto-save
+
+
+# Pure greetings / acks should never become memories.
+_GREETING_RE = re.compile(
+    r"^\s*(halo|hai|hi|hello|hey|p|pagi|siang|sore|malam|selamat\s+\w+|thanks?|thank\s+you|"
+    r"makasih|terima\s+kasih|ok(?:e|ay|sip)?|sip|mantap|noted|test|tes|coba)\b[\s!.?]*$",
+    re.IGNORECASE,
+)
+
+
+def _should_skip_memory(user_msg: str) -> bool:
+    """3.9 gate: never extract memory from finance/task/note commands, greetings, or
+    trivially short messages — those belong to their own systems, not memory."""
+    text = (user_msg or "").strip()
+    if len(text) < 6:
+        return True
+    if _GREETING_RE.match(text):
+        return True
+    from app.services import ai_intent_router
+
+    intent = ai_intent_router.classify(text).intent
+    return intent in (ai_intent_router.FINANCE, ai_intent_router.TASK, ai_intent_router.NOTE)
 
 
 # --------------------------------------------------------------------------- #
@@ -180,6 +203,9 @@ def rule_based_extract(text: str) -> List[MemoryCandidate]:
                 confidence=confidence,
                 sensitivity=sensitivity,
                 snippet=m.group(0)[:200],
+                # Only the explicit "ingat/simpan/catat/remember/save/note that ..."
+                # rules may auto-save; everything else must go to review.
+                explicit=(title == "User-provided memory"),
             )
             key = f"{category}:{title}"
             if key not in seen_titles:
@@ -206,9 +232,15 @@ def _auto_save_or_suggest(
         db, principal
     )
 
-    # Very low confidence → suggest, never auto-save (regardless of setting).
-    # Sensitivity-based approval only applies when require_approval_sensitive is ON.
-    needs_approval = candidate.confidence <= 0.55 or (
+    # 3.9 policy: only auto-save EXPLICIT "ingat/remember" facts or HIGH-confidence
+    # (>=0.85) stable facts (names, school, role, tech stack, durable preferences).
+    # The noisy mid-confidence rules ("saya suka X" 0.82, "saya mau X" 0.74) and all
+    # transient Goals/wants are demoted to Memory Review instead of silently saving.
+    # Sensitive items still require approval when that setting is on.
+    may_auto_save = candidate.explicit or (
+        candidate.confidence >= 0.85 and candidate.category != "Goals"
+    )
+    needs_approval = (not may_auto_save) or (
         require_approval_sensitive and candidate.sensitivity in ("MEDIUM", "HIGH")
     )
     if needs_approval:
@@ -288,11 +320,14 @@ def _llm_extract_candidates(
         return []
 
     prompt = (
-        "You are a memory extractor. Analyze this conversation turn and identify facts worth remembering "
-        "long-term about the user. Return a JSON array of objects with keys: "
-        "category (Profile|Preferences|Projects|Decisions|Writing style|Work context|UI/UX preferences|Technical|Technical preferences|Tasks context|Finance context|Goals|Other), "
+        "You are a memory extractor. Identify ONLY stable, long-term facts or preferences worth "
+        "remembering about the user. Return a JSON array of objects with keys: "
+        "category (Profile|Preferences|Projects|Decisions|Writing style|Work context|UI/UX preferences|Technical|Technical preferences|Tasks context|Goals|Other), "
         "title (short, max 50 chars), content (complete sentence), confidence (0.0-1.0), sensitivity (LOW|MEDIUM|HIGH). "
-        "Only include high-signal facts. Return [] if nothing important. Do NOT include secrets, passwords, or API keys.\n\n"
+        "STRICT EXCLUSIONS — return [] rather than include any of these: one-time income/expense or ANY finance "
+        "transaction or amount; tasks, to-dos, or notes; greetings or small talk; transient wants/plans for today; "
+        "anything the user did not state as a durable fact. Only stable preferences, identity, projects, and "
+        "long-term context qualify. Do NOT include secrets, passwords, or API keys.\n\n"
         f"User: {user_msg[:800]}\nAssistant: {assistant_msg[:800]}"
     )
     try:
@@ -314,6 +349,9 @@ def _llm_extract_candidates(
             if not isinstance(item, dict):
                 continue
             cat = str(item.get("category", "Profile"))
+            # 3.9: finance/transaction context is never a memory — drop it outright.
+            if cat == "Finance context":
+                continue
             # Validate category: bogus or >50-char value would break String(50) column.
             if cat not in MEMORY_CATEGORIES:
                 cat = "Profile"
@@ -356,6 +394,11 @@ def schedule_extraction(
 
     try:
         if not ai_settings_service.is_memory_auto_learning_enabled(db, principal):
+            return 0
+
+        # 3.9 gate: finance/task/note commands, greetings, and trivially short
+        # messages never become memory — they are owned by their own systems.
+        if _should_skip_memory(user_msg):
             return 0
 
         candidates = rule_based_extract(user_msg)
