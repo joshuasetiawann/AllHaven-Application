@@ -9,8 +9,8 @@
 Every version is frozen in its own self-contained `AllHaven X.Y` folder — a full,
 runnable snapshot. The latest version also lives on the [`main`](../../tree/main) branch.
 
-![Latest](https://img.shields.io/badge/latest-AllHaven%202.9%20·%20v0.17.0-18E0D6?style=flat-square)
-&nbsp;![Releases](https://img.shields.io/badge/releases-29-2563EB?style=flat-square)
+![Latest](https://img.shields.io/badge/latest-AllHaven%203.0%20·%20v3.0.0-18E0D6?style=flat-square)
+&nbsp;![Releases](https://img.shields.io/badge/releases-30-2563EB?style=flat-square)
 &nbsp;![© 2026 Joshua Setiawan](https://img.shields.io/badge/©%202026-Joshua%20Setiawan-555?style=flat-square)
 
 </div>
@@ -60,14 +60,15 @@ runnable snapshot. The latest version also lives on the [`main`](../../tree/main
 | **AllHaven 2.6** | 2026-06-11 | **AllHaven** | `v0.14.0` | **Terminal-only install** — install & start run **entirely in the terminal** again (live Docker/`pip`/`npm` progress); the browser wizard is now **opt-in** (`HAVEN_SETUP_WEB=1`), and the Docker check is faster (4s). The desktop shortcut starts services & opens Haven with no terminal. |
 | **AllHaven 2.7** | 2026-06-12 | **AllHaven** | `v0.15.0` | **Premium UI polish + persistent model selection + per-section chat memory** — AI Chat now remembers your **model/agents, mode & thinking** across navigation/refresh (with availability fallback + clear warnings); each module **and each chat project/group** keeps its own **local, secret-redacted memory** the AI uses for relevance; **smooth micro-animations** that honor `prefers-reduced-motion`; polished Finance/Settings; and a fix for the session-check flash on every navigation. A frontend/UX release. |
 | **AllHaven 2.8** | 2026-06-12 | **AllHaven** | `v0.16.0` | **Persistent AI memory** — auto-learns user context from chat (secret-safe, approval flow), injects it into all four chat modes, adds memory tools with human approval, a memory management page, and optional Supabase sync (migration `0007`). |
-| **⭐ AllHaven 2.9** | 2026-06-13 | **AllHaven** | `v0.17.0` | **Current.** **AI Workspace + Knowledge + finance reports + launch polish** — section-aware context packets, AI Knowledge document ingestion/search/retrieval with metadata-only storage for unsupported files, dedicated tool-call logging, 72 allowlisted tools, configurable Drive upload limits, monthly/weekly finance reports with archived/out-of-period records, local date/time answers, direct low-risk memory saves, a dedicated Approvals page, app-wide toast notifications, responsive UI across desktop/tablet/mobile, cleaner approval notifications, fresh-clone install guardrails, and a more direct conversational AI for coding and schedule management (migration `0008`). |
+| **AllHaven 2.9** | 2026-06-13 | **AllHaven** | `v0.17.0` | **AI Workspace + Knowledge + finance reports + launch polish** — section-aware context packets, AI Knowledge document ingestion/search/retrieval with metadata-only storage for unsupported files, dedicated tool-call logging, 72 allowlisted tools, configurable Drive upload limits, monthly/weekly finance reports with archived/out-of-period records, local date/time answers, direct low-risk memory saves, a dedicated Approvals page, app-wide toast notifications, responsive UI across desktop/tablet/mobile, cleaner approval notifications, fresh-clone install guardrails, and a more direct conversational AI for coding and schedule management (migration `0008`). |
+| **⭐ AllHaven 3.0** | 2026-06-13 | **AllHaven** | `v3.0.0` | **Current.** **Launch-ready AI workspace** — app-wide layout polish, cleaner sidebar/topbar/dashboard, responsive shell refinements, AI Knowledge context available to every chat mode/model, language controls for Indonesian/English/Traditional Mandarin, dark/light theme and accent color preferences, in-app decision popups replacing browser `localhost says` dialogs, and language-aware local date/time answers. |
 
 <sub>⭐ = current release. Dates reflect each version's build/release during the project's initial development sprint.</sub>
 
 ## 🌱 How the two branches relate
 
 Each `AllHaven X.Y` folder is a complete, standalone snapshot you can open and run on
-its own; the latest (`AllHaven 2.9`) keeps its own `CHANGELOG.md`, `VERSION`, and
+its own; the latest (`AllHaven 3.0`) keeps its own `CHANGELOG.md`, `VERSION`, and
 `docs/releases/` inside it. New releases add the next folder here, while
 [`main`](../../tree/main) is fast-forwarded to the same version.
 
