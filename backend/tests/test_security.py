@@ -10,6 +10,11 @@ def test_security_headers_present(auth_client):
     assert "referrer-policy" in r.headers
 
 
+def test_drive_config_requires_auth(client):
+    r = client.get(f"{API}/drive/config")
+    assert r.status_code == 401
+
+
 def test_drive_download_neutralizes_active_types(auth_client):
     # Upload an HTML file (an inline-XSS vector if served as text/html).
     up = auth_client.post(
