@@ -1,0 +1,11 @@
+{
+  "name": "allhaven",
+  "version": "0.15.0",
+  "private": true,
+  "description": "AllHaven Command Center — run `npm run setup` to install & start from the terminal.",
+  "scripts": {
+    "setup": "node installer/run.js setup",
+    "start": "node installer/run.js start",
+    "setup:web": "node installer/run.js web"
+  }
+}

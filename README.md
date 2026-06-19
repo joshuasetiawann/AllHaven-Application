@@ -9,8 +9,8 @@
 Every version is frozen in its own self-contained `AllHaven X.Y` folder — a full,
 runnable snapshot. The latest version also lives on the [`main`](../../tree/main) branch.
 
-![Latest](https://img.shields.io/badge/latest-AllHaven%202.7%20·%20v0.15.0-18E0D6?style=flat-square)
-&nbsp;![Releases](https://img.shields.io/badge/releases-27-2563EB?style=flat-square)
+![Latest](https://img.shields.io/badge/latest-AllHaven%202.8%20·%20v0.16.0-18E0D6?style=flat-square)
+&nbsp;![Releases](https://img.shields.io/badge/releases-28-2563EB?style=flat-square)
 &nbsp;![© 2026 Joshua Setiawan](https://img.shields.io/badge/©%202026-Joshua%20Setiawan-555?style=flat-square)
 
 </div>
@@ -58,14 +58,15 @@ runnable snapshot. The latest version also lives on the [`main`](../../tree/main
 | **AllHaven 2.4** | 2026-06-11 | **AllHaven** | `v0.12.0` | **App-wide AI tools with human approval** — a safe, allowlisted **Tool Registry** (35 tools) connects AI Chat to every module: reads execute, **writes await your Approve/Edit/Reject** (HIGH-risk always). Plus **6 OpenRouter agents**, **2 model slots per provider**, **up to 7 agents** with distinct roles, a **debate-flow visibility toggle**, output-quality polish, and Settings → AI Tools / AI Chat. |
 | **AllHaven 2.5** | 2026-06-11 | **AllHaven** | `v0.13.0` | **GUI-first install** (superseded by 2.6) — the terminal bootstrapped a **browser Setup Wizard** for OS/Docker checks, ports, `.env`, live progress, health, shortcut, open app. New entry points `./install.sh` and `npm run setup`. |
 | **AllHaven 2.6** | 2026-06-11 | **AllHaven** | `v0.14.0` | **Terminal-only install** — install & start run **entirely in the terminal** again (live Docker/`pip`/`npm` progress); the browser wizard is now **opt-in** (`HAVEN_SETUP_WEB=1`), and the Docker check is faster (4s). The desktop shortcut starts services & opens Haven with no terminal. |
-| **⭐ AllHaven 2.7** | 2026-06-12 | **AllHaven** | `v0.15.0` | **Current.** **Premium UI polish + persistent model selection + per-section chat memory** — AI Chat now remembers your **model/agents, mode & thinking** across navigation/refresh (with availability fallback + clear warnings); each module **and each chat project/group** keeps its own **local, secret-redacted memory** the AI uses for relevance; **smooth micro-animations** that honor `prefers-reduced-motion`; polished Finance/Settings; and a fix for the session-check flash on every navigation. A frontend/UX release. |
+| **AllHaven 2.7** | 2026-06-12 | **AllHaven** | `v0.15.0` | **Premium UI polish + persistent model selection + per-section chat memory** — AI Chat now remembers your **model/agents, mode & thinking** across navigation/refresh (with availability fallback + clear warnings); each module **and each chat project/group** keeps its own **local, secret-redacted memory** the AI uses for relevance; **smooth micro-animations** that honor `prefers-reduced-motion`; polished Finance/Settings; and a fix for the session-check flash on every navigation. A frontend/UX release. |
+| **⭐ AllHaven 2.8** | 2026-06-12 | **AllHaven** | `v0.16.0` | **Current.** **Persistent AI memory** — auto-learns user context from chat (secret-safe, approval flow), injects it into all four chat modes, adds memory tools with human approval, a memory management page, and optional Supabase sync (migration `0007`). |
 
 <sub>⭐ = current release. Dates reflect each version's build/release during the project's initial development sprint.</sub>
 
 ## 🌱 How the two branches relate
 
 Each `AllHaven X.Y` folder is a complete, standalone snapshot you can open and run on
-its own; the latest (`AllHaven 2.7`) keeps its own `CHANGELOG.md`, `VERSION`, and
+its own; the latest (`AllHaven 2.8`) keeps its own `CHANGELOG.md`, `VERSION`, and
 `docs/releases/` inside it. New releases add the next folder here, while
 [`main`](../../tree/main) is fast-forwarded to the same version.
 
