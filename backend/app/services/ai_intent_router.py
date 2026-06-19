@@ -7,13 +7,18 @@ For finance, it parses the Indonesian money amount and infers INCOME vs EXPENSE 
 chat layer can deterministically create a finance proposal instead of leaving routing to
 the LLM (which sometimes answered "completed" or mis-stored the amount as a memory).
 
+Finance routing requires a QUALIFIED money amount — a currency marker (Rp) or a magnitude
+unit (ribu/rb/juta/jt/miliar/k) — OR a bare large number together with an income/expense
+verb. Bare numbers alone (years, phone numbers, OTPs, quantities like "3 buku") do NOT
+trigger finance.
+
 Pure functions, no I/O — safe to call before the provider plan is resolved.
 """
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 FINANCE = "finance_transaction"
 TASK = "task_command"
@@ -34,11 +39,17 @@ _EXPENSE_RE = re.compile(
     r"keluar\s+(?:uang|duit)|biaya|ongkos|tagihan|top\s*up|bayarin)\b",
     re.IGNORECASE,
 )
-# A money signal: an amount with a unit/currency, so "dapat 500 ribu" still routes finance.
-_MONEY_AMOUNT_RE = re.compile(
-    r"(?:rp\.?\s*)?\d[\d.,]*\s*(?:ribu|rb|juta|jt|miliar|milyar|m|k)\b"
-    r"|rp\.?\s*\d[\d.,]*"
-    r"|\b\d{4,}\b",
+
+# A QUALIFIED money token: currency-marked, OR a magnitude unit, OR an attached "k".
+# Single bare letters m/b are intentionally NOT units (they collide with Indonesian
+# words like "mangga"/"buku"). Units are anchored with (?![a-z]) so they cannot consume
+# the first letter of the next word.
+_UNIT = r"(?:ribu|rb|juta|jt|miliar|milyar)"
+_QUALIFIED_MONEY_RE = re.compile(
+    r"rp\.?\s*\d[\d.,]*\s*" + _UNIT + r"(?![a-z])"   # Rp 1,5 juta
+    r"|rp\.?\s*\d[\d.,]*"                            # Rp 100.000
+    r"|\d[\d.,]*\s*" + _UNIT + r"(?![a-z])"          # 500 ribu / 50rb
+    r"|\d[\d.,]*k(?![a-z\d])",                       # 50k (attached k)
     re.IGNORECASE,
 )
 
@@ -63,74 +74,95 @@ _NOTE_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Multiplier suffixes for Indonesian money.
-_MULTIPLIERS = (
-    (("miliar", "milyar", "billion", "b"), 1_000_000_000),
-    (("juta", "jt", "million", "m"), 1_000_000),
-    (("ribu", "rb", "k"), 1_000),
-)
-_AMOUNT_RE = re.compile(
-    r"(\d[\d.,]*)\s*(miliar|milyar|juta|jt|ribu|rb|k|m|b)?", re.IGNORECASE
-)
+_UNIT_MULT = {
+    "ribu": 1_000, "rb": 1_000, "k": 1_000,
+    "juta": 1_000_000, "jt": 1_000_000,
+    "miliar": 1_000_000_000, "milyar": 1_000_000_000,
+}
+# Number + optional unit, used to extract the value of one already-qualified token.
+_NUM_UNIT_RE = re.compile(r"(\d[\d.,]*)\s*(ribu|rb|juta|jt|miliar|milyar|k)?", re.IGNORECASE)
+
+
+def _to_number(num_raw: str, has_multiplier: bool) -> Optional[float]:
+    """Resolve a numeric string, disambiguating thousands-grouping from a decimal.
+
+    "2.500"/"1,000,000" → grouping (2500 / 1000000). "1.5"/"1,5" with a multiplier
+    → decimal (1.5). "100.000" (currency, no multiplier) → grouping (100000).
+    """
+    s = num_raw.strip()
+    if not s:
+        return None
+    # Pure thousands grouping: 1-3 digits then repeated groups of exactly 3.
+    if re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+", s):
+        return float(re.sub(r"[.,]", "", s))
+    try:
+        if has_multiplier:
+            # Small quantity with a decimal separator (1.5 / 1,5).
+            return float(s.replace(",", "."))
+        # Plain integer; strip any stray separators.
+        return float(re.sub(r"[.,]", "", s))
+    except ValueError:
+        return None
 
 
 def parse_idr_amount(raw) -> Optional[int]:
-    """Parse an Indonesian money phrase into an integer rupiah value.
+    """Parse an Indonesian money phrase/value into an integer rupiah amount.
 
-    Handles: "500 ribu"->500000, "50rb"->50000, "1 juta"->1000000,
-    "1.5 juta"/"1,5 juta"->1500000, "Rp 100.000"->100000, "100000"->100000.
-    Returns None when no number is present.
+    "500 ribu"->500000, "50rb"->50000, "1 juta"->1000000, "1.5 juta"/"1,5 juta"->1500000,
+    "Rp 100.000"->100000, "2.500 ribu"->2500000, "100000"->100000. Returns None when no
+    number is present. Lenient (accepts bare numbers) — used to normalize an amount FIELD.
     """
-    if raw is None:
-        return None
-    if isinstance(raw, bool):
+    if raw is None or isinstance(raw, bool):
         return None
     if isinstance(raw, (int, float)):
         return int(round(float(raw)))
-    s = str(raw).strip().lower()
+    s = re.sub(r"(rp\.?|idr)", " ", str(raw).strip().lower())
     if not s:
         return None
-    s = re.sub(r"(rp\.?|idr)", " ", s)  # strip currency markers
-    m = _AMOUNT_RE.search(s)
+    m = _NUM_UNIT_RE.search(s)
     if not m or not m.group(1):
         return None
-    num_raw, suffix = m.group(1), (m.group(2) or "").lower()
-    mult = 1
-    for names, value in _MULTIPLIERS:
-        if suffix in names:
-            mult = value
-            break
-    try:
-        if mult > 1:
-            # With a multiplier the number is a small quantity ("1.5", "1,5") where
-            # '.'/',' is the DECIMAL separator.
-            n = num_raw.replace(" ", "").replace(",", ".")
-            if n.count(".") > 1:  # e.g. stray grouping → keep only the last dot as decimal
-                parts = n.split(".")
-                n = "".join(parts[:-1]) + "." + parts[-1]
-            value = float(n)
-        else:
-            # No multiplier: '.'/',' are THOUSANDS separators ("100.000" -> 100000).
-            digits = re.sub(r"[.,\s]", "", num_raw)
-            value = float(digits) if digits else 0.0
-    except ValueError:
+    suffix = (m.group(2) or "").lower()
+    mult = _UNIT_MULT.get(suffix, 1)
+    value = _to_number(m.group(1), mult > 1)
+    if value is None:
         return None
     result = int(round(value * mult))
     return result if result > 0 else None
 
 
+def _qualified_amounts(text: str) -> List[int]:
+    """All distinct QUALIFIED money amounts (currency/unit-marked) in the message."""
+    out: List[int] = []
+    for m in _QUALIFIED_MONEY_RE.finditer(text):
+        val = parse_idr_amount(m.group(0))
+        if val is not None:
+            out.append(val)
+    return out
+
+
+def _bare_money_with_verb(text: str, has_verb: bool) -> Optional[int]:
+    """A bare number counts as money ONLY with an income/expense verb, when it's >=1000
+    and not a plausible 4-digit year (so phone numbers/OTPs/years don't become amounts)."""
+    if not has_verb:
+        return None
+    for m in re.finditer(r"\b(\d{3,})\b", text):
+        digits = m.group(1)
+        n = int(digits)
+        if n >= 1000 and not (len(digits) == 4 and 1900 <= n <= 2099):
+            return n
+    return None
+
+
 def _detect_type(text: str) -> Optional[str]:
-    """INCOME / EXPENSE / None from keyword presence (income wins ties for 'dapat ...')."""
-    has_income = bool(_INCOME_RE.search(text))
-    has_expense = bool(_EXPENSE_RE.search(text))
-    if has_income and not has_expense:
+    """INCOME / EXPENSE / None from keyword presence (earliest keyword wins ties)."""
+    im = _INCOME_RE.search(text)
+    em = _EXPENSE_RE.search(text)
+    if im and not em:
         return "INCOME"
-    if has_expense and not has_income:
+    if em and not im:
         return "EXPENSE"
-    if has_income and has_expense:
-        # Pick whichever keyword appears first in the sentence.
-        im = _INCOME_RE.search(text)
-        em = _EXPENSE_RE.search(text)
+    if im and em:
         return "INCOME" if im.start() <= em.start() else "EXPENSE"
     return None
 
@@ -144,7 +176,6 @@ _DESC_STOP = re.compile(
 
 def _extract_description(text: str, txn_type: Optional[str]) -> str:
     """Best-effort meaningful label, e.g. 'Project', 'Makan', else type-based default."""
-    # Word right after an income/expense keyword, before the amount.
     after = re.search(
         r"\b(?:pendapatan|pemasukan|pengeluaran|expense|belanja|jajan|bayar|beli|"
         r"dapat|gaji|untuk|buat)\s+([a-zA-Z][a-zA-Z\s]{1,40}?)(?=\s*(?:rp|\d|sebesar|senilai|$))",
@@ -152,8 +183,7 @@ def _extract_description(text: str, txn_type: Optional[str]) -> str:
         re.IGNORECASE,
     )
     if after:
-        phrase = _DESC_STOP.sub(" ", after.group(1)).strip()
-        phrase = re.sub(r"\s+", " ", phrase).strip(" .,-")
+        phrase = re.sub(r"\s+", " ", _DESC_STOP.sub(" ", after.group(1))).strip(" .,-")
         if len(phrase) >= 2:
             return phrase[:60].title()
     if "project" in text.lower() or "proyek" in text.lower():
@@ -168,12 +198,11 @@ def _extract_description(text: str, txn_type: Optional[str]) -> str:
 @dataclass
 class IntentResult:
     intent: str
-    # finance slots (only when intent == FINANCE)
     txn_type: Optional[str] = None      # "INCOME" | "EXPENSE" | None (unclear)
     amount: Optional[int] = None        # rupiah integer | None (unclear)
     currency: str = "IDR"
     description: str = ""
-    needs_clarification: bool = False   # finance but amount/type unclear
+    needs_clarification: bool = False   # finance but amount/type/count unclear
 
     @property
     def is_finance(self) -> bool:
@@ -181,50 +210,40 @@ class IntentResult:
 
 
 def classify(message: str) -> IntentResult:
-    """Classify a single user message. Finance has top priority on money signals."""
+    """Classify a single user message. Finance has top priority on a qualified money signal."""
     text = (message or "").strip()
     if not text:
         return IntentResult(GENERAL)
 
-    # 1) Explicit remember beats everything except a clear money transaction.
     explicit_remember = bool(_EXPLICIT_REMEMBER_RE.search(text))
-
-    # 2) Finance: an income/expense verb OR a money amount present.
     has_income = bool(_INCOME_RE.search(text))
     has_expense = bool(_EXPENSE_RE.search(text))
-    has_money_amount = bool(_MONEY_AMOUNT_RE.search(text))
-    txn_type = _detect_type(text)
-    amount = parse_idr_amount(text)
 
-    money_intent = (has_income or has_expense or (has_money_amount and amount)) and amount is not None
-    # A bare amount with no verb and no remember intent still counts as finance only
-    # when there is a real money amount (avoid hijacking "umur saya 25").
-    if money_intent and not explicit_remember:
-        # Infer a type if keywords were absent: a "receive" verb → INCOME else EXPENSE.
+    amounts = _qualified_amounts(text)
+    bare = _bare_money_with_verb(text, has_income or has_expense) if not amounts else None
+    amount = amounts[0] if amounts else bare
+
+    # Finance only on a real money amount, and never when the user explicitly said "remember".
+    if amount is not None and not explicit_remember:
+        txn_type = _detect_type(text)
         if txn_type is None:
-            if has_income:
-                txn_type = "INCOME"
-            elif has_expense:
-                txn_type = "EXPENSE"
+            txn_type = "INCOME" if has_income else ("EXPENSE" if has_expense else None)
+        multiple = len(set(amounts)) > 1
         return IntentResult(
             FINANCE,
             txn_type=txn_type,
             amount=amount,
             currency="IDR",
             description=_extract_description(text, txn_type),
-            needs_clarification=(txn_type is None or amount is None),
+            needs_clarification=(txn_type is None or multiple),
         )
 
-    # 3) Task / note commands.
     if _TASK_RE.search(text):
         return IntentResult(TASK)
     if _NOTE_RE.search(text):
         return IntentResult(NOTE)
-
-    # 4) Explicit memory request.
     if explicit_remember:
         return IntentResult(MEMORY)
-
     return IntentResult(GENERAL)
 
 

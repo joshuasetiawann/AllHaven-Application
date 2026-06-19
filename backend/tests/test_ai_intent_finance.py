@@ -59,6 +59,37 @@ def test_plain_chat_is_general():
     assert router.classify("umur saya 25 tahun").intent == router.GENERAL
 
 
+@pytest.mark.parametrize("raw,expected", [
+    ("2.500 ribu", 2_500_000),   # grouping dot before a multiplier (was 2500)
+    ("10.000 ribu", 10_000_000),
+    ("50k", 50_000),
+])
+def test_parse_grouping_and_attached_k(raw, expected):
+    assert router.parse_idr_amount(raw) == expected
+
+
+@pytest.mark.parametrize("msg", [
+    "beli 3 buku",          # 'b' of buku must NOT become a billion multiplier
+    "beli 5 mangga",
+    "tahun 2024",           # a year is not money
+    "nomor saya 081234567890",  # phone number is not money
+    "pin 123456",
+    "lari 5 km",
+])
+def test_non_money_messages_are_not_finance(msg):
+    assert router.classify(msg).intent != router.FINANCE
+
+
+def test_bare_amount_with_verb_is_finance():
+    res = router.classify("gaji 5000000")
+    assert res.intent == router.FINANCE and res.txn_type == "INCOME" and res.amount == 5_000_000
+
+
+def test_multiple_amounts_request_clarification():
+    res = router.classify("gaji 5jt sama bonus 1jt")
+    assert res.intent == router.FINANCE and res.needs_clarification is True
+
+
 # ------------------------- normalize finance payload ----------------------- #
 
 def test_normalize_finance_parses_amount_and_nulls_category():

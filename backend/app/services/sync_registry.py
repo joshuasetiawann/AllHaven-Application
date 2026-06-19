@@ -87,7 +87,8 @@ SYNCED_TABLES: list[SyncSpec] = [
     _spec(AiMultiAgentRun),
     _spec(AiAgentResponse, watermark="created_at", append_only=True),
     _spec(AiMemory),
-    _spec(AiMemorySuggestion, watermark="created_at", append_only=True),
+    # Two-way LWW so accept/reject of a memory suggestion converges across devices.
+    _spec(AiMemorySuggestion),
     _spec(AiConversationSummary),
     _spec(AiKnowledgeDocument),
     _spec(AiKnowledgeChunk, watermark="created_at", append_only=True),
