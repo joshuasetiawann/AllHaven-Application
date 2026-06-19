@@ -275,3 +275,56 @@ def test_chat_completes_even_when_extraction_flush_fails(auth_client, db_session
         )
     )
     assert msg is not None, "Assistant message was not persisted when extraction flush failed"
+
+
+# ---------------------------------------------------------------------------
+# Failed orchestrator result must not feed content to the memory extractor
+# ---------------------------------------------------------------------------
+
+
+def test_failed_orchestrator_passes_empty_assistant_msg_to_extractor(
+    auth_client, db_session, monkeypatch
+):
+    """When result["ok"] is False (provider unconfigured/blocked), extract_and_commit
+    must receive assistant_msg='' so error-explainer text is not fed to the extractor.
+    """
+    principal = _principal(auth_client)
+
+    captured = {}
+
+    from app.services import memory_extraction_service as _mes
+
+    original_extract = _mes.extract_and_commit
+
+    def _spy(db, principal, *, user_msg, assistant_msg, session_id):
+        captured["user_msg"] = user_msg
+        captured["assistant_msg"] = assistant_msg
+        # Still call through so the rest of the pipeline is not disrupted.
+        return original_extract(
+            db, principal,
+            user_msg=user_msg,
+            assistant_msg=assistant_msg,
+            session_id=session_id,
+        )
+
+    monkeypatch.setattr(_mes, "extract_and_commit", _spy)
+
+    test_message = "Hello, what is my name?"
+
+    # Ollama is not configured in the test environment → result["ok"] is False.
+    result = chat(
+        db_session,
+        principal,
+        message=test_message,
+        provider_id="ollama",
+    )
+
+    assert result["ai_configured"] is False, (
+        "Expected ollama to be unconfigured in the test environment"
+    )
+    assert captured.get("user_msg") == test_message, (
+        f"Expected user_msg='{test_message}', got: {captured.get('user_msg')!r}"
+    )
+    assert captured.get("assistant_msg") == "", (
+        f"Expected assistant_msg='' for failed orchestrator, got: {captured.get('assistant_msg')!r}"
+    )
