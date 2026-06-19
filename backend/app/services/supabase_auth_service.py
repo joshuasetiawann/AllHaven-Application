@@ -90,12 +90,60 @@ def create_user(
         sb_id = body.get("id")
         return str(sb_id) if sb_id else None
     except urllib.error.HTTPError as exc:
-        # 422 user_already_exists is non-fatal (idempotent re-provision).
+        # User already exists (409/422): locate it and reset its password so login
+        # works, then return its id so the caller links the profile (idempotent).
+        # Without this, a pre-existing auth user (e.g. created in the dashboard)
+        # leaves profiles.supabase_user_id unset and mobile login can't resolve it.
+        if exc.code in (409, 422):
+            uid = _find_user_id_by_email(url, service_role_key, email)
+            if uid:
+                _set_user_password(url, service_role_key, uid, password)
+                return uid
         log.debug("Supabase create_user HTTP %s", exc.code)
         return None
     except Exception as exc:  # pragma: no cover - network defensive
         log.debug("Supabase create_user failed: %s", type(exc).__name__)
         return None
+
+
+def _find_user_id_by_email(url: str, service_role_key: str, email: str) -> Optional[str]:
+    """GET the admin users list and return the id whose email matches, or None."""
+    req = urllib.request.Request(
+        f"{url.rstrip('/')}/auth/v1/admin/users",
+        headers={"apikey": service_role_key, "Authorization": f"Bearer {service_role_key}"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 (fixed admin URL)
+            data = json.loads(resp.read().decode() or "{}")
+    except Exception as exc:  # pragma: no cover - network defensive
+        log.debug("Supabase list users failed: %s", type(exc).__name__)
+        return None
+    users = data.get("users", []) if isinstance(data, dict) else []
+    for u in users:
+        if (u.get("email") or "").lower() == email.lower():
+            uid = u.get("id")
+            return str(uid) if uid else None
+    return None
+
+
+def _set_user_password(url: str, service_role_key: str, user_id: str, password: str) -> None:
+    """Best-effort: reset an existing auth user's password (PUT admin/users/{id})."""
+    req = urllib.request.Request(
+        f"{url.rstrip('/')}/auth/v1/admin/users/{user_id}",
+        data=json.dumps({"password": password, "email_confirm": True}).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "apikey": service_role_key,
+            "Authorization": f"Bearer {service_role_key}",
+        },
+        method="PUT",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10):  # noqa: S310 (fixed admin URL)
+            pass
+    except Exception as exc:  # pragma: no cover - network defensive
+        log.debug("Supabase set password failed: %s", type(exc).__name__)
 
 
 def connect(db: Session, principal, password: str) -> dict:
