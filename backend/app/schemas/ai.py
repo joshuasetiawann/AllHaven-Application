@@ -13,11 +13,34 @@ from app.schemas.common import ORMModel
 
 class SessionCreate(BaseModel):
     title: Optional[str] = Field(default=None, max_length=255)
+    group_id: Optional[uuid.UUID] = None
+
+
+class SessionUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=255)
+    # group_id may be set to a group, or explicitly null to remove from a group.
+    group_id: Optional[uuid.UUID] = None
 
 
 class SessionOut(ORMModel):
     id: uuid.UUID
     title: Optional[str] = None
+    group_id: Optional[uuid.UUID] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class GroupCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class GroupUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class GroupOut(ORMModel):
+    id: uuid.UUID
+    name: str
     created_at: datetime
     updated_at: datetime
 
