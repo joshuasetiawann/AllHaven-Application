@@ -84,6 +84,46 @@ def _str_prop(desc: str) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# payload normalization — never pass raw model output into a service
+# --------------------------------------------------------------------------- #
+
+# Finance create tools share one handler; all need a transaction_date.
+_TXN_CREATE_TOOLS = frozenset({
+    "create_transaction",
+    "create_transaction_draft",
+    "create_transaction_after_approval",
+})
+
+
+def normalize_tool_payload(tool_name: str, payload: dict) -> dict:
+    """Clean a tool payload before validation/execution. Returns a NEW dict.
+
+    Models routinely emit ``""`` for an optional reference they don't have (e.g.
+    ``"category_id": ""``). Pydantic can't parse ``""`` as a UUID, so an otherwise
+    valid action fails at approval. Normalize so the field behaves as "absent":
+
+    * Empty-string reference ids (any ``*_id``) -> ``None`` — an optional FK then
+      validates as null; a required one fails with a clear "required" message
+      instead of an opaque "invalid UUID ''".
+    * A finance transaction always needs a date: an empty/missing
+      ``transaction_date`` defaults to today's local date.
+
+    Idempotent and side-effect free, so it is safe to apply at proposal creation,
+    on edit, AND again at execution time.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    normalized = dict(payload)
+    for key, value in list(normalized.items()):
+        if key.endswith("_id") and isinstance(value, str) and not value.strip():
+            normalized[key] = None
+    if tool_name in _TXN_CREATE_TOOLS and not normalized.get("transaction_date"):
+        from app.services.ai_local_answers import time_payload
+        normalized["transaction_date"] = time_payload()["date"]
+    return normalized
+
+
+# --------------------------------------------------------------------------- #
 # serializers (small, model-friendly dicts — never raw ORM rows)
 # --------------------------------------------------------------------------- #
 
@@ -113,6 +153,7 @@ def _event(e) -> dict:
 def _txn(t) -> dict:
     return {"id": str(t.id), "type": t.type, "amount": float(t.amount), "currency": t.currency,
             "description": t.description, "transaction_date": _iso(t.transaction_date),
+            "category_id": str(t.category_id) if t.category_id else None,
             "category": t.category_name_snapshot}
 
 
@@ -1026,8 +1067,9 @@ def tool_definitions(db: Session, principal: Principal, section_key: str | None 
 
 
 def _execute(db: Session, principal: Principal, spec: ToolSpec, args: dict) -> dict:
+    payload = normalize_tool_payload(spec.name, dict(args or {}))
     try:
-        return spec.handler(db, principal, dict(args or {}))
+        return spec.handler(db, principal, payload)
     except ToolError as exc:
         raise
     except ValidationError as exc:
@@ -1140,7 +1182,7 @@ def run_tool_call(db: Session, principal: Principal, name: str, args: dict, *, s
             workspace_id=principal.workspace_id,
             created_by=principal.user_id,
             tool_name=name,
-            tool_payload=dict(args or {}),
+            tool_payload=normalize_tool_payload(name, dict(args or {})),
             status="PENDING",
             risk_level=spec.risk,
             requires_confirmation=True,
@@ -1184,7 +1226,9 @@ def approve_proposal(db: Session, principal: Principal, proposal_id: uuid.UUID) 
         _audit_call(db, principal, proposal.tool_name, dict(proposal.tool_payload or {}),
                     "approve_failed", {"proposal_id": str(proposal.id), "error": str(exc)})
         db.commit()
-        raise ValidationAppError(f"Approved, but execution failed: {exc}")
+        # Proposal stays PENDING (status was not advanced), so the user can edit the
+        # highlighted field and approve again — nothing was created.
+        raise ValidationAppError(f"Could not execute this action — {exc}. Fix the field and approve again.")
 
     proposal.status = "EXECUTED"
     proposal.executed_at = datetime.now(timezone.utc)
@@ -1208,7 +1252,7 @@ def edit_proposal(db: Session, principal: Principal, proposal_id: uuid.UUID, too
         raise ValidationAppError("Only pending proposals can be edited.")
     if not isinstance(tool_payload, dict):
         raise ValidationAppError("tool_payload must be an object.")
-    proposal.tool_payload = tool_payload
+    proposal.tool_payload = normalize_tool_payload(proposal.tool_name, tool_payload)
     db.flush()
     write_audit(db, action="UPDATE", entity_name="ai_tool_proposal",
                 workspace_id=principal.workspace_id, user_id=principal.user_id,

@@ -23,6 +23,13 @@ import { useToast } from "@/components/ui/Toast";
 import { aiApi, ApiException, memoryApi } from "@/lib/api";
 import { cn, relativeTime } from "@/lib/format";
 import type { AiMemory, MemorySuggestion, ToolProposal } from "@/types";
+import {
+  isTransactionTool,
+  todayIso,
+  TransactionEditForm,
+  TransactionSummary,
+  transactionPayloadErrors,
+} from "@/components/approvals/TransactionProposal";
 
 const RISK_TONE: Record<string, "neutral" | "warning" | "danger"> = {
   LOW: "neutral",
@@ -54,7 +61,10 @@ export default function ApprovalsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editing, setEditing] = useState<ToolProposal | null>(null);
   const [editText, setEditText] = useState("");
+  const [editPayload, setEditPayload] = useState<Record<string, unknown> | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  // Per-proposal inline approval errors — one message each, instead of stacking toasts.
+  const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setError(null);
@@ -83,17 +93,35 @@ export default function ApprovalsPage() {
     highRisk: proposals.filter((p) => p.risk_level === "HIGH").length,
   }), [proposals, suggestions]);
 
+  const clearCardError = (id: string) =>
+    setCardErrors((cur) => {
+      if (!(id in cur)) return cur;
+      const next = { ...cur };
+      delete next[id];
+      return next;
+    });
+
   const approveProposal = async (proposal: ToolProposal) => {
+    // Block client-side when required fields are invalid: one clear message,
+    // nothing sent for execution, proposal stays editable.
+    if (isTransactionTool(proposal.tool_name)) {
+      const issues = transactionPayloadErrors(proposal.tool_payload);
+      if (issues.length > 0) {
+        setCardErrors((cur) => ({ ...cur, [proposal.id]: issues.join(" ") }));
+        return;
+      }
+    }
     setBusyId(proposal.id);
-    setError(null);
+    clearCardError(proposal.id);
     try {
       await aiApi.approveProposal(proposal.id);
       setProposals((cur) => cur.filter((p) => p.id !== proposal.id));
       toast.success("Change approved", `${humanizeTool(proposal.tool_name)} executed.`);
     } catch (err) {
       const message = err instanceof ApiException ? err.message : "Approval failed.";
-      setError(message);
-      toast.danger("Approval failed", message);
+      // Inline, per-card — keeps the proposal visible/editable and never stacks
+      // the same toast when the user retries.
+      setCardErrors((cur) => ({ ...cur, [proposal.id]: message }));
     } finally {
       setBusyId(null);
     }
@@ -117,33 +145,57 @@ export default function ApprovalsPage() {
 
   const openEdit = (proposal: ToolProposal) => {
     setEditing(proposal);
-    setEditText(JSON.stringify(proposal.tool_payload ?? {}, null, 2));
+    setEditError(null);
+    if (isTransactionTool(proposal.tool_name)) {
+      const payload = { ...(proposal.tool_payload ?? {}) };
+      if (!String(payload.transaction_date ?? "").trim()) payload.transaction_date = todayIso();
+      setEditPayload(payload);
+    } else {
+      setEditPayload(null);
+      setEditText(JSON.stringify(proposal.tool_payload ?? {}, null, 2));
+    }
+  };
+
+  const closeEdit = () => {
+    setEditing(null);
+    setEditPayload(null);
     setEditError(null);
   };
 
   const saveEdit = async () => {
     if (!editing) return;
-    let payload: unknown;
-    try {
-      payload = JSON.parse(editText);
-    } catch (err) {
-      setEditError(`Invalid JSON: ${err instanceof Error ? err.message : "could not parse"}`);
-      return;
-    }
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      setEditError("Payload must be a JSON object.");
-      return;
+    let payload: Record<string, unknown>;
+    if (isTransactionTool(editing.tool_name)) {
+      payload = editPayload ?? {};
+      const issues = transactionPayloadErrors(payload);
+      if (issues.length > 0) {
+        setEditError(issues.join(" "));
+        return;
+      }
+    } else {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(editText);
+      } catch (err) {
+        setEditError(`Invalid JSON: ${err instanceof Error ? err.message : "could not parse"}`);
+        return;
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        setEditError("Payload must be a JSON object.");
+        return;
+      }
+      payload = parsed as Record<string, unknown>;
     }
     setBusyId(editing.id);
     try {
-      const updated = await aiApi.editProposal(editing.id, payload as Record<string, unknown>);
+      const updated = await aiApi.editProposal(editing.id, payload);
       setProposals((cur) => cur.map((p) => (p.id === updated.id ? updated : p)));
-      setEditing(null);
+      clearCardError(updated.id);
+      closeEdit();
       toast.success("Payload updated", "Review it, then approve when ready.");
     } catch (err) {
       const message = err instanceof ApiException ? err.message : "Could not save payload.";
       setEditError(message);
-      toast.danger("Edit failed", message);
     } finally {
       setBusyId(null);
     }
@@ -242,6 +294,9 @@ export default function ApprovalsPage() {
                 {proposals.map((proposal) => {
                   const risk = proposal.risk_level.toUpperCase();
                   const busy = busyId === proposal.id;
+                  const isTxn = isTransactionTool(proposal.tool_name);
+                  const invalid = isTxn && transactionPayloadErrors(proposal.tool_payload).length > 0;
+                  const cardError = cardErrors[proposal.id];
                   return (
                     <div key={proposal.id} className="rounded-xl border border-border bg-surface-input p-3">
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -249,11 +304,28 @@ export default function ApprovalsPage() {
                         <Badge tone={RISK_TONE[risk] ?? "neutral"}>{risk} risk</Badge>
                         <span className="text-[11px] text-content-subtle">{relativeTime(proposal.created_at)}</span>
                       </div>
-                      <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-bg/50 p-2 font-mono text-[11.5px] leading-relaxed text-content-muted">
-                        {previewJson(proposal.tool_payload, 800)}
-                      </pre>
+                      {isTxn ? (
+                        <TransactionSummary payload={proposal.tool_payload} />
+                      ) : (
+                        <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-bg/50 p-2 font-mono text-[11.5px] leading-relaxed text-content-muted">
+                          {previewJson(proposal.tool_payload, 800)}
+                        </pre>
+                      )}
+                      {cardError ? (
+                        <p className="mt-2 flex items-start gap-1.5 rounded-lg border border-danger/30 bg-danger/10 px-2.5 py-2 text-[12px] text-danger">
+                          <ShieldAlert size={13} className="mt-0.5 shrink-0" />
+                          <span className="min-w-0 break-words">{cardError}</span>
+                        </p>
+                      ) : null}
                       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                        <Button size="sm" loading={busy} disabled={busy} onClick={() => void approveProposal(proposal)} className="w-full sm:w-auto">
+                        <Button
+                          size="sm"
+                          loading={busy}
+                          disabled={busy || invalid}
+                          onClick={() => void approveProposal(proposal)}
+                          title={invalid ? "Fix the highlighted fields before approving" : undefined}
+                          className="w-full sm:w-auto"
+                        >
                           <CheckCircle2 size={14} /> Approve
                         </Button>
                         <Button size="sm" variant="ghost" disabled={busy} onClick={() => openEdit(proposal)} className="w-full sm:w-auto">
@@ -320,12 +392,18 @@ export default function ApprovalsPage() {
 
       <Modal
         open={editing !== null}
-        onClose={() => { if (!busyId) setEditing(null); }}
+        onClose={() => { if (!busyId) closeEdit(); }}
         title="Edit proposed change"
-        description={editing ? `${humanizeTool(editing.tool_name)} - adjust the JSON payload before approval.` : undefined}
+        description={
+          editing
+            ? isTransactionTool(editing.tool_name)
+              ? `${humanizeTool(editing.tool_name)} — review the fields, then save.`
+              : `${humanizeTool(editing.tool_name)} - adjust the JSON payload before approval.`
+            : undefined
+        }
         footer={
           <>
-            <Button variant="ghost" onClick={() => setEditing(null)} disabled={Boolean(busyId)}>
+            <Button variant="ghost" onClick={closeEdit} disabled={Boolean(busyId)}>
               Cancel
             </Button>
             <Button onClick={() => void saveEdit()} loading={Boolean(editing && busyId === editing.id)}>
@@ -334,14 +412,22 @@ export default function ApprovalsPage() {
           </>
         }
       >
-        <Textarea
-          label="Payload JSON"
-          value={editText}
-          onChange={(e) => setEditText(e.target.value)}
-          rows={11}
-          spellCheck={false}
-          className={cn("font-mono text-[12.5px]", editError && "border-danger/50")}
-        />
+        {editing && isTransactionTool(editing.tool_name) ? (
+          <TransactionEditForm
+            value={editPayload ?? {}}
+            onChange={setEditPayload}
+            disabled={Boolean(busyId)}
+          />
+        ) : (
+          <Textarea
+            label="Payload JSON"
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            rows={11}
+            spellCheck={false}
+            className={cn("font-mono text-[12.5px]", editError && "border-danger/50")}
+          />
+        )}
         {editError ? <p className="mt-2 text-[12px] text-danger">{editError}</p> : null}
       </Modal>
     </AppShell>
