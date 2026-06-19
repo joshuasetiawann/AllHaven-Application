@@ -313,7 +313,10 @@ export interface ToolProposal {
   status: string;
   risk_level: string;
   requires_confirmation: boolean;
+  error_message?: string | null;
+  executed_at?: string | null;
   created_at: string;
+  updated_at?: string | null;
 }
 
 export type IntegrationStatusValue =
