@@ -41,7 +41,7 @@ function newId(): string {
 // the button returns to idle instead of freezing). On a timed-out APPROVAL the proposal
 // is reset to PENDING with a "verify first" note (see supaApproveProposal) rather than
 // left mid-claim, so it is never stranded; the user re-approves after checking.
-async function withTimeout<T>(p: PromiseLike<T>, ms = 18000): Promise<T> {
+async function withTimeout<T>(p: PromiseLike<T>, ms = 8000): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -72,8 +72,9 @@ function newRow(): { id: string; workspace_id: string; created_by: string } {
 
 async function loadMe(): Promise<Me> {
   const sb = await getSupabase();
-  const { data: auth, error: ae } = await withTimeout(sb.auth.getUser(), 10_000);
-  if (ae || !auth?.user) {
+  const { data: auth, error: ae } = await withTimeout(sb.auth.getSession(), 3000);
+  const authUser = auth?.session?.user;
+  if (ae || !authUser) {
     // No Supabase session (fresh install / cleared data / expired). Force a clean
     // 401 so AppShell routes to /login. AuthSessionMissingError.status is 400, which
     // toApiException kept verbatim, so the shell treated "Auth session missing" as a
@@ -84,10 +85,14 @@ async function loadMe(): Promise<Me> {
   // maybeSingle: if the account isn't linked yet (profiles.supabase_user_id null)
   // RLS returns 0 rows, and .single() would throw an opaque PGRST116 that breaks
   // login entirely. Surface a clear, actionable error instead.
-  const { data: profile, error: pe } = await withTimeout(
-    sb.from("profiles").select("*").maybeSingle(),
-    10_000,
-  );
+  const [profileRes, workspaceRes] = await Promise.all([
+    withTimeout(sb.from("profiles").select("*").maybeSingle(), 7000),
+    withTimeout(
+      sb.from("workspaces").select("*").order("created_at", { ascending: true }).limit(1).maybeSingle(),
+      7000,
+    ),
+  ]);
+  const { data: profile, error: pe } = profileRes;
   if (pe) throw toApiException(pe);
   if (!profile) {
     // Self-provisioning (provision_me on sign-in) normally prevents this. If it
@@ -101,10 +106,7 @@ async function loadMe(): Promise<Me> {
   setAppUserId(profile.id);
   // Resolve the user's OWNED workspace (matches backend auth_service.get_default_workspace).
   // RLS policy p_owner restricts workspaces to rows where owner_id = app_user_id().
-  const { data: ws, error: we } = await withTimeout(
-    sb.from("workspaces").select("*").order("created_at", { ascending: true }).limit(1).maybeSingle(),
-    10_000,
-  );
+  const { data: ws, error: we } = workspaceRes;
   if (we) throw toApiException(we);
   if (!ws) {
     throw new ApiException(
@@ -116,7 +118,7 @@ async function loadMe(): Promise<Me> {
   setWorkspaceId((ws as { id: string }).id);
   const user: User = {
     id: profile.id,
-    email: auth.user.email ?? (profile as any).email ?? "",
+    email: authUser.email ?? (profile as any).email ?? "",
     full_name: profile.full_name ?? null,
     created_at: profile.created_at,
   };

@@ -8,10 +8,18 @@ import { Topbar } from "@/components/layout/Topbar";
 import { BackendBridgeCard } from "@/components/settings/BackendBridgeCard";
 import { ErrorState, Loading } from "@/components/ui/States";
 import { ApiException, authApi } from "@/lib/api";
-import { clearAuth, setStoredUser } from "@/lib/auth";
+import { clearAuth, getStoredUser, setStoredUser } from "@/lib/auth";
 import { ensureBearerHydrated } from "@/lib/mobileAuth";
 import { applyPrefs, loadPrefs } from "@/lib/prefs";
-import { DATA_MODE, getSupabase } from "@/lib/supabaseClient";
+import {
+  DATA_MODE,
+  getAppUserId,
+  getSupabase,
+  getWorkspaceId,
+  hasSupabaseConfig,
+  setAppUserId,
+  setWorkspaceId,
+} from "@/lib/supabaseClient";
 import { cn } from "@/lib/format";
 
 const COLLAPSE_KEY = "allhaven.sidebar.collapsed";
@@ -20,6 +28,23 @@ const COLLAPSE_KEY = "allhaven.sidebar.collapsed";
 // between dashboard pages then won't re-flash the full-screen session loader;
 // a hard refresh resets it (module re-evaluated) and verifies again.
 let authConfirmed = false;
+
+async function startupTimeout<T>(p: PromiseLike<T>, ms = 3000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const err = new Error("Supabase is slow or unreachable. Check your internet connection and try again.");
+      (err as { name?: string; code?: string }).name = "AbortError";
+      (err as { name?: string; code?: string }).code = "TIMEOUT";
+      reject(err);
+    }, ms);
+  });
+  try {
+    return await Promise.race([p as Promise<T>, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -45,18 +70,60 @@ export function AppShell({ children }: { children: ReactNode }) {
     let active = true;
     applyPrefs(loadPrefs());
     setAuthError(null);
-    // Supabase mode (mobile): restore the persisted session before the first
-    // API call so RLS-scoped queries succeed. Bearer mode (web/desktop): load
-    // the persisted bearer token into memory (memoised; no-op on web, which
-    // authenticates via the session cookie).
-    const hydrate = DATA_MODE
-      ? getSupabase().then((sb) => sb.auth.getSession()).then(() => undefined)
-      : ensureBearerHydrated();
+    const confirmSession = async () => {
+      // Supabase mode (mobile): restore the persisted session before the first
+      // API call so RLS-scoped queries succeed. If we already have a cached user
+      // + workspace ID, let the app open immediately and refresh the profile in
+      // the background; the phone should not sit on a full-screen loader just
+      // because a profile query is slow.
+      if (DATA_MODE) {
+        if (!hasSupabaseConfig()) {
+          throw new ApiException(
+            "APK ini belum membawa konfigurasi Supabase. Rebuild APK dengan SUPABASE_URL dan SUPABASE_ANON_KEY.",
+            "SUPABASE_CONFIG_MISSING",
+            0,
+          );
+        }
+        const sb = await getSupabase();
+        const { data } = await startupTimeout(sb.auth.getSession(), 3000);
+        if (!data.session) {
+          throw new ApiException("Sesi Anda berakhir. Silakan masuk lagi.", "AUTH_SESSION_MISSING", 401);
+        }
+        const cachedUser = getStoredUser();
+        if (cachedUser && getAppUserId() && getWorkspaceId()) {
+          setStoredUser(cachedUser);
+          authConfirmed = true;
+          setReady(true);
+          authApi.me()
+            .then((me) => {
+              if (!active) return;
+              setStoredUser(me.user);
+            })
+            .catch((err) => {
+              if (!active) return;
+              const status = err instanceof ApiException ? err.statusCode : -1;
+              if (status === 401) {
+                authConfirmed = false;
+                clearAuth();
+                setAppUserId(null);
+                setWorkspaceId(null);
+                router.replace("/login");
+              }
+            });
+          return null;
+        }
+      } else {
+        // Bearer mode (web/desktop): load the persisted bearer token into memory
+        // (memoised; no-op on cookie web, which authenticates via the session).
+        await ensureBearerHydrated();
+      }
+      return authApi.me();
+    };
 
-    hydrate
-      .then(() => authApi.me())
+    confirmSession()
       .then((me) => {
         if (!active) return;
+        if (!me) return;
         setStoredUser(me.user);
         authConfirmed = true;
         setReady(true);
@@ -70,6 +137,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         if (status === 401) {
           authConfirmed = false;
           clearAuth();
+          setAppUserId(null);
+          setWorkspaceId(null);
           router.replace("/login");
         } else {
           setAuthError(
@@ -125,9 +194,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           // Backend Bridge config right here; a successful test re-runs the check.
           <div className="w-full max-w-md">
             <ErrorState message={authError} onRetry={() => setAuthNonce((n) => n + 1)} />
-            <div className="mt-5">
-              <BackendBridgeCard onConnected={() => setAuthNonce((n) => n + 1)} />
-            </div>
+            {!DATA_MODE ? (
+              <div className="mt-5">
+                <BackendBridgeCard onConnected={() => setAuthNonce((n) => n + 1)} />
+              </div>
+            ) : null}
           </div>
         ) : (
           <Loading label="Checking your session…" />

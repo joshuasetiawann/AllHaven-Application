@@ -37,10 +37,12 @@ export function needsBackendConnection(err: unknown): boolean {
 
 /** Best-effort: is the REST backend reachable right now? (public /health, short timeout) */
 export async function pingBackend(timeoutMs = 4000): Promise<boolean> {
+  const base = getApiBaseUrl();
+  if (!base) return false;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(`${getApiBaseUrl()}/health`, { signal: ctrl.signal });
+    const res = await fetch(`${base}/health`, { signal: ctrl.signal });
     return res.ok;
   } catch {
     return false;
@@ -113,7 +115,7 @@ export async function testBackendConnection(
 ): Promise<BackendTestResult> {
   const base = rawUrl !== undefined ? normalizeBackendUrl(rawUrl) : getApiBaseUrl();
   if (!base) {
-    return { ok: false, status: "not_configured", message: "Enter a backend URL first.", testedUrl: "" };
+    return { ok: false, status: "not_configured", message: "Desktop Bridge is not configured. Enter a backend URL only for Ollama/n8n desktop features.", testedUrl: "" };
   }
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);

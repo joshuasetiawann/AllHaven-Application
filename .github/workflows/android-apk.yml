@@ -2,13 +2,11 @@ name: Build Android APK
 
 # Builds the AllHaven mobile app into an installable .apk on GitHub's runners —
 # no Android Studio or SDK needed on your machine. The .apk is attached to every
-# run as a downloadable artifact, and (when a real API URL is given) published to
-# the "mobile-latest" pre-release for a permanent download link.
+# run as a downloadable artifact and published to the "mobile-latest" pre-release.
 #
 # Run it: Actions tab → "Build Android APK" → Run workflow, and enter your API
-# base URL (e.g. https://yourdomain.com/api/v1). Or set the repo variable
-# MOBILE_API_BASE_URL once (Settings → Secrets and variables → Actions → Variables)
-# and just press Run.
+# base URL only if you want a built-in Desktop Bridge default. Mobile data runs
+# through Supabase; the Desktop Bridge is optional and used for Ollama/n8n.
 
 on:
   workflow_dispatch:
@@ -35,9 +33,12 @@ jobs:
       run:
         working-directory: frontend
     env:
-      # Priority: manual input → repo variable → harmless placeholder (so a smoke
-      # build still succeeds; the Release step below is skipped for the placeholder).
-      API_URL: ${{ github.event.inputs.api_base_url || vars.MOBILE_API_BASE_URL || 'https://PLACEHOLDER.invalid/api/v1' }}
+      # Optional Desktop Bridge default: manual input → repo variable → empty.
+      # Empty is intentional for the standalone mobile architecture; users can set
+      # the Tailscale bridge URL inside the APK only when Ollama/n8n are needed.
+      API_URL: ${{ github.event.inputs.api_base_url || vars.MOBILE_API_BASE_URL || '' }}
+      SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -57,11 +58,16 @@ jobs:
       - name: Install JS dependencies
         run: npm ci
 
+      - name: Validate mobile environment
+        run: |
+          test -n "$SUPABASE_URL" || { echo "::error::Missing repo variable SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL). The APK would boot without mobile data."; exit 1; }
+          test -n "$SUPABASE_ANON_KEY" || { echo "::error::Missing repo secret SUPABASE_ANON_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY). The APK would boot without mobile auth/data."; exit 1; }
+
       - name: Build static export + sync Capacitor
         env:
           NEXT_PUBLIC_API_BASE_URL: ${{ env.API_URL }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_ANON_KEY }}
           # build:mobile sets NEXT_PUBLIC_AUTH_MODE=bearer + NEXT_PUBLIC_DATA_MODE=supabase
         run: |
           echo "Building Supabase-mode APK"
@@ -82,7 +88,6 @@ jobs:
           if-no-files-found: error
 
       - name: Publish to "mobile-latest" release (download link)
-        if: ${{ env.API_URL != 'https://PLACEHOLDER.invalid/api/v1' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: mobile-latest
@@ -91,5 +96,6 @@ jobs:
           files: frontend/android/app/build/outputs/apk/debug/app-debug.apk
           body: |
             Debug APK of the AllHaven mobile app, built by CI.
-            Points at: `${{ env.API_URL }}`
+            Mobile data: Supabase-direct.
+            Desktop Bridge default: `${{ env.API_URL || 'none; configure in-app for Ollama/n8n' }}`
             Download `app-debug.apk` below → install on Android (enable "Install unknown apps").
