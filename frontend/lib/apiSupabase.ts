@@ -702,9 +702,11 @@ export const routinesApi = {
     period: string;
     use_context?: boolean;
   }): Promise<RoutineGenerateResult> => {
+    // AI routine generation needs the backend AI provider (secrets stay server-side).
+    // Surfaced as a setup-required state, not a "use the desktop app" wall.
     throw new ApiException(
-      "Routine generation runs on the desktop app",
-      "UNAVAILABLE_ON_MOBILE",
+      "Connect to the backend (locally or via the Desktop Bridge) to generate routines with AI. You can still add routines manually here.",
+      "BRIDGE_REQUIRED",
       501,
       null,
     );
