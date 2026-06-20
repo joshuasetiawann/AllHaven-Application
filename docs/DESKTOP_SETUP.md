@@ -12,7 +12,8 @@ This guide is for non-technical users. You only need to **clone the repo** and
 | **Fresh install** (Linux/macOS) | `./install.sh` | Installs in the terminal: tools, `.env`, deps, migrations, then starts + opens the app. |
 | **Fresh install** (Windows) | `python installer\haven_cli.py` | Or use **WSL** and run `./install.sh`. |
 | **Run** (already installed) | `./allhaven.sh run` / `./allhaven.sh start` | `run` = foreground (Ctrl+C stops all); `start` = background. |
-| **Restart / stop** | `./allhaven.sh restart` / `./allhaven.sh stop` | Restarts/stops backend + frontend + control agent. |
+| **Restart / stop** | `./allhaven.sh restart [all\|backend\|frontend]` / `./allhaven.sh stop` | Restart everything or just one service; stop leaves the database running. Restart **force-frees the port**, so a wedged dev server can't block it. |
+| **Status / ports** | `./allhaven.sh status` / `./allhaven.sh port [svc] [number]` | Show what's running; show or change a port (writes `.env` + backup, then `restart` to apply). |
 
 > **Python 3** and **Node.js 18+** are required. If either is missing, the launcher
 > stops early and tells you where to get it. On Windows, tick **"Add Python to PATH"**
