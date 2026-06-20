@@ -54,6 +54,7 @@ def _agent_ping() -> bool:
 
 
 def _agent_post(path: str, timeout: float = 130.0) -> tuple[int, dict]:
+    import urllib.error
     import urllib.request
 
     token = hc.read_token() or ""
@@ -61,15 +62,34 @@ def _agent_post(path: str, timeout: float = 130.0) -> tuple[int, dict]:
         f"{hc.agent_base_url()}{path}", data=b"{}", method="POST",
         headers={"X-Haven-Token": token, "Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (fixed localhost)
-        return r.status, json.loads(r.read().decode("utf-8") or "{}")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (fixed localhost)
+            return r.status, json.loads(r.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as e:
+        # The agent signals "not ok" with a non-2xx code (e.g. 409 Conflict) but
+        # STILL returns a JSON body with an actionable message. urlopen raises on
+        # non-2xx, so read that body here and return it — otherwise the caller only
+        # sees a bare "HTTP Error 409: Conflict" and the real reason is lost.
+        try:
+            body = json.loads(e.read().decode("utf-8") or "{}")
+        except (ValueError, OSError):
+            body = {}
+        body.setdefault("ok", False)
+        body.setdefault("message", f"the control agent returned HTTP {e.code}.")
+        return e.code, body
 
 
 def ensure_agent() -> bool:
-    if _agent_ping():
-        return True
+    # Ensure the shared localhost token file exists BEFORE we talk to the agent.
+    # Both the agent and this launcher read it fresh on every request, so
+    # (re)creating it here repairs a missing/stale token that would otherwise 401
+    # every control call — e.g. when an agent from an earlier run is still up but
+    # the token file was removed (which then makes service start/restart impossible,
+    # leaving a wedged server in place). Do this regardless of the ping result.
     hc.ensure_dirs()
     hc.ensure_token()
+    if _agent_ping():
+        return True
     log = open(hc.logs_dir() / "agent.log", "ab")  # noqa: SIM115
     kwargs: dict = {"stdout": log, "stderr": subprocess.STDOUT, "stdin": subprocess.DEVNULL,
                     "cwd": str(hc.repo_root()), "env": hc.enriched_env()}
@@ -110,12 +130,20 @@ def bootstrap() -> None:
     hc.ensure_env_files()
     root = hc.repo_root()
 
-    if not hc.backend_setup_ok():
+    # Quarantine a venv whose interpreter can't run (e.g. its base Python was
+    # upgraded/removed) — rename aside, never delete — so it gets rebuilt cleanly.
+    if hc.backend_venv_broken():
+        moved = hc.quarantine_broken_venv()
+        if moved:
+            _say(f"  backend/.venv looked broken — moved to backend/{moved} and recreating.")
+
+    if not hc.venv_deps_ok():
         _say("First run: setting up the backend (Python venv + dependencies). This can take a few minutes…")
-        py = "python3" if hc.which("python3") else ("python" if hc.which("python") else sys.executable)
-        if _run([py, "-m", "venv", ".venv"], root / "backend") != 0:
-            _say("  Could not create the Python virtualenv — is Python 3 installed?")
-        else:
+        if not hc.venv_python_path().exists():
+            py = "python3" if hc.which("python3") else ("python" if hc.which("python") else sys.executable)
+            if _run([py, "-m", "venv", ".venv"], root / "backend") != 0:
+                _say("  Could not create the Python virtualenv — is Python 3 (and the venv module) installed?")
+        if hc.venv_python_path().exists() and not hc.venv_deps_ok():
             _run([hc.venv_python(), "-m", "pip", "install", "--upgrade", "pip"], root / "backend")
             if _run([hc.venv_python(), "-m", "pip", "install", "-r", "requirements.txt"], root / "backend") != 0:
                 _say("  Backend dependency install failed — see var/logs/setup.log")
@@ -146,8 +174,12 @@ def main() -> int:
     fe_port = int(env.get("FRONTEND_PORT") or hc.default_port("frontend") or 3000)
     pg_port = int(env.get("POSTGRES_PORT") or hc.default_port("postgres") or 5432)
 
-    # Database
-    if hc.docker_running():
+    # Database — use an existing PostgreSQL if one is already on the port (native
+    # server or a leftover container); only otherwise start our Docker one. This
+    # avoids a "port already in use" bind failure when a local PostgreSQL is up.
+    if hc.port_in_use(pg_port):
+        _say(f"Using the PostgreSQL already listening on :{pg_port} (data untouched).")
+    elif hc.docker_running():
         _say("Starting the database (PostgreSQL via Docker; first run pulls the image)…")
         # Run compose directly so the image-pull progress is captured to setup.log
         # (the wizard tails it for live feedback). Idempotent.
@@ -155,7 +187,8 @@ def main() -> int:
         _say("  Database is ready." if hc.wait_for_port(pg_port, timeout=60)
              else "  Database not ready yet; continuing (it may still be starting).")
     else:
-        _say("Docker isn't running — skipping the database. Start Docker Desktop for full functionality.")
+        _say(f"No PostgreSQL on :{pg_port} and Docker isn't running — start Docker Desktop "
+             "or a local PostgreSQL for full functionality.")
 
     # Backend (the agent runs migrations, then binds 0.0.0.0)
     _say(f"Starting the backend on port {be_port} (applying migrations)…")
@@ -186,12 +219,26 @@ def main() -> int:
     except OSError as exc:
         _say(f"  frontend: {hc.mask_secrets(str(exc))}")
     if hc.wait_for_port(fe_port, timeout=120):
-        # `next dev` compiles routes on first request. The port opens before that
-        # first compile finishes, so opening the browser immediately can paint an
-        # unstyled page (CSS still building). Warm up the landing route and wait for
-        # a real 200 so the stylesheet is built BEFORE we open the browser.
-        _say("  Frontend is up; warming up the first build (so styles are ready)…")
-        hc.wait_for_http(f"http://127.0.0.1:{fe_port}/login", timeout=120)
+        # `next dev` compiles each route LAZILY on its first request, and the port
+        # opens before that first compile finishes. If the browser hits a route that
+        # is still compiling, Next serves its dev placeholder ("missing required error
+        # components, refreshing…", a 404 page that self-reloads) and paints unstyled
+        # while CSS builds. So warm up the exact routes we hand the user — waiting for
+        # a real 200 on each (wait_for_http returns True only on a 2xx) — BEFORE
+        # opening the browser. Warm "/" FIRST: it is the URL we open, and its first
+        # request also triggers the heavy initial app compile; then warm the routes
+        # the user clicks next so navigation is instant.
+        # (Previously only "/login" was warmed while the browser opened "/", so the
+        # landing route always raced its first compile → the recurring placeholder.)
+        _say("  Frontend is up; warming up the first build (routes + styles)…")
+        landing_ready = hc.wait_for_http(f"http://127.0.0.1:{fe_port}/", timeout=120)
+        for path in ("/login", "/dashboard"):
+            hc.wait_for_http(f"http://127.0.0.1:{fe_port}{path}", timeout=60)
+        if not landing_ready:
+            # Rare: the first compile didn't finish in time. Open anyway, but make the
+            # self-healing placeholder expected instead of alarming.
+            _say("  The first build is taking longer than usual. If the page shows a brief")
+            _say('  "refreshing…" message, it reloads itself once the build finishes.')
     else:
         _say("  Frontend not up yet (the first build can take a minute). Recent frontend log:")
         _say(_tail_log("frontend") or "    (no frontend log yet)")

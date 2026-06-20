@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Haven installer (Linux/macOS) — installs & starts Haven from THIS terminal.
+# AllHaven installer (Linux/macOS) — FRESH INSTALL from THIS terminal.
 #
 # It checks for Python 3, then runs the terminal installer: checks tools, writes
 # .env (with backup), pulls the database image, installs dependencies (with live
 # progress), runs migrations, starts services, and opens the app. No website.
 #
-# Windows: run START_HAVEN_WINDOWS.bat instead.
+# Already installed? Use ./allhaven.sh instead:  run | start | restart | stop
+# Windows fresh install: run  python installer\haven_cli.py  (or use WSL + ./install.sh).
 # Prefer the optional browser wizard: HAVEN_SETUP_WEB=1 ./install.sh
 # =============================================================================
 set -euo pipefail

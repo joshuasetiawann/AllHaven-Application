@@ -17,7 +17,7 @@ Version=1.0
 Type=Application
 Name=Haven
 Comment=Open Haven
-Exec=bash "{launcher}"
+Exec=bash "{launcher}" run
 Path={repo_root}
 Terminal=true
 Categories=Utility;
@@ -28,7 +28,7 @@ def create_shortcut(repo_root: Path, app_url: str) -> dict:
     """Create ``Haven.desktop`` on the Linux desktop. Never raises."""
     try:
         repo_root = Path(repo_root)
-        launcher = repo_root / "START_HAVEN_LINUX.sh"
+        launcher = repo_root / "allhaven.sh"
 
         home = Path.home()
         desktop = home / "Desktop"
