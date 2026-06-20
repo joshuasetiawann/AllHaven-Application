@@ -26,6 +26,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { DesktopBridgePanel } from "@/components/settings/DesktopBridgePanel";
+import { BackendBridgeCard } from "@/components/settings/BackendBridgeCard";
 import { APP_VERSION } from "@/components/layout/nav";
 import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { isBackendUnreachable } from "@/lib/connection";
@@ -259,12 +260,17 @@ export default function SettingsPage() {
       ) : null}
 
       {setupNeeded ? (
-        <SetupRequiredState
-          feature="Settings & Integrations"
-          needs="backend"
-          reason="Integrations and AI-provider settings live on the backend (secrets stay server-side). Connect to the backend to configure them."
-          onRetry={load}
-        />
+        // Backend unreachable: this is exactly when the user needs to fix the
+        // connection, so surface the Backend Bridge config above the setup state.
+        <>
+          <BackendBridgeCard onConnected={load} />
+          <SetupRequiredState
+            feature="Settings & Integrations"
+            needs="backend"
+            reason="Integrations and AI-provider settings live on the backend (secrets stay server-side). Connect to the backend to configure them."
+            onRetry={load}
+          />
+        </>
       ) : error ? (
         <ErrorState message={error} onRetry={load} />
       ) : !integrations || !providers ? (
@@ -273,6 +279,7 @@ export default function SettingsPage() {
         <div key={tab} className="animate-fade-in">
           {tab === "tools" ? (
             <>
+              <BackendBridgeCard onConnected={load} />
               <DesktopBridgePanel />
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {integrations.map((integration) => (

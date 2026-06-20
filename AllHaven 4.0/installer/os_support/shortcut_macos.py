@@ -14,7 +14,7 @@ from pathlib import Path
 _COMMAND_TEMPLATE = """#!/bin/bash
 # Haven launcher shortcut — opens Haven.
 cd "{repo_root}" || exit 1
-exec bash "{launcher}"
+exec bash "{launcher}" run
 """
 
 
@@ -22,7 +22,7 @@ def create_shortcut(repo_root: Path, app_url: str) -> dict:
     """Create ``Haven.command`` on the macOS desktop. Never raises."""
     try:
         repo_root = Path(repo_root)
-        launcher = repo_root / "START_HAVEN_MAC.command"
+        launcher = repo_root / "allhaven.sh"
 
         home = Path.home()
         desktop = home / "Desktop"
