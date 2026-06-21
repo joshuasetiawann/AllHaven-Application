@@ -120,25 +120,16 @@ def test_supabase_disabled_when_secret_unset(client, db_session):
     assert _get(client, token).status_code == 401
 
 
-def test_supabase_email_fallback_links_unlinked_profile(client, db_session, supabase_configured):
-    # Account exists locally but supabase_user_id is not set yet -> the verified
-    # email claim resolves it and the link is backfilled for next time.
-    _register(client)
-    sb_id = uuid.uuid4()
-    token = _make_supabase_token(_SUPABASE_SECRET, _claims(sb_id))
-    assert _get(client, token).status_code == 200
-    profile = db_session.query(Profile).filter(Profile.email == _EMAIL).one()
-    assert profile.supabase_user_id == sb_id
-
-
-def test_supabase_email_fallback_does_not_hijack_other_link(client, db_session, supabase_configured):
-    # A same-email profile already bound to a DIFFERENT Supabase id must not be adopted.
-    _register(client)
-    profile = db_session.query(Profile).filter(Profile.email == _EMAIL).one()
-    profile.supabase_user_id = uuid.uuid4()  # bound to someone else
-    db_session.commit()
-    token = _make_supabase_token(_SUPABASE_SECRET, _claims(uuid.uuid4()))  # new sub, same email
+def test_supabase_same_email_is_not_auto_linked(client, db_session, supabase_configured):
+    # SECURITY: a validly-signed token whose email matches an UNLINKED local profile
+    # must NOT be auto-linked. The signature proves Supabase issued the token, not
+    # that the bearer owns the email; auto-linking would allow same-email account
+    # takeover. The profile must stay unlinked and the request must be rejected.
+    _register(client)  # owner@example.com, supabase_user_id unset
+    token = _make_supabase_token(_SUPABASE_SECRET, _claims(uuid.uuid4()))  # email == _EMAIL
     assert _get(client, token).status_code == 401
+    profile = db_session.query(Profile).filter(Profile.email == _EMAIL).one()
+    assert profile.supabase_user_id is None
 
 
 def test_desktop_token_still_works(auth_client):
