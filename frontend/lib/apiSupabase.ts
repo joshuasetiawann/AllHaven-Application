@@ -49,7 +49,13 @@ function newRow(): { id: string; workspace_id: string; created_by: string } {
 async function loadMe(): Promise<Me> {
   const sb = await getSupabase();
   const { data: auth, error: ae } = await sb.auth.getUser();
-  if (ae || !auth?.user) throw toApiException(ae ?? { status: 401, message: "Not authenticated" }, 401);
+  if (ae || !auth?.user) {
+    // No Supabase session (fresh install / cleared data / expired). Force a clean
+    // 401 so AppShell routes to /login. AuthSessionMissingError.status is 400, which
+    // toApiException kept verbatim, so the shell treated "Auth session missing" as a
+    // network error and got stuck on a Retry screen — never reaching login.
+    throw new ApiException("Sesi Anda berakhir. Silakan masuk lagi.", "AUTH_SESSION_MISSING", 401);
+  }
   // RLS returns only this user's profile (profiles.id = app_user_id()). Use
   // maybeSingle: if the account isn't linked yet (profiles.supabase_user_id null)
   // RLS returns 0 rows, and .single() would throw an opaque PGRST116 that breaks
