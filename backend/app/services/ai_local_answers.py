@@ -73,6 +73,9 @@ def time_payload() -> dict:
     return {
         "iso": now.isoformat(),
         "date": now.date().isoformat(),
+        "year": now.year,
+        "month": now.month,
+        "day": now.day,
         "time": now.strftime("%H:%M:%S"),
         "timezone": getattr(settings, "APP_TIMEZONE", "") or str(now.tzinfo),
         "utc_offset": now.strftime("%z"),
