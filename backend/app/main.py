@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -38,12 +39,26 @@ from app.api.routers import (
 
 
 def create_app() -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        # Run the two-way Supabase sync continuously so phone-side changes are
+        # pulled even while the desktop is idle (the per-write trigger only fires
+        # on desktop writes). No-op when Supabase isn't configured.
+        from app.services import sync_scheduler
+
+        sync_scheduler.start(settings.SYNC_INTERVAL_SECONDS)
+        try:
+            yield
+        finally:
+            await sync_scheduler.stop()
+
     app = FastAPI(
         title=settings.APP_NAME,
         version=_app_version(),
         description="Modular AI command center — local MVP backend.",
         docs_url="/docs",
         openapi_url="/openapi.json",
+        lifespan=lifespan,
     )
 
     # Security headers on every response (defense in depth). No CSP here so the
