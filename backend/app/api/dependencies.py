@@ -124,8 +124,9 @@ def get_current_principal(
                 log.info("bridge-auth: supabase sub %s NOT LINKED (%s) for %s %s",
                          supabase_user_id, exc, request.method, request.url.path)
                 raise
+            # Opaque user_id, never the email — keep PII out of per-request logs.
             log.info("bridge-auth: supabase user %s OK for %s %s",
-                     principal.email, request.method, request.url.path)
+                     principal.user_id, request.method, request.url.path)
             return principal
 
         log.info("bridge-auth: bearer token not recognized for %s %s",
