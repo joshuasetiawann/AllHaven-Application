@@ -14,6 +14,7 @@ Routers and services never read ``workspace_id`` from the client.
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import Depends, Header, Request
@@ -27,6 +28,10 @@ from app.core.security import decode_access_token, decode_supabase_token
 from app.domain.users import LocalUser, Profile
 from app.services import session_service
 from app.services.auth_service import get_default_workspace
+
+# Diagnostics for mobile Backend Bridge auth. Only fires for Supabase-token
+# (mobile) requests, so it isolates the phone's exact outcome without desktop noise.
+log = logging.getLogger("allhaven.bridge_auth")
 
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
@@ -105,14 +110,26 @@ def get_current_principal(
             try:
                 sb_payload = decode_supabase_token(token)
             except ValueError as exc:
+                log.info("bridge-auth: supabase token REJECTED (%s) for %s %s",
+                         exc, request.method, request.url.path)
                 raise UnauthorizedError("Invalid or expired token.") from exc
             sb_subject = sb_payload.get("sub")
             try:
                 supabase_user_id = uuid.UUID(str(sb_subject))
             except (ValueError, TypeError) as exc:
                 raise UnauthorizedError("Invalid token.") from exc
-            return _principal_for_supabase_user(db, supabase_user_id)
+            try:
+                principal = _principal_for_supabase_user(db, supabase_user_id)
+            except UnauthorizedError as exc:
+                log.info("bridge-auth: supabase sub %s NOT LINKED (%s) for %s %s",
+                         supabase_user_id, exc, request.method, request.url.path)
+                raise
+            log.info("bridge-auth: supabase user %s OK for %s %s",
+                     principal.email, request.method, request.url.path)
+            return principal
 
+        log.info("bridge-auth: bearer token not recognized for %s %s",
+                 request.method, request.url.path)
         raise UnauthorizedError("Invalid or expired token.")
 
     # 2) Session cookie (browser).
