@@ -63,7 +63,12 @@ def test_no_extra_context_keeps_plain_system_prompt(auth_client, db_session, mon
         db_session, _principal(auth_client), message="Hello",
     )
     assert result["ok"] is True
-    assert captured["messages"][0] == {"role": "system", "content": SYSTEM_PROMPT}
+    system_turn = captured["messages"][0]
+    assert system_turn["role"] == "system"
+    # No user extra_context, but the current-date block is always injected now so
+    # the model never anchors on a stale training date.
+    assert system_turn["content"].startswith(SYSTEM_PROMPT)
+    assert "[Current context]" in system_turn["content"]
 
 
 def test_extra_context_prepended_on_non_tool_path(auth_client, db_session, monkeypatch):
