@@ -149,3 +149,51 @@ def test_approving_schedule_creates_timed_blocks_not_giant_event(auth_client, db
         assert e.start_at is not None and e.end_at is not None
         span_min = (e.end_at - e.start_at).total_seconds() / 60
         assert 0 < span_min <= 240                # never the 07:00-23:59 giant block
+
+
+# -------------- period-driven assignment (user feedback) ------------------- #
+
+_THREE_DAY = "buatin saya jadwal untuk 3 hari kedepan, pagi gym, siang makan, malam ngoding"
+
+
+def test_named_period_overrides_activity_default():
+    # "pagi gym" -> morning even though gym defaults to afternoon; activities land
+    # in the period the USER named, in three separate buckets (the user's complaint).
+    draft = schedule_parser.parse_schedule(_THREE_DAY)
+    assert draft is not None and draft.repeat_days == 3
+    by_title = {b.title: b for b in draft.blocks}
+    assert by_title["Gym"].time_period == "morning"
+    assert by_title["Makan"].time_period == "afternoon"
+    assert by_title["Ngoding"].time_period == "evening"
+    assert len(draft.blocks) == 3
+    assert {b.time_period for b in draft.blocks} == {"morning", "afternoon", "evening"}
+
+
+def test_gym_malem_goes_to_evening():
+    draft = schedule_parser.parse_schedule("buatin jadwal pagi badminton, siang makan, gym malem")
+    by_title = {b.title: b for b in draft.blocks}
+    assert by_title["Badminton"].time_period == "morning"
+    assert by_title["Gym"].time_period == "evening"          # named period wins
+    assert int(by_title["Gym"].start_time.split(":")[0]) >= 18  # evening, not 13:00
+
+
+@pytest.mark.parametrize("msg", [
+    "buatin saya jadwal 2 hari pagi gym",
+    "bikinin jadwal seminggu pagi jogging",
+    "tolong buatkan jadwal 3 hari malam ngoding",
+])
+def test_colloquial_triggers_match(msg):
+    assert schedule_parser.parse_schedule(msg) is not None
+
+
+def test_three_day_chat_creates_period_grouped_proposal(auth_client, db_session):
+    resp = auth_client.post(f"{API}/ai/chat", json={"message": _THREE_DAY})
+    assert resp.status_code == 200, resp.text
+    principal = _principal(auth_client)
+    p = db_session.query(AiToolProposal).filter(
+        AiToolProposal.workspace_id == principal.workspace_id,
+        AiToolProposal.tool_name == "create_routine_schedule",
+        AiToolProposal.status == "PENDING",
+    ).one()
+    assert p.tool_payload["repeat_days"] == 3
+    assert {b["time_period"] for b in p.tool_payload["blocks"]} == {"morning", "afternoon", "evening"}
