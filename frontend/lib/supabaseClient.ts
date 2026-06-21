@@ -1,6 +1,7 @@
 // frontend/lib/supabaseClient.ts — lazy supabase-js singleton + DATA_MODE flag.
 // Session is persisted via Capacitor Preferences so it survives app restarts.
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { setBearerToken, clearBearerToken } from "@/lib/mobileAuth";
 
 export const DATA_MODE = process.env.NEXT_PUBLIC_DATA_MODE === "supabase";
 
@@ -40,6 +41,17 @@ export async function getSupabase(): Promise<SupabaseClient> {
       storage: capacitorStorage,
       storageKey: "allhaven_supabase_session",
     },
+  });
+  // Keep the Backend Bridge bearer token in sync with the live Supabase session.
+  // The bridge (Settings, AI providers, system, n8n, Ollama) authenticates with the
+  // Supabase access_token, but the login page only cached the profile and never
+  // persisted the token — so every bridge call went out with no Authorization header
+  // and 401'd (which then cleared what little there was). onAuthStateChange fires on
+  // the restored session (cold start), on sign-in, and on every ~1h token refresh, so
+  // the bridge token is always present and fresh; it's cleared on sign-out.
+  client.auth.onAuthStateChange((_event, session) => {
+    if (session?.access_token) void setBearerToken(session.access_token);
+    else void clearBearerToken();
   });
   return client;
 }
