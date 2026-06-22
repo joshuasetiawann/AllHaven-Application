@@ -31,6 +31,7 @@ from app.domain.ai import (
 )
 from app.services import ai_local_answers, ai_provider_router
 from app.services.ai_provider_router import ChatPlan
+from app.services.ai_reply_text import display_text
 from app.services.ai_service import _auto_title
 from app.services.thinking import thinking_params
 
@@ -257,10 +258,11 @@ def multi_chat(
                 f"{mem_prefix}"
                 f"You are the {role_name} agent in a team of {len(ids)} AI agents answering "
                 f"the same request. Your job: {role_task} Answer from that perspective — "
-                "start with the answer, be specific and concrete, no basa-basi, no generic filler, "
-                "and be honest about uncertainty. Keep routine replies short. Match the user's "
-                "tone: casual chat may be warm/playful, coding gets senior engineering help, and "
-                "schedule requests should stay practical."
+                "Answer like a knowledgeable, friendly human (ChatGPT/Claude style): natural, "
+                "conversational prose in complete sentences; be specific, helpful, and concrete; "
+                "use bullets only for genuinely list-like content; and be honest about uncertainty. "
+                "Match the user's tone: casual chat is warm and playful, coding gets senior "
+                "engineering help, and schedule requests stay practical. Reply in the user's language."
             )},
             base_user,
         ]
@@ -348,7 +350,7 @@ def multi_chat(
                 workspace_id=principal.workspace_id,
                 session_id=session.id,
                 role="assistant",
-                content=content if status == "completed" and content else (error or status),
+                content=display_text(status, content, error),
                 section_key=section_key or "general",
                 meta={
                     "provider_id": pid,

@@ -46,6 +46,7 @@ from app.services.ai_multi_service import (
     _user_meta,
 )
 from app.services.ai_provider_router import ChatPlan
+from app.services.ai_reply_text import display_text
 from app.services.ai_service import _auto_title
 from app.services.reasoning import prompts
 from app.services.reasoning import quality as q
@@ -155,7 +156,7 @@ def reasoning_chat(
             msg_meta.update(extra)
         db.add(ChatMessage(
             workspace_id=principal.workspace_id, session_id=session.id, role="assistant",
-            content=content if status == "completed" and content else (error or status),
+            content=display_text(status, content, error),
             section_key=section_key or "general", meta=msg_meta,
         ))
 
@@ -276,7 +277,7 @@ def reasoning_chat(
     responses.append(synth_row)
     db.add(ChatMessage(
         workspace_id=principal.workspace_id, session_id=session.id, role="assistant",
-        content=final_answer if final_oc["status"] == "completed" and final_answer else (final_oc["error"] or final_oc["status"]),
+        content=display_text(final_oc["status"], final_answer, final_oc["error"]),
         section_key=section_key or "general",
         meta={"provider_id": synth_pid, "provider_name": synth_name, "status": final_oc["status"],
               "run_id": str(run.id), "latency_ms": final_oc["latency_ms"],
