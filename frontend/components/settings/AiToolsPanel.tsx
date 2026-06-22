@@ -8,7 +8,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { aiApi, ApiException } from "@/lib/api";
-import { backendReachable, isBackendUnreachable } from "@/lib/connection";
+import { backendReachable, needsBackendConnection } from "@/lib/connection";
 import { BEARER_MODE } from "@/lib/mobileAuth";
 import type { AiTool } from "@/types";
 
@@ -47,7 +47,7 @@ export function AiToolsPanel() {
     try {
       setTools(await aiApi.listTools());
     } catch (err) {
-      if (isBackendUnreachable(err)) {
+      if (needsBackendConnection(err)) {
         setNeedsBackend(true);
         return;
       }
