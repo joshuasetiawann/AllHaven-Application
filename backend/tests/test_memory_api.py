@@ -269,6 +269,24 @@ def test_delete_memory(auth_client):
     assert memory_id not in ids
 
 
+def test_delete_memory_soft_deletes_row(auth_client, db_session):
+    from app.domain.ai_memory import AiMemory
+
+    create = auth_client.post(
+        MEMORY_PREFIX,
+        json={"category": "Profile", "title": "Soft delete", "content": "Sync tombstone"},
+    )
+    memory_id = create.json()["data"]["id"]
+
+    delete_resp = auth_client.delete(f"{MEMORY_PREFIX}/{memory_id}")
+    assert delete_resp.status_code == 200, delete_resp.text
+
+    row = db_session.get(AiMemory, uuid.UUID(memory_id))
+    assert row is not None
+    assert row.is_deleted is True
+    assert row.deleted_at is not None
+
+
 def test_delete_memory_not_found(auth_client):
     fake_id = str(uuid.uuid4())
     resp = auth_client.delete(f"{MEMORY_PREFIX}/{fake_id}")

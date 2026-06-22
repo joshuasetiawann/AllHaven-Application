@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError, ValidationAppError
@@ -37,6 +37,7 @@ def list_memories(
     stmt = select(AiMemory).where(
         AiMemory.workspace_id == principal.workspace_id,
         AiMemory.status == status,
+        AiMemory.is_deleted.is_(False),
     )
     if category:
         stmt = stmt.where(AiMemory.category == category)
@@ -56,6 +57,7 @@ def search_memories(db: Session, principal: Principal, query: str, limit: int = 
             AiMemory.workspace_id == principal.workspace_id,
             AiMemory.status == "active",
             AiMemory.enabled == True,  # noqa: E712
+            AiMemory.is_deleted.is_(False),
             or_(
                 func.lower(AiMemory.title).contains(q, autoescape=True),
                 func.lower(AiMemory.content).contains(q, autoescape=True),
@@ -78,6 +80,7 @@ def get_memory(db: Session, principal: Principal, memory_id: uuid.UUID) -> AiMem
         select(AiMemory).where(
             AiMemory.id == memory_id,
             AiMemory.workspace_id == principal.workspace_id,
+            AiMemory.is_deleted.is_(False),
         )
     )
     if not m:
@@ -101,6 +104,7 @@ def create_memory(
         select(func.count()).where(
             AiMemory.workspace_id == principal.workspace_id,
             AiMemory.status == "active",
+            AiMemory.is_deleted.is_(False),
         )
     ) or 0
     if count >= MAX_MEMORIES_PER_WORKSPACE:
@@ -151,17 +155,24 @@ def update_memory(
 
 def delete_memory(db: Session, principal: Principal, memory_id: uuid.UUID) -> None:
     m = get_memory(db, principal, memory_id)
-    db.delete(m)
+    m.is_deleted = True
+    m.deleted_at = datetime.now(timezone.utc)
     db.flush()
 
 
 def clear_all_memories(db: Session, principal: Principal) -> int:
-    """Bulk-delete ALL memories for the workspace regardless of status.
+    """Soft-delete ALL memories for the workspace regardless of status.
 
     Returns the number of rows deleted.
     """
+    now = datetime.now(timezone.utc)
     result = db.execute(
-        delete(AiMemory).where(AiMemory.workspace_id == principal.workspace_id)
+        update(AiMemory)
+        .where(
+            AiMemory.workspace_id == principal.workspace_id,
+            AiMemory.is_deleted.is_(False),
+        )
+        .values(is_deleted=True, deleted_at=now, updated_at=now)
     )
     db.commit()
     return result.rowcount
@@ -173,6 +184,7 @@ def mark_used(db: Session, principal: Principal, memory_id: uuid.UUID) -> None:
         select(AiMemory).where(
             AiMemory.id == memory_id,
             AiMemory.workspace_id == principal.workspace_id,
+            AiMemory.is_deleted.is_(False),
         )
     )
     if m:
@@ -194,6 +206,7 @@ def find_existing_memory(
         .where(
             AiMemory.workspace_id == principal.workspace_id,
             AiMemory.status == "active",
+            AiMemory.is_deleted.is_(False),
             AiMemory.category == category,
             func.lower(func.trim(AiMemory.title)) == title[:200].lower().strip(),
         )
