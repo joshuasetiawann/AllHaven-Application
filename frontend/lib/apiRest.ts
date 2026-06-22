@@ -51,21 +51,14 @@ import type {
 } from "@/types";
 import type { AiProviderUpdatePayload, GoogleScopes } from "@/types/api";
 
-// Resolve the API base URL so the app works across devices without a rebuild:
-//  1. If NEXT_PUBLIC_API_BASE_URL is set, always use it.
-//  2. Otherwise, in the browser, derive it from the current host (so opening the
-//     app at http://<LAN-IP>:3000 on a phone calls the API at http://<LAN-IP>:8000).
-//  3. Fall back to localhost (SSR / build time).
-function resolveApiBaseUrl(): string {
-  const fromEnv = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
-  if (typeof window !== "undefined" && window.location?.hostname) {
-    return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
-  }
-  return "http://localhost:8000/api/v1";
-}
+// The API base URL is resolved PER REQUEST (not once at module load) so a user
+// can repoint the installed app at their desktop over Tailscale without a
+// rebuild — see lib/backendUrl.ts for the resolution order. On mobile the
+// WebView origin is always https://localhost (the phone), so a runtime override
+// is the only way to reach the desktop backend.
+import { getApiBaseUrl } from "@/lib/backendUrl";
 
-export const API_BASE_URL = resolveApiBaseUrl();
+export { getApiBaseUrl } from "@/lib/backendUrl";
 
 export class ApiException extends Error {
   code: string;
@@ -149,7 +142,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   try {
     let res: Response;
     try {
-      res = await fetch(`${API_BASE_URL}${path}`, {
+      res = await fetch(`${getApiBaseUrl()}${path}`, {
         ...options,
         headers,
         credentials,
@@ -534,7 +527,7 @@ export const driveApi = {
     const { headers, credentials } = authFetchInit("POST");
     let res: Response;
     try {
-      res = await fetch(`${API_BASE_URL}/drive/files`, {
+      res = await fetch(`${getApiBaseUrl()}/drive/files`, {
         method: "POST",
         headers,
         body: form,
@@ -557,7 +550,7 @@ export const driveApi = {
     const { headers, credentials } = authFetchInit("GET");
     let res: Response;
     try {
-      res = await fetch(`${API_BASE_URL}/drive/files/${id}/download`, { headers, credentials });
+      res = await fetch(`${getApiBaseUrl()}/drive/files/${id}/download`, { headers, credentials });
     } catch {
       throw new ApiException("Cannot reach the AllHaven API. Is the backend running?", "NETWORK_ERROR", 0);
     }
@@ -581,7 +574,7 @@ export const knowledgeApi = {
     const qs = title?.trim() ? `?title=${encodeURIComponent(title.trim())}` : "";
     let res: Response;
     try {
-      res = await fetch(`${API_BASE_URL}/ai/knowledge/documents${qs}`, {
+      res = await fetch(`${getApiBaseUrl()}/ai/knowledge/documents${qs}`, {
         method: "POST",
         headers,
         body: form,

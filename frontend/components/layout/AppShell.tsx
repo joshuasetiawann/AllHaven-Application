@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
+import { BackendBridgeCard } from "@/components/settings/BackendBridgeCard";
 import { ErrorState, Loading } from "@/components/ui/States";
 import { ApiException, authApi } from "@/lib/api";
 import { clearAuth, setStoredUser } from "@/lib/auth";
@@ -119,7 +120,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         {authError ? (
-          <ErrorState message={authError} onRetry={() => setAuthNonce((n) => n + 1)} />
+          // The session check couldn't reach the server (network/timeout — not a
+          // 401). On mobile that's usually the wrong backend URL, so offer the
+          // Backend Bridge config right here; a successful test re-runs the check.
+          <div className="w-full max-w-md">
+            <ErrorState message={authError} onRetry={() => setAuthNonce((n) => n + 1)} />
+            <div className="mt-5">
+              <BackendBridgeCard onConnected={() => setAuthNonce((n) => n + 1)} />
+            </div>
+          </div>
         ) : (
           <Loading label="Checking your session…" />
         )}
