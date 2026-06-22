@@ -11,6 +11,20 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.7.0] - 2026-06-10 — Public-launch auth: cookie sessions, CSRF, rate limiting
+
+Detailed notes: [`docs/releases/v0.7.0.md`](docs/releases/v0.7.0.md) · Audit: [`LAUNCH_SECURITY_REPORT.md`](LAUNCH_SECURITY_REPORT.md)
+
+### Security
+- **HttpOnly cookie sessions replace localStorage tokens** (browser): hashed (SHA-256) server-side session records, `SameSite=Lax`, `Secure` outside local dev; **rotation** via `POST /auth/refresh`; **server-side revocation** via `POST /auth/logout`. Bearer JWT stays available for API clients/tools. A legacy-key scrub removes previously stored tokens from upgraders' browsers.
+- **CSRF protection** (double-submit): per-session token in a readable cookie must be echoed in `X-CSRF-Token` on every state-changing cookie-authenticated request (enforced centrally; 403 `CSRF_FAILED`).
+- **Auth rate limiting**: per-IP sliding-window cap on `/auth/*` POSTs (`AUTH_RATE_LIMIT_PER_MINUTE`; prod example 10) + gateway guidance for multi-replica.
+- **SECRET_KEY production guard**: startup fails in production/staging with the dev default or a key shorter than 32 chars.
+- Private routes verify auth via `GET /auth/me` (cookie) — survives refresh without exposing any token to JavaScript.
+
+### Changed
+- New table `user_sessions` (migration `0006`). Frontend API client sends `credentials: "include"` + CSRF header; Drive upload/download use cookies.
+
 ## [0.6.0] - 2026-06-10 — Launch hardening: security headers, safe downloads & dep patches
 
 Detailed notes: [`docs/releases/v0.6.0.md`](docs/releases/v0.6.0.md) · Audit: [`LAUNCH_SECURITY_REPORT.md`](LAUNCH_SECURITY_REPORT.md)

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ArrowRight, AtSign, Eye, EyeOff, Fingerprint, KeyRound, ShieldCheck, Usb } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { authApi, ApiException } from "@/lib/api";
-import { setStoredUser, setToken } from "@/lib/auth";
+import { setStoredUser } from "@/lib/auth";
 import { APP_VERSION } from "@/components/layout/nav";
 
 type Mode = "login" | "register";
@@ -30,7 +30,8 @@ export default function LoginPage() {
         mode === "login"
           ? await authApi.login(email, password)
           : await authApi.register(email, password, fullName);
-      setToken(result.access_token);
+      // Auth itself is the HttpOnly cookie the backend just set; we cache only
+      // the non-sensitive profile for instant rendering.
       setStoredUser(result.user);
       router.replace("/dashboard");
     } catch (err) {

@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
+from app.core.ratelimit import auth_rate_limit_middleware
 from app.core.responses import success_response
 
 
@@ -57,14 +58,17 @@ def create_app() -> FastAPI:
         response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
         return response
 
-    # CORS. Auth is via the Authorization header (no cookies), so when allowing
-    # any origin we set allow_credentials=False (required by the CORS spec).
-    # Local/dev (or BACKEND_CORS_ALLOW_ALL) → reachable from any LAN device.
+    # CORS. Browser auth is an HttpOnly SameSite=Lax cookie, so credentials must
+    # be allowed for the frontend origin. Local/dev (or BACKEND_CORS_ALLOW_ALL)
+    # echoes the requesting origin so the app works from any LAN device; that is
+    # safe with cookies because SameSite=Lax keeps them off cross-SITE fetches
+    # and state-changing requests additionally require the CSRF header.
+    # Production restricts to the explicit BACKEND_CORS_ORIGINS list.
     if settings.BACKEND_CORS_ALLOW_ALL or settings.is_local_env:
         app.add_middleware(
             CORSMiddleware,
             allow_origin_regex=".*",
-            allow_credentials=False,
+            allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
         )
@@ -76,6 +80,9 @@ def create_app() -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+    # Per-IP rate limit on /auth/* POSTs (enabled via AUTH_RATE_LIMIT_PER_MINUTE).
+    app.middleware("http")(auth_rate_limit_middleware)
 
     register_exception_handlers(app)
 
