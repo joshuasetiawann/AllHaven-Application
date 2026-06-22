@@ -13,9 +13,12 @@ users.  The backend (service_role) bypasses RLS and continues to manage membersh
 MVP has no team-invitation flow, so mobile clients have no legitimate write path to
 workspace_members.
 
-Revision ID: 0015_workspace_members_rls_hardening
+Revision ID: 0015_workspace_members_rls
 Revises: 0014_sync_state
 Create Date: 2026-06-19
+
+Note: the revision id is kept to <=32 chars so it fits Alembic's default
+alembic_version.version_num VARCHAR(32). The descriptive filename may be longer.
 """
 
 import os
@@ -24,7 +27,7 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0015_workspace_members_rls_hardening"
+revision: str = "0015_workspace_members_rls"
 down_revision: Union[str, None] = "0014_sync_state"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
