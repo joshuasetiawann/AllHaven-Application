@@ -19,6 +19,17 @@ export interface AgentCardData {
   role?: string | null;
 }
 
+// Status words the backend used to persist as a message body (old/synced rows).
+// We render a muted placeholder instead of showing the bare sentinel as an answer.
+const SENTINEL_WORDS = new Set(["completed", "complete", "queued", "running", "pending", "ok", "done"]);
+const SENTINEL_PLACEHOLDER = "_(Tidak ada jawaban — coba kirim ulang.)_";
+
+/** True when content is empty or exactly a status sentinel (never a real short answer). */
+export function isSentinel(text: string | null | undefined): boolean {
+  const t = (text ?? "").trim().toLowerCase();
+  return t === "" || SENTINEL_WORDS.has(t);
+}
+
 const STATUS_META: Record<
   AgentResponseStatus,
   { tone: "success" | "danger" | "warning" | "neutral" | "primary"; label: string }
@@ -57,7 +68,10 @@ export function AgentResponseCard({ data }: { data: AgentCardData }) {
 
       <div className="min-w-0 flex-1 px-3 py-2.5 text-[13px] leading-relaxed">
         {data.status === "completed" ? (
-          <MarkdownMessage content={data.content || ""} className="text-content-muted" />
+          <MarkdownMessage
+            content={isSentinel(data.content) ? SENTINEL_PLACEHOLDER : (data.content || "")}
+            className="text-content-muted"
+          />
         ) : busy ? (
           <p className="text-content-subtle">Waiting for a response…</p>
         ) : needsSetup ? (

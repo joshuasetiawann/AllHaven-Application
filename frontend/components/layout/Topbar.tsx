@@ -7,6 +7,7 @@ import { Bell, Menu, Search, Settings as SettingsIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { IconButton } from "@/components/ui/IconButton";
 import { CommandPalette } from "@/components/layout/CommandPalette";
+import { ConnectionModeSwitcher } from "@/components/layout/ConnectionModeSwitcher";
 import { aiApi } from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
 import { cn, initials } from "@/lib/format";
@@ -119,6 +120,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
             />
             <span className="truncate">Local AI · {statusLabel}</span>
           </span>
+          <ConnectionModeSwitcher />
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <div className="relative" ref={notifRef}>
               <IconButton aria-label="Notifications" active={notifOpen} onClick={() => setNotifOpen((o) => !o)}>
