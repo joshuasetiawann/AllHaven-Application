@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Bot,
   Box,
@@ -46,6 +46,7 @@ import { GoogleOAuthCard } from "@/components/settings/GoogleOAuthCard";
 import SystemControl from "@/components/settings/SystemControl";
 import { aiApi, authApi, settingsApi } from "@/lib/api";
 import { backendReachable } from "@/lib/connection";
+import { BACKEND_CHANGED_EVENT } from "@/lib/connectionMode";
 import { BEARER_MODE } from "@/lib/mobileAuth";
 import { getStoredUser, setStoredUser } from "@/lib/auth";
 import { cn, initials } from "@/lib/format";
@@ -161,42 +162,53 @@ export default function SettingsPage() {
     }
   };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setError(null);
-    // me() works on mobile (Supabase-direct), so it always runs. The other three are
-    // REST/backend-only: on mobile, gate them behind ONE fast reachability ping so an
-    // unreachable desktop backend degrades the page in ~2-3s instead of three doomed 3.5s
-    // requests stacking up (that was the "settings loading forever" on the phone).
-    const meRes = await authApi.me().catch(() => null);
-    let integrationsRes = null;
-    let providersRes = null;
-    let policyRes = null;
-    if (!BEARER_MODE || (await backendReachable())) {
-      [integrationsRes, providersRes, policyRes] = await Promise.all([
-        settingsApi.integrations().catch(() => null),
-        aiApi.listProviders().catch(() => null),
-        aiApi.getPolicy().catch(() => null),
-      ]);
+    try {
+      // me() works on mobile (Supabase-direct), so it always runs. The other three are
+      // REST/backend-only: on mobile, gate them behind ONE fast reachability ping so an
+      // unreachable desktop backend degrades the page in ~2-3s instead of three doomed
+      // requests stacking up (that was the "settings loading forever" on the phone).
+      const meRes = await authApi.me().catch(() => null);
+      let integrationsRes = null;
+      let providersRes = null;
+      let policyRes = null;
+      if (!BEARER_MODE || (await backendReachable())) {
+        [integrationsRes, providersRes, policyRes] = await Promise.all([
+          settingsApi.integrations().catch(() => null),
+          aiApi.listProviders().catch(() => null),
+          aiApi.getPolicy().catch(() => null),
+        ]);
+      }
+      if (policyRes) {
+        setAllowExternal(policyRes.allow_external);
+        setDefaultProvider(policyRes.default_provider);
+      }
+      if (meRes) {
+        setProfileForm({
+          full_name: meRes.user.full_name ?? "",
+          workspace_name: meRes.workspace.name ?? "",
+        });
+      }
+      setMe(meRes);
+      setIntegrations(integrationsRes?.integrations ?? null);
+      setProviders(providersRes?.providers ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load settings.");
+      setMe(null);
+      setIntegrations(null);
+      setProviders(null);
+    } finally {
+      setLoaded(true);
     }
-    if (policyRes) {
-      setAllowExternal(policyRes.allow_external);
-      setDefaultProvider(policyRes.default_provider);
-    }
-    if (meRes) {
-      setProfileForm({
-        full_name: meRes.user.full_name ?? "",
-        workspace_name: meRes.workspace.name ?? "",
-      });
-    }
-    setMe(meRes);
-    setIntegrations(integrationsRes?.integrations ?? null);
-    setProviders(providersRes?.providers ?? null);
-    setLoaded(true);
-  };
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+    const onBackendChanged = () => void load();
+    window.addEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
+    return () => window.removeEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
+  }, [load]);
 
   const updateIntegration = (updated: Integration) => {
     setIntegrations((prev) => prev?.map((i) => (i.key === updated.key ? updated : i)) ?? prev);
