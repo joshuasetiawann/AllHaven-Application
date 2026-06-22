@@ -23,8 +23,9 @@ export function IntegrationConfigModal({
 }) {
   const [publicValues, setPublicValues] = useState<Record<string, string>>({});
   const [secretValues, setSecretValues] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState<"" | "save" | "test" | "clear">("");
+  const [busy, setBusy] = useState<"" | "save" | "test" | "clear" | "connect">("");
   const [error, setError] = useState<string | null>(null);
+  const [connectPassword, setConnectPassword] = useState("");
 
   useEffect(() => {
     if (integration && open) {
@@ -131,6 +132,36 @@ export function IntegrationConfigModal({
         Secrets are sent to the backend and encrypted at rest (local MVP scheme). They are never
         stored in your browser and never shown again — only a masked preview. <strong className="font-medium text-content-muted">Online status requires a successful Test Connection</strong> — saving alone marks it Configured.
       </p>
+
+      {integration.key === "supabase" ? (
+        <div className="mt-4 border-t border-border pt-4">
+          <label className="text-sm text-content-muted">Confirm your password to link Supabase Auth</label>
+          <input
+            type="password"
+            value={connectPassword}
+            onChange={(e) => setConnectPassword(e.target.value)}
+            className="mt-1 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm"
+          />
+          <Button
+            className="mt-2"
+            disabled={busy === "connect" || !connectPassword}
+            onClick={async () => {
+              setBusy("connect");
+              setError(null);
+              try {
+                await settingsApi.connectSupabase(connectPassword);
+                setConnectPassword("");
+              } catch (err) {
+                setError(err instanceof ApiException ? err.message : "Action failed.");
+              } finally {
+                setBusy("");
+              }
+            }}
+          >
+            Connect to Supabase
+          </Button>
+        </div>
+      ) : null}
     </Modal>
   );
 }
