@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, AtSign, Eye, EyeOff, Fingerprint, KeyRound, ShieldCheck, Usb } from "lucide-react";
+import { ArrowRight, AtSign, Eye, EyeOff, Fingerprint, KeyRound, ServerCog, ShieldCheck, Usb } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { BackendBridgeCard } from "@/components/settings/BackendBridgeCard";
 import { authApi, ApiException } from "@/lib/api";
+import { isBackendUnreachable } from "@/lib/connection";
 import { setStoredUser } from "@/lib/auth";
 import { APP_VERSION } from "@/components/layout/nav";
 
@@ -20,10 +22,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // When sign-in can't reach the backend (wrong URL on mobile), let the user fix
+  // the connection right here instead of being stuck on a dead login form.
+  const [showBackendSetup, setShowBackendSetup] = useState(false);
+  const [connError, setConnError] = useState(false);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+    setConnError(false);
     setLoading(true);
     try {
       const result =
@@ -35,6 +42,9 @@ export default function LoginPage() {
       setStoredUser(result.user);
       router.replace("/dashboard");
     } catch (err) {
+      const unreachable = isBackendUnreachable(err);
+      setConnError(unreachable);
+      if (unreachable) setShowBackendSetup(true);
       setError(err instanceof ApiException ? err.message : "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
@@ -140,9 +150,14 @@ export default function LoginPage() {
               </div>
 
               {error ? (
-                <p className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[13px] text-danger">
-                  {error}
-                </p>
+                <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[13px] text-danger">
+                  <p>{error}</p>
+                  {connError ? (
+                    <p className="mt-1 text-[12px] text-content-muted">
+                      Can&apos;t reach the backend. If you&apos;re on mobile, set your desktop&apos;s Tailscale URL below.
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
 
               <Button type="submit" size="lg" className="w-full" loading={loading}>
@@ -178,6 +193,22 @@ export default function LoginPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Backend connection setup — reachable BEFORE login so a wrong/unset
+            backend URL (the common mobile case) isn't a dead end. */}
+        <div className="mt-4">
+          {showBackendSetup ? (
+            <BackendBridgeCard onConnected={() => { setError(null); setConnError(false); }} />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowBackendSetup(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface-input/50 px-3 py-2.5 text-[12.5px] text-content-muted transition-colors hover:border-primary/40 hover:text-content"
+            >
+              <ServerCog size={14} /> Configure backend connection
+            </button>
+          )}
         </div>
 
         <div className="mt-6 text-center">
