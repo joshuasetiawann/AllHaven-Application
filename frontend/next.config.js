@@ -37,9 +37,9 @@ if (isProd) {
       "object-src 'none'",
       "frame-ancestors 'none'",
       "img-src 'self' data: blob:",
-      "style-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "script-src 'self' 'unsafe-inline'",
-      "font-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com",
       connectSrc,
     ].join("; "),
   });
