@@ -44,6 +44,7 @@ const SOURCE_LABEL: Record<BackendUrlSource, string> = {
   env: "Built-in default (from the app build)",
   derived: "Same host as this page :8000",
   fallback: "localhost fallback",
+  none: "No desktop bridge configured",
 };
 
 /**
@@ -55,7 +56,7 @@ const SOURCE_LABEL: Record<BackendUrlSource, string> = {
  */
 export function BackendBridgeCard({ onConnected }: { onConnected?: () => void }) {
   const [activeUrl, setActiveUrl] = useState("");
-  const [source, setSource] = useState<BackendUrlSource>("fallback");
+  const [source, setSource] = useState<BackendUrlSource>("none");
   const [draft, setDraft] = useState("");
   const [hasOverride, setHasOverride] = useState(false);
   const [status, setStatus] = useState<Status>("unknown");

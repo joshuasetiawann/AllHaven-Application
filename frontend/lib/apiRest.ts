@@ -156,13 +156,22 @@ async function request<T>(path: string, options: RequestInit = {}, timeoutMs: nu
   try {
     let res: Response;
     try {
-      res = await fetch(`${getApiBaseUrl()}${path}`, {
+      const base = getApiBaseUrl();
+      if (BEARER_MODE && !base) {
+        throw new ApiException(
+          "Desktop Bridge is not configured. Mobile data works through Supabase; configure a bridge only for Ollama/n8n desktop features.",
+          "BRIDGE_REQUIRED",
+          503,
+        );
+      }
+      res = await fetch(`${base}${path}`, {
         ...options,
         headers,
         credentials,
         signal: controller.signal,
       });
     } catch (err) {
+      if (err instanceof ApiException) throw err;
       const timedOut = err instanceof DOMException && err.name === "AbortError";
       throw new ApiException(
         timedOut
@@ -536,12 +545,16 @@ export const driveApi = {
   config: () => request<DriveConfig>("/drive/config"),
   list: () => request<DriveFile[]>("/drive/files"),
   upload: async (file: File): Promise<DriveFile> => {
+    const base = getApiBaseUrl();
+    if (BEARER_MODE && !base) {
+      throw new ApiException("Desktop Bridge is not configured. Drive uploads require the desktop/backend bridge.", "BRIDGE_REQUIRED", 503);
+    }
     const form = new FormData();
     form.append("file", file);
     const { headers, credentials } = authFetchInit("POST");
     let res: Response;
     try {
-      res = await fetch(`${getApiBaseUrl()}/drive/files`, {
+      res = await fetch(`${base}/drive/files`, {
         method: "POST",
         headers,
         body: form,
@@ -561,10 +574,14 @@ export const driveApi = {
   // an <a href> cannot carry the Authorization header, so callers must go
   // through this instead of building the download URL themselves.
   download: async (id: string): Promise<Blob> => {
+    const base = getApiBaseUrl();
+    if (BEARER_MODE && !base) {
+      throw new ApiException("Desktop Bridge is not configured. Drive downloads require the desktop/backend bridge.", "BRIDGE_REQUIRED", 503);
+    }
     const { headers, credentials } = authFetchInit("GET");
     let res: Response;
     try {
-      res = await fetch(`${getApiBaseUrl()}/drive/files/${id}/download`, { headers, credentials });
+      res = await fetch(`${base}/drive/files/${id}/download`, { headers, credentials });
     } catch {
       throw new ApiException("Cannot reach the AllHaven API. Is the backend running?", "NETWORK_ERROR", 0);
     }
@@ -582,13 +599,17 @@ export const driveApi = {
 export const knowledgeApi = {
   listDocuments: () => request<KnowledgeDocument[]>("/ai/knowledge/documents"),
   uploadDocument: async (file: File, title?: string): Promise<KnowledgeDocument> => {
+    const base = getApiBaseUrl();
+    if (BEARER_MODE && !base) {
+      throw new ApiException("Desktop Bridge is not configured. Knowledge uploads require the desktop/backend bridge.", "BRIDGE_REQUIRED", 503);
+    }
     const form = new FormData();
     form.append("file", file);
     const { headers, credentials } = authFetchInit("POST");
     const qs = title?.trim() ? `?title=${encodeURIComponent(title.trim())}` : "";
     let res: Response;
     try {
-      res = await fetch(`${getApiBaseUrl()}/ai/knowledge/documents${qs}`, {
+      res = await fetch(`${base}/ai/knowledge/documents${qs}`, {
         method: "POST",
         headers,
         body: form,

@@ -12,13 +12,18 @@
 //      token stays in native @capacitor/preferences (see lib/mobileAuth.ts).
 //   2. NEXT_PUBLIC_API_BASE_URL baked at build time (CI APK / hosted web).
 //   3. Browser-derived: same scheme+host as the page on :8000 (desktop dev/LAN).
-//   4. http://localhost:8000/api/v1 (SSR / final fallback).
+//   4. http://localhost:8000/api/v1 (desktop SSR / final fallback).
+//
+// Mobile is intentionally different: if no bridge URL is configured, return ""
+// instead of localhost/placeholder. The APK's own WebView is localhost; trying to
+// fetch a fake backend there only causes long loading. Supabase-direct features do
+// not need this URL, and desktop-only features can fail fast with "bridge required".
 
 import { BEARER_MODE } from "@/lib/mobileAuth";
 
 const OVERRIDE_KEY = "allhaven.backend_base_url";
 
-export type BackendUrlSource = "override" | "env" | "derived" | "fallback";
+export type BackendUrlSource = "override" | "env" | "derived" | "fallback" | "none";
 
 /**
  * Normalise whatever the user typed into a usable API root:
@@ -87,10 +92,13 @@ export function clearBackendOverride(): void {
 
 function fromEnv(): string {
   const v = process.env.NEXT_PUBLIC_API_BASE_URL;
-  return v && v.trim() ? v.trim() : "";
+  if (!v || !v.trim()) return "";
+  if (/PLACEHOLDER\.invalid/i.test(v)) return "";
+  return v.trim();
 }
 
 function derived(): string {
+  if (BEARER_MODE) return "";
   if (typeof window !== "undefined" && window.location?.hostname) {
     const { protocol, hostname, port } = window.location;
     // Dev: the Next server on :3000 talks to the backend on :8000 of the SAME
@@ -131,7 +139,9 @@ export function getApiBaseUrl(): string {
   if (sameSiteUsable(override)) return override;
   const env = fromEnv();
   if (sameSiteUsable(env)) return env;
-  return derived() || "http://localhost:8000/api/v1";
+  const d = derived();
+  if (d) return d;
+  return BEARER_MODE ? "" : "http://localhost:8000/api/v1";
 }
 
 /** Which source is currently in effect — for honest status display in Settings. */
@@ -141,5 +151,6 @@ export function getApiBaseUrlSource(): BackendUrlSource {
   if (sameSiteUsable(getBackendOverride())) return "override";
   if (sameSiteUsable(fromEnv())) return "env";
   if (derived()) return "derived";
+  if (BEARER_MODE) return "none";
   return "fallback";
 }
