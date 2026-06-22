@@ -98,7 +98,7 @@ export default function SettingsPage() {
   // First load attempt finished (success OR degraded). The page renders its tabs once
   // this is true; backend-dependent tabs show a per-tab connect-state if their data is
   // null, so a down Backend Bridge never blanks the whole Settings page.
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(BEARER_MODE);
   // On mobile (no local backend) open on Privacy & Safety, whose Profile + Appearance
   // work standalone — so Settings shows usable content immediately instead of a
   // "connect a backend" state on the default Connected Tools tab.
@@ -164,6 +164,11 @@ export default function SettingsPage() {
 
   const load = useCallback(async () => {
     setError(null);
+    // On mobile, Settings must be usable even while Supabase/profile refresh is
+    // slow and even when the optional Desktop Bridge is offline. Mark the shell
+    // loaded immediately so backend-only tabs show their connect-state instead
+    // of an inline spinner.
+    if (BEARER_MODE) setLoaded(true);
     try {
       // me() works on mobile (Supabase-direct), so it always runs. The other three are
       // REST/backend-only: on mobile, gate them behind ONE fast reachability ping so an
