@@ -459,18 +459,14 @@ const financeCrud = {
       const cats = await financeCrud.listCategories();
       category_name_snapshot = cats.find((c) => c.id === payload.category_id)?.name ?? null;
     }
-    const { data, error } = await sb
-      .from("transactions")
-      .insert({
-        ...payload,
-        currency,
-        category_name_snapshot,
-        ...newRow(),
-      })
-      .select("*")
-      .single();
+    const { data, error } = await insertTolerant("transactions", {
+      ...payload,
+      currency,
+      category_name_snapshot,
+      ...newRow(),
+    });
     if (error) throw toApiException(error);
-    return data as Transaction;
+    return (data as Transaction[])[0];
   },
   updateTransaction: async (id: string, payload: Record<string, unknown>): Promise<Transaction> => {
     const sb = await getSupabase();
@@ -617,24 +613,40 @@ async function calList(): Promise<CalendarEvent[]> {
   return (data ?? []) as CalendarEvent[];
 }
 
-async function calCreate(payload: Record<string, unknown>): Promise<CalendarEvent> {
+/**
+ * Insert tolerant of a Supabase project not yet migrated to 0019 (the proposal-scoped
+ * `dedup_key` column). On the "could not find the dedup_key column" error it retries
+ * ONCE without that key, so approving finance/routine on mobile never 404s before the
+ * migration lands — cross-device dedup simply no-ops until the column exists. Returns
+ * the inserted rows (array; no `.single()`).
+ */
+async function insertTolerant(table: string, rows: Record<string, unknown> | Record<string, unknown>[]) {
   const sb = await getSupabase();
-  const { data, error } = await sb
-    .from("calendar_events")
-    .insert({
-      // Defaults for NOT NULL columns without server default (ORM/schema defaults):
-      all_day: false,
-      repeat_rule: "once",
-      is_deleted: false,
-      // Caller payload wins over the above defaults:
-      ...payload,
-      // Stamp tenancy columns last so callers cannot override them:
-      ...newRow(),
-    })
-    .select("*")
-    .single();
+  let res = await sb.from(table).insert(rows).select("*");
+  if (res.error && (res.error.message ?? "").includes("dedup_key")) {
+    const strip = (r: Record<string, unknown>) => {
+      const rest = { ...r };
+      delete rest.dedup_key;
+      return rest;
+    };
+    res = await sb.from(table).insert(Array.isArray(rows) ? rows.map(strip) : strip(rows)).select("*");
+  }
+  return res;
+}
+
+async function calCreate(payload: Record<string, unknown>): Promise<CalendarEvent> {
+  const { data, error } = await insertTolerant("calendar_events", {
+    // Defaults for NOT NULL columns without server default (ORM/schema defaults):
+    all_day: false,
+    repeat_rule: "once",
+    is_deleted: false,
+    // Caller payload wins over the above defaults:
+    ...payload,
+    // Stamp tenancy columns last so callers cannot override them:
+    ...newRow(),
+  });
   if (error) throw toApiException(error);
-  return data as CalendarEvent;
+  return (data as CalendarEvent[])[0];
 }
 
 async function calUpdate(id: string, payload: Record<string, unknown>): Promise<CalendarEvent> {
@@ -689,7 +701,6 @@ export const routinesApi = {
   update: calUpdate,
   remove: calRemove,
   createBatch: async (items: Record<string, unknown>[]): Promise<CalendarEvent[]> => {
-    const sb = await getSupabase();
     const rows = items.map((e) => ({
       all_day: false,
       repeat_rule: "once",
@@ -697,7 +708,7 @@ export const routinesApi = {
       ...e,
       ...newRow(),
     }));
-    const { data, error } = await sb.from("calendar_events").insert(rows).select("*");
+    const { data, error } = await insertTolerant("calendar_events", rows);
     if (error) throw toApiException(error);
     return (data ?? []) as CalendarEvent[];
   },
