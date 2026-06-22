@@ -495,8 +495,16 @@ def search_knowledge(db: Session, principal: Principal, query: str, *, limit: in
     ]
 
 
-def retrieve_context(db: Session, principal: Principal, query: str, *, limit: int = 3) -> tuple[str | None, list[dict]]:
-    results = search_knowledge(db, principal, query, limit=limit)
+def retrieve_context(
+    db: Session, principal: Principal, query: str, *, limit: int = 3, min_score: float = 0.0,
+) -> tuple[str | None, list[dict]]:
+    """Retrieve the most relevant chunks for ``query``.
+
+    ``min_score`` gates weak matches: at chat time the caller passes a threshold so a
+    single shared stop-word can't inject an irrelevant document into the prompt (which
+    made knowledge feel noisy/decorative). The UI search endpoint keeps min_score=0.
+    """
+    results = [r for r in search_knowledge(db, principal, query, limit=limit) if r["score"] >= min_score]
     if not results:
         return None, []
     lines = ["[AI Knowledge — retrieved document context]"]
