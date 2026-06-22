@@ -8,9 +8,8 @@ import { Toggle } from "@/components/ui/Toggle";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { aiApi, ApiException } from "@/lib/api";
-import { isBackendUnreachable } from "@/lib/connection";
+import { backendReachable, isBackendUnreachable } from "@/lib/connection";
 import { BEARER_MODE } from "@/lib/mobileAuth";
-import { getApiBaseUrlSource } from "@/lib/backendUrl";
 import type { AiTool } from "@/types";
 
 // Known module display order; anything new from the backend registry is appended after.
@@ -38,11 +37,10 @@ export function AiToolsPanel() {
   const load = useCallback(async () => {
     setLoadError(null);
     setNeedsBackend(false);
-    // Mobile (bearer build) with no usable backend override: the REST backend is
-    // unreachable, so short-circuit to the connect-state without firing a doomed
-    // request that would spin for the full timeout. Desktop/web (cookie build,
-    // local backend) never enters here.
-    if (BEARER_MODE && getApiBaseUrlSource() === "fallback") {
+    // Mobile (bearer build): if the desktop backend isn't reachable right now, show the
+    // connect-state in ~2-3s (one shared, cached ping) instead of firing a doomed request
+    // that spins for the full timeout. Desktop/web (local backend up) passes through.
+    if (BEARER_MODE && !(await backendReachable())) {
       setNeedsBackend(true);
       return;
     }
