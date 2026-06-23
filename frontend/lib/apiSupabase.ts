@@ -57,8 +57,10 @@ async function loadMe(): Promise<Me> {
   const { data: profile, error: pe } = await sb.from("profiles").select("*").maybeSingle();
   if (pe) throw toApiException(pe);
   if (!profile) {
+    // Self-provisioning (provision_me on sign-in) normally prevents this. If it
+    // still happens, the RPC isn't deployed yet — keep it actionable, not desktop-bound.
     throw new ApiException(
-      'Your account isn’t linked to Supabase yet. Open the AllHaven desktop app → Settings → Supabase → "Connect to Supabase", then sign in here.',
+      "We’re still finishing your account setup. Please try signing in again in a moment.",
       "PROFILE_NOT_INITIALIZED",
       409,
     );
@@ -72,7 +74,7 @@ async function loadMe(): Promise<Me> {
   if (we) throw toApiException(we);
   if (!ws) {
     throw new ApiException(
-      "No workspace found for your account. Create one in the AllHaven desktop app, then sign in here.",
+      "We’re still finishing your workspace setup. Please try signing in again in a moment.",
       "WORKSPACE_NOT_INITIALIZED",
       409,
     );
@@ -132,7 +134,20 @@ export const authApi = {
       throw toApiException({ ...signInErr, message: signInErr.message + hint }, 401);
     }
     const { error: provErr } = await sb.rpc("provision_me", { p_full_name: fullName ?? null });
-    if (provErr) throw toApiException(provErr);
+    if (provErr) {
+      // Never show the raw PostgREST/schema-cache text to users; log it for devs.
+      console.error("provision_me failed:", provErr);
+      const notDeployed =
+        provErr.code === "PGRST202" ||
+        /schema cache|could not find the function|provision_me/i.test(provErr.message ?? "");
+      throw new ApiException(
+        notDeployed
+          ? "We couldn’t finish setting up your account. Please try again in a moment."
+          : provErr.message || "We couldn’t finish setting up your account.",
+        "PROVISION_FAILED",
+        502,
+      );
+    }
     const me = await loadMe();
     return {
       access_token: signIn.session?.access_token ?? "",
