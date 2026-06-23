@@ -95,26 +95,27 @@ FastAPI backend + local Postgres, with two-way Supabase sync).
 Download **`AllHaven-v4.0.0-source.zip`** (from `release/v4.0.0/`) and unzip it,
 or clone the repository at the `v4.0.0` release.
 
-### Launch (one-click launchers)
+### Install (fresh) — then run
 
-The repo ships one-click launchers at its root:
+The repo ships two root scripts:
 
-| OS | Launcher |
-| --- | --- |
-| Linux | `START_HAVEN_LINUX.sh` |
-| macOS | `START_HAVEN_MAC.command` |
-| Windows | `START_HAVEN_WINDOWS.bat` |
+| OS | Fresh install | Run once installed |
+| --- | --- | --- |
+| Linux / macOS | `./install.sh` | `./allhaven.sh run` (or `start`) |
+| Windows | `python installer\haven_cli.py` (or WSL + `./install.sh`) | same installer command |
 
-For Linux/macOS there is also `install.sh` (installs & starts from the current
-terminal), and `allhaven.sh` as a setup/run helper.
+`install.sh` installs tools, `.env`, deps, and migrations from the current
+terminal, then starts and opens the app. Once installed, `./allhaven.sh` manages
+the services: `run` (foreground), `start` (background), `restart`, `stop` — each
+covering backend + frontend + control agent.
 
 ### Install checklist
 
 - [ ] Unzip `AllHaven-v4.0.0-source.zip` (or clone the repo).
 - [ ] Ensure prerequisites are present (Node for the Next.js frontend, Python
       for the FastAPI backend, local Postgres).
-- [ ] Run the launcher for your OS (`START_HAVEN_LINUX.sh`,
-      `START_HAVEN_MAC.command`, or `START_HAVEN_WINDOWS.bat`).
+- [ ] Fresh install: `./install.sh` (Linux/macOS) or `python installer\haven_cli.py`
+      (Windows). Already installed: `./allhaven.sh run`.
 - [ ] Open the app and confirm `v4.0.0` on the login screen / sidebar / Settings
       header, or hit `GET /api/v1/health`.
 

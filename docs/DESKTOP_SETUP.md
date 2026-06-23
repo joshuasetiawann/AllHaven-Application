@@ -5,14 +5,14 @@ This guide is for non-technical users. You only need to **clone the repo** and
 
 ---
 
-## 1. Open the launcher for your OS
+## 1. Install (fresh) — then run with `./allhaven.sh`
 
-| Your OS | Double-click / run | Notes |
-|---------|--------------------|-------|
-| **Windows** | `START_HAVEN_WINDOWS.bat` | If Windows SmartScreen warns, click *More info → Run anyway*. |
-| **macOS** | `START_HAVEN_MAC.command` | First time: **right-click → Open** (or System Settings → Privacy & Security → *Open Anyway*). |
-| **Linux** | `./START_HAVEN_LINUX.sh` | If double-click doesn't run it, run it from a terminal. |
-| **Any terminal** | `./install.sh` or `npm run setup` | Same result — installs in the terminal. |
+| Step | Command | Notes |
+|------|---------|-------|
+| **Fresh install** (Linux/macOS) | `./install.sh` | Installs in the terminal: tools, `.env`, deps, migrations, then starts + opens the app. |
+| **Fresh install** (Windows) | `python installer\haven_cli.py` | Or use **WSL** and run `./install.sh`. |
+| **Run** (already installed) | `./allhaven.sh run` / `./allhaven.sh start` | `run` = foreground (Ctrl+C stops all); `start` = background. |
+| **Restart / stop** | `./allhaven.sh restart` / `./allhaven.sh stop` | Restarts/stops backend + frontend + control agent. |
 
 > **Python 3** and **Node.js 18+** are required. If either is missing, the launcher
 > stops early and tells you where to get it. On Windows, tick **"Add Python to PATH"**
@@ -23,10 +23,10 @@ and starts Haven with **live progress** — tool checks, `.env` (with backup), t
 image pull when Docker is available, `pip`/`npm` installs, migrations, services, and
 finally opening the app in your browser. There is no separate website to configure.
 
-> **After setup**, the **Haven desktop shortcut** (or running the launcher again) skips
-> the install and just starts services + opens the app. Re-run the installer anytime
-> with `HAVEN_FORCE_SETUP=1`. Prefer a browser-based wizard? It's optional:
-> `HAVEN_SETUP_WEB=1 ./START_HAVEN_LINUX.sh`.
+> **After setup**, just use `./allhaven.sh run` (or `start`) to launch, and
+> `./allhaven.sh restart` / `stop` to manage the servers + control agent. Re-run the
+> installer anytime with `HAVEN_FORCE_SETUP=1`. Prefer a browser-based wizard? It's
+> optional: `HAVEN_SETUP_WEB=1 ./install.sh`.
 
 ---
 
@@ -122,10 +122,11 @@ if the Postgres port changes, the database URL is updated automatically.
 
 ## How it works (for the curious)
 
-- **Launchers** (`START_HAVEN_*`) check Python 3 and Node.js. First run → terminal
-  installer (`installer/haven_cli.py`); optional web wizard →
-  `installer/haven_setup.py`; later runs → `installer/haven_launch.py` (ensure services
-  + open).
+- **Entry points** check Python 3 and Node.js. Fresh install → `./install.sh`
+  (Linux/macOS) or `python installer\haven_cli.py` (Windows), which runs the terminal
+  installer (`installer/haven_cli.py`); optional web wizard → `installer/haven_setup.py`.
+  Once installed, `./allhaven.sh` (`run`/`start`/`restart`/`stop`) manages the services
+  (`installer/haven_launch.py` ensures services + opens the app).
 - The **Haven Agent** (`installer/haven_agent.py`) is a tiny **localhost-only**,
   **token-gated** control service. It is the *only* place that starts/stops
   processes or runs Docker — always via fixed argument lists (no shell), against a
