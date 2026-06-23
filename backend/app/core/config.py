@@ -93,6 +93,13 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_ANON_KEY: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
+    # HS256 secret used by Supabase GoTrue to sign user session tokens (legacy
+    # shared-secret projects). When set, the backend also accepts a Supabase
+    # access_token as a bearer credential, mapping it to a local Profile via
+    # supabase_user_id — this is what lets the mobile app (which logs in through
+    # Supabase) reach desktop-only Backend Bridge features (Settings, n8n, Ollama,
+    # system). Empty = Supabase bearer auth disabled.
+    SUPABASE_JWT_SECRET: str = ""
     GOOGLE_CALENDAR_CLIENT_ID: str = ""
     GOOGLE_CALENDAR_CLIENT_SECRET: str = ""
     GOOGLE_CALENDAR_REDIRECT_URI: str = ""
