@@ -25,8 +25,21 @@ import type {
 } from "@/types";
 import type { AiProviderUpdatePayload, GoogleScopes } from "@/types/api";
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+// Resolve the API base URL so the app works across devices without a rebuild:
+//  1. If NEXT_PUBLIC_API_BASE_URL is set, always use it.
+//  2. Otherwise, in the browser, derive it from the current host (so opening the
+//     app at http://<LAN-IP>:3000 on a phone calls the API at http://<LAN-IP>:8000).
+//  3. Fall back to localhost (SSR / build time).
+function resolveApiBaseUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
+  }
+  return "http://localhost:8000/api/v1";
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 export class ApiException extends Error {
   code: string;
