@@ -8,9 +8,14 @@ check succeeds. Endpoints that don't actually validate the key (e.g. a public
 from __future__ import annotations
 
 from dataclasses import dataclass
+import ipaddress
+import socket
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
+
+from app.core.config import settings
 
 DEFAULT_TIMEOUT = 8.0
 
@@ -77,6 +82,7 @@ class VerifyResult:
 # so it is reported honestly as "unavailable / blocked by network" instead of
 # being mistaken for a provider auth rejection.
 NETWORK_BLOCK_MARKER = "NETWORK_POLICY_BLOCK"
+_TAILSCALE_SHARED_NET = ipaddress.ip_network("100.64.0.0/10")
 _NETWORK_BLOCK_SIGNATURES = (
     "not in allowlist",
     "allowlist",
@@ -86,6 +92,43 @@ _NETWORK_BLOCK_SIGNATURES = (
     "tunnel",
     "egress",
 )
+
+
+def _blocked_private_ip(value) -> bool:
+    return (
+        value.is_loopback
+        or value.is_private
+        or value.is_link_local
+        or value.is_multicast
+        or value.is_reserved
+        or value.is_unspecified
+        or value in _TAILSCALE_SHARED_NET
+    )
+
+
+def _network_policy_error(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return f"{NETWORK_BLOCK_MARKER}: unsupported URL scheme"
+    host = parsed.hostname
+    if not host:
+        return f"{NETWORK_BLOCK_MARKER}: missing URL host"
+    if settings.integration_private_urls_allowed:
+        return ""
+
+    addresses = set()
+    try:
+        addresses.add(ipaddress.ip_address(host))
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+            addresses.update(ipaddress.ip_address(info[4][0]) for info in infos)
+        except (OSError, ValueError):
+            return ""
+
+    if any(_blocked_private_ip(addr) for addr in addresses):
+        return f"{NETWORK_BLOCK_MARKER}: private integration URLs are disabled for this deployment"
+    return ""
 
 
 def safe_request(
@@ -98,6 +141,9 @@ def safe_request(
     timeout: float = DEFAULT_TIMEOUT,
 ) -> tuple[Optional[int], Optional[dict], str]:
     """Perform an HTTP request, returning (status_code, json_body, error)."""
+    policy_error = _network_policy_error(url)
+    if policy_error:
+        return None, None, policy_error
     try:
         with httpx.Client(timeout=timeout) as client:
             resp = client.request(method, url, headers=headers, json=json, params=params)
