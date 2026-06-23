@@ -10,6 +10,7 @@ import { ErrorState, Loading } from "@/components/ui/States";
 import { NotConnectedNotice } from "@/components/settings/NotConnectedNotice";
 import { aiApi, ApiException } from "@/lib/api";
 import { backendReachable, needsBackendConnection } from "@/lib/connection";
+import { BACKEND_CHANGED_EVENT } from "@/lib/connectionMode";
 import { BEARER_MODE } from "@/lib/mobileAuth";
 import type { AiChatSettings } from "@/types";
 
@@ -29,6 +30,7 @@ export function AiChatBehaviorPanel() {
   const [loadError, setLoadError] = useState<string | null>(null);
   // Backend unreachable → render an honest connect-state instead of an endless spinner.
   const [needsBackend, setNeedsBackend] = useState(false);
+  const [backendIssue, setBackendIssue] = useState<"unreachable" | "auth">("unreachable");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Local text state so the number field saves on commit, not per keystroke.
@@ -37,11 +39,13 @@ export function AiChatBehaviorPanel() {
   const load = useCallback(async () => {
     setLoadError(null);
     setNeedsBackend(false);
+    setBackendIssue("unreachable");
     // Mobile (bearer build): degrade to the connect-state in ~2-3s (one shared, cached
     // ping) when the desktop backend isn't reachable, instead of spinning the full
     // timeout. Desktop/web (local backend up) passes through.
     if (BEARER_MODE && !(await backendReachable())) {
       // Stay open: show the controls with defaults + a slim notice (saving needs the bridge).
+      setBackendIssue("unreachable");
       setNeedsBackend(true);
       setSettings(DEFAULT_CHAT_SETTINGS);
       setMaxAgents(String(DEFAULT_CHAT_SETTINGS.max_active_agents));
@@ -53,6 +57,7 @@ export function AiChatBehaviorPanel() {
       setMaxAgents(String(data.max_active_agents));
     } catch (err) {
       if (needsBackendConnection(err)) {
+        setBackendIssue(err instanceof ApiException && (err.statusCode === 401 || err.statusCode === 403) ? "auth" : "unreachable");
         setNeedsBackend(true);
         setSettings(DEFAULT_CHAT_SETTINGS);
         setMaxAgents(String(DEFAULT_CHAT_SETTINGS.max_active_agents));
@@ -64,6 +69,9 @@ export function AiChatBehaviorPanel() {
 
   useEffect(() => {
     void load();
+    const onBackendChanged = () => void load();
+    window.addEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
+    return () => window.removeEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
   }, [load]);
 
   // Per-control optimistic save: apply immediately, sync with the response, revert on failure.
@@ -105,7 +113,7 @@ export function AiChatBehaviorPanel() {
   return (
     <div className="space-y-4">
       {needsBackend ? (
-        <NotConnectedNotice what="These are the defaults; saving needs your backend." onRetry={load} />
+        <NotConnectedNotice kind={backendIssue} what="These are the defaults; saving needs your backend." onRetry={load} />
       ) : null}
       {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
 

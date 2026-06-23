@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from app.core.principal import Principal
 from app.domain.ai import AiToolProposal
 from app.domain.calendar import CalendarEvent
-from app.domain.finance import Transaction
+from app.domain.finance import FinanceCategory, Transaction
 from app.services import sync_engine, sync_registry
 from app.services.ai_tools_registry import approve_proposal
 from app.core.database import SessionLocal
@@ -47,6 +47,40 @@ def test_approve_transaction_stamps_proposal_scoped_dedup_key(auth_client, db_se
     tx = db_session.get(Transaction, p.target_entity_id)
     assert tx is not None
     assert tx.dedup_key == f"{p.id}:0"
+
+
+def test_approve_transaction_resolves_category_name_to_uuid(auth_client, db_session):
+    """The model often drafts category_id as a human label ("makan"). Approval should
+    resolve/create the category instead of failing Pydantic UUID validation."""
+    principal = _principal(auth_client)
+    p = AiToolProposal(
+        workspace_id=principal.workspace_id,
+        created_by=principal.user_id,
+        tool_name="create_transaction",
+        risk_level="MEDIUM",
+        status="PENDING",
+        tool_payload={
+            "type": "EXPENSE",
+            "amount": 150000,
+            "category_id": "makan",
+            "description": "Makan",
+            "transaction_date": "2026-06-23",
+        },
+    )
+    db_session.add(p)
+    db_session.commit()
+
+    approve_proposal(db_session, principal, p.id)
+    db_session.refresh(p)
+
+    tx = db_session.get(Transaction, p.target_entity_id)
+    assert tx is not None
+    assert tx.category_id is not None
+    assert tx.category_name_snapshot == "makan"
+    category = db_session.get(FinanceCategory, tx.category_id)
+    assert category is not None
+    assert category.name == "makan"
+    assert category.type == "EXPENSE"
 
 
 def test_approve_routine_schedule_stamps_distinct_dedup_keys(auth_client, db_session):
