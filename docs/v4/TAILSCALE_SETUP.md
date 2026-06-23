@@ -47,3 +47,30 @@ responds (`/api/tags` for Ollama, a safe health/base GET for n8n).
 cd backend && pytest tests/test_desktop_bridge.py     # 10 passed
 # resolver + honest gating + funnel-off-by-default + API-provider independence
 ```
+
+## Web app over Tailscale (same-origin) — the desktop browser UI
+
+To open the **full web app** (not just the API) from any device's browser over the
+tailnet, serve the frontend (`:3000`) and backend (`:8000`) under **one HTTPS origin**.
+Same-origin is required: the desktop build authenticates with a `SameSite=Lax`
+HttpOnly session cookie, which the browser only sends to a same-site backend. Serving
+the API on a *different* origin makes `/auth/me` 401 → login bounces back to `/login`.
+
+```sh
+tailscale serve reset
+# Backend under /api. NOTE: --set-path STRIPS the matched prefix, so the target
+# MUST end in /api for the stripped remainder to re-append (→ /api/v1/... reaches it).
+tailscale serve --bg --set-path /api http://127.0.0.1:8000/api
+# Frontend at the root (Next handles /login, /dashboard, /_next/* …).
+tailscale serve --bg --set-path /   http://127.0.0.1:3000
+tailscale serve status
+```
+Result — one origin, mobile APK unaffected (its `/api/v1/*` calls route straight to
+the backend, no extra hop):
+- `https://<host>.ts.net/`            → frontend
+- `https://<host>.ts.net/api/v1/...`  → backend
+
+The frontend resolves its API base **same-origin** automatically when served this way
+(`frontend/lib/backendUrl.ts`); leave `NEXT_PUBLIC_API_BASE_URL` unset for the dev
+server. A cross-site Backend Bridge override is ignored in cookie mode so a stale URL
+can't cause the login loop. `--bg` persists across reboots.
