@@ -1,6 +1,6 @@
 {
   "name": "allhaven-frontend",
-  "version": "3.7.0",
+  "version": "3.8.0",
   "private": true,
   "scripts": {
     "predev": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",

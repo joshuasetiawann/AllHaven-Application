@@ -11,6 +11,33 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [3.8.0] - 2026-06-19 — Mobile full release, unified accounts, perf & weather removal
+
+Detailed notes: [`docs/releases/v3.8.0.md`](docs/releases/v3.8.0.md)
+
+- **Unified accounts (desktop = mobile).** A successful desktop login now keeps the
+  Supabase Auth password in lock-step (background, best-effort) and links the profile,
+  so the same email + password works on both platforms — no separate "Connect to
+  Supabase" step. New signups are unified from registration.
+- **Mobile is a full release.** Every feature (AI Chat, Settings, Drive, AI
+  Knowledge/Memory, Approvals) is available on mobile again — nothing is cut.
+- **Mobile performance.** REST calls fail fast (20s → 6s) instead of freezing the UI;
+  the dashboard renders Supabase data immediately and loads integrations in the
+  background; the Topbar stops re-polling an unreachable backend.
+- **Robust mobile login + clearer errors.** `loadMe` uses `maybeSingle` with explicit
+  "account not linked / no workspace" messages; PostgREST `PGRST116` maps to an
+  actionable message; workspace-scoped writes are guarded.
+- **Desktop CSS fix.** The mobile export no longer contaminates `next dev`'s build dir
+  (a `predev` clean), so pages stop loading unstyled.
+- **AI approval safety.** create_transaction proposals normalize empty
+  `category_id`/`transaction_date`; the approval card shows readable, editable fields;
+  "Connect to Supabase" is idempotent.
+- **Migration fix.** Revision `0015` id shortened to fit Alembic's `VARCHAR(32)`, so
+  `upgrade head` applies on desktop and Supabase.
+- **Removed the Weather feature** entirely (UI, API, AI tool, integration); the dormant
+  `weather_locations` table is retained for data safety.
+- Dashboard weekly expense buckets parse dates in local time (timezone fix).
+
 ## [3.7.0] - 2026-06-19 — AllHaven 3.7 two-way Supabase sync + mobile-on-Supabase
 
 Detailed notes: [`docs/releases/v3.7.0.md`](docs/releases/v3.7.0.md)
