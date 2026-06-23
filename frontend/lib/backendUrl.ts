@@ -22,8 +22,6 @@
 import { BEARER_MODE } from "@/lib/mobileAuth";
 
 const OVERRIDE_KEY = "allhaven.backend_base_url";
-const TAILSCALE_PRIVATE_URL_KEY = "allhaven.tailscale_private_url";
-
 export type BackendUrlSource = "override" | "env" | "derived" | "fallback" | "none";
 
 /**
@@ -98,44 +96,6 @@ function fromEnv(): string {
   return normalizeBackendUrl(v.trim());
 }
 
-function isRawTailscaleIp(url: string): boolean {
-  if (!url) return false;
-  try {
-    const host = new URL(url).hostname;
-    const parts = host.split(".").map((p) => Number(p));
-    return parts.length === 4
-      && parts.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)
-      && parts[0] === 100
-      && parts[1] >= 64
-      && parts[1] <= 127;
-  } catch {
-    return false;
-  }
-}
-
-function isTsNetUrl(url: string): boolean {
-  if (!url) return false;
-  try {
-    return new URL(url).hostname.toLowerCase().endsWith(".ts.net");
-  } catch {
-    return false;
-  }
-}
-
-function mobileEnvBeatsBrokenRawIp(override: string, env: string): boolean {
-  return BEARER_MODE && isRawTailscaleIp(override) && isTsNetUrl(env);
-}
-
-function replaceBrokenRawIpOverrideWithEnv(env: string): void {
-  if (typeof window === "undefined" || !env) return;
-  try {
-    window.localStorage.setItem(OVERRIDE_KEY, env);
-    window.localStorage.setItem(TAILSCALE_PRIVATE_URL_KEY, env);
-  } catch {
-    /* ignore unavailable storage; this call still returns env for the request */
-  }
-}
-
 function derived(): string {
   if (BEARER_MODE) return "";
   if (typeof window !== "undefined" && window.location?.hostname) {
@@ -176,13 +136,6 @@ function sameSiteUsable(url: string): boolean {
 export function getApiBaseUrl(): string {
   const override = getBackendOverride();
   const env = fromEnv();
-  // If an installed APK already saved a raw 100.x Tailscale IP that the phone
-  // cannot route, let a built-in Tailscale Serve HTTPS default take over. This
-  // keeps update installs from staying stuck on an unreachable local override.
-  if (mobileEnvBeatsBrokenRawIp(override, env)) {
-    replaceBrokenRawIpOverrideWithEnv(env);
-    return env;
-  }
   if (sameSiteUsable(override)) return override;
   if (sameSiteUsable(env)) return env;
   const d = derived();
@@ -196,10 +149,6 @@ export function getApiBaseUrlSource(): BackendUrlSource {
   // so report the source that's ACTUALLY in effect, not merely what's configured.
   const override = getBackendOverride();
   const env = fromEnv();
-  if (mobileEnvBeatsBrokenRawIp(override, env)) {
-    replaceBrokenRawIpOverrideWithEnv(env);
-    return "env";
-  }
   if (sameSiteUsable(override)) return "override";
   if (sameSiteUsable(env)) return "env";
   if (derived()) return "derived";
