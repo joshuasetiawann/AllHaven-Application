@@ -22,6 +22,7 @@
 import { BEARER_MODE } from "@/lib/mobileAuth";
 
 const OVERRIDE_KEY = "allhaven.backend_base_url";
+const TAILSCALE_PRIVATE_URL_KEY = "allhaven.tailscale_private_url";
 
 export type BackendUrlSource = "override" | "env" | "derived" | "fallback" | "none";
 
@@ -125,6 +126,16 @@ function mobileEnvBeatsBrokenRawIp(override: string, env: string): boolean {
   return BEARER_MODE && isRawTailscaleIp(override) && isTsNetUrl(env);
 }
 
+function replaceBrokenRawIpOverrideWithEnv(env: string): void {
+  if (typeof window === "undefined" || !env) return;
+  try {
+    window.localStorage.setItem(OVERRIDE_KEY, env);
+    window.localStorage.setItem(TAILSCALE_PRIVATE_URL_KEY, env);
+  } catch {
+    /* ignore unavailable storage; this call still returns env for the request */
+  }
+}
+
 function derived(): string {
   if (BEARER_MODE) return "";
   if (typeof window !== "undefined" && window.location?.hostname) {
@@ -168,7 +179,10 @@ export function getApiBaseUrl(): string {
   // If an installed APK already saved a raw 100.x Tailscale IP that the phone
   // cannot route, let a built-in Tailscale Serve HTTPS default take over. This
   // keeps update installs from staying stuck on an unreachable local override.
-  if (mobileEnvBeatsBrokenRawIp(override, env)) return env;
+  if (mobileEnvBeatsBrokenRawIp(override, env)) {
+    replaceBrokenRawIpOverrideWithEnv(env);
+    return env;
+  }
   if (sameSiteUsable(override)) return override;
   if (sameSiteUsable(env)) return env;
   const d = derived();
@@ -182,7 +196,10 @@ export function getApiBaseUrlSource(): BackendUrlSource {
   // so report the source that's ACTUALLY in effect, not merely what's configured.
   const override = getBackendOverride();
   const env = fromEnv();
-  if (mobileEnvBeatsBrokenRawIp(override, env)) return "env";
+  if (mobileEnvBeatsBrokenRawIp(override, env)) {
+    replaceBrokenRawIpOverrideWithEnv(env);
+    return "env";
+  }
   if (sameSiteUsable(override)) return "override";
   if (sameSiteUsable(env)) return "env";
   if (derived()) return "derived";
