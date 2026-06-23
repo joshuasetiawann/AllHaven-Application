@@ -113,11 +113,18 @@ function authFetchInit(
   return { headers, credentials: "include" };
 }
 
-// Drop cached auth after an unauthorized response (both build targets).
+// Drop cached auth after an unauthorized response.
 function handleUnauthorized(status: number): void {
   if (status !== 401) return;
+  // On mobile (bearer build) the REST backend is only the OPTIONAL desktop bridge. A 401
+  // from it means the bridge rejected this token (account not linked / bridge auth), NOT
+  // that the Supabase session is invalid — clearing here logged the user OUT the moment a
+  // Settings/System probe hit a backend that doesn't accept them ("fake login"). The
+  // Supabase session is the source of truth on mobile and is managed by supabaseClient /
+  // apiSupabase (which raises its own 401 when the session is genuinely gone). So never
+  // touch it on a bridge 401.
+  if (BEARER_MODE) return;
   clearAuth();
-  if (BEARER_MODE) void clearBearerToken();
 }
 
 // Abort any request that stalls past this, so the UI fails fast with a clear

@@ -22,7 +22,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ErrorState, Loading } from "@/components/ui/States";
 import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { systemApi, ApiException } from "@/lib/api";
-import { backendReachable, isBackendUnreachable } from "@/lib/connection";
+import { backendReachable, needsBackendConnection } from "@/lib/connection";
 import { BEARER_MODE } from "@/lib/mobileAuth";
 import { relativeTime } from "@/lib/format";
 import type {
@@ -90,7 +90,7 @@ export default function SystemControl() {
       setNeedsBackend(false);
       return true;
     } catch (e) {
-      if (isBackendUnreachable(e)) {
+      if (needsBackendConnection(e)) {
         setNeedsBackend(true);
         return false;
       }

@@ -6,6 +6,7 @@
 
 import { ApiException, getApiBaseUrl } from "@/lib/api";
 import { normalizeBackendUrl } from "@/lib/backendUrl";
+import { BEARER_MODE } from "@/lib/mobileAuth";
 
 /** True when an error means the backend/bridge is unreachable (vs a real app error). */
 export function isBackendUnreachable(err: unknown): boolean {
@@ -21,6 +22,17 @@ export function isBackendUnreachable(err: unknown): boolean {
     err instanceof Error &&
     /failed to fetch|networkerror|timed out|timeout|connection|unreachable/i.test(err.message)
   );
+}
+
+/**
+ * On mobile a backend-only feature can't run without the desktop bridge: treat an
+ * unreachable backend OR a bridge 401 (token rejected / account not linked) as "needs
+ * connection". The panel then shows a connect-state instead of a hard error — and the
+ * 401 never logs the user out (handleUnauthorized is a no-op in bearer mode).
+ */
+export function needsBackendConnection(err: unknown): boolean {
+  if (isBackendUnreachable(err)) return true;
+  return BEARER_MODE && err instanceof ApiException && err.statusCode === 401;
 }
 
 /** Best-effort: is the REST backend reachable right now? (public /health, short timeout) */

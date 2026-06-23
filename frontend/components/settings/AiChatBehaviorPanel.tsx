@@ -9,7 +9,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { ErrorState, Loading } from "@/components/ui/States";
 import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { aiApi, ApiException } from "@/lib/api";
-import { backendReachable, isBackendUnreachable } from "@/lib/connection";
+import { backendReachable, needsBackendConnection } from "@/lib/connection";
 import { BEARER_MODE } from "@/lib/mobileAuth";
 import type { AiChatSettings } from "@/types";
 
@@ -38,7 +38,7 @@ export function AiChatBehaviorPanel() {
       setSettings(data);
       setMaxAgents(String(data.max_active_agents));
     } catch (err) {
-      if (isBackendUnreachable(err)) {
+      if (needsBackendConnection(err)) {
         setNeedsBackend(true);
         return;
       }
