@@ -9,7 +9,7 @@ Idempotent: safe to run repeatedly. It skips steps already done, then starts the
 app and opens the browser. Stdlib only.
 
 Run:  python installer/haven_cli.py
-(usually invoked for you by the START_HAVEN_* launcher.)
+(or, on Linux/macOS, ./install.sh for a fresh install; ./allhaven.sh once set up.)
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ def _node_install_hint(osname: str) -> str:
     if osname == "linux":
         return "Install Node 18+ from https://nodejs.org or your package manager, then re-run ./install.sh"
     if osname == "windows":
-        return "Install Node 18+ from https://nodejs.org, then re-run START_HAVEN_WINDOWS.bat"
+        return "Install Node 18+ from https://nodejs.org, then re-run: python installer\\haven_cli.py"
     return "Install Node 18+ from https://nodejs.org, then run the installer again."
 
 
