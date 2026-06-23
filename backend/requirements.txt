@@ -11,6 +11,8 @@ pydantic>=2.10.4
 pydantic-settings>=2.7.0
 psycopg[binary]>=3.2.3
 httpx>=0.28.1
+# Multipart form parsing for Drive file uploads (UploadFile).
+python-multipart>=0.0.9
 
 # Testing
 pytest>=8.3.4

@@ -14,12 +14,16 @@ import app.domain  # noqa: F401
 from app.api.routers import (
     ai,
     auth,
+    automations,
+    calendar,
+    drive,
     finance,
     google,
     health,
     notes,
     settings as settings_router,
     tasks,
+    weather,
 )
 
 
@@ -53,6 +57,10 @@ def create_app() -> FastAPI:
     app.include_router(ai.router, prefix=prefix)
     app.include_router(settings_router.router, prefix=prefix)
     app.include_router(google.router, prefix=prefix)
+    app.include_router(calendar.router, prefix=prefix)
+    app.include_router(drive.router, prefix=prefix)
+    app.include_router(automations.router, prefix=prefix)
+    app.include_router(weather.router, prefix=prefix)
 
     @app.get("/", tags=["root"])
     def root() -> dict:
