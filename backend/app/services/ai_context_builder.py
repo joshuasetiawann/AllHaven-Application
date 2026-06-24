@@ -41,7 +41,8 @@ _SECTION_HINTS = {
     "tasks": "Tasks section. Prioritize task tools; save/add/apply task requests must become pending task actions.",
     "notes": "Notes section. Prioritize notes tools; apply/save note requests must become pending note actions.",
     "finance": "Finance section. Prioritize finance tools and read real finance data before answering spending questions.",
-    "calendar": "Calendar section. Prioritize calendar tools for schedule/event requests.",
+    "calendar": "Routine section. Prioritize schedule/routine tools for date and time requests.",
+    "routines": "Routine section. Prioritize schedule/routine tools for date and time requests.",
     "files": "Files section. Use Drive metadata/search tools; do not claim file contents unless a supported summarizer/knowledge result exists.",
     "drive": "Files section. Use Drive metadata/search tools; do not claim file contents unless a supported summarizer/knowledge result exists.",
     "ai_knowledge": "AI Knowledge section. Prioritize knowledge search/retrieval and cite retrieved document context when used.",
@@ -174,7 +175,7 @@ def build(
     blocks.append("Never store or repeat secrets/API keys as memory. Use app tools only; no SQL, shell, filesystem, or secrets access.")
     blocks.append("[Response style]")
     blocks.append("No basa-basi. Start with the direct answer/action status. Routine replies should be 1-3 short sentences unless the user asks for detail.")
-    blocks.append("Adapt to the user's mode: casual chat can be warm and playful, serious work stays focused, coding gets senior engineering help, and scheduling uses task/calendar context.")
+    blocks.append("Adapt to the user's mode: casual chat can be warm and playful, serious work stays focused, coding gets senior engineering help, and scheduling uses task/routine context.")
     blocks.append("[End of AllHaven Context Packet]")
 
     context = "\n".join(blocks).strip()
