@@ -2,9 +2,10 @@
 // Supabase impls task-by-task in later pairs; until then they passthrough to REST.
 //
 // Compute/file groups (knowledge/drive/system/n8n/google/settings) stay REST-only
-// (hidden on mobile UI). aiApi + memoryApi are HYBRID (defined at the bottom of this
-// file): proposal/suggestion reads + accept/reject/edit go Supabase-direct so mobile
-// sees and acts on the same pending list as desktop; chat/providers stay REST.
+// for backend-only features. aiApi + memoryApi are HYBRID (defined at the bottom of
+// this file): proposals/memory go Supabase-direct, and cloud AI chat/provider config
+// runs directly from the APK. Only desktop-local services (Ollama/n8n/system/files)
+// need the optional Desktop Bridge.
 export {
   knowledgeApi,
   driveApi,
@@ -904,10 +905,28 @@ export const automationsApi = {
 
 // ─── AI tool proposals + memory suggestions (cross-device via Supabase) ──────
 // Reads + accept/reject/edit run Supabase-direct so mobile sees and acts on the SAME
-// pending list as desktop (the rows are two-way synced on updated_at). Chat, providers,
-// and other compute stay on the REST backend.
+// pending list as desktop (the rows are two-way synced on updated_at). Cloud chat
+// and provider config are implemented below as mobile-direct calls.
 import { aiApi as restAiApi, memoryApi as restMemoryApi } from "@/lib/apiRest";
-import type { AiMemory, MemorySuggestion, ToolProposal } from "@/types";
+import type { AiPolicy } from "@/lib/apiRest";
+import type { AiProviderUpdatePayload } from "@/types/api";
+import type {
+  AgentResponse,
+  AgentResponseStatus,
+  AiChatSettings,
+  AiMemory,
+  AiProvider,
+  AiTool,
+  ChatGroup,
+  ChatMessage,
+  ChatResponse,
+  IntegrationStatusValue,
+  MemorySuggestion,
+  ModelSlot,
+  MultiChatResponse,
+  ThinkingMode,
+  ToolProposal,
+} from "@/types";
 
 const _PROPOSAL_OPEN = ["PENDING", "NEEDS_EDIT", "FAILED"];
 
@@ -1118,8 +1137,1172 @@ async function supaEditProposal(id: string, toolPayload: Record<string, unknown>
   return data as ToolProposal;
 }
 
+// ─── Mobile-direct AI chat/providers ────────────────────────────────────────
+// The APK must stand on its own for cloud AI: provider keys/settings live on this
+// device, chat history goes to Supabase, and only truly desktop-local services
+// (Ollama/n8n/system/files) need a Desktop Bridge.
+
+type DirectProviderKind = "openai_compatible" | "anthropic" | "gemini" | "ollama";
+
+type DirectProviderDefinition = {
+  id: string;
+  name: string;
+  purpose: string;
+  provider_type: string;
+  external: boolean;
+  api_key_required: boolean;
+  kind: DirectProviderKind;
+  defaultBaseUrl: string;
+  defaultModel: string;
+  modelPlaceholder: string;
+  keyLabel?: string;
+  keyPlaceholder?: string;
+  capabilities: AiProvider["capabilities"];
+};
+
+type StoredProviderState = {
+  api_key?: string;
+  base_url?: string;
+  default_model?: string;
+  privacy_mode?: string;
+  enabled?: boolean;
+  last_verified_at?: string | null;
+  last_error?: string | null;
+  slots?: Record<string, Partial<ModelSlot>>;
+};
+
+const MOBILE_AI_PREFIX = "allhaven.mobile.ai.";
+const DIRECT_AI_TIMEOUT_MS = 45_000;
+
+const DIRECT_PROVIDER_DEFS: DirectProviderDefinition[] = [
+  {
+    id: "openai",
+    name: "GPT Agent",
+    purpose: "OpenAI cloud models directly from this APK.",
+    provider_type: "openai",
+    external: true,
+    api_key_required: true,
+    kind: "openai_compatible",
+    defaultBaseUrl: "https://api.openai.com/v1",
+    defaultModel: "gpt-4o-mini",
+    modelPlaceholder: "gpt-4o-mini",
+    keyLabel: "OpenAI API key",
+    keyPlaceholder: "sk-...",
+    capabilities: { text: true, image: true, tools: false },
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter Agent",
+    purpose: "OpenRouter-compatible cloud models directly from this APK.",
+    provider_type: "openrouter",
+    external: true,
+    api_key_required: true,
+    kind: "openai_compatible",
+    defaultBaseUrl: "https://openrouter.ai/api/v1",
+    defaultModel: "openai/gpt-4o-mini",
+    modelPlaceholder: "openai/gpt-4o-mini",
+    keyLabel: "OpenRouter API key",
+    keyPlaceholder: "sk-or-...",
+    capabilities: { text: true, image: true, tools: false },
+  },
+  {
+    id: "anthropic",
+    name: "Claude Agent",
+    purpose: "Anthropic Claude cloud models directly from this APK.",
+    provider_type: "anthropic",
+    external: true,
+    api_key_required: true,
+    kind: "anthropic",
+    defaultBaseUrl: "https://api.anthropic.com/v1",
+    defaultModel: "claude-3-5-haiku-latest",
+    modelPlaceholder: "claude-3-5-haiku-latest",
+    keyLabel: "Anthropic API key",
+    keyPlaceholder: "sk-ant-...",
+    capabilities: { text: true, image: false, tools: false },
+  },
+  {
+    id: "gemini",
+    name: "Gemini Agent",
+    purpose: "Google Gemini cloud models directly from this APK.",
+    provider_type: "gemini",
+    external: true,
+    api_key_required: true,
+    kind: "gemini",
+    defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    defaultModel: "gemini-1.5-flash",
+    modelPlaceholder: "gemini-1.5-flash",
+    keyLabel: "Gemini API key",
+    keyPlaceholder: "AIza...",
+    capabilities: { text: true, image: false, tools: false },
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek Agent",
+    purpose: "DeepSeek cloud models through its OpenAI-compatible API.",
+    provider_type: "deepseek",
+    external: true,
+    api_key_required: true,
+    kind: "openai_compatible",
+    defaultBaseUrl: "https://api.deepseek.com/v1",
+    defaultModel: "deepseek-chat",
+    modelPlaceholder: "deepseek-chat",
+    keyLabel: "DeepSeek API key",
+    keyPlaceholder: "sk-...",
+    capabilities: { text: true, image: false, tools: false },
+  },
+  {
+    id: "qwen",
+    name: "Qwen Agent",
+    purpose: "Qwen/DashScope models through the OpenAI-compatible API.",
+    provider_type: "qwen",
+    external: true,
+    api_key_required: true,
+    kind: "openai_compatible",
+    defaultBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    defaultModel: "qwen-plus",
+    modelPlaceholder: "qwen-plus",
+    keyLabel: "Qwen API key",
+    keyPlaceholder: "sk-...",
+    capabilities: { text: true, image: false, tools: false },
+  },
+  {
+    id: "grok",
+    name: "Grok Agent",
+    purpose: "xAI/Grok models through the OpenAI-compatible API.",
+    provider_type: "grok",
+    external: true,
+    api_key_required: true,
+    kind: "openai_compatible",
+    defaultBaseUrl: "https://api.x.ai/v1",
+    defaultModel: "grok-2-latest",
+    modelPlaceholder: "grok-2-latest",
+    keyLabel: "xAI API key",
+    keyPlaceholder: "xai-...",
+    capabilities: { text: true, image: false, tools: false },
+  },
+  {
+    id: "ollama",
+    name: "Ollama",
+    purpose: "Local models on your desktop. Use LAN/Tailscale only when you need Ollama.",
+    provider_type: "ollama",
+    external: false,
+    api_key_required: false,
+    kind: "ollama",
+    defaultBaseUrl: "",
+    defaultModel: "llama3.2",
+    modelPlaceholder: "llama3.2",
+    capabilities: { text: true, image: false, tools: false },
+  },
+];
+
+const DIRECT_PROVIDER_BY_ID = Object.fromEntries(DIRECT_PROVIDER_DEFS.map((p) => [p.id, p]));
+
+async function mobilePrefGet(key: string): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const { Preferences } = await import("@capacitor/preferences");
+    return (await Preferences.get({ key })).value;
+  } catch {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function mobilePrefSet(key: string, value: string): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const { Preferences } = await import("@capacitor/preferences");
+    await Preferences.set({ key, value });
+    return;
+  } catch {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      /* ignore storage failures */
+    }
+  }
+}
+
+async function loadJsonPref<T>(key: string, fallback: T): Promise<T> {
+  const raw = await mobilePrefGet(key);
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+async function saveJsonPref<T>(key: string, value: T): Promise<void> {
+  await mobilePrefSet(key, JSON.stringify(value));
+}
+
+function stateKey(providerId: string): string {
+  return `${MOBILE_AI_PREFIX}provider.${providerId}`;
+}
+
+async function loadProviderState(providerId: string): Promise<StoredProviderState> {
+  return loadJsonPref<StoredProviderState>(stateKey(providerId), {});
+}
+
+async function saveProviderState(providerId: string, state: StoredProviderState): Promise<void> {
+  await saveJsonPref(stateKey(providerId), state);
+}
+
+function normalizeBaseUrl(url: string): string {
+  return url.trim().replace(/\/+$/, "");
+}
+
+function providerBaseUrl(def: DirectProviderDefinition, state: StoredProviderState): string {
+  return normalizeBaseUrl(state.base_url || def.defaultBaseUrl);
+}
+
+function providerModel(def: DirectProviderDefinition, state: StoredProviderState, ref?: string): string {
+  const slotNo = ref?.includes("#") ? ref.split("#")[1] : "1";
+  const slotModel = slotNo ? state.slots?.[slotNo]?.model : null;
+  return String(slotModel || state.default_model || def.defaultModel).trim();
+}
+
+function maskSecret(secret?: string): string {
+  const value = (secret || "").trim();
+  if (!value) return "";
+  if (value.length <= 8) return "configured";
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
+function providerConfigured(def: DirectProviderDefinition, state: StoredProviderState): boolean {
+  if (def.api_key_required) return Boolean((state.api_key || "").trim());
+  return Boolean(providerBaseUrl(def, state));
+}
+
+function buildSlots(def: DirectProviderDefinition, state: StoredProviderState): ModelSlot[] {
+  const defaultModel = providerModel(def, state);
+  const slot1 = state.slots?.["1"] ?? {};
+  const slot2 = state.slots?.["2"] ?? {};
+  return [
+    {
+      slot: 1,
+      ref: def.id,
+      model: defaultModel,
+      role: String(slot1.role || "Main Assistant"),
+      enabled: slot1.enabled ?? true,
+      configured: Boolean(defaultModel),
+    },
+    {
+      slot: 2,
+      ref: `${def.id}#2`,
+      model: String(slot2.model || ""),
+      role: String(slot2.role || "Research / Analysis"),
+      enabled: slot2.enabled ?? false,
+      configured: Boolean(slot2.model),
+    },
+  ];
+}
+
+function statusForProvider(def: DirectProviderDefinition, state: StoredProviderState): IntegrationStatusValue {
+  const configured = providerConfigured(def, state);
+  if (!configured) return "not_configured";
+  if (state.enabled === false) return "disabled";
+  if (state.last_error) return "error";
+  if (state.last_verified_at) return "online";
+  return "configured";
+}
+
+function detailForProvider(def: DirectProviderDefinition, state: StoredProviderState): string {
+  const status = statusForProvider(def, state);
+  if (status === "not_configured") return def.api_key_required ? "Add an API key on this device." : "Add a LAN/Tailscale URL on this device.";
+  if (status === "disabled") return "Disabled on this device.";
+  if (status === "online") return `Online on this device${state.last_verified_at ? ` · ${new Date(state.last_verified_at).toLocaleTimeString()}` : ""}`;
+  if (status === "error") return state.last_error || "Last test failed.";
+  return "Configured on this device. Test to mark online.";
+}
+
+async function buildProvider(def: DirectProviderDefinition): Promise<AiProvider> {
+  const state = await loadProviderState(def.id);
+  const configured = providerConfigured(def, state);
+  const keyConfigured = Boolean((state.api_key || "").trim());
+  return {
+    id: def.id,
+    provider_id: def.id,
+    name: def.name,
+    purpose: def.purpose,
+    provider_type: def.provider_type,
+    external: def.external,
+    api_key_required: def.api_key_required,
+    capabilities: def.capabilities,
+    model_slots: buildSlots(def, state),
+    enabled: state.enabled ?? configured,
+    status: statusForProvider(def, state),
+    configured,
+    detail: detailForProvider(def, state),
+    default_model: state.default_model || def.defaultModel,
+    privacy_mode: state.privacy_mode || (def.external ? "external_allowed" : "local_private"),
+    fields: [
+      {
+        key: "base_url",
+        label: "Base URL",
+        secret: false,
+        required: !def.api_key_required,
+        placeholder: def.defaultBaseUrl || "http://192.168.1.7:11434",
+      },
+      ...(def.api_key_required
+        ? [{
+            key: "api_key",
+            label: def.keyLabel || "API key",
+            secret: true,
+            required: true,
+            placeholder: def.keyPlaceholder || "API key",
+          }]
+        : []),
+      {
+        key: "default_model",
+        label: "Default model",
+        secret: false,
+        required: true,
+        placeholder: def.modelPlaceholder,
+      },
+    ],
+    public_config: {
+      base_url: state.base_url ?? def.defaultBaseUrl,
+    },
+    secrets: def.api_key_required
+      ? { api_key: { configured: keyConfigured, preview: maskSecret(state.api_key) } }
+      : {},
+    last_verified_at: state.last_verified_at ?? null,
+    last_error: state.last_error ?? null,
+  };
+}
+
+async function mobileListProviders(): Promise<{ providers: AiProvider[] }> {
+  return { providers: await Promise.all(DIRECT_PROVIDER_DEFS.map((def) => buildProvider(def))) };
+}
+
+async function mobileSaveProvider(id: string, payload: AiProviderUpdatePayload): Promise<AiProvider> {
+  const def = DIRECT_PROVIDER_BY_ID[id] as DirectProviderDefinition | undefined;
+  if (!def) throw new ApiException("Provider tidak dikenal.", "NOT_FOUND", 404);
+  const state = await loadProviderState(id);
+  if (payload.public_config && "base_url" in payload.public_config) {
+    state.base_url = String(payload.public_config.base_url || "").trim();
+  }
+  if (payload.secrets && "api_key" in payload.secrets) {
+    const nextKey = String(payload.secrets.api_key || "").trim();
+    if (nextKey) state.api_key = nextKey;
+    else delete state.api_key;
+  }
+  if (payload.default_model !== undefined) state.default_model = payload.default_model || undefined;
+  if (payload.privacy_mode !== undefined) state.privacy_mode = payload.privacy_mode || undefined;
+  if (payload.enabled !== undefined && payload.enabled !== null) state.enabled = Boolean(payload.enabled);
+  state.last_error = null;
+  state.last_verified_at = null;
+  await saveProviderState(id, state);
+  return buildProvider(def);
+}
+
+async function mobileEnableProvider(id: string, enabled: boolean): Promise<AiProvider> {
+  const def = DIRECT_PROVIDER_BY_ID[id] as DirectProviderDefinition | undefined;
+  if (!def) throw new ApiException("Provider tidak dikenal.", "NOT_FOUND", 404);
+  const state = await loadProviderState(id);
+  state.enabled = enabled;
+  await saveProviderState(id, state);
+  return buildProvider(def);
+}
+
+async function mobileSaveModelSlots(providerId: string, slots: Partial<ModelSlot>[]): Promise<AiProvider> {
+  const def = DIRECT_PROVIDER_BY_ID[providerId] as DirectProviderDefinition | undefined;
+  if (!def) throw new ApiException("Provider tidak dikenal.", "NOT_FOUND", 404);
+  const state = await loadProviderState(providerId);
+  state.slots = { ...(state.slots ?? {}) };
+  for (const slot of slots) {
+    const key = String(slot.slot ?? 1);
+    state.slots[key] = {
+      ...(state.slots[key] ?? {}),
+      ...slot,
+      ref: slot.slot === 2 ? `${providerId}#2` : providerId,
+    };
+  }
+  await saveProviderState(providerId, state);
+  return buildProvider(def);
+}
+
+async function fetchJsonWithTimeout(url: string, init: RequestInit, ms = DIRECT_AI_TIMEOUT_MS): Promise<unknown> {
+  const res = await withTimeout(fetch(url, init), ms);
+  const text = await res.text();
+  let body: any = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = { message: text };
+    }
+  }
+  if (!res.ok) {
+    const msg =
+      body?.error?.message ||
+      body?.error ||
+      body?.message ||
+      `Provider request failed (${res.status})`;
+    throw new ApiException(String(msg), "PROVIDER_HTTP_ERROR", res.status, body);
+  }
+  return body;
+}
+
+async function mobileTestProvider(id: string): Promise<AiProvider> {
+  const def = DIRECT_PROVIDER_BY_ID[id] as DirectProviderDefinition | undefined;
+  if (!def) throw new ApiException("Provider tidak dikenal.", "NOT_FOUND", 404);
+  const state = await loadProviderState(id);
+  if (!providerConfigured(def, state)) {
+    state.last_error = def.api_key_required ? "API key belum diisi di perangkat ini." : "Base URL belum diisi di perangkat ini.";
+    state.last_verified_at = null;
+    await saveProviderState(id, state);
+    return buildProvider(def);
+  }
+  try {
+    const base = providerBaseUrl(def, state);
+    const key = String(state.api_key || "").trim();
+    if (def.kind === "ollama") {
+      await fetchJsonWithTimeout(`${base}/api/tags`, { method: "GET" }, 10_000);
+    } else if (def.kind === "anthropic") {
+      await fetchJsonWithTimeout(`${base}/models`, {
+        method: "GET",
+        headers: {
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+        },
+      }, 12_000);
+    } else if (def.kind === "gemini") {
+      await fetchJsonWithTimeout(`${base}/models?key=${encodeURIComponent(key)}`, { method: "GET" }, 12_000);
+    } else {
+      await fetchJsonWithTimeout(`${base}/models`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          ...(def.id === "openrouter" ? { "HTTP-Referer": "https://allhaven.local", "X-Title": "AllHaven Mobile" } : {}),
+        },
+      }, 12_000);
+    }
+    state.last_error = null;
+    state.last_verified_at = new Date().toISOString();
+  } catch (err) {
+    const ex = err instanceof ApiException ? err : toApiException(err);
+    state.last_error = ex.message || "Provider tidak bisa dijangkau.";
+    state.last_verified_at = null;
+  }
+  await saveProviderState(id, state);
+  return buildProvider(def);
+}
+
+const DEFAULT_CHAT_SETTINGS: AiChatSettings = {
+  default_mode: "single",
+  show_debate_flow: true,
+  require_approval: true,
+  show_tool_activity: true,
+  polish_level: "standard",
+  max_active_agents: 3,
+};
+
+async function mobileGetChatSettings(): Promise<AiChatSettings> {
+  return loadJsonPref<AiChatSettings>(`${MOBILE_AI_PREFIX}chat_settings`, DEFAULT_CHAT_SETTINGS);
+}
+
+async function mobileSetChatSettings(payload: Partial<AiChatSettings>): Promise<AiChatSettings> {
+  const next = { ...(await mobileGetChatSettings()), ...payload };
+  await saveJsonPref(`${MOBILE_AI_PREFIX}chat_settings`, next);
+  return next;
+}
+
+async function mobileGetPolicy(): Promise<AiPolicy> {
+  return loadJsonPref<AiPolicy>(`${MOBILE_AI_PREFIX}policy`, {
+    allow_external: true,
+    default_provider: "openai",
+    default_privacy_mode: "external_allowed",
+    env_default: false,
+  });
+}
+
+async function mobileSetPolicy(payload: { allow_external?: boolean; default_provider?: string }): Promise<AiPolicy> {
+  const next = { ...(await mobileGetPolicy()), ...payload, env_default: false };
+  await saveJsonPref(`${MOBILE_AI_PREFIX}policy`, next);
+  return next;
+}
+
+async function ensureMobileScope(): Promise<{ workspaceId: string; userId: string }> {
+  if (!getWorkspaceId() || !getAppUserId()) await loadMe();
+  const workspaceId = getWorkspaceId();
+  const userId = getAppUserId();
+  if (!workspaceId || !userId) {
+    throw new ApiException("Sesi Anda berakhir. Silakan masuk lagi.", "AUTH_SESSION_MISSING", 401);
+  }
+  return { workspaceId, userId };
+}
+
+function mapChatSession(row: any): ChatSession {
+  return {
+    id: row.id,
+    title: row.title ?? null,
+    group_id: row.group_id ?? null,
+    section_key: row.section_key ?? "general",
+    created_at: row.created_at,
+    updated_at: row.updated_at ?? row.created_at,
+  };
+}
+
+function mapChatGroup(row: any): ChatGroup {
+  return {
+    id: row.id,
+    name: row.name,
+    created_at: row.created_at,
+    updated_at: row.updated_at ?? row.created_at,
+  };
+}
+
+function mapChatMessage(row: any): ChatMessage {
+  return {
+    id: row.id,
+    session_id: row.session_id ?? null,
+    role: row.role,
+    content: row.content ?? "",
+    section_key: row.section_key ?? "general",
+    meta: row.meta ?? row.metadata ?? null,
+    created_at: row.created_at,
+  };
+}
+
+async function mobileListSessions(): Promise<ChatSession[]> {
+  const sb = await getSupabase();
+  const { workspaceId } = await ensureMobileScope();
+  const { data, error } = await withTimeout(
+    sb.from("chat_sessions")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("updated_at", { ascending: false }),
+    7000,
+  );
+  if (error) throw toApiException(error);
+  return (data ?? []).map(mapChatSession);
+}
+
+async function mobileCreateSession(groupId?: string | null, title?: string, sectionKey = "general"): Promise<ChatSession> {
+  await ensureMobileScope();
+  const { data, error } = await insertTolerant("chat_sessions", {
+    title: title ?? null,
+    group_id: groupId ?? null,
+    section_key: sectionKey,
+    ...newRow(),
+  });
+  if (error) throw toApiException(error);
+  return mapChatSession((data as any[])[0]);
+}
+
+async function mobileUpdateSession(id: string, payload: { title?: string; group_id?: string | null; section_key?: string }): Promise<ChatSession> {
+  const sb = await getSupabase();
+  const { data, error } = await withTimeout(
+    sb.from("chat_sessions")
+      .update(payload)
+      .eq("id", id)
+      .select("*")
+      .single(),
+    7000,
+  );
+  if (error) throw toApiException(error);
+  return mapChatSession(data);
+}
+
+async function mobileDeleteSession(id: string): Promise<{ id: string }> {
+  const sb = await getSupabase();
+  await withTimeout(sb.from("chat_messages").delete().eq("session_id", id), 7000);
+  const { error } = await withTimeout(sb.from("chat_sessions").delete().eq("id", id), 7000);
+  if (error) throw toApiException(error);
+  return { id };
+}
+
+async function mobileListGroups(): Promise<ChatGroup[]> {
+  const sb = await getSupabase();
+  const { workspaceId } = await ensureMobileScope();
+  const { data, error } = await withTimeout(
+    sb.from("chat_groups")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("updated_at", { ascending: false }),
+    7000,
+  );
+  if (error) throw toApiException(error);
+  return (data ?? []).map(mapChatGroup);
+}
+
+async function mobileCreateGroup(name: string): Promise<ChatGroup> {
+  await ensureMobileScope();
+  const { data, error } = await insertTolerant("chat_groups", { name, ...newRow() });
+  if (error) throw toApiException(error);
+  return mapChatGroup((data as any[])[0]);
+}
+
+async function mobileRenameGroup(id: string, name: string): Promise<ChatGroup> {
+  const sb = await getSupabase();
+  const { data, error } = await withTimeout(
+    sb.from("chat_groups").update({ name }).eq("id", id).select("*").single(),
+    7000,
+  );
+  if (error) throw toApiException(error);
+  return mapChatGroup(data);
+}
+
+async function mobileDeleteGroup(id: string): Promise<{ id: string }> {
+  const sb = await getSupabase();
+  await withTimeout(sb.from("chat_sessions").update({ group_id: null }).eq("group_id", id), 7000);
+  const { error } = await withTimeout(sb.from("chat_groups").delete().eq("id", id), 7000);
+  if (error) throw toApiException(error);
+  return { id };
+}
+
+async function mobileListMessages(sessionId: string): Promise<ChatMessage[]> {
+  const sb = await getSupabase();
+  const { data, error } = await withTimeout(
+    sb.from("chat_messages")
+      .select("*")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true }),
+    7000,
+  );
+  if (error) throw toApiException(error);
+  return (data ?? []).map(mapChatMessage);
+}
+
+async function insertChatMessage(
+  sessionId: string,
+  role: ChatMessage["role"],
+  content: string,
+  sectionKey: string,
+  meta?: Record<string, unknown> | null,
+): Promise<ChatMessage> {
+  const sb = await getSupabase();
+  const { workspaceId } = await ensureMobileScope();
+  const { data, error } = await withTimeout(
+    sb.from("chat_messages")
+      .insert({
+        id: newId(),
+        workspace_id: workspaceId,
+        session_id: sessionId,
+        role,
+        content,
+        section_key: sectionKey,
+        metadata: meta ?? null,
+      })
+      .select("*")
+      .single(),
+    7000,
+  );
+  if (error) throw toApiException(error);
+  void sb.from("chat_sessions").update({ updated_at: new Date().toISOString(), section_key: sectionKey }).eq("id", sessionId);
+  return mapChatMessage(data);
+}
+
+function titleFromMessage(message: string): string {
+  const first = message.replace(/\s+/g, " ").trim().slice(0, 80);
+  return first || "New Chat";
+}
+
+async function ensureChatSession(sessionId: string | undefined, sectionKey: string): Promise<ChatSession> {
+  if (sessionId) {
+    try {
+      return await mobileUpdateSession(sessionId, { section_key: sectionKey });
+    } catch {
+      // If the supplied id is stale, create a fresh session instead of dropping the send.
+    }
+  }
+  return mobileCreateSession(null, null, sectionKey);
+}
+
+function languageHint(responseLanguage?: string): string {
+  const lang = (responseLanguage || "").trim();
+  if (!lang) return "Answer in the same language as the user unless they ask otherwise.";
+  const names: Record<string, string> = {
+    id: "Indonesian",
+    en: "English",
+    "zh-Hant": "Traditional Chinese",
+  };
+  return `Answer in ${names[lang] ?? lang}.`;
+}
+
+function systemPrompt(responseLanguage?: string, rolePrompt?: string): string {
+  return [
+    "You are AllHaven's mobile AI assistant inside the user's personal command center.",
+    "Be direct, useful, and honest about what you can and cannot access.",
+    "Do not claim you executed backend tools unless a tool result is present in the chat.",
+    "For write actions, explain clearly when approval or manual confirmation is needed.",
+    languageHint(responseLanguage),
+    rolePrompt,
+  ].filter(Boolean).join("\n");
+}
+
+function tokenBudget(thinking: string): number {
+  if (thinking === "deep") return 3500;
+  if (thinking === "thinking") return 2600;
+  if (thinking === "fast") return 1000;
+  return 1800;
+}
+
+function temperatureFor(thinking: string): number {
+  if (thinking === "fast") return 0.25;
+  if (thinking === "deep") return 0.35;
+  return 0.45;
+}
+
+function openAiContent(message: ChatMessage, currentUserId: string, images: string[], supportsImages: boolean): unknown {
+  if (message.id !== currentUserId || !images.length || !supportsImages) return message.content;
+  return [
+    { type: "text", text: message.content },
+    ...images.map((url) => ({ type: "image_url", image_url: { url } })),
+  ];
+}
+
+function textOnlyContent(message: ChatMessage, currentUserId: string, images: string[], supportsImages: boolean): string {
+  if (message.id === currentUserId && images.length && !supportsImages) {
+    return `${message.content}\n\n[Image attachments were included, but this mobile provider can only read text.]`;
+  }
+  return message.content;
+}
+
+async function callDirectProvider(params: {
+  ref: string;
+  sessionId: string;
+  currentUserId: string;
+  images: string[];
+  thinkingMode: ThinkingMode | string;
+  responseLanguage?: string;
+  rolePrompt?: string;
+}): Promise<{ provider: AiProvider; content: string; latency_ms: number }> {
+  const providerId = params.ref.split("#")[0];
+  const def = DIRECT_PROVIDER_BY_ID[providerId] as DirectProviderDefinition | undefined;
+  if (!def) throw new ApiException(`Provider "${providerId}" tidak dikenal.`, "PROVIDER_NOT_FOUND", 404);
+  const state = await loadProviderState(providerId);
+  const provider = await buildProvider(def);
+  if (!provider.configured) {
+    throw new ApiException(`${provider.name} belum dikonfigurasi di perangkat ini.`, "PROVIDER_NOT_CONFIGURED", 409);
+  }
+  if (!provider.enabled) {
+    throw new ApiException(`${provider.name} sedang disabled.`, "PROVIDER_DISABLED", 409);
+  }
+  const key = String(state.api_key || "").trim();
+  const base = providerBaseUrl(def, state);
+  const model = providerModel(def, state, params.ref);
+  const history = (await mobileListMessages(params.sessionId)).slice(-18);
+  const started = Date.now();
+  const sys = systemPrompt(params.responseLanguage, params.rolePrompt);
+  let body: any;
+
+  if (def.kind === "ollama") {
+    body = await fetchJsonWithTimeout(`${base}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        messages: [
+          { role: "system", content: sys },
+          ...history.map((m) => ({
+            role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user",
+            content: textOnlyContent(m, params.currentUserId, params.images, false),
+          })),
+        ],
+        options: { temperature: temperatureFor(params.thinkingMode) },
+      }),
+    });
+    return { provider, content: String(body?.message?.content || body?.response || "").trim(), latency_ms: Date.now() - started };
+  }
+
+  if (def.kind === "anthropic") {
+    body = await fetchJsonWithTimeout(`${base}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        system: sys,
+        max_tokens: tokenBudget(params.thinkingMode),
+        temperature: temperatureFor(params.thinkingMode),
+        messages: history
+          .filter((m) => m.role !== "system")
+          .map((m) => ({
+            role: m.role === "assistant" ? "assistant" : "user",
+            content: textOnlyContent(m, params.currentUserId, params.images, false),
+          })),
+      }),
+    });
+    const text = Array.isArray(body?.content)
+      ? body.content.map((part: any) => part?.text).filter(Boolean).join("\n")
+      : "";
+    return { provider, content: text.trim(), latency_ms: Date.now() - started };
+  }
+
+  if (def.kind === "gemini") {
+    body = await fetchJsonWithTimeout(`${base}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: sys }] },
+        contents: history
+          .filter((m) => m.role !== "system")
+          .map((m) => ({
+            role: m.role === "assistant" ? "model" : "user",
+            parts: [{ text: textOnlyContent(m, params.currentUserId, params.images, false) }],
+          })),
+        generationConfig: {
+          temperature: temperatureFor(params.thinkingMode),
+          maxOutputTokens: tokenBudget(params.thinkingMode),
+        },
+      }),
+    });
+    const text = body?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text).filter(Boolean).join("\n") || "";
+    return { provider, content: String(text).trim(), latency_ms: Date.now() - started };
+  }
+
+  body = await fetchJsonWithTimeout(`${base}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+      ...(def.id === "openrouter" ? { "HTTP-Referer": "https://allhaven.local", "X-Title": "AllHaven Mobile" } : {}),
+    },
+    body: JSON.stringify({
+      model,
+      temperature: temperatureFor(params.thinkingMode),
+      max_tokens: tokenBudget(params.thinkingMode),
+      messages: [
+        { role: "system", content: sys },
+        ...history.map((m) => ({
+          role: m.role === "assistant" ? "assistant" : m.role === "system" ? "system" : "user",
+          content: openAiContent(m, params.currentUserId, params.images, Boolean(def.capabilities?.image)),
+        })),
+      ],
+    }),
+  });
+  const content = body?.choices?.[0]?.message?.content || body?.choices?.[0]?.text || "";
+  return { provider, content: String(content).trim(), latency_ms: Date.now() - started };
+}
+
+function runStatus(responses: AgentResponse[]): MultiChatResponse["status"] {
+  if (!responses.length) return "empty";
+  const completed = responses.filter((r) => r.status === "completed").length;
+  if (completed === responses.length) return "completed";
+  if (completed > 0) return "partial";
+  return "error";
+}
+
+function responseFromError(runId: string, ref: string, err: unknown): AgentResponse {
+  const ex = err instanceof ApiException ? err : toApiException(err);
+  const providerId = ref.split("#")[0];
+  const def = DIRECT_PROVIDER_BY_ID[providerId] as DirectProviderDefinition | undefined;
+  const status: AgentResponseStatus =
+    ex.code === "PROVIDER_NOT_CONFIGURED" ? "not_configured" :
+    ex.code === "PROVIDER_DISABLED" ? "disabled" : "error";
+  return {
+    id: newId(),
+    run_id: runId,
+    provider_id: ref,
+    provider_name: def?.name ?? providerId,
+    status,
+    content: null,
+    error_message: ex.message,
+    latency_ms: null,
+    meta: { direct_mobile: true },
+    created_at: new Date().toISOString(),
+  };
+}
+
+function responseFromContent(runId: string, ref: string, provider: AiProvider, content: string, latency_ms: number, meta?: Record<string, unknown>): AgentResponse {
+  return {
+    id: newId(),
+    run_id: runId,
+    provider_id: ref,
+    provider_name: provider.name,
+    status: "completed",
+    content: content || "(Provider returned an empty response.)",
+    error_message: null,
+    latency_ms,
+    meta: { direct_mobile: true, external: provider.external, ...meta },
+    created_at: new Date().toISOString(),
+  };
+}
+
+async function writeAgentMessage(
+  sessionId: string,
+  sectionKey: string,
+  response: AgentResponse,
+  extraMeta?: Record<string, unknown>,
+): Promise<void> {
+  await insertChatMessage(
+    sessionId,
+    "assistant",
+    response.status === "completed" ? (response.content || "") : (response.error_message || "Provider failed."),
+    sectionKey,
+    {
+      provider_id: response.provider_id,
+      provider_name: response.provider_name,
+      status: response.status,
+      latency_ms: response.latency_ms,
+      external: Boolean(response.meta?.external),
+      run_id: response.run_id,
+      direct_mobile: true,
+      ...extraMeta,
+    },
+  );
+}
+
+function finalFromResponses(responses: AgentResponse[], fallback: string): string {
+  const completed = responses.filter((r) => r.status === "completed" && r.content);
+  if (!completed.length) return fallback;
+  if (completed.length === 1) return completed[0].content || fallback;
+  return completed
+    .map((r) => `### ${r.provider_name}\n${r.content}`)
+    .join("\n\n");
+}
+
+const directRuns = new Map<string, MultiChatResponse>();
+
+async function mobileMultiChat(
+  message: string,
+  providerIds: string[],
+  sessionId?: string,
+  images?: string[],
+  thinkingMode: ThinkingMode | string = "balance",
+  sectionKey = "general",
+  responseLanguage?: string,
+): Promise<MultiChatResponse> {
+  const refs = providerIds.slice(0, 10);
+  const session = await ensureChatSession(sessionId, sectionKey);
+  if (!session.title) void mobileUpdateSession(session.id, { title: titleFromMessage(message) });
+  const runId = newId();
+  const user = await insertChatMessage(session.id, "user", message, sectionKey, {
+    images: images?.length ? images : undefined,
+    thinking_mode: thinkingMode,
+    source: "mobile_direct",
+  });
+  const responses = await Promise.all(refs.map(async (ref) => {
+    try {
+      const res = await callDirectProvider({
+        ref,
+        sessionId: session.id,
+        currentUserId: user.id,
+        images: images ?? [],
+        thinkingMode,
+        responseLanguage,
+      });
+      const agent = responseFromContent(runId, ref, res.provider, res.content, res.latency_ms);
+      await writeAgentMessage(session.id, sectionKey, agent);
+      return agent;
+    } catch (err) {
+      const agent = responseFromError(runId, ref, err);
+      await writeAgentMessage(session.id, sectionKey, agent);
+      return agent;
+    }
+  }));
+  const run = { run_id: runId, session_id: session.id, status: runStatus(responses), agent_responses: responses };
+  directRuns.set(runId, run);
+  return run;
+}
+
+async function mobileDebateChat(
+  message: string,
+  providerIds: string[],
+  sessionId?: string,
+  rounds = 2,
+  images?: string[],
+  thinkingMode: ThinkingMode | string = "balance",
+  sectionKey = "general",
+  responseLanguage?: string,
+): Promise<MultiChatResponse> {
+  const refs = providerIds.slice(0, 10);
+  const session = await ensureChatSession(sessionId, sectionKey);
+  if (!session.title) void mobileUpdateSession(session.id, { title: titleFromMessage(message) });
+  const runId = newId();
+  const user = await insertChatMessage(session.id, "user", message, sectionKey, {
+    images: images?.length ? images : undefined,
+    thinking_mode: thinkingMode,
+    mode: "debate",
+    source: "mobile_direct",
+  });
+  const responses: AgentResponse[] = [];
+  const nRounds = Math.max(1, Math.min(3, Number(rounds) || 2));
+  for (let round = 1; round <= nRounds; round += 1) {
+    const phase = round === 1 ? "opening" : "rebuttal";
+    const roundResponses = await Promise.all(refs.map(async (ref) => {
+      try {
+        const res = await callDirectProvider({
+          ref,
+          sessionId: session.id,
+          currentUserId: user.id,
+          images: images ?? [],
+          thinkingMode,
+          responseLanguage,
+          rolePrompt: round === 1
+            ? "Give your own best answer. Be concise but complete."
+            : "Critique the prior answers in this thread, correct mistakes, and improve the answer.",
+        });
+        const agent = responseFromContent(runId, ref, res.provider, res.content, res.latency_ms, { debate: true, round, phase });
+        await writeAgentMessage(session.id, sectionKey, agent, { debate: true, round, phase });
+        return agent;
+      } catch (err) {
+        const agent = responseFromError(runId, ref, err);
+        await writeAgentMessage(session.id, sectionKey, agent, { debate: true, round, phase });
+        return agent;
+      }
+    }));
+    responses.push(...roundResponses);
+  }
+  const final = finalFromResponses(responses.slice(-refs.length), "Tidak ada jawaban selesai dari provider yang dipilih.");
+  await insertChatMessage(session.id, "assistant", final, sectionKey, {
+    provider_id: "mobile_direct_synthesis",
+    provider_name: "Mobile Direct Synthesis",
+    status: responses.some((r) => r.status === "completed") ? "completed" : "error",
+    run_id: runId,
+    debate: true,
+    debate_final: true,
+    n_agents: refs.length,
+    rounds: nRounds,
+    direct_mobile: true,
+  });
+  const run = { run_id: runId, session_id: session.id, status: runStatus(responses), agent_responses: responses };
+  directRuns.set(runId, run);
+  return run;
+}
+
+async function mobileReasonChat(
+  message: string,
+  providerIds: string[],
+  sessionId?: string,
+  thinkingMode: ThinkingMode | string = "balance",
+  images?: string[],
+  sectionKey = "general",
+  responseLanguage?: string,
+): Promise<MultiChatResponse> {
+  const refs = providerIds.slice(0, 3);
+  const session = await ensureChatSession(sessionId, sectionKey);
+  if (!session.title) void mobileUpdateSession(session.id, { title: titleFromMessage(message) });
+  const runId = newId();
+  const user = await insertChatMessage(session.id, "user", message, sectionKey, {
+    images: images?.length ? images : undefined,
+    thinking_mode: thinkingMode,
+    mode: "reason",
+    source: "mobile_direct",
+  });
+  const roles = ["Analyst", "Critic", "Synthesizer"];
+  const prompts = [
+    "Act as Analyst: solve the user request step by step, using only available context.",
+    "Act as Critic: check the analyst answer for mistakes, missing assumptions, and risks.",
+    "Act as Synthesizer: produce the final, practical answer using the strongest points.",
+  ];
+  const responses: AgentResponse[] = [];
+  for (let i = 0; i < refs.length; i += 1) {
+    const ref = refs[i];
+    try {
+      const res = await callDirectProvider({
+        ref,
+        sessionId: session.id,
+        currentUserId: user.id,
+        images: images ?? [],
+        thinkingMode,
+        responseLanguage,
+        rolePrompt: prompts[i] ?? prompts[prompts.length - 1],
+      });
+      const agent = responseFromContent(runId, ref, res.provider, res.content, res.latency_ms, { reasoning: true, role: roles[i] ?? "Agent" });
+      await writeAgentMessage(session.id, sectionKey, agent, { reasoning: true, role: roles[i] ?? "Agent" });
+      responses.push(agent);
+    } catch (err) {
+      const agent = responseFromError(runId, ref, err);
+      await writeAgentMessage(session.id, sectionKey, agent, { reasoning: true, role: roles[i] ?? "Agent" });
+      responses.push(agent);
+    }
+  }
+  const final = finalFromResponses(responses.slice(-1), finalFromResponses(responses, "Tidak ada jawaban selesai dari provider yang dipilih."));
+  await insertChatMessage(session.id, "assistant", final, sectionKey, {
+    provider_id: "mobile_direct_synthesis",
+    provider_name: "Mobile Direct Synthesis",
+    status: responses.some((r) => r.status === "completed") ? "completed" : "error",
+    run_id: runId,
+    reasoning: true,
+    reasoning_final: true,
+    direct_mobile: true,
+    quality: { final_answer_confidence: responses.some((r) => r.status === "completed") ? 0.72 : 0.2, issues: [] },
+  });
+  const run = { run_id: runId, session_id: session.id, status: runStatus(responses), agent_responses: responses };
+  directRuns.set(runId, run);
+  return run;
+}
+
+async function mobileChat(
+  message: string,
+  sessionId?: string,
+  providerId?: string,
+  sectionKey = "general",
+  thinkingMode: ThinkingMode | string = "balance",
+  responseLanguage?: string,
+): Promise<ChatResponse> {
+  const providers = await mobileListProviders();
+  const selected =
+    providerId ||
+    providers.providers.find((p) => p.status === "online" && p.enabled)?.id ||
+    providers.providers.find((p) => p.configured && p.enabled)?.id ||
+    "openai";
+  const run = await mobileMultiChat(message, [selected], sessionId, [], thinkingMode, sectionKey, responseLanguage);
+  const msgs = await mobileListMessages(run.session_id);
+  const reply = [...msgs].reverse().find((m) => m.role === "assistant") ?? msgs[msgs.length - 1];
+  return { session_id: run.session_id, reply, ai_configured: run.status !== "error" };
+}
+
+const MOBILE_DIRECT_TOOLS: AiTool[] = [
+  {
+    name: "mobile_direct_chat",
+    description: "Cloud AI chat runs directly from this APK; write tools still require approval rows.",
+    module: "chat",
+    access: "read",
+    risk: "LOW",
+    approval_required: false,
+    enabled: true,
+    active_for_section: true,
+  },
+];
+
 export const aiApi = {
   ...restAiApi,
+  listSessions: mobileListSessions,
+  createSession: mobileCreateSession,
+  updateSession: mobileUpdateSession,
+  deleteSession: mobileDeleteSession,
+  listGroups: mobileListGroups,
+  createGroup: mobileCreateGroup,
+  renameGroup: mobileRenameGroup,
+  deleteGroup: mobileDeleteGroup,
+  listMessages: mobileListMessages,
+  chat: mobileChat,
+  multiChat: mobileMultiChat,
+  debateChat: mobileDebateChat,
+  reasonChat: mobileReasonChat,
+  getRun: async (runId: string): Promise<MultiChatResponse> => {
+    const run = directRuns.get(runId);
+    if (run) return run;
+    return { run_id: runId, session_id: "", status: "empty", agent_responses: [] };
+  },
+  listTools: async (): Promise<AiTool[]> => MOBILE_DIRECT_TOOLS,
+  setToolEnabled: async (name: string, enabled: boolean): Promise<AiTool> => ({
+    ...(MOBILE_DIRECT_TOOLS.find((t) => t.name === name) ?? MOBILE_DIRECT_TOOLS[0]),
+    enabled,
+  }),
+  getChatSettings: mobileGetChatSettings,
+  setChatSettings: mobileSetChatSettings,
+  saveModelSlots: mobileSaveModelSlots,
+  listProviders: mobileListProviders,
+  saveProvider: mobileSaveProvider,
+  testProvider: mobileTestProvider,
+  enableProvider: (id: string) => mobileEnableProvider(id, true),
+  disableProvider: (id: string) => mobileEnableProvider(id, false),
+  getPolicy: mobileGetPolicy,
+  setPolicy: mobileSetPolicy,
   listProposals: supaListProposals,
   approveProposal: supaApproveProposal,
   rejectProposal: supaRejectProposal,
