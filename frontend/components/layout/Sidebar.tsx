@@ -36,7 +36,7 @@ export function Sidebar({
   const allHrefs = [
     ...PRIMARY_NAV.map((i) => i.href),
     ...MODULE_NAV.map((i) => i.href),
-    ...(SETTINGS_NAV ? [SETTINGS_NAV.href] : []),
+    SETTINGS_NAV.href,
   ];
 
   const isActive = (href: string) => {
@@ -165,12 +165,8 @@ export function Sidebar({
         )}
         {MODULE_NAV.map(renderItem)}
 
-        {SETTINGS_NAV ? (
-          <>
-            <div className="my-2 h-px bg-border" />
-            {renderItem(SETTINGS_NAV)}
-          </>
-        ) : null}
+        <div className="my-2 h-px bg-border" />
+        {renderItem(SETTINGS_NAV)}
       </nav>
 
       <div className={cn("space-y-1 border-t border-border bg-bg-deep/80 py-3", collapsed ? "px-3" : "px-3")}>

@@ -7,7 +7,6 @@ import {
   BookOpenCheck,
   Bot,
   CalendarDays,
-  CloudSun,
   FolderGit2,
   HardDrive,
   ListTodo,
@@ -37,7 +36,6 @@ export const SECTIONS: SectionDef[] = [
   { key: "drive", label: "Files", icon: HardDrive, hint: "Documents and file organization." },
   { key: "ai_knowledge", label: "AI Knowledge", icon: BookOpenCheck, hint: "Indexed documents for AI retrieval." },
   { key: "automations", label: "Automations", icon: Workflow, hint: "Workflows and automation ideas." },
-  { key: "weather", label: "Weather", icon: CloudSun, hint: "Locations and weather context." },
   { key: "settings", label: "Settings", icon: Settings, hint: "App configuration and providers." },
   { key: "system", label: "System Control", icon: SlidersHorizontal, hint: "Services, status, and operations." },
 ];

@@ -483,17 +483,6 @@ def _h_delete_file(db, principal, args) -> dict:
 
 
 # --------------------------------------------------------------------------- #
-# handlers — weather
-# --------------------------------------------------------------------------- #
-
-
-def _h_current_weather(db, principal, args) -> dict:
-    from app.services import weather_service
-
-    return weather_service.current_weather(db, principal, location=args.get("location"))
-
-
-# --------------------------------------------------------------------------- #
 # handlers — AI memories (read from registry; write via proposals)
 # --------------------------------------------------------------------------- #
 
@@ -921,11 +910,6 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
              _schema({"file_id": _str_prop("File id")}, ["file_id"]), _h_summarize_file_if_supported),
     ToolSpec("delete_file", "Delete a stored file.", "files", "write", "HIGH",
              _schema({"file_id": _str_prop("File id")}, ["file_id"]), _h_delete_file),
-    # --- weather ---
-    ToolSpec("get_current_weather", "Current weather (honest 'setup_required' if no provider).",
-             "weather", "read", "LOW",
-             _schema({"location": _str_prop("Location name (optional; default saved location)")}),
-             _h_current_weather),
     # --- automations / workflows ---
     ToolSpec("list_workflows", "List automation workflow drafts.", "automation", "read", "LOW",
              _schema({}), _h_list_workflows),

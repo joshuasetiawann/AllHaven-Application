@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
-import { REST_ONLY_HREFS } from "@/components/layout/nav";
 import { ErrorState, Loading } from "@/components/ui/States";
 import { ApiException, authApi } from "@/lib/api";
 import { clearAuth, setStoredUser } from "@/lib/auth";
@@ -81,17 +80,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       active = false;
     };
   }, [router, authNonce]);
-
-  // Mobile (Supabase build): backend-only pages (AI, Drive, Settings, …) have no
-  // offline path, so a deep-link or back-button to one would just dead-end. Send
-  // them home. The nav already hides these on mobile; this covers direct URLs.
-  useEffect(() => {
-    if (!DATA_MODE) return;
-    const blocked = REST_ONLY_HREFS.some(
-      (h) => pathname === h || pathname.startsWith(h + "/"),
-    );
-    if (blocked) router.replace("/dashboard");
-  }, [pathname, router]);
 
   // Restore the persisted rail preference once on mount (guard for SSR).
   useEffect(() => {

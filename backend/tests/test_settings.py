@@ -12,7 +12,7 @@ def test_integration_status_is_honest(auth_client):
     assert integrations["postgresql"]["status"] == "online"
 
     # Optional integrations are not configured in the test environment.
-    for key in ("ollama", "n8n", "supabase", "google_calendar", "weather_api"):
+    for key in ("ollama", "n8n", "supabase", "google_calendar"):
         assert integrations[key]["configured"] is False
         assert integrations[key]["status"] == "not_configured"
         assert integrations[key]["detail"] == "Not configured"
