@@ -234,7 +234,7 @@ export default function ApprovalsPage() {
             {proposals.length === 0 ? (
               <EmptyState
                 title="No AI changes waiting"
-                description="When AI proposes edits to finance, tasks, calendar, system, or files, they will show here."
+                description="When AI proposes edits to finance, tasks, routine, system, or files, they will show here."
                 className="py-10"
               />
             ) : (

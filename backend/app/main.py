@@ -35,6 +35,7 @@ from app.api.routers import (
     knowledge,
     n8n,
     notes,
+    routines,
     settings as settings_router,
     system,
     tasks,
@@ -102,6 +103,7 @@ def create_app() -> FastAPI:
     app.include_router(settings_router.router, prefix=prefix)
     app.include_router(google.router, prefix=prefix)
     app.include_router(calendar.router, prefix=prefix)
+    app.include_router(routines.router, prefix=prefix)
     app.include_router(drive.router, prefix=prefix)
     app.include_router(automations.router, prefix=prefix)
     app.include_router(weather.router, prefix=prefix)

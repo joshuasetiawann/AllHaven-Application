@@ -13,7 +13,7 @@ actions become *proposals* that a human reviews.
 - **Honest replies:** providers return clear *"not configured" / "disabled" / "blocked"*
   statuses. **No response is ever fabricated.**
 - **Tool Registry** (`app/services/ai_tools_registry.py`): a fixed allowlist of ~40 tools across
-  time, tasks, calendar, notes, finance, files (metadata only), weather, automations, memory, and
+  time, tasks, routine/schedule, notes, finance, files (metadata only), weather, automations, memory, and
   system control. Unknown tools or malformed arguments are rejected and audited. The model never
   touches the DB, shell, or filesystem — only module services that enforce workspace scoping.
 - **Read tools execute immediately** (e.g. `list_tasks`, `finance_monthly_summary`,
