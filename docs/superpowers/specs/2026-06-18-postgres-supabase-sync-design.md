@@ -81,15 +81,17 @@ The whole RLS model needs `auth.uid()` (Supabase) to resolve to the app's user U
 app_user_id() RETURNS uuid   -- SECURITY DEFINER, returns the app user id for the current Supabase session
 ```
 
-Identity mapping — two implementations, pick after verifying the Admin API:
+Identity mapping — **resolved during planning (2026-06-18):** GoTrue's admin endpoint `POST /auth/v1/admin/users` does **not** accept a caller-supplied `id`; Supabase mints the auth user's UUID server-side and returns it. The same-UUID idea is therefore **not implementable**, so we use the **mapping-column** approach:
 
-- **Preferred (if supported): same-UUID provisioning.** When the Admin API can create an auth user with an explicit id, provision the Supabase Auth user with `id = app user UUID`. Then `auth.uid()` equals the app user id directly and `app_user_id()` is just `auth.uid()`. *(Verify against current Supabase/GoTrue docs before relying on this — per Supabase skill, do not trust memory on Admin API shape.)*
-- **Fallback: mapping column.** Add `supabase_user_id UUID` to `profiles` (or `local_users`). On provisioning, create the auth user (auto id) and store it. `app_user_id()` then maps `auth.uid()` → app user id via that column. RLS predicates use `app_user_id()` so policies are identical either way.
+- Add `supabase_user_id UUID` (nullable, unique) to `profiles`. On provisioning, create the Supabase Auth user, read the returned `id` from the response, and store it on the user's profile.
+- `app_user_id()` (`SECURITY DEFINER`, `STABLE`) maps the current `auth.uid()` → the app user id via `SELECT id FROM profiles WHERE supabase_user_id = auth.uid()`. **Every RLS predicate uses `app_user_id()`**, never `auth.uid()` directly, so the indirection is centralized in one helper.
 
 Provisioning flow:
 
 1. **New signups:** `register_user` has the plaintext password in hand, so after creating the local user/profile/workspace/member it also creates the matching Supabase Auth user (email + password) via the backend using `service_role`.
 2. **Existing users (no copyable hash — PBKDF2 ≠ bcrypt):** a **"Connect to Supabase"** action in Settings asks for the current password once, then provisions the Supabase Auth user. (Alternatives considered: rehash-on-next-login, or forced reset email — the explicit button is simplest for a single-user MVP.)
+
+   **Credential source for provisioning:** `register_user` runs before any authenticated/workspace context exists, and a brand-new workspace has no `IntegrationConfig` row yet — so **signup-time** provisioning can only use the **env-level `settings.SUPABASE_URL` + `settings.SUPABASE_SERVICE_ROLE_KEY`** (set by the self-hosted operator). The **"Connect to Supabase"** path is authenticated and reads per-workspace `IntegrationConfig` (service_role_key, decrypted) with the same env-level fallback. Both use a dedicated service-role resolver — distinct from `supabase_sync_service._get_credentials`, which returns the **anon** key and must not be used for admin calls.
 3. **Mobile login** uses Supabase Auth directly (email + password) → Supabase JWT → `supabase-js` queries are RLS-scoped. This **supersedes the 3.6 bearer-token login for mobile**; web/desktop keep their existing cookie/bearer auth.
 
 Constraint: provisioning must keep `workspace`/`workspace_members` rows in lockstep with the auth user — `_principal_for_user` requires a default workspace, so an auth user with no workspace row would break.
@@ -162,6 +164,7 @@ Replaces the current one-way, full-table, per-write mirror with an incremental t
 
 ## 14. Open items to verify during planning
 
-- Supabase Admin API: can an auth user be created with an explicit id? (decides Component B path).
-- Supabase connection mode for Alembic (direct 5432 vs session pooler) and psycopg v3 compatibility.
-- Whether `is_deleted` should be added to any v3.7-synced table that currently hard-deletes.
+- ~~Supabase Admin API: can an auth user be created with an explicit id?~~ **Resolved: no — use the `supabase_user_id` mapping column (see §6).**
+- Supabase connection mode for Alembic (direct 5432 vs session pooler) and psycopg v3 compatibility — confirm at first migration run.
+- Whether `is_deleted` should be added to any v3.7-synced table that currently hard-deletes (deferred with the AI/chat feature set).
+- GoTrue admin body: confirm `email_confirm: true` is the correct field to make the provisioned user immediately usable without an email round-trip.
