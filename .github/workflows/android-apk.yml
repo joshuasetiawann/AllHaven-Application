@@ -37,10 +37,10 @@ jobs:
       run:
         working-directory: frontend
     env:
-      # Desktop Bridge default: manual input → repo variable → this user's
-      # private Tailscale Serve URL. Raw 100.x Tailscale IPs are not reliable on
-      # every Android/VPN setup; Serve gives the APK a stable HTTPS backend.
-      API_URL: ${{ github.event.inputs.api_base_url || vars.MOBILE_API_BASE_URL || 'https://joo.tail01a7d3.ts.net/api/v1' }}
+      # Desktop Bridge default: manual input → repo variable → this desktop's
+      # Tailscale IP. Raw 100.x avoids MagicDNS/system resolver problems; users
+      # can still paste a Tailscale Serve HTTPS URL at runtime if DNS works.
+      API_URL: ${{ github.event.inputs.api_base_url || vars.MOBILE_API_BASE_URL || 'http://100.91.122.124:8000/api/v1' }}
       DATA_MODE: ${{ github.event.inputs.data_mode || vars.MOBILE_DATA_MODE || 'supabase' }}
       SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || vars.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
