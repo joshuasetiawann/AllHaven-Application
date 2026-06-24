@@ -56,20 +56,32 @@ INTEGRATIONS: tuple[ProviderSpec, ...] = (
         id="ollama",
         name="Ollama Local AI",
         provider_type="local_ai",
-        purpose="Local LLM inference",
+        purpose="Local LLM inference (desktop-local; reach from mobile via Desktop Bridge)",
         fields=(
-            FieldSpec("base_url", "Base URL", required=True, placeholder="http://localhost:11434"),
+            FieldSpec("base_url", "Local URL", required=True, placeholder="http://localhost:11434"),
             FieldSpec("default_model", "Default model", placeholder="llama3.1"),
+            # --- Desktop Bridge (v4.0) ---
+            FieldSpec("connection_mode", "Connection mode", placeholder="local_desktop", default="local_desktop"),
+            FieldSpec("tailscale_url", "Tailscale Private URL", placeholder="http://100.x.y.z:11434"),
+            FieldSpec("serve_url", "Tailscale Serve URL", placeholder="https://desktop.tailnet.ts.net/ollama"),
+            FieldSpec("funnel_url", "Tailscale Funnel URL (public)", placeholder="https://...ts.net (disabled by default)"),
+            FieldSpec("funnel_enabled", "Funnel enabled", placeholder="false", default="false"),
         ),
     ),
     ProviderSpec(
         id="n8n",
         name="n8n Automation",
         provider_type="automation",
-        purpose="Workflow automation and webhooks",
+        purpose="Workflow automation (desktop-local; reach from mobile via Desktop Bridge)",
         fields=(
-            FieldSpec("base_url", "Base URL", required=True, placeholder="http://localhost:5678"),
+            FieldSpec("base_url", "Local URL", required=True, placeholder="http://localhost:5678"),
             FieldSpec("api_key", "API key (optional)", secret=True),
+            # --- Desktop Bridge (v4.0) ---
+            FieldSpec("connection_mode", "Connection mode", placeholder="local_desktop", default="local_desktop"),
+            FieldSpec("tailscale_url", "Tailscale Private URL", placeholder="http://100.x.y.z:5678"),
+            FieldSpec("serve_url", "Tailscale Serve URL", placeholder="https://desktop.tailnet.ts.net/n8n"),
+            FieldSpec("funnel_url", "Tailscale Funnel URL (public)", placeholder="https://...ts.net (disabled by default)"),
+            FieldSpec("funnel_enabled", "Funnel enabled", placeholder="false", default="false"),
         ),
     ),
     ProviderSpec(
