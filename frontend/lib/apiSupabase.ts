@@ -920,6 +920,7 @@ import type {
   ChatGroup,
   ChatMessage,
   ChatResponse,
+  ChatSession,
   IntegrationStatusValue,
   MemorySuggestion,
   ModelSlot,
@@ -1821,7 +1822,7 @@ async function ensureChatSession(sessionId: string | undefined, sectionKey: stri
       // If the supplied id is stale, create a fresh session instead of dropping the send.
     }
   }
-  return mobileCreateSession(null, null, sectionKey);
+  return mobileCreateSession(null, undefined, sectionKey);
 }
 
 function languageHint(responseLanguage?: string): string {
