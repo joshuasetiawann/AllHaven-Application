@@ -101,18 +101,68 @@ export function IntegrationConfigModal({
       ) : null}
 
       <div className="space-y-4">
-        {fields.map((field) =>
-          field.secret ? (
-            <SecretInput
-              key={field.key}
-              id={`f-${field.key}`}
-              label={field.label}
-              placeholder={field.placeholder}
-              value={secretValues[field.key] ?? ""}
-              onChange={(v) => setSecretValues((s) => ({ ...s, [field.key]: v }))}
-              existing={integration.secrets?.[field.key]}
-            />
-          ) : (
+        {fields.map((field) => {
+          if (field.secret) {
+            return (
+              <SecretInput
+                key={field.key}
+                id={`f-${field.key}`}
+                label={field.label}
+                placeholder={field.placeholder}
+                value={secretValues[field.key] ?? ""}
+                onChange={(v) => setSecretValues((s) => ({ ...s, [field.key]: v }))}
+                existing={integration.secrets?.[field.key]}
+              />
+            );
+          }
+          // Desktop Bridge: connection mode picker (Ollama / n8n).
+          if (field.key === "connection_mode") {
+            return (
+              <div key={field.key}>
+                <label htmlFor={`f-${field.key}`} className="mb-1.5 block text-[13px] font-medium text-content-muted">
+                  {field.label}
+                </label>
+                <select
+                  id={`f-${field.key}`}
+                  value={publicValues[field.key] || "local_desktop"}
+                  onChange={(e) => setPublicValues((s) => ({ ...s, [field.key]: e.target.value }))}
+                  className="h-10 w-full rounded-lg border border-border bg-surface-input px-3 text-sm text-content focus-ring"
+                >
+                  <option value="local_desktop">Local Desktop — localhost (this machine)</option>
+                  <option value="tailscale_private">Tailscale Private — device IP / MagicDNS</option>
+                  <option value="tailscale_serve">Tailscale Serve — private in your tailnet</option>
+                  <option value="tailscale_funnel">Tailscale Funnel — PUBLIC (enable below)</option>
+                  <option value="auto">Auto — try Local → Private → Serve</option>
+                </select>
+                <p className="mt-1 text-[11.5px] text-content-subtle">
+                  On mobile, localhost won&apos;t reach the desktop — use a Tailscale mode.
+                </p>
+              </div>
+            );
+          }
+          // Desktop Bridge: Funnel public-exposure toggle + warning (off by default).
+          if (field.key === "funnel_enabled") {
+            const on = (publicValues[field.key] || "").toLowerCase() === "true";
+            return (
+              <label
+                key={field.key}
+                className="flex items-start gap-2.5 rounded-lg border border-danger/40 bg-danger/5 p-3 text-[12.5px]"
+              >
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={(e) => setPublicValues((s) => ({ ...s, [field.key]: e.target.checked ? "true" : "false" }))}
+                  className="mt-0.5 h-4 w-4 accent-danger"
+                />
+                <span className="text-content-muted">
+                  <strong className="text-danger">Enable Funnel (public internet).</strong> Exposes this service
+                  beyond your tailnet. Use only for a temporary demo, only through the authenticated AllHaven app —
+                  never expose raw Ollama/n8n. Off by default.
+                </span>
+              </label>
+            );
+          }
+          return (
             <Input
               key={field.key}
               id={`f-${field.key}`}
@@ -121,8 +171,8 @@ export function IntegrationConfigModal({
               value={publicValues[field.key] ?? ""}
               onChange={(e) => setPublicValues((s) => ({ ...s, [field.key]: e.target.value }))}
             />
-          ),
-        )}
+          );
+        })}
       </div>
 
       {error ? <p className="mt-4 text-[12.5px] text-danger">{error}</p> : null}
