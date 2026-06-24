@@ -373,7 +373,7 @@ export const googleApi = {
   disconnect: () => request<Integration>("/settings/google/disconnect", { method: "POST" }),
 };
 
-// --- Calendar ---
+// --- Calendar / Routines ---
 export const calendarApi = {
   list: () => request<CalendarEvent[]>("/calendar/events"),
   create: (payload: Record<string, unknown>) =>
@@ -382,6 +382,23 @@ export const calendarApi = {
     request<CalendarEvent>(`/calendar/events/${id}`, { method: "PUT", body: json(payload) }),
   remove: (id: string) =>
     request<{ id: string }>(`/calendar/events/${id}`, { method: "DELETE" }),
+};
+
+export const routinesApi = {
+  list: (params?: { start?: string; end?: string }) => {
+    const query = params && (params.start || params.end)
+      ? `?${new URLSearchParams(
+          Object.entries(params).filter(([, v]) => Boolean(v)) as [string, string][],
+        ).toString()}`
+      : "";
+    return request<CalendarEvent[]>(`/routines/events${query}`);
+  },
+  create: (payload: Record<string, unknown>) =>
+    request<CalendarEvent>("/routines/events", { method: "POST", body: json(payload) }),
+  update: (id: string, payload: Record<string, unknown>) =>
+    request<CalendarEvent>(`/routines/events/${id}`, { method: "PUT", body: json(payload) }),
+  remove: (id: string) =>
+    request<{ id: string }>(`/routines/events/${id}`, { method: "DELETE" }),
 };
 
 // --- Drive (file upload uses multipart, not JSON) ---

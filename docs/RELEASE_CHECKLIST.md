@@ -11,14 +11,14 @@ Status of every release-readiness item. Run the commands, tick the boxes.
 ## App shell & UI
 - [x] One consistent shell (sidebar + topbar + content)
 - [x] Topbar clean & responsive (no horizontal overflow; mobile/tablet collapse; nav drawer)
-- [x] Sidebar modules all clickable (Drive, Calendar, Weather, Automations, AI, Settings) with MVP badges
+- [x] Sidebar modules all clickable (Routine, Drive, Weather, Automations, AI, Settings) with MVP badges
 - [x] Settings grouped by module; every card shows honest status
       (`not_configured / configured / online / error / disabled / unavailable`)
 
 ## Persistence (survives refresh)
 - [x] Tasks / Notes / Finance create-update-delete persist (PostgreSQL)
 - [x] AI chat sessions + multi-agent runs persist
-- [x] Calendar events, Drive file metadata, Automations, Weather locations persist
+- [x] Routine schedules, Drive file metadata, Automations, Weather locations persist
 
 ## Settings & .env sync
 - [x] Save persists to DB; allowlisted keys mirror to `.env`
@@ -42,7 +42,7 @@ Status of every release-readiness item. Run the commands, tick the boxes.
 ## Integrations
 - [x] Supabase: URL + anon + service-role (secret) save; Test Connection hits `/auth/v1/health`; honest status; service-role never exposed to frontend; mirrors to `.env`
 - [x] Drive: upload / list / download / soft-delete; metadata in DB; path traversal blocked
-- [x] Calendar: local event CRUD; Google status honest (no fake sync)
+- [x] Routine: local schedule CRUD; Google Calendar status honest (no fake sync)
 - [x] Weather: real fetch when configured, else `setup_required` (never faked)
 - [x] Automations: local CRUD MVP; never executed (disabled-safe); n8n status testable
 

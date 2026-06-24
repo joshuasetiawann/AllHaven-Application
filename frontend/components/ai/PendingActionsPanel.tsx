@@ -23,9 +23,9 @@ type ActionNotice = {
   tone: "success" | "danger";
 };
 
-// "calendar_create_event" -> "Calendar create event"
+// "calendar_create_event" -> "Routine create event"
 function humanizeTool(name: string): string {
-  const spaced = name.replace(/[_.-]+/g, " ").trim();
+  const spaced = name.replace(/^calendar[_-]/, "routine_").replace(/[_.-]+/g, " ").trim();
   return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : name;
 }
 

@@ -206,7 +206,7 @@ def test_reason_chat_accepts_section_key(auth_client):
         json={
             "message": "Reason through this",
             "provider_ids": ["ollama"],
-            "section_key": "calendar",
+            "section_key": "routines",
         },
     )
     assert resp.status_code == 200, resp.text
