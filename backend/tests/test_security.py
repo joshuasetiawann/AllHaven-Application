@@ -1,6 +1,41 @@
 """Security hardening tests: response headers and safe file downloads."""
 
+from fastapi.routing import APIRoute
+
+from app.api.dependencies import get_current_principal
+from app.main import app
 from tests.conftest import API
+
+
+_PUBLIC_API_ROUTES = {
+    ("GET", f"{API}/health"),
+    ("POST", f"{API}/auth/register"),
+    ("POST", f"{API}/auth/login"),
+    ("POST", f"{API}/auth/refresh"),
+    ("POST", f"{API}/auth/logout"),
+    ("GET", f"{API}/auth/google/callback"),
+}
+
+
+def _depends_on_current_principal(dependant) -> bool:
+    if dependant.call is get_current_principal:
+        return True
+    return any(_depends_on_current_principal(child) for child in dependant.dependencies)
+
+
+def test_private_api_routes_require_auth_dependency():
+    missing: list[str] = []
+    for route in app.routes:
+        if not isinstance(route, APIRoute) or not route.path.startswith(API):
+            continue
+        methods = sorted((route.methods or set()) - {"HEAD", "OPTIONS"})
+        for method in methods:
+            if (method, route.path) in _PUBLIC_API_ROUTES:
+                continue
+            if not _depends_on_current_principal(route.dependant):
+                missing.append(f"{method} {route.path}")
+
+    assert missing == []
 
 
 def test_security_headers_present(auth_client):
