@@ -115,20 +115,26 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
   // it) but the status badge tells the truth.
   const handleSave = async () => {
     setSaving(true);
+    let normalized = "";
     try {
       const targetMode = getConnectionMode() === "funnel" ? "funnel" : "private";
       setConnectionMode(targetMode, draft);
-      const normalized = getBackendOverride();
+      normalized = getBackendOverride();
       refreshActive();
       setStatus(normalized ? (overrideIgnoredHere() ? "ignored" : "configured") : "unknown");
-      if (normalized) {
-        const r = await testBackendConnection(normalized);
-        applyResult(r);
-      } else {
-        setResult(null);
-      }
     } finally {
       setSaving(false);
+    }
+    if (!normalized) {
+      setResult(null);
+      return;
+    }
+    setTesting(true);
+    try {
+      const r = await testBackendConnection(normalized);
+      applyResult(r);
+    } finally {
+      setTesting(false);
     }
   };
 
