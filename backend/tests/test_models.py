@@ -13,11 +13,17 @@ EXPECTED_TABLES = {
     "transactions",
     "chat_sessions",
     "chat_messages",
+    "ai_multi_agent_runs",
+    "ai_agent_responses",
     "ai_tool_proposals",
     "audit_logs",
     "integration_configs",
     "ai_agent_configs",
     "task_checklist_items",
+    "calendar_events",
+    "drive_files",
+    "automations",
+    "weather_locations",
 }
 
 
