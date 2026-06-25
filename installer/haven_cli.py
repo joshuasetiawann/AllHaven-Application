@@ -100,6 +100,77 @@ def _prompt_ports() -> None:
         ok("Ports updated in .env.")
 
 
+def _ensure_backend_venv(backend) -> str:
+    """Create or repair the backend venv and install dependencies INTO it.
+
+    Returns a status word for the summary: 'ready' | 'repaired' | 'failed'.
+    Safe and idempotent: a broken venv is renamed aside (never deleted), a fresh
+    one is created, and deps are installed only when they don't already import.
+    """
+    repaired = False
+    # A venv whose interpreter can't run can't be fixed by pip — quarantine it
+    # (rename, never delete) and rebuild. A merely depless venv is NOT broken.
+    if hc.backend_venv_broken():
+        moved = hc.quarantine_broken_venv()
+        if moved:
+            warn(f"backend/.venv looked broken (its Python won't run) — moved to {moved} and recreating.")
+            repaired = True
+        else:
+            err("backend/.venv looks broken but couldn't be moved aside — rename it yourself and re-run.")
+            return "failed"
+
+    if not hc.venv_python_path().exists():
+        py = "python3" if hc.which("python3") else "python"
+        if run_live([py, "-m", "venv", ".venv"], cwd=backend) != 0 or not hc.venv_python_path().exists():
+            err("Could not create the Python virtualenv. The 'venv' module may be missing — "
+                "on Debian/Ubuntu install it with 'sudo apt install python3-venv' (run that "
+                "yourself; this installer never uses sudo), then re-run.")
+            return "failed"
+
+    if hc.venv_deps_ok():
+        ok("Backend virtualenv is valid (dependencies import cleanly).")
+        return "repaired" if repaired else "ready"
+
+    run_live([hc.venv_python(), "-m", "pip", "install", "--upgrade", "pip"], cwd=backend)
+    if run_live([hc.venv_python(), "-m", "pip", "install", "-r", "requirements.txt"], cwd=backend) == 0 and hc.venv_deps_ok():
+        ok("Backend dependencies installed.")
+        return "repaired" if repaired else "ready"
+    err("Backend dependency install failed (see output above).")
+    return "failed"
+
+
+def _final_summary(pg: int, be: int, fe: int, venv_status: str, migration_ok: bool) -> None:
+    """Print a clear, honest end-of-run report. Reads live state; never fakes it."""
+    import urllib.request
+
+    def _http_ok(url: str) -> bool:
+        try:
+            with urllib.request.urlopen(url, timeout=3) as r:  # noqa: S310 (localhost)
+                return 200 <= r.status < 300
+        except OSError:
+            return False
+
+    db_ok = hc.port_in_use(pg)
+    backend_ok = _http_ok(f"http://127.0.0.1:{be}/api/v1/health")
+    frontend_ok = hc.port_in_use(fe)
+    venv_ok = hc.venv_deps_ok()
+
+    def line(label: str, value: str, good: bool) -> None:
+        mark = _c("✓", "ok") if good else _c("•", "warn")
+        say(f"  {mark} {label:<11} {value}")
+
+    say(_c("\n=== AllHaven — setup summary ===", "info"))
+    line("PostgreSQL", f":{pg} " + ("reachable" if db_ok else "NOT reachable"), db_ok)
+    line("Database", "connection OK" if db_ok else "no server on the port yet", db_ok)
+    line("Virtualenv", "valid" if venv_ok else ("repaired" if venv_status == "repaired" else "needs attention — re-run installer"), venv_ok)
+    line("Migrations", "applied (alembic head)" if migration_ok else "not confirmed — re-run after the DB is up", migration_ok)
+    line("Backend", f"http://localhost:{be}  " + ("healthy" if backend_ok else "not healthy yet"), backend_ok)
+    line("Frontend", f"http://localhost:{fe}  " + ("up" if frontend_ok else "not up yet"), frontend_ok)
+    if not (db_ok and backend_ok):
+        say(_c("  Next: ensure PostgreSQL is running, then re-run ./install.sh (idempotent) "
+               "or ./allhaven.sh restart. Diagnose anytime with ./scripts/doctor.sh.", "dim"))
+
+
 _TOTAL = 6
 
 
@@ -142,37 +213,44 @@ def main() -> int:
     pg = int(env.get("POSTGRES_PORT") or 5432)
     say(_c(f"  ports → frontend {fe} · backend {be} · postgres {pg}", "dim"))
 
-    # 3) Database
-    step(3, _TOTAL, "Starting PostgreSQL (Docker)")
-    if docker_up:
-        say("  first run downloads the postgres image — live progress below:")
+    # 3) Database — detect an existing PostgreSQL FIRST, so we never fight a
+    #    native server (or a leftover container) by trying to bind a busy port.
+    step(3, _TOTAL, "PostgreSQL database")
+    if hc.port_in_use(pg):
+        ok(f"PostgreSQL already listening on :{pg} — using it. No second database is "
+           f"started, so existing data is untouched.")
+        say(_c(f"  (If that's a different app's PostgreSQL, set POSTGRES_PORT to a free "
+               f"port in .env and re-run.)", "dim"))
+    elif docker_up:
+        say("  starting PostgreSQL via Docker (first run downloads the image — live progress below):")
         if run_live(["docker", "compose", "up", "-d", "postgres"], cwd=hc.repo_root()) == 0:
-            ok("Database ready." if hc.wait_for_port(pg, timeout=60) else "Container up; not accepting connections yet — continuing.")
+            ok("Database ready." if hc.wait_for_port(pg, timeout=60)
+               else "Container up; not accepting connections yet — continuing.")
         else:
-            err(f"docker compose failed (see output above). Alternatively run a local PostgreSQL on :{pg}.")
+            free = hc.suggest_free_port(pg + 1) or (pg + 1)
+            err(f"Docker could not start PostgreSQL on :{pg}.")
+            say(_c(f"  Fix: free port {pg}, OR set POSTGRES_PORT={free} in .env (it is backed "
+                   f"up automatically) and re-run. No data volume is removed.", "dim"))
     else:
-        warn(f"Skipping Docker. Ensure PostgreSQL is reachable on :{pg} (user/pass/db = allhaven).")
+        warn(f"No PostgreSQL on :{pg} and Docker isn't running.")
+        say(_c(f"  Start Docker Desktop / the service, or run a local PostgreSQL on :{pg} "
+               f"(user/pass/db = allhaven), then re-run.", "dim"))
 
     # 4) Backend deps + migrations
     step(4, _TOTAL, "Backend (virtualenv + dependencies + migrations)")
     backend = hc.repo_root() / "backend"
-    if not hc.backend_setup_ok():
-        py = "python3" if hc.which("python3") else "python"
-        if run_live([py, "-m", "venv", ".venv"], cwd=backend) != 0:
-            err("Could not create the Python virtualenv.")
+    venv_status = _ensure_backend_venv(backend)
+    migration_ok = False
+    if venv_status == "failed":
+        warn("Skipping migrations until the virtualenv is fixed (see messages above).")
+    else:
+        say("  applying migrations (alembic upgrade head, through the venv):")
+        if run_live(hc.venv_alembic_argv("upgrade", "head"), cwd=backend) == 0:
+            ok("Migrations applied.")
+            migration_ok = True
         else:
-            run_live([hc.venv_python(), "-m", "pip", "install", "--upgrade", "pip"], cwd=backend)
-            if run_live([hc.venv_python(), "-m", "pip", "install", "-r", "requirements.txt"], cwd=backend) == 0:
-                ok("Backend dependencies installed.")
-            else:
-                err("Backend dependency install failed (see output above).")
-    else:
-        ok("Backend virtualenv already present.")
-    say("  applying migrations (alembic upgrade head):")
-    if run_live([hc.venv_python(), "-m", "alembic", "upgrade", "head"], cwd=backend) == 0:
-        ok("Migrations applied.")
-    else:
-        warn("Migrations did not complete — is the database running? You can re-run this installer.")
+            warn(f"Migrations did not complete — is PostgreSQL running on :{pg}? "
+                 "Fix that and re-run; nothing was deleted.")
 
     # 5) Frontend deps
     step(5, _TOTAL, "Frontend dependencies")
@@ -191,7 +269,9 @@ def main() -> int:
     step(6, _TOTAL, "Starting Haven")
     import haven_launch
 
-    return haven_launch.main()
+    rc = haven_launch.main()
+    _final_summary(pg, be, fe, venv_status, migration_ok)
+    return rc
 
 
 if __name__ == "__main__":
