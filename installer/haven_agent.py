@@ -112,7 +112,7 @@ def _migrate_backend(env: dict) -> None:
         with open(_log_file("backend"), "ab") as lf:
             lf.write(b"\n--- alembic upgrade head ---\n")
             subprocess.run(  # noqa: S603 (fixed argv, no shell)
-                [hc.venv_python(), "-m", "alembic", "upgrade", "head"],
+                hc.venv_alembic_argv("upgrade", "head"),
                 cwd=str(hc.repo_root() / "backend"), env=env,
                 stdout=lf, stderr=subprocess.STDOUT, timeout=180,
             )
