@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     # so the app is reachable from any device on your LAN without listing IPs.
     BACKEND_CORS_ALLOW_ALL: bool = False
 
+    # --- System Control (desktop control panel via the local Haven agent) ---
+    # Master switch. The API additionally requires local mode (see is_local_env),
+    # so a production deployment never exposes the service-control surface.
+    SYSTEM_CONTROL_ENABLED: bool = True
+    # Localhost port the Haven control agent listens on (127.0.0.1 only).
+    HAVEN_AGENT_PORT: int = 8765
+
     # --- Auth / security (local MVP auth boundary) ---
     SECRET_KEY: str = "dev-insecure-secret-change-me"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
