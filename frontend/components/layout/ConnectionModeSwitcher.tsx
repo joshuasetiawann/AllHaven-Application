@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Download, Globe, Lock, Server } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import { pingBackend, testBackendConnection, type BackendTestResult } from "@/lib/connection";
@@ -44,6 +45,7 @@ export function ConnectionModeSwitcher() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<BackendTestResult | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Read the active mode/URL and re-check reachability. Re-runs on demand and
   // whenever the backend override changes anywhere in the app.
@@ -74,7 +76,9 @@ export function ConnectionModeSwitcher() {
   // Close on outside click (mirrors the notifications popover in Topbar).
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (ref.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -157,10 +161,13 @@ export function ConnectionModeSwitcher() {
         />
       </IconButton>
 
-      {open ? (
+      {open && typeof document !== "undefined" ? createPortal(
         // Centered on phones (fixed, viewport-centered so it never sits off to one side);
-        // drops from the button on lg+. This fixes the "menu too far left / off-centre".
-        <div className="fixed left-1/2 top-16 z-50 w-[min(94vw,23rem)] -translate-x-1/2 animate-scale-in rounded-2xl border border-border bg-surface p-2 shadow-glow lg:absolute lg:left-auto lg:right-0 lg:top-11 lg:translate-x-0">
+        // anchored near the topbar on lg+. Portal keeps fixed positioning tied to the viewport.
+        <div
+          ref={panelRef}
+          className="fixed left-1/2 top-16 z-50 max-h-[calc(100dvh-5rem)] w-[calc(100vw-24px)] max-w-[23rem] -translate-x-1/2 overflow-y-auto animate-scale-in rounded-2xl border border-border bg-surface p-2 shadow-glow lg:left-auto lg:right-6 lg:top-16 lg:translate-x-0"
+        >
           <div className="flex items-center justify-between gap-3 px-2 py-1.5">
             <div className="min-w-0">
               <p className="text-[13px] font-semibold text-content">Backend connection</p>
@@ -279,7 +286,8 @@ export function ConnectionModeSwitcher() {
             Private &amp; Tunnel reach your desktop backend through Tailscale. On desktop web a
             cross-site URL is ignored (login-loop guard); the phone honours it.
           </p>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );
