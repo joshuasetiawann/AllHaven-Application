@@ -41,10 +41,11 @@ jobs:
       run:
         working-directory: frontend
     env:
-      # Desktop Bridge default: manual input → repo variable → this desktop's
-      # Tailscale IP. Raw 100.x avoids MagicDNS/system resolver problems; users
-      # can still paste a Tailscale Serve HTTPS URL at runtime if DNS works.
-      API_URL: ${{ github.event.inputs.api_base_url || vars.MOBILE_API_BASE_URL || 'http://100.91.122.124:8000/api/v1' }}
+      # Standalone APK default: no Desktop Bridge baked in. Core mobile data uses
+      # Supabase directly; users add a bridge URL in-app only for desktop-local
+      # services like Ollama/n8n. Manual dispatch or repo var may still provide
+      # a bridge default when intentionally building a REST/bridge APK.
+      API_URL: ${{ github.event.inputs.api_base_url || vars.MOBILE_API_BASE_URL || '' }}
       DATA_MODE: ${{ github.event.inputs.data_mode || vars.MOBILE_DATA_MODE || 'supabase' }}
       SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || vars.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
@@ -138,5 +139,5 @@ jobs:
             This APK is the existing Next.js/React frontend wrapped with Capacitor. It keeps the same AllHaven UI, layout, and UX as the web app; it is not a separate Flutter/native rewrite.
 
             Mobile data mode: `${{ env.DATA_MODE }}` (`supabase` = direct login/data; `rest` = Desktop Bridge backend).
-            Desktop Bridge default for backend-only tools: `${{ env.API_URL }}`
+            Desktop Bridge default for backend-only tools: `${{ env.API_URL || 'not configured; set in-app only when using Ollama/n8n' }}`
             Download `allhaven-mobile-debug.apk` below → install on Android (enable "Install unknown apps").
