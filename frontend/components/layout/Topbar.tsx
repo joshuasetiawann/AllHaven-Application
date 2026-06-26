@@ -7,7 +7,7 @@ import { Bell, Menu, Search, Settings as SettingsIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { IconButton } from "@/components/ui/IconButton";
 import { CommandPalette } from "@/components/layout/CommandPalette";
-import { aiApi, settingsApi } from "@/lib/api";
+import { aiApi } from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
 import { cn, initials } from "@/lib/format";
 import type { ToolProposal } from "@/types";
@@ -15,7 +15,9 @@ import type { ToolProposal } from "@/types";
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const router = useRouter();
   const user = getStoredUser();
-  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
+  // Reflects the real local AI *provider* (Ollama) status — online only after a
+  // successful Test Connection, configured if set up, else not configured.
+  const [aiStatus, setAiStatus] = useState<"online" | "configured" | "not_configured" | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [proposals, setProposals] = useState<ToolProposal[]>([]);
@@ -23,14 +25,15 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
 
   useEffect(() => {
     let active = true;
-    settingsApi
-      .integrations()
+    aiApi
+      .listProviders()
       .then((res) => {
         if (!active) return;
-        const ollama = res.integrations.find((i) => i.key === "ollama");
-        setAiConfigured(Boolean(ollama?.configured));
+        const ollama = res.providers.find((p) => p.id === "ollama");
+        const s = ollama?.status;
+        setAiStatus(s === "online" ? "online" : ollama?.configured ? "configured" : "not_configured");
       })
-      .catch(() => active && setAiConfigured(false));
+      .catch(() => active && setAiStatus("not_configured"));
     aiApi
       .listProposals()
       .then((p) => active && setProposals(p))
@@ -84,13 +87,29 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         <span
           className={cn(
             "hidden max-w-[220px] items-center gap-2 truncate rounded-full border px-3 py-1.5 text-[12px] font-medium md:inline-flex",
-            aiConfigured
-              ? "border-primary/30 bg-primary/10 text-primary"
-              : "border-border bg-surface-high text-content-muted",
+            aiStatus === "online"
+              ? "border-success/30 bg-success/10 text-success"
+              : aiStatus === "configured"
+                ? "border-primary/30 bg-primary/10 text-primary"
+                : "border-border bg-surface-high text-content-muted",
           )}
         >
-          <span className={cn("h-1.5 w-1.5 rounded-full", aiConfigured ? "bg-primary" : "bg-content-subtle")} />
-          Local AI · {aiConfigured === null ? "…" : aiConfigured ? "Connected" : "Not configured"}
+          <span
+            className={cn(
+              "h-1.5 w-1.5 shrink-0 rounded-full",
+              aiStatus === "online" ? "bg-success" : aiStatus === "configured" ? "bg-primary" : "bg-content-subtle",
+            )}
+          />
+          <span className="truncate">
+            Local AI ·{" "}
+            {aiStatus === null
+              ? "…"
+              : aiStatus === "online"
+                ? "Online"
+                : aiStatus === "configured"
+                  ? "Configured"
+                  : "Not configured"}
+          </span>
         </span>
 
         <div className="flex items-center gap-2">
