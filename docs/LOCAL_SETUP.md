@@ -49,7 +49,7 @@ npm run dev                 # http://localhost:3000
 ## Configuring providers & integrations
 Everything is configured in the web UI (encrypted, server-side):
 - **Settings → AI Providers** — Ollama / OpenAI / Claude / Gemini / Grok / Blackbox /
-  OpenRouter 1-6. Paste a key, **Test Connection** → Online (only after a real check).
+  OpenRouter 1-3. Paste a key, **Test Connection** → Online (only after a real check).
 - **Settings → Connected Tools** — PostgreSQL, Supabase, n8n, Google, Weather, Drive.
 - **Settings → Privacy & Safety** — turn ON *Allow external AI providers* to chat with
   cloud models (OFF by default for privacy).

@@ -37,7 +37,7 @@ ALLOWED_ENV_KEYS = {
     "OPENROUTER_2_API_KEY", "OPENROUTER_2_DEFAULT_MODEL",
     "OPENROUTER_3_API_KEY", "OPENROUTER_3_DEFAULT_MODEL",
     "N8N_BASE_URL", "N8N_API_KEY",
-    "SUPABASE_URL", "SUPABASE_ANON_KEY",
+    "SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY",
     "GOOGLE_CALENDAR_CLIENT_ID", "GOOGLE_CALENDAR_CLIENT_SECRET", "GOOGLE_CALENDAR_REDIRECT_URI",
     "WEATHER_API_KEY", "WEATHER_PROVIDER",
     "DRIVE_STORAGE_PROVIDER",
@@ -154,7 +154,11 @@ def map_ai_provider_updates(provider_id: str, public: dict, secrets: dict) -> Di
 
 _INTEGRATION_MAP = {
     "n8n": {"base_url": "N8N_BASE_URL", "api_key": "N8N_API_KEY"},
-    "supabase": {"url": "SUPABASE_URL", "anon_key": "SUPABASE_ANON_KEY"},
+    "supabase": {
+        "url": "SUPABASE_URL",
+        "anon_key": "SUPABASE_ANON_KEY",
+        "service_role_key": "SUPABASE_SERVICE_ROLE_KEY",
+    },
     "google_calendar": {
         "client_id": "GOOGLE_CALENDAR_CLIENT_ID",
         "client_secret": "GOOGLE_CALENDAR_CLIENT_SECRET",

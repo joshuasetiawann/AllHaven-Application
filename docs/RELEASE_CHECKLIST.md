@@ -11,14 +11,14 @@ Status of every release-readiness item. Run the commands, tick the boxes.
 ## App shell & UI
 - [x] One consistent shell (sidebar + topbar + content)
 - [x] Topbar clean & responsive (no horizontal overflow; mobile/tablet collapse; nav drawer)
-- [x] Sidebar modules all clickable (Routine, Drive, Weather, Automations, AI, Settings) with MVP badges
+- [x] Sidebar modules all clickable (Drive, Calendar, Weather, Automations, AI, Settings) with MVP badges
 - [x] Settings grouped by module; every card shows honest status
       (`not_configured / configured / online / error / disabled / unavailable`)
 
 ## Persistence (survives refresh)
 - [x] Tasks / Notes / Finance create-update-delete persist (PostgreSQL)
 - [x] AI chat sessions + multi-agent runs persist
-- [x] Routine schedules, Drive file metadata, Automations, Weather locations persist
+- [x] Calendar events, Drive file metadata, Automations, Weather locations persist
 
 ## Settings & .env sync
 - [x] Save persists to DB; allowlisted keys mirror to `.env`
@@ -28,21 +28,21 @@ Status of every release-readiness item. Run the commands, tick the boxes.
 - [x] Arbitrary keys rejected; `SECRET_KEY` / `DATABASE_URL` intentionally excluded (documented)
 
 ## AI providers (honest verification)
-- [x] 15 providers: Ollama + GPT + Claude + Gemini + Cursor + DeepSeek + Qwen + Grok + Blackbox + OpenRouter 1..6
+- [x] 9 providers: Ollama + GPT + Claude + Gemini + Grok + Blackbox + OpenRouter 1/2/3
 - [x] Save → `configured` (never Online); Online only after a real Test Connection
 - [x] Invalid/random key → error; network/allowlist block → `unavailable` (not "key rejected")
 - [x] Ollama verified via `/api/tags`; no auto model pull
 - [x] OpenRouter has Base URL + light default models; verified chat (Gemini 2.5 Flash Lite) live
 
 ## Multi-agent
-- [x] Up to 10 agents at once; >10 -> HTTP 422
+- [x] Up to 3 agents at once; >3 → HTTP 422
 - [x] Each agent answers in its own card; one agent failing doesn't fail the others
 - [x] Conversation + each agent result persisted
 
 ## Integrations
 - [x] Supabase: URL + anon + service-role (secret) save; Test Connection hits `/auth/v1/health`; honest status; service-role never exposed to frontend; mirrors to `.env`
 - [x] Drive: upload / list / download / soft-delete; metadata in DB; path traversal blocked
-- [x] Routine: local schedule CRUD; Google Calendar status honest (no fake sync)
+- [x] Calendar: local event CRUD; Google status honest (no fake sync)
 - [x] Weather: real fetch when configured, else `setup_required` (never faked)
 - [x] Automations: local CRUD MVP; never executed (disabled-safe); n8n status testable
 
