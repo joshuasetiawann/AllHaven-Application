@@ -9,9 +9,8 @@ import { Toggle } from "@/components/ui/Toggle";
 import { ErrorState, Loading } from "@/components/ui/States";
 import { NotConnectedNotice } from "@/components/settings/NotConnectedNotice";
 import { aiApi, ApiException } from "@/lib/api";
-import { backendReachable, needsBackendConnection } from "@/lib/connection";
+import { needsBackendConnection } from "@/lib/connection";
 import { BACKEND_CHANGED_EVENT } from "@/lib/connectionMode";
-import { BEARER_MODE } from "@/lib/mobileAuth";
 import type { AiChatSettings } from "@/types";
 
 // Shown when the backend isn't connected, so the controls are still visible/configurable
@@ -40,17 +39,6 @@ export function AiChatBehaviorPanel() {
     setLoadError(null);
     setNeedsBackend(false);
     setBackendIssue("unreachable");
-    // Mobile (bearer build): degrade to the connect-state in ~2-3s (one shared, cached
-    // ping) when the desktop backend isn't reachable, instead of spinning the full
-    // timeout. Desktop/web (local backend up) passes through.
-    if (BEARER_MODE && !(await backendReachable())) {
-      // Stay open: show the controls with defaults + a slim notice (saving needs the bridge).
-      setBackendIssue("unreachable");
-      setNeedsBackend(true);
-      setSettings(DEFAULT_CHAT_SETTINGS);
-      setMaxAgents(String(DEFAULT_CHAT_SETTINGS.max_active_agents));
-      return;
-    }
     try {
       const data = await aiApi.getChatSettings();
       setSettings(data);
@@ -113,7 +101,7 @@ export function AiChatBehaviorPanel() {
   return (
     <div className="space-y-4">
       {needsBackend ? (
-        <NotConnectedNotice kind={backendIssue} what="These are the defaults; saving needs your backend." onRetry={load} />
+        <NotConnectedNotice kind={backendIssue} what="Desktop-only chat defaults need the Desktop Bridge." onRetry={load} />
       ) : null}
       {error ? <p className="text-[12.5px] text-danger">{error}</p> : null}
 
