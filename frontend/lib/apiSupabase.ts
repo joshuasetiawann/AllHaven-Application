@@ -167,9 +167,15 @@ export const tasksApi = {
   },
   addChecklistItem: async (id: string, title: string): Promise<Task> => {
     const sb = await getSupabase();
+    // Compute next position to match desktop formula (task_service.py add_checklist_item):
+    //   position = max(i.position for i in active_items, default=-1) + 1
+    // Base case (no active items): max(default=-1) + 1 = 0 → first item at position 0.
+    const current = await fetchTask(id);
+    const positions = (current.checklist_items ?? []).map((c) => c.position);
+    const nextPosition = positions.length ? Math.max(...positions) + 1 : 0;
     const { error } = await sb
       .from("task_checklist_items")
-      .insert({ task_id: id, title, workspace_id: getWorkspaceId(), created_by: getAppUserId() });
+      .insert({ task_id: id, title, position: nextPosition, workspace_id: getWorkspaceId(), created_by: getAppUserId() });
     if (error) throw toApiException(error);
     return fetchTask(id);
   },
