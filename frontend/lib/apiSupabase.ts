@@ -21,6 +21,30 @@ import { ApiException } from "@/lib/apiRest";
 import { getSupabase, getWorkspaceId, setWorkspaceId, getAppUserId, setAppUserId } from "@/lib/supabaseClient";
 import { toApiException } from "@/lib/supabaseError";
 
+const SUPABASE_TIMEOUT_MS = 12000;
+
+async function supabaseTimeout<T>(promise: PromiseLike<T>, action: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
+          reject(
+            new ApiException(
+              `${action} took too long. Check your connection and try again.`,
+              "SUPABASE_TIMEOUT",
+              0,
+            ),
+          );
+        }, SUPABASE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 // The `id` PK has NO server-side default in Postgres — the SQLAlchemy models mint
 // UUIDs Python-side, so the DDL emits none. Desktop inserts via SQLAlchemy get an
 // id; mobile inserts via supabase-js do NOT, and fail with "null value in column
@@ -48,7 +72,7 @@ function newRow(): { id: string; workspace_id: string; created_by: string } {
 
 async function loadMe(): Promise<Me> {
   const sb = await getSupabase();
-  const { data: auth, error: ae } = await sb.auth.getUser();
+  const { data: auth, error: ae } = await supabaseTimeout(sb.auth.getUser(), "Loading your Supabase session");
   if (ae || !auth?.user) {
     // No Supabase session (fresh install / cleared data / expired). Force a clean
     // 401 so AppShell routes to /login. AuthSessionMissingError.status is 400, which
@@ -60,7 +84,10 @@ async function loadMe(): Promise<Me> {
   // maybeSingle: if the account isn't linked yet (profiles.supabase_user_id null)
   // RLS returns 0 rows, and .single() would throw an opaque PGRST116 that breaks
   // login entirely. Surface a clear, actionable error instead.
-  const { data: profile, error: pe } = await sb.from("profiles").select("*").maybeSingle();
+  const { data: profile, error: pe } = await supabaseTimeout(
+    sb.from("profiles").select("*").maybeSingle(),
+    "Loading your profile",
+  );
   if (pe) throw toApiException(pe);
   if (!profile) {
     // Self-provisioning (provision_me on sign-in) normally prevents this. If it
@@ -74,9 +101,10 @@ async function loadMe(): Promise<Me> {
   setAppUserId(profile.id);
   // Resolve the user's OWNED workspace (matches backend auth_service.get_default_workspace).
   // RLS policy p_owner restricts workspaces to rows where owner_id = app_user_id().
-  const { data: ws, error: we } = await sb
-    .from("workspaces").select("*")
-    .order("created_at", { ascending: true }).limit(1).maybeSingle();
+  const { data: ws, error: we } = await supabaseTimeout(
+    sb.from("workspaces").select("*").order("created_at", { ascending: true }).limit(1).maybeSingle(),
+    "Loading your workspace",
+  );
   if (we) throw toApiException(we);
   if (!ws) {
     throw new ApiException(
@@ -97,12 +125,18 @@ async function loadMe(): Promise<Me> {
 
 async function supabaseSignIn(email: string, password: string): Promise<AuthToken> {
   const sb = await getSupabase();
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabaseTimeout(
+    sb.auth.signInWithPassword({ email, password }),
+    "Signing in to Supabase",
+  );
   if (error) throw toApiException(error, 401);
   // Best-effort self-provision (idempotent): covers first login after email
   // confirmation and repairs unlinked/legacy accounts. Swallowed if the RPC isn't
   // deployed yet — loadMe() stays the source of truth for whether the account works.
-  await sb.rpc("provision_me", { p_full_name: null }).then(() => {}, () => {});
+  await supabaseTimeout(sb.rpc("provision_me", { p_full_name: null }), "Setting up your account").then(
+    () => {},
+    () => {},
+  );
   const meResult = await loadMe();
   return {
     access_token: data.session?.access_token ?? "",
@@ -119,18 +153,24 @@ export const authApi = {
   // exists (e.g. created on desktop first): provision_me adopts/links it.
   register: async (email: string, password: string, fullName?: string): Promise<AuthToken> => {
     const sb = await getSupabase();
-    const { error: signUpErr } = await sb.auth.signUp({
-      email,
-      password,
-      // Stash the name on the auth user so provisioning can recover it even when
-      // the profile is created on a later (post-confirmation) login.
-      options: fullName ? { data: { full_name: fullName } } : undefined,
-    });
+    const { error: signUpErr } = await supabaseTimeout(
+      sb.auth.signUp({
+        email,
+        password,
+        // Stash the name on the auth user so provisioning can recover it even when
+        // the profile is created on a later (post-confirmation) login.
+        options: fullName ? { data: { full_name: fullName } } : undefined,
+      }),
+      "Creating your Supabase account",
+    );
     // "already registered" is fine — fall through to sign-in + provision.
     if (signUpErr && !/already\s*(registered|exists|in use)/i.test(signUpErr.message)) {
       throw toApiException(signUpErr);
     }
-    const { data: signIn, error: signInErr } = await sb.auth.signInWithPassword({ email, password });
+    const { data: signIn, error: signInErr } = await supabaseTimeout(
+      sb.auth.signInWithPassword({ email, password }),
+      "Signing in to Supabase",
+    );
     if (signInErr) {
       // Most common standalone cause: project requires email confirmation, so no
       // session is issued until the link is clicked. Make that actionable.
@@ -139,7 +179,10 @@ export const authApi = {
         : "";
       throw toApiException({ ...signInErr, message: signInErr.message + hint }, 401);
     }
-    const { error: provErr } = await sb.rpc("provision_me", { p_full_name: fullName ?? null });
+    const { error: provErr } = await supabaseTimeout(
+      sb.rpc("provision_me", { p_full_name: fullName ?? null }),
+      "Setting up your account",
+    );
     if (provErr) {
       // Never show the raw PostgREST/schema-cache text to users; log it for devs.
       console.error("provision_me failed:", provErr);
