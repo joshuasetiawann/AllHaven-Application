@@ -7,7 +7,7 @@
 **A modular, local-first AI command center for personal &amp; company productivity.**
 
 _The AI acts fast, but risky writes still need human approval._
- 
+
 [![Version](https://img.shields.io/badge/version-4.1.0%20·%20AllHaven%204.1-18E0D6?style=flat-square)](CHANGELOG.md)
 &nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 &nbsp;![Next.js 15](https://img.shields.io/badge/Next.js%2015-000000?style=flat-square&logo=nextdotjs&logoColor=white)
