@@ -7,6 +7,7 @@ content capping, and whole-block truncation.
 """
 
 import uuid
+from datetime import datetime, timezone
 
 from app.core.principal import Principal
 from app.services import ai_settings_service, memory_context_builder, memory_service
@@ -143,6 +144,33 @@ def test_build_dedups_memory_matched_by_multiple_sources(auth_client, db_session
     block = memory_context_builder.build(db_session, principal, "kubernetes")
     assert block is not None
     assert block.count("Joshua loves kubernetes") == 1
+
+
+def test_build_uses_latest_single_value_profile_fact(auth_client, db_session):
+    principal = _principal(auth_client)
+    old = _create(
+        db_session,
+        principal,
+        category="Profile",
+        title="User partner",
+        content="User's partner is Frecil.",
+    )
+    new = _create(
+        db_session,
+        principal,
+        category="Profile",
+        title="User partner",
+        content="User's partner is Kelly.",
+    )
+    old.updated_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    new.updated_at = datetime(2026, 6, 27, tzinfo=timezone.utc)
+    db_session.flush()
+
+    block = memory_context_builder.build(db_session, principal, "siapa pacar saya?")
+
+    assert block is not None
+    assert "Kelly" in block
+    assert "Frecil" not in block
 
 
 # --- usage tracking ----------------------------------------------------------------
