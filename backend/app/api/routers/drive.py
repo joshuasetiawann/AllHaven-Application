@@ -27,7 +27,7 @@ _RISKY_CONTENT_TYPES = {
 
 
 @router.get("/config")
-def get_config() -> dict:
+def get_config(_principal: Principal = Depends(get_current_principal)) -> dict:
     return success_response(
         DriveConfigOut(max_upload_bytes=svc.upload_limit_bytes(), max_upload_mb=svc.upload_limit_mb()),
         "Drive config",
