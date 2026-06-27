@@ -4,7 +4,7 @@ The suite runs against an in-memory SQLite database (configured BEFORE importing
 the app) so it is fast and needs no external services. Production always uses
 PostgreSQL via DATABASE_URL.
 """
-
+ 
 from __future__ import annotations
 
 import os
