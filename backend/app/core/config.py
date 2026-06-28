@@ -1,0 +1,259 @@
+"""Centralized application settings.
+
+All configuration is read from environment variables (or an optional local
+``.env`` file). No secrets are hardcoded. See ``.env.example`` for the full list
+of supported variables.
+"""
+
+from __future__ import annotations
+
+import json
+from functools import lru_cache
+from pathlib import Path
+from typing import List
+
+from pydantic import model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve .env locations relative to this file so it works from any CWD.
+# Priority (lowest → highest): repo-root .env, then backend/.env, then real
+# environment variables. This lets users edit a single .env at the repo root and
+# have the web app's Settings pick those values up as defaults.
+_CONFIG_FILE = Path(__file__).resolve()
+_BACKEND_DIR = _CONFIG_FILE.parents[2]  # .../backend
+_REPO_ROOT = _CONFIG_FILE.parents[3]  # repo root
+_ENV_FILES = (str(_REPO_ROOT / ".env"), str(_BACKEND_DIR / ".env"))
+
+
+class Settings(BaseSettings):
+    """Strongly-typed application settings."""
+
+    model_config = SettingsConfigDict(
+        env_file=_ENV_FILES,
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
+
+    # --- Application ---
+    APP_NAME: str = "AllHaven Command Center"
+    APP_ENV: str = "local"
+    # v4.0 deployment profile — shapes mobile onboarding + which controls are shown:
+    #   private       → owner/internal; Tailscale Desktop Bridge for Ollama/n8n.
+    #   client_portal → hosted multi-tenant; no desktop-bridge prompts for clients.
+    #   public_demo   → temporary public preview (Funnel optional, off by default).
+    DEPLOYMENT_PROFILE: str = "private"
+    API_V1_PREFIX: str = "/api/v1"
+    # Local developers keep Swagger/OpenAPI by default. Production/staging must
+    # opt in explicitly so public deployments don't advertise every route.
+    API_DOCS_ENABLED: bool | None = None
+    # Server-side integration checks/chat calls may contact user-configured URLs
+    # (Ollama/n8n/OpenAI-compatible gateways). Local mode allows private LAN and
+    # Tailscale addresses; production blocks them unless explicitly opted in.
+    ALLOW_PRIVATE_INTEGRATION_URLS: bool | None = None
+    # Used for deterministic local answers such as "sekarang jam berapa?"
+    APP_TIMEZONE: str = "Asia/Jakarta"
+    # Comma-separated list (or JSON array) of allowed frontend origins. Includes
+    # the Capacitor WebView origins (https://localhost, capacitor://localhost) so
+    # the mobile APK can call a hosted/non-local backend; the mobile build uses
+    # bearer-token auth (no cookies), so this carries no cookie-CSRF risk. Local
+    # mode echoes any origin anyway (see main.py), so this matters only for
+    # client_portal/public_demo deployments.
+    BACKEND_CORS_ORIGINS: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,https://localhost,capacitor://localhost"
+    )
+    # Allow any origin (no cookies; bearer-token auth only). Auto-on in local mode
+    # so the app is reachable from any device on your LAN without listing IPs.
+    BACKEND_CORS_ALLOW_ALL: bool = False
+
+    # --- System Control (desktop control panel via the local Haven agent) ---
+    # Master switch. The API additionally requires local mode (see is_local_env),
+    # so a production deployment never exposes the service-control surface.
+    SYSTEM_CONTROL_ENABLED: bool = True
+    # Localhost port the Haven control agent listens on (127.0.0.1 only).
+    HAVEN_AGENT_PORT: int = 8765
+
+    # --- Auth / security (local MVP auth boundary) ---
+    SECRET_KEY: str = "dev-insecure-secret-change-me"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+    JWT_ALGORITHM: str = "HS256"
+    # Browser cookie sessions (HttpOnly): lifetime in days; refresh rotates+extends.
+    SESSION_TTL_DAYS: int = 7
+    # Per-IP request cap per minute on /auth/* (login/register/refresh).
+    # 0 disables (local dev / behind an already rate-limited gateway).
+    AUTH_RATE_LIMIT_PER_MINUTE: int = 0
+
+    # --- Database ---
+    POSTGRES_USER: str = "allhaven"
+    POSTGRES_PASSWORD: str = "allhaven"
+    POSTGRES_DB: str = "allhaven"
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    # If empty, it is assembled from the POSTGRES_* values above.
+    DATABASE_URL: str = ""
+
+    # --- Optional integrations (never enabled by faking; see integration status) ---
+    OLLAMA_BASE_URL: str = ""
+    OLLAMA_DEFAULT_MODEL: str = ""
+    N8N_BASE_URL: str = ""
+    N8N_API_KEY: str = ""
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    # HS256 secret used by Supabase GoTrue to sign user session tokens (legacy
+    # shared-secret projects). When set, the backend also accepts a Supabase
+    # access_token as a bearer credential, mapping it to a local Profile via
+    # supabase_user_id — this is what lets the mobile app (which logs in through
+    # Supabase) reach desktop-only Backend Bridge features (Settings, n8n, Ollama,
+    # system). Empty = Supabase bearer auth disabled.
+    SUPABASE_JWT_SECRET: str = ""
+    # Interval (seconds) for the background two-way Supabase sync loop. The
+    # per-write trigger only fires on desktop writes; this loop also pulls
+    # phone-side Supabase changes while the desktop is idle and retries failed
+    # pushes. 0 disables the scheduler. No-op when Supabase isn't configured.
+    SYNC_INTERVAL_SECONDS: int = 15
+    GOOGLE_CALENDAR_CLIENT_ID: str = ""
+    GOOGLE_CALENDAR_CLIENT_SECRET: str = ""
+    GOOGLE_CALENDAR_REDIRECT_URI: str = ""
+    DRIVE_STORAGE_PROVIDER: str = ""
+    # Local Drive storage root for uploaded file bytes (metadata lives in the DB).
+    DRIVE_STORAGE_DIR: str = ""
+    # Upload cap shown and enforced by both backend and frontend.
+    DRIVE_MAX_UPLOAD_MB: int = 250
+    # Override the .env mirror path (tests point this at a temp file so the real
+    # repo .env is never touched).
+    ENV_SYNC_PATH: str = ""
+
+    # --- Google OAuth foundation (login + scoped API access) ---
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:3000/oauth/google/callback"
+
+    # --- Secret storage (encryption at rest for web-configured credentials) ---
+    # MVP scheme; document as replaceable by a KMS/Fernet in production.
+    SETTINGS_ENCRYPTION_KEY: str = "change-me-32-byte-development-key"
+
+    # --- Multi-provider AI system ---
+    AI_DEFAULT_PROVIDER: str = "ollama"
+    AI_ALLOW_EXTERNAL_PROVIDERS: bool = False
+    AI_DEFAULT_PRIVACY_MODE: str = "local_private"
+    # Optional env-level provider defaults (DB config takes precedence).
+    OPENAI_API_KEY: str = ""
+    OPENAI_DEFAULT_MODEL: str = ""
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_DEFAULT_MODEL: str = ""
+    GEMINI_API_KEY: str = ""
+    GEMINI_DEFAULT_MODEL: str = ""
+    GROK_API_KEY: str = ""
+    GROK_DEFAULT_MODEL: str = ""
+    BLACKBOX_API_KEY: str = ""
+    BLACKBOX_DEFAULT_MODEL: str = ""
+    CURSOR_API_KEY: str = ""
+    CURSOR_DEFAULT_MODEL: str = ""
+    CURSOR_BASE_URL: str = ""
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_DEFAULT_MODEL: str = ""
+    QWEN_API_KEY: str = ""
+    QWEN_DEFAULT_MODEL: str = ""
+    # Legacy single OpenRouter key (kept for backward compatibility).
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_DEFAULT_MODEL: str = ""
+    # Six independent OpenRouter agent slots.
+    OPENROUTER_1_API_KEY: str = ""
+    OPENROUTER_1_DEFAULT_MODEL: str = ""
+    OPENROUTER_2_API_KEY: str = ""
+    OPENROUTER_2_DEFAULT_MODEL: str = ""
+    OPENROUTER_3_API_KEY: str = ""
+    OPENROUTER_3_DEFAULT_MODEL: str = ""
+    OPENROUTER_4_API_KEY: str = ""
+    OPENROUTER_4_DEFAULT_MODEL: str = ""
+    OPENROUTER_5_API_KEY: str = ""
+    OPENROUTER_5_DEFAULT_MODEL: str = ""
+    OPENROUTER_6_API_KEY: str = ""
+    OPENROUTER_6_DEFAULT_MODEL: str = ""
+
+    @property
+    def drive_storage_path(self) -> str:
+        """Absolute Drive storage root (defaults to <repo>/var/drive)."""
+        return self.DRIVE_STORAGE_DIR or str(_REPO_ROOT / "var" / "drive")
+
+    @property
+    def env_file_path(self) -> str:
+        """Absolute path of the .env that web Settings may mirror to."""
+        return self.ENV_SYNC_PATH or str(_REPO_ROOT / ".env")
+
+    @property
+    def is_local_env(self) -> bool:
+        """True in local/development mode, where writing back to .env is allowed."""
+        return (self.APP_ENV or "").strip().lower() in ("local", "dev", "development")
+
+    @property
+    def api_docs_enabled(self) -> bool:
+        """Expose Swagger/OpenAPI only in local mode unless explicitly enabled."""
+        if self.API_DOCS_ENABLED is not None:
+            return bool(self.API_DOCS_ENABLED)
+        return self.is_local_env
+
+    @property
+    def integration_private_urls_allowed(self) -> bool:
+        """Allow server-side requests to private/local addresses only in local mode."""
+        if self.ALLOW_PRIVATE_INTEGRATION_URLS is not None:
+            return bool(self.ALLOW_PRIVATE_INTEGRATION_URLS)
+        return self.is_local_env
+
+    @property
+    def cors_origins(self) -> List[str]:
+        """Parse BACKEND_CORS_ORIGINS into a list of origins."""
+        raw = (self.BACKEND_CORS_ORIGINS or "").strip()
+        if not raw:
+            return []
+        if raw.startswith("["):
+            return json.loads(raw)
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+    @property
+    def cors_private_origin_regex(self) -> str:
+        """Origins allowed in local mode without opening CORS to the internet."""
+        return (
+            r"^("
+            r"capacitor://localhost"
+            r"|https?://localhost(?::\d+)?"
+            r"|https?://127(?:\.\d{1,3}){3}(?::\d+)?"
+            r"|https?://10(?:\.\d{1,3}){3}(?::\d+)?"
+            r"|https?://192\.168(?:\.\d{1,3}){2}(?::\d+)?"
+            r"|https?://172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}(?::\d+)?"
+            r"|https?://100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])(?:\.\d{1,3}){2}(?::\d+)?"
+            r"|https?://[^/:]+\.ts\.net(?::\d+)?"
+            r")$"
+        )
+
+    @model_validator(mode="after")
+    def _require_strong_secret_in_production(self) -> "Settings":
+        """Fail startup in production with the dev default or a weak SECRET_KEY."""
+        env = (self.APP_ENV or "").strip().lower()
+        if env in ("production", "prod", "staging"):
+            if self.SECRET_KEY == "dev-insecure-secret-change-me" or len(self.SECRET_KEY) < 32:
+                raise ValueError(
+                    "Refusing to start: SECRET_KEY must be a strong random value "
+                    "(>= 32 chars) when APP_ENV is production. Generate one with: "
+                    "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+                )
+        return self
+
+    @model_validator(mode="after")
+    def _assemble_database_url(self) -> "Settings":
+        if not self.DATABASE_URL:
+            self.DATABASE_URL = (
+                f"postgresql+psycopg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+                f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            )
+        return self
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return a cached Settings instance."""
+    return Settings()
+
+
+settings = get_settings()
