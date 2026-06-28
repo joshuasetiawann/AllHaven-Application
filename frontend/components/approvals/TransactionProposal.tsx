@@ -157,8 +157,8 @@ export function TransactionEditForm({
         />
       </div>
       <Input
-        label="Category"
-        hint="Use a category name like makan, or leave empty for Uncategorized"
+        label="Category ID"
+        hint="Leave empty for Uncategorized"
         disabled={disabled}
         value={asString(value.category_id)}
         onChange={(e) => set({ category_id: e.target.value })}

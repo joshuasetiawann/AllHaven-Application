@@ -15,7 +15,6 @@ import { StatusDot } from "@/components/ui/StatusDot";
 import { SecretInput } from "@/components/settings/SecretInput";
 import { aiApi, ApiException } from "@/lib/api";
 import { cn } from "@/lib/format";
-import { BEARER_MODE } from "@/lib/mobileAuth";
 import type { AiProvider, ModelSlot } from "@/types";
 
 function providerBaseName(provider: AiProvider) {
@@ -212,8 +211,8 @@ export function AiProviderCard({
         {provider.external ? (
           <p className="mb-4 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-[12.5px] text-warning">
             <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-            External AI may process your prompt. Do not send confidential data unless external mode is allowed.
-            {BEARER_MODE ? " In the APK, this provider key is stored on this device." : " On desktop, server policy controls whether external providers can run."}
+            External AI may process your prompt. Do not send confidential data unless external mode is
+            allowed. External providers are disabled globally until AI_ALLOW_EXTERNAL_PROVIDERS=true.
           </p>
         ) : (
           <p className="mb-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2.5 text-[12.5px] text-success">
@@ -259,7 +258,7 @@ export function AiProviderCard({
         <ModelSlotsSection provider={provider} onChange={onChange} />
 
         <p className="mt-4 text-[11.5px] leading-relaxed text-content-subtle">
-          {BEARER_MODE ? "Keys are stored locally on this device." : "Keys are encrypted server-side and never returned."} <strong className="font-medium text-content-muted">Online status
+          Keys are encrypted server-side and never returned. <strong className="font-medium text-content-muted">Online status
           requires a successful Test Connection</strong> — a random or unverified key stays Configured or
           becomes Error, never Online.
         </p>

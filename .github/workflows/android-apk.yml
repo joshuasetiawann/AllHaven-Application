@@ -1,16 +1,14 @@
 name: Build Android APK
 
-# Builds the real AllHaven frontend into an installable .apk on GitHub's runners —
+# Builds the AllHaven mobile app into an installable .apk on GitHub's runners —
 # no Android Studio or SDK needed on your machine. The .apk is attached to every
-# run as a downloadable artifact and published to the "mobile-latest" pre-release.
+# run as a downloadable artifact, and (when a real API URL is given) published to
+# the "mobile-latest" pre-release for a permanent download link.
 #
-# Run it: Actions tab → "Build Android APK" → Run workflow. The default APK uses
-# Supabase directly for login/data. Enter an API base URL only for the optional
-# Desktop Bridge used by Ollama/n8n/backend-only tools.
-#
-# Important: this is NOT a separate mobile rewrite. Capacitor packages the
-# existing Next.js/React UI from frontend/out, so the APK keeps the same AllHaven
-# layout and visual design as the web app.
+# Run it: Actions tab → "Build Android APK" → Run workflow, and enter your API
+# base URL (e.g. https://yourdomain.com/api/v1). Or set the repo variable
+# MOBILE_API_BASE_URL once (Settings → Secrets and variables → Actions → Variables)
+# and just press Run.
 
 on:
   workflow_dispatch:
@@ -19,17 +17,9 @@ on:
         description: "Backend API base URL the APK points at (e.g. https://yourdomain.com/api/v1)"
         required: false
         default: ""
-      data_mode:
-        description: "Data source for the APK: supabase = Supabase-direct, rest = Desktop Bridge backend"
-        required: false
-        default: "supabase"
-  push:
-    branches: [mobile]
-    paths:
-      - "frontend/**"
-      - ".github/workflows/android-apk.yml"
-  # Pushes to the dedicated mobile branch build APK artifacts automatically.
-  # Manual dispatch remains available when you want to override api_base_url.
+  # Manual trigger only: run it after deploying the backend and setting the
+  # MOBILE_API_BASE_URL repo variable, so each APK points at a real backend
+  # (auto-building on every push would waste minutes on placeholder APKs).
 
 permissions:
   contents: write # needed to publish the apk to a Release
@@ -41,14 +31,9 @@ jobs:
       run:
         working-directory: frontend
     env:
-      # Standalone APK default: no Desktop Bridge baked in. Core mobile data uses
-      # Supabase directly; users add a bridge URL in-app only for desktop-local
-      # services like Ollama/n8n. Manual dispatch or repo var may still provide
-      # a bridge default when intentionally building a REST/bridge APK.
-      API_URL: ${{ github.event.inputs.api_base_url || vars.MOBILE_API_BASE_URL || '' }}
-      DATA_MODE: ${{ github.event.inputs.data_mode || vars.MOBILE_DATA_MODE || 'supabase' }}
-      SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || vars.SUPABASE_URL }}
-      SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+      # Priority: manual input → repo variable → harmless placeholder (so a smoke
+      # build still succeeds; the Release step below is skipped for the placeholder).
+      API_URL: ${{ github.event.inputs.api_base_url || vars.MOBILE_API_BASE_URL || 'https://PLACEHOLDER.invalid/api/v1' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,36 +53,15 @@ jobs:
       - name: Install JS dependencies
         run: npm ci
 
-      - name: Validate mobile environment
-        run: |
-          case "$DATA_MODE" in
-            rest)
-              test -n "$API_URL" || { echo "::error::Missing API_URL. REST/Backend Bridge APK needs a backend URL."; exit 1; }
-              ;;
-            supabase)
-              test -n "$SUPABASE_URL" || { echo "::error::Missing repo variable SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)."; exit 1; }
-              test -n "$SUPABASE_ANON_KEY" || { echo "::error::Missing repo secret SUPABASE_ANON_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)."; exit 1; }
-              ;;
-            *)
-              echo "::error::DATA_MODE must be rest or supabase, got '$DATA_MODE'"
-              exit 1
-              ;;
-          esac
-
       - name: Build static export + sync Capacitor
         env:
           NEXT_PUBLIC_API_BASE_URL: ${{ env.API_URL }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_ANON_KEY }}
-          NEXT_PUBLIC_AUTH_MODE: bearer
-          NEXT_PUBLIC_DATA_MODE: ${{ env.DATA_MODE }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          # build:mobile sets NEXT_PUBLIC_AUTH_MODE=bearer + NEXT_PUBLIC_DATA_MODE=supabase
         run: |
-          echo "Building APK with DATA_MODE=$NEXT_PUBLIC_DATA_MODE and API=$NEXT_PUBLIC_API_BASE_URL"
-          if [ "$NEXT_PUBLIC_DATA_MODE" = "supabase" ]; then
-            npm run build:mobile:supabase
-          else
-            npm run build:mobile:rest
-          fi
+          echo "Building Supabase-mode APK"
+          npm run build:mobile
           npx cap sync android
 
       - name: Build debug APK
@@ -106,38 +70,22 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
-      - name: Collect APK
-        run: |
-          mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist/allhaven-mobile-debug.apk
-          ls -lh dist/allhaven-mobile-debug.apk
-
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: allhaven-debug-apk
-          path: frontend/dist/allhaven-mobile-debug.apk
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-      - name: Remove stale release APK assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release delete-asset mobile-latest app-debug.apk --repo "$GITHUB_REPOSITORY" --yes || true
-          gh release delete-asset mobile-latest allhaven-mobile-debug.apk --repo "$GITHUB_REPOSITORY" --yes || true
-
       - name: Publish to "mobile-latest" release (download link)
+        if: ${{ env.API_URL != 'https://PLACEHOLDER.invalid/api/v1' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: mobile-latest
           name: AllHaven Mobile (latest debug build)
           prerelease: true
-          files: frontend/dist/allhaven-mobile-debug.apk
+          files: frontend/android/app/build/outputs/apk/debug/app-debug.apk
           body: |
-            Debug APK of the real AllHaven app, built by CI.
-
-            This APK is the existing Next.js/React frontend wrapped with Capacitor. It keeps the same AllHaven UI, layout, and UX as the web app; it is not a separate Flutter/native rewrite.
-
-            Mobile data mode: `${{ env.DATA_MODE }}` (`supabase` = direct login/data; `rest` = Desktop Bridge backend).
-            Desktop Bridge default for backend-only tools: `${{ env.API_URL || 'not configured; set in-app only when using Ollama/n8n' }}`
-            Download `allhaven-mobile-debug.apk` below → install on Android (enable "Install unknown apps").
+            Debug APK of the AllHaven mobile app, built by CI.
+            Points at: `${{ env.API_URL }}`
+            Download `app-debug.apk` below → install on Android (enable "Install unknown apps").

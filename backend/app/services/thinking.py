@@ -10,13 +10,11 @@ from __future__ import annotations
 THINKING_MODES = ("fast", "balance", "thinking", "deep")
 DEFAULT_THINKING = "balance"
 
-# Sampling per thinking mode (lower temperature = more careful/grounded). The default
-# (balance) is warm enough for natural, human-sounding prose; thinking/deep stay low so
-# analytical and grounded work remains careful.
+# Sampling per thinking mode (lower temperature = more careful/grounded).
 _PARAMS = {
-    "fast": {"temperature": 0.45, "top_p": 0.90},
-    "balance": {"temperature": 0.40, "top_p": 0.85},
-    "thinking": {"temperature": 0.20, "top_p": 0.75},
+    "fast": {"temperature": 0.35, "top_p": 0.85},
+    "balance": {"temperature": 0.25, "top_p": 0.80},
+    "thinking": {"temperature": 0.15, "top_p": 0.75},
     "deep": {"temperature": 0.10, "top_p": 0.70},
 }
 

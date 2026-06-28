@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Toggle } from "@/components/ui/Toggle";
 import { ConfigStatusBadge } from "@/components/ui/meta";
 import { StatusDot } from "@/components/ui/StatusDot";
-import { ApiException, settingsApi } from "@/lib/api";
+import { settingsApi } from "@/lib/api";
 import { relativeTime } from "@/lib/format";
 import type { Integration } from "@/types";
 
@@ -24,16 +24,12 @@ export function IntegrationCard({
   onChange: (updated: Integration) => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const id = integration.id ?? integration.key;
 
   const toggle = async (enabled: boolean) => {
     setBusy(true);
-    setError(null);
     try {
       onChange(enabled ? await settingsApi.enableIntegration(id) : await settingsApi.disableIntegration(id));
-    } catch (err) {
-      setError(err instanceof ApiException ? err.message : "Could not update this integration.");
     } finally {
       setBusy(false);
     }
@@ -41,11 +37,8 @@ export function IntegrationCard({
 
   const test = async () => {
     setBusy(true);
-    setError(null);
     try {
       onChange(await settingsApi.testIntegration(id));
-    } catch (err) {
-      setError(err instanceof ApiException ? err.message : "Could not test this integration.");
     } finally {
       setBusy(false);
     }
@@ -68,11 +61,6 @@ export function IntegrationCard({
         {integration.detail}
         {integration.last_verified_at ? <span>· verified {relativeTime(integration.last_verified_at)}</span> : null}
       </div>
-      {error ? (
-        <div className="mt-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-warning">
-          {error}
-        </div>
-      ) : null}
 
       <div className="mt-4 flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
         {integration.editable === false ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Brain,
@@ -37,9 +37,6 @@ const RISK_TONE: Record<string, "neutral" | "warning" | "danger"> = {
   HIGH: "danger",
 };
 
-// Message shown on desktop-only proposals approved from mobile (Supabase-direct).
-const DESKTOP_ONLY_NOTICE = "Aksi ini hanya bisa di-approve dari aplikasi desktop.";
-
 function humanizeTool(name: string): string {
   const spaced = name.replace(/[_.-]+/g, " ").trim();
   return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : name;
@@ -68,12 +65,6 @@ export default function ApprovalsPage() {
   const [editError, setEditError] = useState<string | null>(null);
   // Per-proposal inline approval errors — one message each, instead of stacking toasts.
   const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
-  // Desktop-only proposals the user tried to approve from mobile — Approve stays
-  // disabled with a one-line inline notice, Reject stays available.
-  const [desktopOnly, setDesktopOnly] = useState<Set<string>>(new Set());
-  // Proposal/suggestion ids resolved locally (approved/rejected) — filtered out of
-  // poll results so a just-decided card never flickers back before the server drops it.
-  const resolvedIdsRef = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setError(null);
@@ -82,14 +73,8 @@ export default function ApprovalsPage() {
         aiApi.listProposals(),
         memoryApi.listSuggestions(),
       ]);
-      // Hide rows the user just resolved locally; once the server stops returning a
-      // resolved id, drop it from the set (confirmed gone from the open list).
-      const fetchedIds = new Set<string>([...proposalRows.map((p) => p.id), ...suggestionRows.map((s) => s.id)]);
-      for (const id of Array.from(resolvedIdsRef.current)) {
-        if (!fetchedIds.has(id)) resolvedIdsRef.current.delete(id);
-      }
-      setProposals(proposalRows.filter((p) => !resolvedIdsRef.current.has(p.id)));
-      setSuggestions(suggestionRows.filter((s) => !resolvedIdsRef.current.has(s.id)));
+      setProposals(proposalRows);
+      setSuggestions(suggestionRows);
     } catch (err) {
       setError(err instanceof ApiException ? err.message : "Failed to load approvals.");
     } finally {
@@ -144,21 +129,13 @@ export default function ApprovalsPage() {
     clearCardError(proposal.id);
     try {
       await aiApi.approveProposal(proposal.id);
-      resolvedIdsRef.current.add(proposal.id);
       setProposals((cur) => cur.filter((p) => p.id !== proposal.id));
       toast.success("Change approved", `${humanizeTool(proposal.tool_name)} executed.`);
     } catch (err) {
-      // Desktop-only tool: the proposal stays PENDING. Don't scare the user or
-      // re-enable Approve — show a clear one-liner and keep Reject available.
-      if (err instanceof ApiException && err.code === "UNSUPPORTED_ON_MOBILE") {
-        setDesktopOnly((cur) => new Set(cur).add(proposal.id));
-        setCardErrors((cur) => ({ ...cur, [proposal.id]: DESKTOP_ONLY_NOTICE }));
-      } else {
-        const message = err instanceof ApiException ? err.message : "Approval failed.";
-        // Inline, per-card — keeps the proposal visible/editable and never stacks
-        // the same toast when the user retries.
-        setCardErrors((cur) => ({ ...cur, [proposal.id]: message }));
-      }
+      const message = err instanceof ApiException ? err.message : "Approval failed.";
+      // Inline, per-card — keeps the proposal visible/editable and never stacks
+      // the same toast when the user retries.
+      setCardErrors((cur) => ({ ...cur, [proposal.id]: message }));
     } finally {
       setBusyId(null);
     }
@@ -169,7 +146,6 @@ export default function ApprovalsPage() {
     setError(null);
     try {
       await aiApi.rejectProposal(proposal.id);
-      resolvedIdsRef.current.add(proposal.id);
       setProposals((cur) => cur.filter((p) => p.id !== proposal.id));
       toast.info("Change rejected", humanizeTool(proposal.tool_name));
     } catch (err) {
@@ -244,7 +220,6 @@ export default function ApprovalsPage() {
     setError(null);
     try {
       const memory: AiMemory = await memoryApi.approveSuggestion(suggestion.id);
-      resolvedIdsRef.current.add(suggestion.id);
       setSuggestions((cur) => cur.filter((s) => s.id !== suggestion.id));
       toast.success("Memory approved", memory.title);
     } catch (err) {
@@ -261,7 +236,6 @@ export default function ApprovalsPage() {
     setError(null);
     try {
       await memoryApi.rejectSuggestion(suggestion.id);
-      resolvedIdsRef.current.add(suggestion.id);
       setSuggestions((cur) => cur.filter((s) => s.id !== suggestion.id));
       toast.info("Memory suggestion dismissed", suggestion.title);
     } catch (err) {
@@ -337,7 +311,6 @@ export default function ApprovalsPage() {
                   const isTxn = isTransactionTool(proposal.tool_name);
                   const invalid = isTxn && transactionPayloadErrors(proposal.tool_payload).length > 0;
                   const cardError = cardErrors[proposal.id];
-                  const isDesktopOnly = desktopOnly.has(proposal.id);
                   return (
                     <div key={proposal.id} className="rounded-xl border border-border bg-surface-input p-3">
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -362,9 +335,9 @@ export default function ApprovalsPage() {
                         <Button
                           size="sm"
                           loading={busy}
-                          disabled={busy || invalid || isDesktopOnly}
+                          disabled={busy || invalid}
                           onClick={() => void approveProposal(proposal)}
-                          title={isDesktopOnly ? DESKTOP_ONLY_NOTICE : invalid ? "Fix the highlighted fields before approving" : undefined}
+                          title={invalid ? "Fix the highlighted fields before approving" : undefined}
                           className="w-full sm:w-auto"
                         >
                           <CheckCircle2 size={14} /> Approve
@@ -433,9 +406,7 @@ export default function ApprovalsPage() {
 
       <Modal
         open={editing !== null}
-        // Only this proposal's own save (saveEdit) should hold the modal open —
-        // an unrelated card's in-flight action must never block Cancel/close.
-        onClose={() => { if (!editing || busyId !== editing.id) closeEdit(); }}
+        onClose={() => { if (!busyId) closeEdit(); }}
         title="Edit proposed change"
         description={
           editing
@@ -446,7 +417,7 @@ export default function ApprovalsPage() {
         }
         footer={
           <>
-            <Button variant="ghost" onClick={closeEdit} disabled={Boolean(editing && busyId === editing.id)}>
+            <Button variant="ghost" onClick={closeEdit} disabled={Boolean(busyId)}>
               Cancel
             </Button>
             <Button onClick={() => void saveEdit()} loading={Boolean(editing && busyId === editing.id)}>
@@ -459,7 +430,7 @@ export default function ApprovalsPage() {
           <TransactionEditForm
             value={editPayload ?? {}}
             onChange={setEditPayload}
-            disabled={Boolean(editing && busyId === editing.id)}
+            disabled={Boolean(busyId)}
           />
         ) : (
           <Textarea
