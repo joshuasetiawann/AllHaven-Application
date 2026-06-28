@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     # Local developers keep Swagger/OpenAPI by default. Production/staging must
     # opt in explicitly so public deployments don't advertise every route.
     API_DOCS_ENABLED: bool | None = None
+    # Server-side integration checks/chat calls may contact user-configured URLs
+    # (Ollama/n8n/OpenAI-compatible gateways). Local mode allows private LAN and
+    # Tailscale addresses; production blocks them unless explicitly opted in.
+    ALLOW_PRIVATE_INTEGRATION_URLS: bool | None = None
     # Used for deterministic local answers such as "sekarang jam berapa?"
     APP_TIMEZONE: str = "Asia/Jakarta"
     # Comma-separated list (or JSON array) of allowed frontend origins. Includes
@@ -188,6 +192,13 @@ class Settings(BaseSettings):
         """Expose Swagger/OpenAPI only in local mode unless explicitly enabled."""
         if self.API_DOCS_ENABLED is not None:
             return bool(self.API_DOCS_ENABLED)
+        return self.is_local_env
+
+    @property
+    def integration_private_urls_allowed(self) -> bool:
+        """Allow server-side requests to private/local addresses only in local mode."""
+        if self.ALLOW_PRIVATE_INTEGRATION_URLS is not None:
+            return bool(self.ALLOW_PRIVATE_INTEGRATION_URLS)
         return self.is_local_env
 
     @property
