@@ -56,8 +56,9 @@ def create_app() -> FastAPI:
         title=settings.APP_NAME,
         version=_app_version(),
         description="Modular AI command center — local MVP backend.",
-        docs_url="/docs",
-        openapi_url="/openapi.json",
+        docs_url="/docs" if settings.api_docs_enabled else None,
+        redoc_url="/redoc" if settings.api_docs_enabled else None,
+        openapi_url="/openapi.json" if settings.api_docs_enabled else None,
         lifespan=lifespan,
     )
 
@@ -127,12 +128,14 @@ def create_app() -> FastAPI:
 
     @app.get("/", tags=["root"])
     def root() -> dict:
+        data = {
+            "app": settings.APP_NAME,
+            "health": f"{prefix}/health",
+        }
+        if settings.api_docs_enabled:
+            data["docs"] = "/docs"
         return success_response(
-            {
-                "app": settings.APP_NAME,
-                "docs": "/docs",
-                "health": f"{prefix}/health",
-            },
+            data,
             "AllHaven API is running",
         )
 
