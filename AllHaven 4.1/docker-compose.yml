@@ -1,0 +1,46 @@
+# AllHaven local development services.
+# MVP enables PostgreSQL only. Optional services (n8n, Ollama) are documented
+# below but intentionally NOT enabled by default — they must never block backend
+# startup, and AllHaven never fakes a connected integration.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: allhaven-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-allhaven}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-allhaven}
+      POSTGRES_DB: ${POSTGRES_DB:-allhaven}
+    ports:
+      # Host port is configurable so a busy 5432 (e.g. a native PostgreSQL) doesn't
+      # block startup. POSTGRES_HOST_PORT overrides the host side; it defaults to
+      # POSTGRES_PORT, then 5432. The container always listens on 5432 internally.
+      - "${POSTGRES_HOST_PORT:-${POSTGRES_PORT:-5432}}:5432"
+    volumes:
+      - allhaven_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-allhaven} -d ${POSTGRES_DB:-allhaven}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Optional, documented only (uncomment to opt in) ---
+  #
+  # n8n:
+  #   image: n8nio/n8n:latest
+  #   container_name: allhaven-n8n
+  #   restart: unless-stopped
+  #   ports:
+  #     - "5678:5678"
+  #   environment:
+  #     - N8N_PORT=5678
+  #   volumes:
+  #     - allhaven_n8n:/home/node/.n8n
+  #
+  # Ollama is expected to run on the host (do not reinstall or delete models).
+  # Point OLLAMA_BASE_URL at the host instance, e.g. http://localhost:11434
+
+volumes:
+  allhaven_pgdata:
+  # allhaven_n8n:
