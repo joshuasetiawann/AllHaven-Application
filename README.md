@@ -3,7 +3,7 @@
 ![AllHaven Command Center](docs/assets/banner.svg)
 
 # AllHaven Command Center
-
+ 
 **A local-first AI command center for personal productivity, workspace memory, finance tracking, routines, notes, and human-approved AI actions.**
 
 The desktop app owns the private backend. The Android APK is the mobile companion: it can run core workspace features through Supabase, and only uses the desktop bridge for local services such as Ollama and n8n.
