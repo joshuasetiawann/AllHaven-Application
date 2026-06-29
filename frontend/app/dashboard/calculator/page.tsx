@@ -91,9 +91,9 @@ export default function CalculatorPage() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  type Btn = { label: React.ReactNode; on: () => void; variant?: "num" | "op" | "accent" | "muted"; wide?: boolean; active?: boolean };
+  type Btn = { label: React.ReactNode; on: () => void; variant?: "num" | "op" | "accent" | "muted" | "clear"; wide?: boolean; active?: boolean };
   const buttons: Btn[] = [
-    { label: "AC", on: clearAll, variant: "muted" },
+    { label: "AC", on: clearAll, variant: "clear" },
     { label: <Delete size={18} />, on: backspace, variant: "muted" },
     { label: "%", on: percent, variant: "muted" },
     { label: "÷", on: () => chooseOp("÷"), variant: "op", active: op === "÷" },
@@ -118,12 +118,15 @@ export default function CalculatorPage() {
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-sm">
-        <h1 className="mb-4 text-lg font-semibold text-content">Calculator</h1>
-        <div className="rounded-2xl border border-border bg-surface/40 p-4 sm:p-5">
+        <div className="mb-5">
+          <h1 className="text-[30px] font-semibold tracking-[-0.02em] text-content">Calculator</h1>
+          <p className="mt-2 text-[13.5px] text-content-muted">Quick math, keyboard-ready.</p>
+        </div>
+        <div className="panel rounded-[22px] p-4 sm:p-5">
           {/* Display */}
-          <div className="mb-4 rounded-xl border border-border bg-surface-input px-4 py-4 text-right">
-            <p className="h-4 truncate text-[12px] text-content-subtle">{expr}&nbsp;</p>
-            <p className="mt-1 break-all text-3xl font-semibold tabular-nums text-content sm:text-4xl">{display}</p>
+          <div className="mb-4 rounded-xl border border-white/[0.08] bg-bg-deep/60 px-[18px] py-4 text-right">
+            <p className="h-4 truncate font-mono text-[12px] text-content-subtle">{expr}&nbsp;</p>
+            <p className="mt-1.5 break-all font-mono text-3xl font-semibold tabular-nums text-content [text-shadow:0_0_24px_rgb(var(--color-primary)/0.25)] sm:text-[32px]">{display}</p>
           </div>
           {/* Keypad */}
           <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
@@ -133,11 +136,22 @@ export default function CalculatorPage() {
                 type="button"
                 onClick={b.on}
                 className={cn(
-                  "flex h-14 items-center justify-center rounded-xl text-lg font-medium transition-colors select-none sm:h-16",
-                  b.variant === "accent" && "bg-primary text-white hover:bg-primary-bright",
-                  b.variant === "op" && (b.active ? "bg-primary/30 text-primary" : "bg-primary/10 text-primary hover:bg-primary/20"),
-                  b.variant === "muted" && "bg-surface-high text-content-muted hover:bg-surface-raised hover:text-content",
-                  (b.variant === "num" || !b.variant) && "bg-surface-input text-content hover:bg-surface-high",
+                  "flex h-14 select-none items-center justify-center rounded-lg text-[17px] font-medium transition-all sm:h-[52px]",
+                  b.variant === "accent" &&
+                    "grad-primary border-0 text-lg text-primary-fg shadow-[0_0_18px_rgb(var(--color-primary)/0.4)] hover:brightness-[1.06]",
+                  b.variant === "op" &&
+                    cn(
+                      "border text-lg text-primary-bright",
+                      b.active
+                        ? "border-[rgb(var(--color-primary)/0.5)] bg-[rgb(var(--color-primary)/0.22)]"
+                        : "border-[rgb(var(--color-primary)/0.3)] bg-[rgb(var(--color-primary)/0.12)] hover:bg-[rgb(var(--color-primary)/0.18)]",
+                    ),
+                  b.variant === "clear" &&
+                    "border border-white/10 bg-[rgb(var(--color-danger)/0.08)] text-base text-danger hover:bg-[rgb(var(--color-danger)/0.14)]",
+                  b.variant === "muted" &&
+                    "border border-white/10 bg-white/[0.03] text-base text-content-muted hover:bg-white/[0.06] hover:text-content",
+                  (b.variant === "num" || !b.variant) &&
+                    "border border-white/10 bg-white/[0.03] text-content hover:bg-white/[0.06]",
                 )}
               >
                 {b.label}

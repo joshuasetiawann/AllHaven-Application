@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
   Boxes,
   Check,
@@ -13,6 +14,7 @@ import {
   RotateCw,
   Server,
   Square,
+  Terminal,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -21,7 +23,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { ErrorState, Loading } from "@/components/ui/States";
 import { systemApi, ApiException } from "@/lib/api";
-import { relativeTime } from "@/lib/format";
+import { cn, relativeTime } from "@/lib/format";
 import type {
   PortsApplyResult,
   ServiceState,
@@ -33,13 +35,21 @@ import type {
 
 const POLL_MS = 10_000;
 
-// Map a service's runtime state to a Badge tone.
-const STATE_TONE: Record<ServiceState, "success" | "neutral" | "danger" | "warning"> = {
-  running: "success",
-  stopped: "neutral",
-  error: "danger",
-  unavailable: "warning",
-  unknown: "warning",
+// Map a service's runtime state to the Aurora dot + mono label recipe.
+const STATE_DOT: Record<ServiceState, string> = {
+  running: "bg-success shadow-[0_0_10px_2px] shadow-success/60",
+  stopped: "bg-content-faint",
+  error: "bg-danger shadow-[0_0_10px_2px] shadow-danger/50",
+  unavailable: "bg-warning",
+  unknown: "bg-warning",
+};
+
+const STATE_TEXT: Record<ServiceState, string> = {
+  running: "text-success-soft",
+  stopped: "text-content-subtle",
+  error: "text-danger",
+  unavailable: "text-warning",
+  unknown: "text-warning",
 };
 
 const STATE_LABEL: Record<ServiceState, string> = {
@@ -112,9 +122,15 @@ export default function SystemControl() {
   if (!status) return <Loading label="Loading system status…" />;
 
   const agentDown = !status.agent.running;
+  const totalServices = status.services.length;
+  const runningServices = status.services.filter((s) => s.status === "running").length;
+  const stoppedServices = status.services.filter((s) => s.status === "stopped").length;
+  const attentionServices = status.services.filter(
+    (s) => s.status === "error" || s.status === "unavailable" || s.status === "unknown",
+  ).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[12.5px] text-content-muted">
           Auto-refreshing every 10s · last update {relativeTime(status.services[0]?.last_checked)}
@@ -122,6 +138,48 @@ export default function SystemControl() {
         <Button variant="ghost" size="sm" onClick={refresh} loading={refreshing}>
           <RefreshCw size={14} /> Refresh
         </Button>
+      </div>
+
+      {/* Live service metrics, derived from the real status payload. */}
+      <div className="grid gap-3.5 sm:grid-cols-3">
+        <div className="glass-tile p-[18px]">
+          <div className="mb-2.5 flex items-center justify-between">
+            <span className="label-mono">Running</span>
+            <Activity size={15} className="text-primary-bright" />
+          </div>
+          <p className="text-[22px] font-semibold leading-none text-content">
+            {runningServices}
+            <span className="text-sm text-content-subtle"> / {totalServices}</span>
+          </p>
+          <div className="mt-3 h-[5px] rounded-full bg-white/[0.08]">
+            <div
+              className="h-[5px] rounded-full bg-[linear-gradient(90deg,rgb(var(--color-primary)),rgb(var(--color-secondary)))]"
+              style={{ width: `${totalServices ? Math.round((runningServices / totalServices) * 100) : 0}%` }}
+            />
+          </div>
+        </div>
+        <div className="glass-tile p-[18px]">
+          <div className="mb-2.5 flex items-center justify-between">
+            <span className="label-mono">Stopped</span>
+            <Square size={14} className="text-content-subtle" />
+          </div>
+          <p className="text-[22px] font-semibold leading-none text-content">{stoppedServices}</p>
+          <p className={cn("mt-3 text-[11.5px]", attentionServices ? "text-warning" : "text-success-soft")}>
+            {attentionServices ? `${attentionServices} need${attentionServices === 1 ? "s" : ""} attention` : "No services need attention"}
+          </p>
+        </div>
+        <div className="glass-tile p-[18px]">
+          <div className="mb-2.5 flex items-center justify-between">
+            <span className="label-mono">Control agent</span>
+            <Terminal size={15} className={status.agent.running ? "text-success-soft" : "text-warning"} />
+          </div>
+          <p className="text-[22px] font-semibold leading-none text-content">
+            {status.agent.running ? "Online" : "Offline"}
+          </p>
+          <p className={cn("mt-3 truncate text-[11.5px]", status.agent.running ? "text-success-soft" : "text-warning")} title={status.agent.message}>
+            {status.agent.running ? "Start / Stop / Restart available" : "Launcher not detected"}
+          </p>
+        </div>
       </div>
 
       {/* Honest deployment-state banners. */}
@@ -161,75 +219,121 @@ export default function SystemControl() {
       {/* In-flight action error (status is already loaded). */}
       {error ? <ErrorState message={error} onRetry={refresh} /> : null}
 
-      {/* Service cards. */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {status.services.map((svc) => {
-          const controlReason = !status.control_enabled
-            ? "System Control is disabled on this deployment."
-            : agentDown
-              ? "Start the desktop launcher to control services."
-              : !svc.controllable
-                ? `${svc.label} can't be controlled from here.`
-                : undefined;
+      {/* Service control list. */}
+      <Card>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-primary/12 text-primary-bright">
+              <Terminal size={17} />
+            </span>
+            <div>
+              <h3 className="text-[15px] font-semibold text-content">Service control</h3>
+              <p className="text-[12.5px] text-content-muted">Start, stop, restart, and inspect Haven services.</p>
+            </div>
+          </div>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium",
+              runningServices
+                ? "border-success/30 bg-success/10 text-success-soft"
+                : "border-border bg-surface-high/70 text-content-muted",
+            )}
+          >
+            <span
+              className={cn(
+                "h-[5px] w-[5px] rounded-full",
+                runningServices ? "animate-pulse-glow bg-success shadow-[0_0_8px] shadow-success" : "bg-content-faint",
+              )}
+            />
+            {runningServices} running
+          </span>
+        </div>
 
-          return (
-            <Card key={svc.name} hover className="flex h-full flex-col">
-              <div className="flex items-start justify-between gap-2">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-primary">
-                  {svc.kind === "docker" ? <Boxes size={18} /> : <Server size={18} />}
-                </span>
-                <Badge tone={STATE_TONE[svc.status]} dot>
-                  {STATE_LABEL[svc.status]}
-                </Badge>
-              </div>
+        <ul>
+          {status.services.map((svc) => {
+            const controlReason = !status.control_enabled
+              ? "System Control is disabled on this deployment."
+              : agentDown
+                ? "Start the desktop launcher to control services."
+                : !svc.controllable
+                  ? `${svc.label} can't be controlled from here.`
+                  : undefined;
 
-              <div className="mt-3 flex items-center gap-2">
-                <h3 className="truncate text-sm font-semibold text-content" title={svc.label}>
-                  {svc.label}
-                </h3>
-                <Badge tone="neutral">{svc.kind === "docker" ? "Docker" : "Host"}</Badge>
-              </div>
-
-              <div className="mt-2 flex items-center gap-2 text-[11.5px] text-content-subtle">
-                <span className="font-mono">Port {svc.port ?? "—"}</span>
-                <span>·</span>
-                <span>checked {relativeTime(svc.last_checked)}</span>
-              </div>
-
-              {svc.message ? (
-                <p className="mt-2 text-[12.5px] text-content-muted">{svc.message}</p>
-              ) : null}
-
-              <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
-                {(["start", "stop", "restart"] as const).map((action) => {
-                  if (!svc.actions.includes(action)) return null;
-                  const meta = ACTION_META[action];
-                  const Icon = meta.icon;
-                  const disabled = !svc.controllable || !!busyAction;
-                  return (
-                    <Button
-                      key={action}
-                      variant="ghost"
-                      size="sm"
-                      disabled={disabled}
-                      loading={busyAction === `${svc.name}:${action}`}
-                      title={!svc.controllable ? controlReason : undefined}
-                      onClick={() => runAction(svc, action)}
+            return (
+              <li
+                key={svc.name}
+                className="flex flex-col gap-2 border-t border-border/70 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span
+                      className={cn(
+                        "h-2 w-2 shrink-0 rounded-full",
+                        STATE_DOT[svc.status],
+                        svc.status === "running" && "animate-pulse-glow",
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "text-[13.5px] font-medium",
+                        svc.status === "running" ? "text-content" : "text-content-muted",
+                      )}
+                      title={svc.label}
                     >
-                      <Icon size={14} /> {meta.label}
+                      {svc.label}
+                    </span>
+                    <Badge tone="neutral">
+                      {svc.kind === "docker" ? <Boxes size={10} /> : <Server size={10} />}
+                      {svc.kind === "docker" ? "Docker" : "Host"}
+                    </Badge>
+                    <span className="font-mono text-[10.5px] text-content-subtle">:{svc.port ?? "—"}</span>
+                    <span className="font-mono text-[10.5px] text-content-faint">
+                      checked {relativeTime(svc.last_checked)}
+                    </span>
+                  </div>
+                  {svc.message ? (
+                    <p className="mt-1 pl-[18px] text-[12.5px] text-content-muted">{svc.message}</p>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0 sm:justify-end">
+                  <span className={cn("mr-1 font-mono text-[11px]", STATE_TEXT[svc.status])}>
+                    {STATE_LABEL[svc.status].toLowerCase()}
+                  </span>
+                  {(["start", "stop", "restart"] as const).map((action) => {
+                    if (!svc.actions.includes(action)) return null;
+                    const meta = ACTION_META[action];
+                    const Icon = meta.icon;
+                    const disabled = !svc.controllable || !!busyAction;
+                    return (
+                      <Button
+                        key={action}
+                        variant="ghost"
+                        size="sm"
+                        disabled={disabled}
+                        loading={busyAction === `${svc.name}:${action}`}
+                        title={!svc.controllable ? controlReason : undefined}
+                        onClick={() => runAction(svc, action)}
+                        className={cn(
+                          action === "start" &&
+                            "border-primary/30 bg-primary/10 font-semibold text-primary-bright hover:border-primary/50 hover:bg-primary/15 hover:text-primary-bright",
+                        )}
+                      >
+                        <Icon size={14} /> {meta.label}
+                      </Button>
+                    );
+                  })}
+                  {svc.actions.includes("logs") ? (
+                    <Button variant="subtle" size="sm" onClick={() => setLogsFor(svc)}>
+                      <FileText size={14} /> Logs
                     </Button>
-                  );
-                })}
-                {svc.actions.includes("logs") ? (
-                  <Button variant="subtle" size="sm" className="ml-auto" onClick={() => setLogsFor(svc)}>
-                    <FileText size={14} /> Logs
-                  </Button>
-                ) : null}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
 
       <PortsEditor />
 
@@ -323,7 +427,7 @@ function PortsEditor() {
   return (
     <Card padding="md">
       <div className="mb-1 flex items-center gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-primary">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-secondary/12 text-secondary-soft">
           <Server size={16} />
         </span>
         <div>

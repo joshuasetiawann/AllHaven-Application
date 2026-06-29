@@ -308,7 +308,7 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
       ) : null}
 
       {proposals.length ? (
-        <div className="mx-3 mb-2 animate-slide-up rounded-xl border border-warning/45 bg-warning/10 shadow-glow">
+        <div className="mx-3 mb-2 animate-slide-up rounded-xl border border-warning/30 bg-warning/[0.07] shadow-panel">
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
@@ -316,8 +316,10 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
             className="flex w-full items-center gap-2 px-3 py-2 text-left"
           >
             {open ? <ChevronDown size={13} className="shrink-0 text-content-subtle" /> : <ChevronRight size={13} className="shrink-0 text-content-subtle" />}
-            <ShieldAlert size={13} className="shrink-0 text-warning" />
-            <span className="text-[12.5px] font-medium text-content">Tindakan tertunda</span>
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-warning/[0.14] text-warning">
+              <ShieldAlert size={14} />
+            </span>
+            <span className="text-[13px] font-semibold text-content">Tindakan tertunda</span>
             <Badge tone="warning">{proposals.length}</Badge>
             <span className="ml-auto hidden text-[11px] text-content-subtle sm:inline">Pending actions - approve before it runs.</span>
           </button>
@@ -327,9 +329,9 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
                 const action = busy[p.id];
                 const risk = (p.risk_level || "").toUpperCase();
                 return (
-                  <div key={p.id} className="rounded-lg border border-border bg-surface-input px-3 py-2.5">
+                  <div key={p.id} className="rounded-md border border-border bg-white/[0.03] px-3 py-2.5">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-[13px] font-medium text-content">{humanizeTool(p.tool_name)}</span>
+                      <span className="text-[13px] font-semibold text-content">{humanizeTool(p.tool_name)}</span>
                       <Badge tone={RISK_TONE[risk] ?? "neutral"}>{risk || "UNKNOWN"} risk</Badge>
                       {p.status && p.status !== "PENDING" ? (
                         <Badge tone="danger">{p.status === "NEEDS_EDIT" ? "Perlu diedit" : p.status}</Badge>

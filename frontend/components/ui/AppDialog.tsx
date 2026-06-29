@@ -94,9 +94,15 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
         open={Boolean(request)}
         onClose={cancel}
         title={
-          <span className="flex items-center gap-2">
-            <span className={request?.tone === "danger" ? "text-danger" : "text-primary"}>
-              <Icon size={16} />
+          <span className="flex items-center gap-2.5">
+            <span
+              className={
+                request?.tone === "danger"
+                  ? "flex h-7 w-7 items-center justify-center rounded-sm border border-danger/30 bg-danger/10 text-danger"
+                  : "flex h-7 w-7 items-center justify-center rounded-sm border border-primary/25 bg-primary/10 text-primary-bright"
+              }
+            >
+              <Icon size={15} />
             </span>
             {request?.title ?? "AllHaven"}
           </span>
@@ -128,7 +134,7 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
               if (e.key === "Enter") accept();
             }}
             placeholder={request.placeholder}
-            className="h-11 w-full rounded-lg border border-border bg-surface-input px-3 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
+            className="h-[46px] w-full rounded-md border border-white/10 bg-white/[0.035] px-3.5 text-sm text-content placeholder:text-content-subtle transition-colors focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/25"
           />
         ) : request?.message ? (
           <p className="text-sm leading-relaxed text-content-muted">{request.message}</p>
