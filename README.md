@@ -8,7 +8,7 @@
 
 The desktop app owns the private backend. The Android APK is the mobile companion: it can run core workspace features through Supabase, and only uses the desktop bridge for local services such as Ollama and n8n.
 
-[![Version](https://img.shields.io/badge/version-4.1.0%20%7C%20AllHaven%204.1-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.2.0%20%7C%20AllHaven%204.2-18E0D6?style=flat-square)](CHANGELOG.md)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![Next.js 15](https://img.shields.io/badge/Next.js%2015-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-mobile%20data-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
@@ -22,7 +22,7 @@ The desktop app owns the private backend. The Android APK is the mobile companio
 
 ## Status
 
-**Current release:** `v4.1.0`
+**Current release:** `v4.2.0`
 
 AllHaven is not an operating system. It is a complete web application with:
 
@@ -33,16 +33,16 @@ AllHaven is not an operating system. It is a complete web application with:
 - a **Capacitor Android APK** build;
 - local/remote AI provider integrations with honest status checks.
 
-### What changed in 4.1
+### What changed in 4.2
 
-- Finance dashboard charts now render real visible cashflow bars.
-- Notes can be edited and saved cleanly.
-- AI Memory is stricter about current facts and avoids noisy auto-memory.
-- Mobile login failures now surface real Supabase/configuration errors instead of a generic spinner.
-- Next.js is on the patched `15.5.19` line.
-- Local CORS is tightened to localhost, private LAN, Tailscale, and Capacitor origins.
+- The whole UI moved to the **Aurora Glass** design system — every page and component restyled, behavior unchanged.
+- AI chat answers greetings instantly and passes every reply through a quality gate before it reaches you.
+- Routines are a first-class AI intent, and Indonesian "dapat …" phrases now register as income.
+- Approvals show a typed, human-readable preview for schedules, routines, notes, and tasks — no more raw JSON.
+- Desktop voice input is restored; AI memory recall/editing and the knowledge upload flow are stabilized.
+- Security hardening: private-integration SSRF blocked, API docs hidden outside local mode, Drive config endpoint protected.
 
-Read more: [release notes](docs/v4/RELEASE_NOTES_v4.1.0.md).
+Read more: [release notes](docs/v4/RELEASE_NOTES_v4.2.0.md).
 
 ---
 
@@ -415,7 +415,7 @@ python3 -m venv .venv
 | [Architecture](docs/ARCHITECTURE.md) | System architecture and module boundaries. |
 | [Security model](docs/SECURITY_MODEL.md) | Auth, secrets, approvals, and trust boundaries. |
 | [AI tool policy](docs/AI_TOOL_POLICY.md) | Tool registry and human approval rules. |
-| [Release notes 4.1](docs/v4/RELEASE_NOTES_v4.1.0.md) | Current release details. |
+| [Release notes 4.2](docs/v4/RELEASE_NOTES_v4.2.0.md) | Current release details. |
 
 ---
 
@@ -427,7 +427,7 @@ python3 -m venv .venv
 | `master` | Kept aligned with `main` for compatibility. |
 | `mobile` | Kept aligned with `main`; useful for APK/mobile-focused workflows. |
 
-All three release branches should point at AllHaven 4.1 content.
+All three release branches should point at AllHaven 4.2 content.
 
 ---
 
