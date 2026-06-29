@@ -38,9 +38,9 @@ _The AI proposes — a human approves every write action._
 
 <div align="center">
 
-![AllHaven dashboard preview](docs/assets/dashboard-preview.svg)
+![AllHaven dashboard](docs/assets/screenshot-dashboard.png)
 
-<sub>A stylized preview of the dashboard. Drop real screenshots into <code>docs/assets/</code> to swap these in.</sub>
+<sub>The dashboard — a live snapshot of your workspace: open tasks, notes, monthly cashflow, pending tasks, and honest integration status.</sub>
 
 </div>
 
@@ -75,6 +75,10 @@ Stop / Restart, change ports, and view logs.
 
 ![AI providers and models](docs/assets/ai-models.svg)
 
+![Multi-agent AI chat](docs/assets/screenshot-ai-chat.png)
+
+<sub>Multi-agent chat — pick 1–3 agents and run them in <b>Parallel</b>, <b>Debate</b>, or <b>Reasoning</b>. Honest status; the AI never fabricates output.</sub>
+
 </div>
 
 | Provider | Vendor | Runs | Highlights |
@@ -90,6 +94,23 @@ Stop / Restart, change ports, and view logs.
 - **Multi-agent:** send one prompt to up to **3 agents at once** (Parallel), or use **Debate** / **Reasoning** modes — each agent answers in its own card.
 - **Human-in-the-loop:** the AI **proposes**; a human **approves** every write action. The AI never creates, edits, or deletes data on its own.
 - **Honest status & privacy:** a provider is `online` only after a successful **Test Connection** (never faked); API keys stay **server-side**; a per-workspace policy can disable external providers entirely (local-only mode).
+
+---
+
+## ⚙️ Automations & n8n
+
+Draft workflow automations inside AllHaven and connect them to **n8n**. Drafts are
+**disabled-safe** — AllHaven never auto-executes them; your real, runnable workflows
+live in n8n, where you can **list** them, **toggle** active state, and **open** them
+directly. Honest states when n8n isn't connected yet.
+
+<div align="center">
+
+![Automations](docs/assets/screenshot-automations.png)
+
+<sub>Local draft definitions in AllHaven (never auto-run) alongside your live n8n workflows.</sub>
+
+</div>
 
 ---
 
