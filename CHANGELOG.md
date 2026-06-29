@@ -11,6 +11,30 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [4.2.0] - 2026-07-02 — Aurora Glass UI, AI brain completion & security hardening
+
+Detailed notes: [`docs/v4/RELEASE_NOTES_v4.2.0.md`](docs/v4/RELEASE_NOTES_v4.2.0.md)
+
+- **Aurora Glass redesign.** Every page and component restyled on a shared token/primitive
+  system (glass surfaces, aurora accents). Visual-only — no behavior or API changes. Design
+  handoff bundle lives in [`design_handoff_allhaven_aurora/`](design_handoff_allhaven_aurora/).
+- **v4.0 AI-brain audit closed (P2–P6).** Greetings/smalltalk short-circuit to a warm instant
+  reply instead of running the full pipeline; a reply quality gate blocks robotic
+  "completed"-style output; **ROUTINE** is a first-class intent; Indonesian "dapat 50rb"
+  phrasing parses as income; non-finance proposals (schedule, routine, note, task) show a
+  typed human-readable preview instead of raw JSON.
+- **AI fixes.** Desktop voice input restored; knowledge upload workflow improved; AI memory
+  recall and editing stabilized; memory soft-delete migration (0020) restored.
+- **Security hardening.** Private-integration URLs are SSRF-guarded; API docs are hidden
+  outside local mode; the Drive config endpoint requires auth; private routes are covered by
+  auth regression tests.
+- **Mobile.** Supabase login failures surface the real error instead of a generic spinner.
+- **Launcher robustness.** Stale port listeners are cleared on start/restart, backend startup
+  checks are repaired, and native (non-Docker) Postgres status is reported correctly.
+- ⚠️ **Requires Supabase migrations 0018–0020** for cross-device approval idempotency and
+  memory soft-delete sync — apply [`docs/deploy/supabase_0018_0020.sql`](docs/deploy/supabase_0018_0020.sql)
+  (idempotent) or run `alembic upgrade head` against Supabase.
+
 ## [4.1.0] - 2026-06-27 — Dashboard chart, Notes edit, and memory correction
 
 Detailed notes: [`docs/v4/RELEASE_NOTES_v4.1.0.md`](docs/v4/RELEASE_NOTES_v4.1.0.md)
