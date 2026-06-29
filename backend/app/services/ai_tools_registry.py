@@ -381,6 +381,56 @@ def _h_delete_event(db, principal, args) -> dict:
     return {"deleted": True}
 
 
+def _parse_hhmm(value) -> tuple[int, int]:
+    try:
+        hh, mm = str(value).strip().split(":")
+        return max(0, min(23, int(hh))), max(0, min(59, int(mm)))
+    except (ValueError, AttributeError):
+        return 9, 0
+
+
+def _h_create_routine_schedule(db, principal, args) -> dict:
+    """Expand structured schedule blocks across N consecutive days into ONE atomic
+    batch of timed routine events. Every block is timed (never all_day) and capped at
+    4h, so this can never produce the 'one giant all-day event' bug."""
+    from datetime import date, datetime, timedelta
+
+    from app.services import calendar_service
+    from app.services.ai_local_answers import time_payload
+
+    blocks = args.get("blocks") or []
+    if not blocks:
+        raise ToolError("Jadwal kosong — tidak ada kegiatan untuk dibuat.")
+    days = max(1, min(14, int(args.get("repeat_days") or 7)))
+    try:
+        start = date.fromisoformat(str(args.get("start_date") or time_payload()["date"])[:10])
+    except (ValueError, TypeError):
+        start = date.fromisoformat(time_payload()["date"])
+
+    # Keep the batch within calendar_service's 50-event cap by trimming whole days.
+    if days * len(blocks) > 50:
+        days = max(1, 50 // len(blocks))
+
+    items: list[dict] = []
+    for offset in range(days):
+        day = start + timedelta(days=offset)
+        for block in blocks:
+            hh, mm = _parse_hhmm(block.get("start_time"))
+            duration = max(5, min(240, int(block.get("duration_min") or 60)))
+            start_at = datetime(day.year, day.month, day.day, hh, mm)
+            items.append({
+                "title": (str(block.get("title") or "Kegiatan").strip() or "Kegiatan")[:255],
+                "start_at": start_at,
+                "end_at": start_at + timedelta(minutes=duration),
+                "all_day": False,
+                "time_period": block.get("time_period") or calendar_service._period_from_start(start_at),
+                "repeat_rule": "once",
+            })
+
+    events = calendar_service.create_events_batch(db, principal, items)
+    return {"created": len(events), "days": days, "blocks_per_day": len(blocks)}
+
+
 # --------------------------------------------------------------------------- #
 # handlers — notes
 # --------------------------------------------------------------------------- #
@@ -808,6 +858,20 @@ _EVENT_FIELDS = {
         "items": {"type": "string", "enum": ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]},
     },
 }
+_SCHEDULE_FIELDS = {
+    "start_date": _str_prop("First day, YYYY-MM-DD. Defaults to today."),
+    "repeat_days": {"type": "integer", "description": "Consecutive days to repeat (1-14)."},
+    "blocks": {
+        "type": "array",
+        "description": "Ordered timed activity blocks for one day.",
+        "items": _schema({
+            "title": _str_prop("Activity title"),
+            "start_time": _str_prop("Start time, HH:MM 24h"),
+            "duration_min": {"type": "integer", "description": "Block length in minutes (<=240)."},
+            "time_period": {"type": "string", "enum": ["morning", "afternoon", "evening"]},
+        }, ["title", "start_time", "duration_min"]),
+    },
+}
 _TXN_FIELDS = {
     "type": {"type": "string", "enum": ["INCOME", "EXPENSE"]},
     "amount": {"type": "number", "description": "Positive amount"},
@@ -870,6 +934,11 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
              _schema({"event_id": _str_prop("Event id"), **_EVENT_FIELDS}, ["event_id"]), _h_update_event),
     ToolSpec("delete_event", "Delete a routine schedule item.", "calendar", "write", "MEDIUM",
              _schema({"event_id": _str_prop("Event id")}, ["event_id"]), _h_delete_event),
+    ToolSpec("create_routine_schedule",
+             "Create a multi-day routine schedule as ONE pending approval: timed daily "
+             "blocks repeated across N consecutive days. Never a single all-day event.",
+             "calendar", "write", "MEDIUM",
+             _schema(_SCHEDULE_FIELDS, ["blocks"]), _h_create_routine_schedule),
     # --- notes ---
     ToolSpec("list_notes", "List recent notes (optionally filter by tag).", "notes", "read", "LOW",
              _schema({"tag": _str_prop("Filter by tag"),

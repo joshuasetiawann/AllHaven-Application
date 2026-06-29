@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.core.principal import Principal
 from app.domain.ai import ChatMessage
-from app.services import ai_intent_router, ai_local_answers, ai_provider_router, ai_tools_registry
+from app.services import ai_intent_router, ai_local_answers, ai_provider_router, ai_tools_registry, schedule_parser
 from app.services.thinking import thinking_params
 
 MAX_TOOL_ROUNDS = 5
@@ -128,6 +128,48 @@ def _finance_proposal_turn(
     }
 
 
+def _schedule_proposal_turn(
+    db: Session,
+    principal: Principal,
+    schedule: "schedule_parser.ScheduleDraft",
+    session_id: Optional[uuid.UUID],
+    user_message_id: Optional[uuid.UUID],
+    pid: str,
+) -> dict:
+    """Deterministically create ONE ``create_routine_schedule`` PENDING proposal
+    (timed per-day blocks repeated across N days) and return a clear Indonesian
+    summary — never the LLM's single giant all-day event. No LLM call needed."""
+    base = {"provider_id": pid, "tool_calls": [], "proposal_ids": []}
+    payload = {
+        "repeat_days": schedule.repeat_days,
+        "blocks": [
+            {"title": b.title, "start_time": b.start_time,
+             "duration_min": b.duration_min, "time_period": b.time_period}
+            for b in schedule.blocks
+        ],
+    }
+    outcome = ai_tools_registry.run_tool_call(
+        db, principal, "create_routine_schedule", payload,
+        session_id=session_id, message_id=user_message_id,
+    )
+    if outcome.get("status") != "pending_approval":
+        err = outcome.get("error") or "Maaf, draft jadwal tidak bisa dibuat sekarang."
+        return {**base, "ok": False, "configured": True, "blocked": False, "content": err, "error": err}
+
+    listing = "; ".join(f"{b.start_time} {b.title}" for b in schedule.blocks)
+    content = (
+        f"Saya buatkan draft jadwal {schedule.repeat_days} hari dengan "
+        f"{len(schedule.blocks)} kegiatan/hari — {listing}. "
+        "Silakan approve agar masuk ke Routine."
+    )
+    return {
+        **base, "ok": True, "configured": True, "blocked": False, "content": content, "error": "",
+        "tool_calls": [{"tool": "create_routine_schedule", "status": "pending_approval",
+                        "summary": f"draft jadwal {schedule.repeat_days} hari · awaiting approval"}],
+        "proposal_ids": [outcome["proposal_id"]],
+    }
+
+
 def _tool_summary(outcome: dict) -> str:
     status = outcome.get("status")
     if status == "executed":
@@ -192,6 +234,12 @@ def run_with_tools(
     intent = ai_intent_router.classify(message)
     if intent.is_finance:
         return _finance_proposal_turn(db, principal, intent, session_id, user_message_id, pid)
+    # Deterministic schedule routing: an "atur jadwal ..." request becomes ONE
+    # structured multi-day routine proposal (timed per-day blocks) instead of the
+    # LLM improvising a single giant all-day event.
+    schedule = schedule_parser.parse_schedule(message)
+    if schedule is not None:
+        return _schedule_proposal_turn(db, principal, schedule, session_id, user_message_id, pid)
 
     if plan.status == "error" and not plan.runnable and plan.provider_name == pid:
         return {**base, "ok": False, "configured": False, "blocked": False,
