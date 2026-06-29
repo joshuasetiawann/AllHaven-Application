@@ -38,6 +38,14 @@ void main() {
       server.resolveAssetPath(Uri.parse('/dashboard/settings.rsc')),
       'assets/allhaven/dashboard/settings/index.txt',
     );
+    expect(
+      server.resolveAssetPath(Uri.parse('/dashboard/settings.txt')),
+      'assets/allhaven/dashboard/settings/index.txt',
+    );
+    expect(
+      server.resolveAssetPath(Uri.parse('/dashboard/settings/index.txt')),
+      'assets/allhaven/dashboard/settings/index.txt',
+    );
   });
 
   test('settings system subroute serves its RSC payload', () {
