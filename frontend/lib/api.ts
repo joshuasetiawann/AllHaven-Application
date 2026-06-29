@@ -3,6 +3,7 @@
 
 import { clearAuth, getToken } from "@/lib/auth";
 import type {
+  AiProvider,
   AuthToken,
   ChatMessage,
   ChatResponse,
@@ -16,6 +17,7 @@ import type {
   ToolProposal,
   Transaction,
 } from "@/types";
+import type { AiProviderUpdatePayload } from "@/types/api";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -138,18 +140,41 @@ export const aiApi = {
   listSessions: () => request<ChatSession[]>("/ai/sessions"),
   listMessages: (sessionId: string) =>
     request<ChatMessage[]>(`/ai/sessions/${sessionId}/messages`),
-  chat: (message: string, sessionId?: string) =>
+  chat: (message: string, sessionId?: string, providerId?: string) =>
     request<ChatResponse>("/ai/chat", {
       method: "POST",
-      body: json({ message, session_id: sessionId || null }),
+      body: json({ message, session_id: sessionId || null, provider_id: providerId || null }),
     }),
   listProposals: () => request<ToolProposal[]>("/ai/proposals"),
   rejectProposal: (id: string) =>
     request<ToolProposal>(`/ai/proposals/${id}/reject`, { method: "POST" }),
+  // AI provider configuration
+  listProviders: () => request<{ providers: AiProvider[] }>("/ai/providers"),
+  saveProvider: (id: string, payload: AiProviderUpdatePayload) =>
+    request<AiProvider>(`/ai/providers/${id}`, { method: "PUT", body: json(payload) }),
+  testProvider: (id: string) =>
+    request<AiProvider>(`/ai/providers/${id}/test`, { method: "POST" }),
+  enableProvider: (id: string) =>
+    request<AiProvider>(`/ai/providers/${id}/enable`, { method: "POST" }),
+  disableProvider: (id: string) =>
+    request<AiProvider>(`/ai/providers/${id}/disable`, { method: "POST" }),
 };
 
 // --- Settings ---
 export const settingsApi = {
-  integrations: () =>
-    request<{ integrations: Integration[] }>("/settings/integrations"),
+  integrations: () => request<{ integrations: Integration[] }>("/settings/integrations"),
+  getIntegration: (id: string) => request<Integration>(`/settings/integrations/${id}`),
+  saveIntegration: (id: string, public_config: Record<string, string>, secrets: Record<string, string>) =>
+    request<Integration>(`/settings/integrations/${id}`, {
+      method: "PUT",
+      body: json({ public_config, secrets }),
+    }),
+  testIntegration: (id: string) =>
+    request<Integration>(`/settings/integrations/${id}/test`, { method: "POST" }),
+  enableIntegration: (id: string) =>
+    request<Integration>(`/settings/integrations/${id}/enable`, { method: "POST" }),
+  disableIntegration: (id: string) =>
+    request<Integration>(`/settings/integrations/${id}/disable`, { method: "POST" }),
+  clearIntegration: (id: string) =>
+    request<Integration>(`/settings/integrations/${id}`, { method: "DELETE" }),
 };
