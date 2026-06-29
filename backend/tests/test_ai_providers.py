@@ -1,0 +1,70 @@
+"""Tests for the multi-provider AI system."""
+
+import json
+
+from tests.conftest import API
+
+
+def test_provider_list_has_five_apis_plus_ollama(auth_client):
+    data = auth_client.get(f"{API}/ai/providers").json()["data"]["providers"]
+    ids = {p["id"] for p in data}
+    assert {"openai", "anthropic", "gemini", "grok", "openrouter", "ollama"}.issubset(ids)
+    assert len(data) == 6
+    ollama = next(p for p in data if p["id"] == "ollama")
+    assert ollama["external"] is False
+    assert ollama["api_key_required"] is False
+
+
+def test_ollama_configurable_without_api_key(auth_client):
+    resp = auth_client.put(
+        f"{API}/ai/providers/ollama",
+        json={"public_config": {"base_url": "http://localhost:11434"}, "default_model": "llama3.1"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"]["status"] == "configured"
+
+
+def test_saving_provider_key_never_returns_raw(auth_client):
+    secret = "sk-openai-doodad-7777"
+    resp = auth_client.put(
+        f"{API}/ai/providers/openai",
+        json={"secrets": {"api_key": secret}, "default_model": "gpt-4.1-mini", "enabled": True},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["data"]["secrets"]["api_key"]["configured"] is True
+    assert secret not in json.dumps(body)
+    assert body["data"]["status"] == "configured"
+
+
+def test_external_provider_chat_blocked_when_disabled(auth_client):
+    # External providers are disabled by default (AI_ALLOW_EXTERNAL_PROVIDERS unset).
+    auth_client.put(
+        f"{API}/ai/providers/openai",
+        json={"secrets": {"api_key": "sk-test-123456"}, "enabled": True},
+    )
+    resp = auth_client.post(f"{API}/ai/chat", json={"message": "hello", "provider_id": "openai"})
+    assert resp.status_code == 200, resp.text
+    data = resp.json()["data"]
+    assert data["blocked"] is True
+    assert data["ai_configured"] is False
+    assert "external" in data["reply"]["content"].lower()
+
+
+def test_local_ollama_not_blocked_by_external_gate(auth_client):
+    # Ollama is local: not blocked, but honestly reports not configured here.
+    resp = auth_client.post(f"{API}/ai/chat", json={"message": "hi", "provider_id": "ollama"})
+    assert resp.status_code == 200, resp.text
+    data = resp.json()["data"]
+    assert data["blocked"] is False
+    assert data["ai_configured"] is False
+    assert "not configured" in data["reply"]["content"].lower()
+
+
+def test_provider_disable_sets_disabled(auth_client):
+    auth_client.put(
+        f"{API}/ai/providers/anthropic",
+        json={"secrets": {"api_key": "sk-ant-abc123"}, "enabled": True},
+    )
+    resp = auth_client.post(f"{API}/ai/providers/anthropic/disable")
+    assert resp.json()["data"]["status"] == "disabled"
