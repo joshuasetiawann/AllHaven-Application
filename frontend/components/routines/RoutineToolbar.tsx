@@ -8,7 +8,7 @@ const FILTERS: { key: ViewMode; label: string }[] = [
   { key: "all", label: "All" },
 ];
 
-/** Toolbar: view filters on the left, search + date picker on the right. */
+/** Toolbar: segmented view filters on the left, search + date picker on the right. */
 export function RoutineToolbar({
   view,
   onView,
@@ -28,7 +28,7 @@ export function RoutineToolbar({
 }) {
   return (
     <div className="panel flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex items-center gap-1 rounded-lg border border-border bg-surface-input/50 p-1">
+      <div className="flex items-center gap-1 rounded-md border border-border bg-surface-input/50 p-[3px]">
         {FILTERS.map((filter) => {
           const active = view === filter.key;
           return (
@@ -37,10 +37,10 @@ export function RoutineToolbar({
               onClick={() => onView(filter.key)}
               aria-pressed={active}
               className={cn(
-                "h-8 rounded-md px-3 text-[13px] font-medium transition-colors focus-ring",
+                "h-8 rounded-[9px] border px-3 text-[13px] font-medium transition-colors focus-ring",
                 active
-                  ? "bg-primary text-primary-fg shadow-glow-primary"
-                  : "text-content-muted hover:text-content",
+                  ? "border-primary/30 bg-[linear-gradient(90deg,rgb(var(--color-primary)/0.20),rgb(var(--color-secondary)/0.12))] text-content shadow-glow-primary"
+                  : "border-transparent text-content-muted hover:text-content",
               )}
             >
               {filter.label}
@@ -56,7 +56,7 @@ export function RoutineToolbar({
             value={query}
             onChange={(event) => onQuery(event.target.value)}
             placeholder="Search routines..."
-            className="h-9 w-full rounded-lg border border-border bg-surface-input pl-9 pr-3 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
+            className="h-9 w-full rounded-md border border-border bg-surface-input pl-9 pr-3 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
           />
         </div>
         <input
@@ -64,7 +64,7 @@ export function RoutineToolbar({
           value={date}
           onChange={(event) => onDate(event.target.value || todayKey)}
           aria-label="Pick a date"
-          className="h-9 rounded-lg border border-border bg-surface-input px-3 text-sm text-content focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30 sm:w-44"
+          className="h-9 rounded-md border border-border bg-surface-input px-3 font-mono text-[13px] text-content focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30 sm:w-44"
         />
       </div>
     </div>

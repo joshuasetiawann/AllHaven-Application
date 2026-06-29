@@ -3,9 +3,9 @@ import { cn } from "@/lib/format";
 import { dateKey, weekdayShort } from "./shared";
 
 /**
- * Compact rounded date cards (not big circles). The active day gets a soft
- * highlight + a thin primary ring/glow; days with routines show a small dot
- * instead of an "empty"/count label.
+ * Aurora date stepper strip: glass day tiles with mono weekday labels. The
+ * active day gets the cyan→violet wash + cyan border + glow; days with
+ * routines show a small glowing dot instead of an "empty"/count label.
  */
 export function DateStrip({
   days,
@@ -26,7 +26,7 @@ export function DateStrip({
     <div className="flex items-center gap-2">
       <button
         onClick={() => onShift(-1)}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-content-muted transition-colors hover:border-border-strong hover:text-content focus-ring"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] border border-border bg-surface-input/60 text-content-muted transition-colors hover:border-border-strong hover:text-content focus-ring"
         aria-label="Previous day"
       >
         <ChevronLeft size={16} />
@@ -45,11 +45,16 @@ export function DateStrip({
               className={cn(
                 "group relative flex min-w-[4.25rem] flex-col items-center gap-0.5 rounded-xl border px-3 py-2.5 transition-all duration-200 focus-ring",
                 active
-                  ? "border-primary/40 bg-primary/10 text-content shadow-glow-primary ring-1 ring-primary/40"
+                  ? "border-primary/40 bg-[linear-gradient(135deg,rgb(var(--color-primary)/0.16),rgb(var(--color-secondary)/0.09))] text-content shadow-glow-primary"
                   : "border-border bg-surface-input/50 text-content-muted hover:border-border-strong hover:bg-surface-raised/70 hover:text-content",
               )}
             >
-              <span className={cn("text-[11px] uppercase tracking-wide", active ? "text-primary" : "")}>
+              <span
+                className={cn(
+                  "font-mono text-[10px] uppercase tracking-[0.14em]",
+                  active ? "text-primary-bright" : "text-content-faint",
+                )}
+              >
                 {weekdayShort(day)}
               </span>
               <span className="text-base font-semibold leading-none">{day.getDate()}</span>
@@ -57,7 +62,11 @@ export function DateStrip({
                 aria-hidden
                 className={cn(
                   "mt-1 h-1.5 w-1.5 rounded-full transition-colors",
-                  count ? (active ? "bg-primary" : "bg-primary/60") : "bg-transparent",
+                  count
+                    ? active
+                      ? "bg-primary-bright shadow-[0_0_8px_rgb(var(--color-primary)/0.8)]"
+                      : "bg-primary/60"
+                    : "bg-transparent",
                 )}
               />
             </button>
@@ -67,7 +76,7 @@ export function DateStrip({
 
       <button
         onClick={() => onShift(1)}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-content-muted transition-colors hover:border-border-strong hover:text-content focus-ring"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] border border-border bg-surface-input/60 text-content-muted transition-colors hover:border-border-strong hover:text-content focus-ring"
         aria-label="Next day"
       >
         <ChevronRight size={16} />

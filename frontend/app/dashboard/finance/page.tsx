@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
+import { Tabs } from "@/components/ui/Tabs";
 import { BarChart } from "@/components/ui/BarChart";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { useToast } from "@/components/ui/Toast";
@@ -284,7 +285,7 @@ export default function FinancePage() {
     <AppShell>
       <PageHeader
         title="Finance"
-        subtitle={`Cashflow report - ${period.label}`}
+        subtitle={`Cashflow report — ${period.label}`}
         actions={
           <>
             <Button variant="ghost" loading={refreshing} onClick={handleRefresh}>
@@ -300,32 +301,26 @@ export default function FinancePage() {
         }
       />
 
-      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="inline-flex rounded-lg border border-border bg-surface-input p-0.5 text-[12.5px]">
-          {(["month", "week"] as ReportMode[]).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setMode(item)}
-              className={cn(
-                "rounded-md px-3 py-1.5 capitalize transition-colors",
-                mode === item ? "bg-surface-high text-primary" : "text-content-muted hover:text-content",
-              )}
-            >
-              {item === "month" ? "Monthly" : "Weekly"}
-            </button>
-          ))}
-        </div>
-        <div className="inline-flex w-full items-center rounded-lg border border-border bg-surface-input p-0.5 sm:w-auto">
+      <div className="mb-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+        <Tabs
+          items={[
+            { value: "month", label: "Monthly" },
+            { value: "week", label: "Weekly" },
+          ]}
+          value={mode}
+          onChange={(value) => setMode(value as ReportMode)}
+          className="w-fit"
+        />
+        <div className="inline-flex w-full items-center rounded-md border border-border bg-surface-input/60 p-[3px] sm:w-auto">
           <button
             type="button"
             onClick={() => shiftPeriod(-1)}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-content-muted transition-colors hover:bg-surface-high hover:text-content"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-content-muted transition-colors hover:bg-surface-high hover:text-content"
             aria-label="Previous period"
           >
-            <ChevronLeft size={15} />
+            <ChevronLeft size={16} />
           </button>
-          <label className="flex h-8 min-w-0 flex-1 items-center gap-2 border-x border-border px-2 text-[12px] text-content-muted sm:flex-none">
+          <label className="flex h-8 min-w-0 flex-1 items-center gap-2 px-3 text-content-subtle sm:flex-none">
             <CalendarDays size={13} />
             <input
               type={mode === "month" ? "month" : "date"}
@@ -337,15 +332,19 @@ export default function FinancePage() {
           <button
             type="button"
             onClick={() => shiftPeriod(1)}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-content-muted transition-colors hover:bg-surface-high hover:text-content"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-content-muted transition-colors hover:bg-surface-high hover:text-content"
             aria-label="Next period"
           >
-            <ChevronRight size={15} />
+            <ChevronRight size={16} />
           </button>
         </div>
-        <Button size="sm" variant="ghost" onClick={() => setAnchorDate(new Date())} className="w-full sm:w-auto">
+        <button
+          type="button"
+          onClick={() => setAnchorDate(new Date())}
+          className="w-full rounded-sm px-2.5 py-1.5 text-[12.5px] text-content-subtle transition-colors hover:text-content sm:w-auto"
+        >
           Current
-        </Button>
+        </button>
       </div>
 
       {error ? (
@@ -358,43 +357,43 @@ export default function FinancePage() {
             <Card padding="md" hover>
               <div className="flex items-center justify-between gap-2">
                 <p className="label-mono">Income</p>
-                <span className="flex h-7 w-7 items-center justify-center rounded-md border border-success/30 bg-success/10 text-success">
-                  <ArrowDownLeft size={14} />
+                <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] border border-success/30 bg-success/10 text-success-soft">
+                  <ArrowDownLeft size={15} />
                 </span>
               </div>
-              <p className="mt-2 text-xl font-semibold tabular-nums text-success sm:text-2xl">
+              <p className="mt-3 text-xl font-semibold tracking-[-0.01em] tabular-nums text-success-soft sm:text-[25px]">
                 {formatCurrency(report.total_income, report.currency)}
               </p>
             </Card>
             <Card padding="md" hover>
               <div className="flex items-center justify-between gap-2">
                 <p className="label-mono">Expense</p>
-                <span className="flex h-7 w-7 items-center justify-center rounded-md border border-danger/30 bg-danger/10 text-danger">
-                  <ArrowUpRight size={14} />
+                <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] border border-danger/30 bg-danger/10 text-danger">
+                  <ArrowUpRight size={15} />
                 </span>
               </div>
-              <p className="mt-2 text-xl font-semibold tabular-nums text-danger sm:text-2xl">
+              <p className="mt-3 text-xl font-semibold tracking-[-0.01em] tabular-nums text-danger sm:text-[25px]">
                 {formatCurrency(report.total_expense, report.currency)}
               </p>
             </Card>
             <Card gradient padding="md" hover className="col-span-2 border-primary/30 sm:col-span-1">
               <div className="flex items-center justify-between gap-2">
                 <p className="label-mono">Balance</p>
-                <span className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary">
-                  <Wallet size={14} />
+                <span className="grad-primary flex h-[30px] w-[30px] items-center justify-center rounded-[9px] text-primary-fg shadow-[0_0_16px_rgb(var(--color-primary)/0.4)]">
+                  <Wallet size={15} />
                 </span>
               </div>
               <p className={cn(
-                "mt-2 text-xl font-semibold tabular-nums sm:text-2xl",
-                report.balance < 0 ? "text-danger" : "text-content",
+                "mt-3 text-xl font-semibold tracking-[-0.01em] tabular-nums sm:text-[25px]",
+                report.balance < 0 ? "text-danger" : "glow-text text-content",
               )}>
                 {formatCurrency(report.balance, report.currency)}
               </p>
             </Card>
           </div>
 
-          <div className="grid gap-5 lg:grid-cols-3">
-            <Card className="lg:col-span-2">
+          <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
+            <Card padding="lg" className="min-w-0">
               <CardHeader
                 title="Transactions"
                 subtitle={`${report.transaction_count} in this ${mode}`}
@@ -407,7 +406,7 @@ export default function FinancePage() {
                     description="Change the period, or record a transaction for the selected report."
                   />
                   {latestOutsidePeriod.length ? (
-                    <div className="rounded-lg border border-border bg-surface-input/45 p-3">
+                    <div className="glass-tile p-3.5">
                       <div className="mb-2">
                         <p className="text-[12px] font-medium text-content-muted">
                           Archived records outside {period.label}
@@ -459,12 +458,12 @@ export default function FinancePage() {
                       <li key={txn.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex min-w-0 items-center gap-3">
                           <span
-                            className={
-                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border " +
-                              (income
-                                ? "border-success/30 bg-success/10 text-success"
-                                : "border-danger/30 bg-danger/10 text-danger")
-                            }
+                            className={cn(
+                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border",
+                              income
+                                ? "border-success/30 bg-success/10 text-success-soft"
+                                : "border-danger/30 bg-danger/10 text-danger",
+                            )}
                           >
                             {income ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
                           </span>
@@ -479,8 +478,13 @@ export default function FinancePage() {
                           </div>
                         </div>
                         <div className="flex w-full shrink-0 items-center justify-between gap-3 sm:w-auto sm:justify-end">
-                          <span className={"text-sm font-semibold " + (income ? "text-success" : "text-danger")}>
-                            {income ? "+" : "-"}
+                          <span
+                            className={cn(
+                              "text-[13.5px] font-semibold tabular-nums",
+                              income ? "text-success-soft" : "text-danger",
+                            )}
+                          >
+                            {income ? "+" : "−"}
                             {formatCurrency(txn.amount, txn.currency)}
                           </span>
                           <button
@@ -498,18 +502,24 @@ export default function FinancePage() {
               )}
             </Card>
 
-            <Card>
-              <CardHeader
-                title={mode === "month" ? "Weekly spend" : "Daily spend"}
-                subtitle={period.label}
-                icon={<Wallet size={18} />}
-              />
+            <Card padding="lg" className="min-w-0">
+              <div className="mb-4 flex items-center gap-2.5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary/15 text-secondary-soft">
+                  <Wallet size={18} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="truncate text-[15px] font-semibold text-content">
+                    {mode === "month" ? "Weekly spend" : "Daily spend"}
+                  </h3>
+                  <p className="mt-0.5 text-[12px] text-content-subtle">{period.label}</p>
+                </div>
+              </div>
               <BarChart
                 data={trendBars}
-                height={140}
+                height={150}
                 formatValue={(v) => formatCompactCurrency(v, report?.currency ?? "IDR")}
               />
-              <p className="mt-4 border-t border-border pt-3 text-[12px] text-content-subtle">
+              <p className="mt-4 border-t border-border/80 pt-3 text-[11.5px] leading-relaxed text-content-faint">
                 AllHaven tracks cashflow. It does not provide financial advice.
               </p>
             </Card>

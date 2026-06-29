@@ -1,85 +1,124 @@
-import { CalendarDays, Check, Clock, MapPin, Pencil, Plus, Repeat2, Sparkles, Trash2 } from "lucide-react";
+import { CalendarDays, MapPin, Pencil, Plus, Repeat2, Sparkles, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/format";
 import type { RoutineEvent } from "@/types";
-import { DAYS, PERIODS, eventStatus, formatShortDay, formatTime, repeatLabel } from "./shared";
+import {
+  DAYS,
+  PERIODS,
+  type TimePeriod,
+  eventStatus,
+  formatShortDay,
+  formatTime,
+  repeatLabel,
+} from "./shared";
+
+/**
+ * Aurora timeline tones per period — morning=green, afternoon=cyan,
+ * evening=violet — used for the rail dot, the block tint, and the icon chip.
+ */
+const PERIOD_TONES: Record<TimePeriod, { chip: string; dot: string; block: string }> = {
+  morning: {
+    chip: "bg-success/[0.12] text-success-soft",
+    dot: "bg-success-soft shadow-[0_0_10px_rgb(var(--color-success)/0.9)]",
+    block: "border-success/25 bg-success/[0.07]",
+  },
+  afternoon: {
+    chip: "bg-primary/[0.12] text-primary-bright",
+    dot: "bg-primary-bright shadow-[0_0_10px_rgb(var(--color-primary)/0.9)]",
+    block: "border-primary/25 bg-primary/[0.06]",
+  },
+  evening: {
+    chip: "bg-secondary/[0.12] text-secondary-soft",
+    dot: "bg-secondary-soft shadow-[0_0_10px_rgb(var(--color-secondary-deep)/0.9)]",
+    block: "border-secondary/25 bg-secondary/[0.07]",
+  },
+};
+
+/** In-progress block: cyan→violet wash with a soft cyan glow (Aurora "Focus"). */
+const NOW_BLOCK =
+  "border-primary/30 bg-[linear-gradient(135deg,rgb(var(--color-primary)/0.10),rgb(var(--color-secondary)/0.06))] shadow-[0_0_22px_rgb(var(--color-primary)/0.12)]";
+const NOW_DOT = "bg-primary-bright shadow-[0_0_10px_rgb(var(--color-primary)/0.9)] animate-pulse-glow";
 
 function RoutineRow({
   routine,
+  tone,
   onEdit,
   onDelete,
 }: {
   routine: RoutineEvent;
+  tone: (typeof PERIOD_TONES)[TimePeriod];
   onEdit: (routine: RoutineEvent) => void;
   onDelete: (routine: RoutineEvent) => void;
 }) {
   const status = eventStatus(routine);
-  return (
-    <article className="group grid animate-fade-in gap-3 rounded-xl border border-border bg-surface-input/40 p-3 transition-colors hover:border-border-strong hover:bg-surface-raised/60 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-start">
-      <div className="flex items-center gap-2 text-sm text-content">
-        <span
-          className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
-            status === "now"
-              ? "border-success/35 bg-success/10 text-success"
-              : "border-border bg-surface-input text-content-muted",
-          )}
-        >
-          {status === "now" ? <Check size={14} /> : <Clock size={14} />}
-        </span>
-        <div className="leading-tight">
-          <p className="font-semibold">{routine.all_day ? "All day" : formatTime(routine.start_at)}</p>
-          {routine.end_at && !routine.all_day ? (
-            <p className="text-[11px] text-content-subtle">{formatTime(routine.end_at)}</p>
-          ) : null}
-        </div>
-      </div>
+  const dot = status === "now" ? NOW_DOT : status === "past" ? "bg-content-faint" : tone.dot;
+  const block =
+    status === "now" ? NOW_BLOCK : status === "past" ? "border-border bg-surface-input/40 opacity-75" : tone.block;
 
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="min-w-0 truncate text-sm font-semibold text-content">{routine.title}</h3>
-          {status === "now" ? <Badge tone="success" dot>Now</Badge> : null}
-          {status === "past" ? <Badge tone="neutral">Past</Badge> : null}
-          <Badge tone="secondary">{repeatLabel(routine)}</Badge>
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-content-subtle">
-          <span className="inline-flex items-center gap-1">
-            <CalendarDays size={12} />
-            {formatShortDay(new Date(routine.start_at))}
-          </span>
-          {routine.location ? (
-            <span className="inline-flex items-center gap-1">
-              <MapPin size={12} />
-              {routine.location}
-            </span>
-          ) : null}
-          {routine.repeat_days?.length ? (
-            <span className="inline-flex items-center gap-1">
-              <Repeat2 size={12} />
-              {routine.repeat_days.length === DAYS.length ? "Every day" : `${routine.repeat_days.length} days`}
-            </span>
-          ) : null}
-        </div>
-        {routine.description ? (
-          <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-content-muted">{routine.description}</p>
+  return (
+    <article className="group flex animate-fade-in gap-3 sm:gap-4">
+      {/* Mono time label column */}
+      <div className="w-14 shrink-0 pt-3.5 font-mono text-[11px] leading-tight text-content-subtle">
+        <p>{routine.all_day ? "All day" : formatTime(routine.start_at)}</p>
+        {routine.end_at && !routine.all_day ? (
+          <p className="mt-0.5 text-content-faint">{formatTime(routine.end_at)}</p>
         ) : null}
       </div>
 
-      <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
-        <button
-          onClick={() => onEdit(routine)}
-          className="rounded-lg p-2 text-content-subtle transition-colors hover:bg-surface-high hover:text-primary focus-ring"
-          aria-label="Edit routine"
-        >
-          <Pencil size={15} />
-        </button>
-        <button
-          onClick={() => onDelete(routine)}
-          className="rounded-lg p-2 text-content-subtle transition-colors hover:bg-danger/10 hover:text-danger focus-ring"
-          aria-label="Delete routine"
-        >
-          <Trash2 size={15} />
-        </button>
+      {/* Rail + block */}
+      <div className="relative min-w-0 flex-1 border-l border-border pb-4 pl-4 sm:pl-[18px]">
+        <span aria-hidden className={cn("absolute -left-[5px] top-4 h-[9px] w-[9px] rounded-full", dot)} />
+        <div className={cn("rounded-[13px] border px-3.5 py-3 transition-colors", block)}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h3 className="min-w-0 max-w-full truncate text-[13.5px] font-semibold text-content">
+                {routine.title}
+              </h3>
+              {status === "now" ? <Badge tone="success" dot>Now</Badge> : null}
+              {status === "past" ? <Badge tone="neutral">Past</Badge> : null}
+              <Badge tone="secondary">{repeatLabel(routine)}</Badge>
+            </div>
+            <div className="flex shrink-0 items-center gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+              <button
+                onClick={() => onEdit(routine)}
+                className="rounded-sm p-1.5 text-content-subtle transition-colors hover:bg-surface-high hover:text-primary-bright focus-ring"
+                aria-label="Edit routine"
+              >
+                <Pencil size={14} />
+              </button>
+              <button
+                onClick={() => onDelete(routine)}
+                className="rounded-sm p-1.5 text-content-subtle transition-colors hover:bg-danger/10 hover:text-danger focus-ring"
+                aria-label="Delete routine"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-content-subtle">
+            <span className="inline-flex items-center gap-1">
+              <CalendarDays size={12} />
+              {formatShortDay(new Date(routine.start_at))}
+            </span>
+            {routine.location ? (
+              <span className="inline-flex items-center gap-1">
+                <MapPin size={12} />
+                {routine.location}
+              </span>
+            ) : null}
+            {routine.repeat_days?.length ? (
+              <span className="inline-flex items-center gap-1">
+                <Repeat2 size={12} />
+                {routine.repeat_days.length === DAYS.length ? "Every day" : `${routine.repeat_days.length} days`}
+              </span>
+            ) : null}
+          </div>
+
+          {routine.description ? (
+            <p className="mt-2 max-w-3xl text-[12.5px] leading-relaxed text-content-muted">{routine.description}</p>
+          ) : null}
+        </div>
       </div>
     </article>
   );
@@ -101,44 +140,50 @@ export function PeriodSection({
   onDelete: (routine: RoutineEvent) => void;
 }) {
   const Icon = period.Icon;
+  const tone = PERIOD_TONES[period.key];
   return (
-    <section className="relative grid gap-3 sm:grid-cols-[9rem_minmax(0,1fr)]">
-      <div className="flex items-center justify-between gap-3 sm:block">
-        <div className="flex items-center gap-3 sm:block">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary sm:mb-3">
-            <Icon size={18} />
-          </span>
-          <div>
-            <h2 className="text-sm font-semibold text-content">{period.label}</h2>
-            <p className="text-[12px] text-content-subtle">{period.helper}</p>
-          </div>
-        </div>
+    <section>
+      <div className="mb-3 flex flex-wrap items-center gap-2.5">
+        <span className={cn("flex h-8 w-8 items-center justify-center rounded-[10px]", tone.chip)}>
+          <Icon size={15} />
+        </span>
+        <h3 className="text-sm font-semibold text-content">{period.label}</h3>
+        <span className="label-mono">{period.helper}</span>
       </div>
 
-      <div className="relative min-h-[64px] border-l border-border pl-4 sm:pl-6">
-        <span className="absolute -left-[5px] top-2 h-2.5 w-2.5 rounded-full bg-primary shadow-glow-primary" />
-        {routines.length ? (
-          <div className="space-y-2">
-            {routines.map((routine) => (
-              <RoutineRow key={routine.id} routine={routine} onEdit={onEdit} onDelete={onDelete} />
-            ))}
-            <div className="flex flex-wrap gap-2 pt-1">
+      {routines.length ? (
+        <div>
+          {routines.map((routine) => (
+            <RoutineRow key={routine.id} routine={routine} tone={tone} onEdit={onEdit} onDelete={onDelete} />
+          ))}
+          <div className="flex gap-3 sm:gap-4">
+            <div className="w-14 shrink-0" aria-hidden />
+            <div className="flex flex-1 flex-wrap gap-2 border-l border-border pl-4 sm:pl-[18px]">
               <SlotAction icon={<Plus size={15} />} label="Add" onClick={onAdd} variant="add" />
               <SlotAction icon={<Sparkles size={15} />} label="Generate" onClick={onGenerate} variant="generate" />
             </div>
           </div>
-        ) : (
-          <div className="flex flex-col gap-3 rounded-xl border border-dashed border-border bg-surface-input/25 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-[13px] text-content-muted">
-              No routines for the {period.label.toLowerCase()} yet.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <SlotAction icon={<Plus size={15} />} label="Add" onClick={onAdd} variant="add" />
-              <SlotAction icon={<Sparkles size={15} />} label="Generate" onClick={onGenerate} variant="generate" />
+        </div>
+      ) : (
+        <div className="flex gap-3 sm:gap-4">
+          <div className="w-14 shrink-0 pt-3.5 font-mono text-[11px] text-content-faint">{period.time}</div>
+          <div className="relative min-w-0 flex-1 border-l border-border pl-4 sm:pl-[18px]">
+            <span
+              aria-hidden
+              className="absolute -left-[5px] top-4 h-[9px] w-[9px] rounded-full border border-dashed border-border-strong"
+            />
+            <div className="flex flex-col gap-3 rounded-[13px] border border-dashed border-border bg-surface-input/25 px-3.5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[13px] text-content-muted">
+                No blocks for the {period.label.toLowerCase()} yet.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <SlotAction icon={<Plus size={15} />} label="Add" onClick={onAdd} variant="add" />
+                <SlotAction icon={<Sparkles size={15} />} label="Generate" onClick={onGenerate} variant="generate" />
+              </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -158,10 +203,10 @@ function SlotAction({
     <button
       onClick={onClick}
       className={cn(
-        "inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium transition-colors focus-ring",
+        "inline-flex h-8 items-center gap-1.5 rounded border px-3 text-[12.5px] font-medium transition-colors focus-ring",
         variant === "add"
-          ? "border-border bg-surface-input/50 text-content hover:border-primary/50 hover:text-primary"
-          : "border-secondary/30 bg-secondary/12 text-secondary-soft hover:border-secondary/50 hover:bg-secondary/20",
+          ? "border-border bg-surface-input/50 text-content-muted hover:border-primary/40 hover:bg-primary/[0.06] hover:text-primary-bright"
+          : "border-secondary/30 bg-secondary/[0.12] text-secondary-soft hover:border-secondary/50 hover:bg-secondary/20",
       )}
     >
       {icon}
