@@ -324,10 +324,11 @@ def docker_running() -> bool:
 
     try:
         # `docker info` can be heavy; a server-version query is a lighter daemon
-        # round-trip and bounded by a short timeout so the check never stalls.
+        # round-trip, bounded by a short timeout so the check is quick and never
+        # stalls (e.g. when Docker Desktop is still starting).
         r = subprocess.run(  # noqa: S603,S607
             ["docker", "version", "--format", "{{.Server.Version}}"],
-            capture_output=True, timeout=8, text=True,
+            capture_output=True, timeout=4, text=True,
         )
         return r.returncode == 0 and bool((r.stdout or "").strip())
     except (OSError, subprocess.SubprocessError):
@@ -340,7 +341,7 @@ def compose_available() -> bool:
     import subprocess
 
     try:
-        r = subprocess.run(["docker", "compose", "version"], capture_output=True, timeout=8, text=True)  # noqa: S603,S607
+        r = subprocess.run(["docker", "compose", "version"], capture_output=True, timeout=4, text=True)  # noqa: S603,S607
         return r.returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
