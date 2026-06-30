@@ -26,6 +26,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
+# Non-login shells launched by VS Code/agents often miss per-user Node installs.
+# Keep the launcher self-sufficient when Node lives under ~/.local/node.
+if [ -n "${NVM_BIN:-}" ] && [ -d "$NVM_BIN" ]; then
+  PATH="$NVM_BIN:$PATH"
+fi
+if [ -d "$HOME/.local/node/bin" ]; then
+  PATH="$HOME/.local/node/bin:$PATH"
+fi
+export PATH
+
 PID_DIR="$ROOT/.allhaven-pids"
 LOG_DIR="$ROOT/var/logs"
 VENV_PY="$ROOT/backend/.venv/bin/python"
@@ -36,6 +46,14 @@ c_warn()  { printf '\033[0;33m%s\033[0m\n' "$1"; }
 c_err()   { printf '\033[0;31m%s\033[0m\n' "$1" >&2; }
 
 need() { command -v "$1" >/dev/null 2>&1; }
+
+backend_venv_ok() {
+  [ -x "$VENV_PY" ] && "$VENV_PY" -c "import alembic, fastapi, sqlalchemy, uvicorn" >/dev/null 2>&1
+}
+
+ensure_backend_ready() {
+  backend_venv_ok || setup_backend
+}
 
 require_tools() {
   local missing=0
@@ -231,13 +249,17 @@ ensure_postgres() {
 setup_backend() {
   c_blue "Setting up backend (venv + dependencies)…"
   cd "$ROOT/backend"
+  if [ -d .venv ] && [ ! -x .venv/bin/python ]; then
+    mv .venv ".venv.broken.$(date +%s)"
+  fi
   [ -d .venv ] || python3 -m venv .venv
   # shellcheck disable=SC1091
   source .venv/bin/activate
+  python -m ensurepip --upgrade >/dev/null 2>&1 || true
   python -m pip install --upgrade pip >/dev/null
-  pip install -r requirements.txt
+  python -m pip install -r requirements.txt
   c_blue "Applying database migrations (alembic upgrade head)…"
-  alembic upgrade head
+  python -m alembic upgrade head
   deactivate
   cd "$ROOT"
   c_green "Backend ready."
@@ -321,7 +343,7 @@ cmd_run() {
   require_tools
   ensure_env
   ensure_postgres
-  [ -d "$ROOT/backend/.venv" ] || setup_backend
+  ensure_backend_ready
   [ -d "$ROOT/frontend/node_modules" ] || setup_frontend
 
   mkdir -p "$PID_DIR" "$LOG_DIR"
@@ -362,7 +384,7 @@ cmd_run() {
 # -----------------------------------------------------------------------------
 cmd_start() {
   require_tools; ensure_env; ensure_postgres
-  [ -d "$ROOT/backend/.venv" ] || setup_backend
+  ensure_backend_ready
   [ -d "$ROOT/frontend/node_modules" ] || setup_frontend
   start_backend_bg
   start_agent_bg
@@ -402,6 +424,7 @@ cmd_restart() {
     backend|be)
       ensure_postgres
       c_blue "Restarting backend on :${BACKEND_PORT}…"
+      ensure_backend_ready
       _stop_one backend; _free_port "$BACKEND_PORT"; sleep 1; start_backend_bg ;;
     frontend|fe|front)
       c_blue "Restarting frontend on :${FRONTEND_PORT}…"
