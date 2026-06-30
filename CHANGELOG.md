@@ -11,6 +11,15 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.8.0] - 2026-06-10 — Live n8n workflows in Automations
+
+Detailed notes: [`docs/releases/v0.8.0.md`](docs/releases/v0.8.0.md)
+
+### Added
+- **Live n8n integration** on the Automations page: lists your real workflows from the connected n8n (`GET /n8n/workflows`), with **activate/deactivate** toggles (`POST /n8n/workflows/{id}/active`) and an **Open in n8n** link. Backed by the workspace's n8n Base URL + API key (server-side only — the key is never returned to the browser).
+- Honest states when n8n isn't ready: `not_configured` / `no_api_key` / `unauthorized` / `unavailable` / `error`, each with guidance to Settings → Connected Tools. No fake "run".
+- Local draft definitions are kept and clearly relabeled as **not executed** (the real, runnable automations are the n8n ones).
+
 ## [0.7.0] - 2026-06-10 — Public-launch auth: cookie sessions, CSRF, rate limiting
 
 Detailed notes: [`docs/releases/v0.7.0.md`](docs/releases/v0.7.0.md) · Audit: [`LAUNCH_SECURITY_REPORT.md`](LAUNCH_SECURITY_REPORT.md)
