@@ -360,8 +360,17 @@ def _h_list_events(db, principal, args) -> dict:
 
 
 def _h_create_event(db, principal, args) -> dict:
-    from app.services import calendar_service
+    from datetime import date as _date, datetime, time as _time
 
+    from app.services import calendar_service
+    from app.services.ai_local_answers import time_payload
+
+    # Anchor to today when the model omitted a start, so a missing date can't slip to
+    # a hallucinated one. A provided date is trusted; the system prompt's Current
+    # context steers the model away from inventing 2023-style dates in the first place.
+    if not str(args.get("start_at") or "").strip():
+        today = _date.fromisoformat(time_payload()["date"])
+        args = {**args, "start_at": datetime.combine(today, _time(9, 0))}
     event = calendar_service.create_event(db, principal, args)
     return {"event": _event(event)}
 
@@ -848,7 +857,7 @@ _EVENT_FIELDS = {
     "title": _str_prop("Routine title"),
     "description": _str_prop("Optional details"),
     "location": _str_prop("Optional location"),
-    "start_at": _str_prop("Start, ISO 8601"),
+    "start_at": _str_prop("Start, ISO 8601. Interpret relative dates against today (see Current context); never invent or use a past date. Omit if the user gives no date."),
     "end_at": _str_prop("End, ISO 8601 (optional)"),
     "all_day": {"type": "boolean"},
     "time_period": {"type": "string", "enum": ["morning", "afternoon", "evening"]},

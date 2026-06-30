@@ -195,6 +195,20 @@ def _fallback_text(tool_meta: List[dict], proposal_ids: List[str]) -> str:
     return " ".join(parts) or "Tidak ada aksi yang perlu dijalankan."
 
 
+def _current_context_block() -> str:
+    """A compact current date/time block so the model never invents a date (e.g. a
+    2023 start_at). Uses the app timezone (Asia/Jakarta by default)."""
+    t = ai_local_answers.time_payload()
+    return (
+        "[Current context]\n"
+        f"- Today: {t['date']} ({t['weekday_en']})\n"
+        f"- Current time: {t['time']} ({t['timezone']})\n"
+        "Interpret ALL relative dates (hari ini, besok, \"3 hari ke depan\", next Tuesday) "
+        "against Today. NEVER invent a date or use a past/training date. If the user gives "
+        "no date for an event/task/transaction, omit the date so the backend fills today."
+    )
+
+
 def run_with_tools(
     db: Session,
     principal: Principal,
@@ -258,14 +272,17 @@ def run_with_tools(
     user_turn = {"role": "user", "content": message}
     params = thinking_params(thinking_mode)
 
+    # Always tell the model today's date/time so it never anchors on a stale training
+    # date (the 2023 start_at bug) when creating events/tasks/transactions.
+    base_system = f"{SYSTEM_PROMPT}\n\n{_current_context_block()}"
+    if extra_context:
+        base_system = f"{base_system}\n\n{extra_context}"
+
     if not plan.supports_tool_loop:
         # Honest non-tool path (Ollama/Anthropic/Gemini/Blackbox today): plain chat
         # with history; we never pretend tools ran. Memory context still arrives
         # through the system prompt so non-tool providers follow the same style.
-        system_content = SYSTEM_PROMPT
-        if extra_context:
-            system_content = f"{SYSTEM_PROMPT}\n\n{extra_context}"
-        result = plan.execute([{"role": "system", "content": system_content}, *history, user_turn], params)
+        result = plan.execute([{"role": "system", "content": base_system}, *history, user_turn], params)
         if result.ok:
             return {**base, "ok": True, "configured": True, "blocked": False,
                     "content": result.content, "error": ""}
@@ -274,10 +291,7 @@ def run_with_tools(
                 "error": result.error}
 
     tools = ai_tools_registry.tool_definitions(db, principal, section_key)
-    system_content = SYSTEM_PROMPT
-    if extra_context:
-        system_content = f"{SYSTEM_PROMPT}\n\n{extra_context}"
-    convo: List[dict] = [{"role": "system", "content": system_content}, *history, user_turn]
+    convo: List[dict] = [{"role": "system", "content": base_system}, *history, user_turn]
     tool_meta: List[dict] = []
     proposal_ids: List[str] = []
     result = None
