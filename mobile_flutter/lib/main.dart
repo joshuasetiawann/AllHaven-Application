@@ -277,18 +277,23 @@ class _AllHavenErrorCover extends StatelessWidget {
 }
 
 class AllHavenAssetServer {
-  AllHavenAssetServer({Set<String>? assetKeysForTesting})
-    : _assetKeys = assetKeysForTesting;
+  AllHavenAssetServer({
+    Set<String>? assetKeysForTesting,
+    int preferredPort = _stablePort,
+  }) : _assetKeys = assetKeysForTesting,
+       _preferredPort = preferredPort;
 
   static const _assetRoot = 'assets/allhaven';
   static const _indexPath = '/index.html';
+  static const _stablePort = 47821;
 
   HttpServer? _server;
   Set<String>? _assetKeys;
+  final int _preferredPort;
 
   Future<Uri> start() async {
     _assetKeys ??= await _loadAssetKeys();
-    _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    _server = await _bindServer();
     unawaited(_serveRequests(_server!));
     return Uri.parse('http://${_server!.address.host}:${_server!.port}/');
   }
@@ -296,6 +301,22 @@ class AllHavenAssetServer {
   Future<void> stop() async {
     await _server?.close(force: true);
     _server = null;
+  }
+
+  Future<HttpServer> _bindServer() async {
+    if (_preferredPort > 0) {
+      try {
+        return await HttpServer.bind(
+          InternetAddress.loopbackIPv4,
+          _preferredPort,
+        );
+      } on SocketException {
+        // Keep the app usable if a stale process or another local service owns
+        // the stable port. Persistence may reset for that session, but loading
+        // the UI is better than failing the APK startup.
+      }
+    }
+    return HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   }
 
   Future<void> _serveRequests(HttpServer server) async {
