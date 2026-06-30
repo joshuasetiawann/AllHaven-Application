@@ -17,7 +17,7 @@ export {
 // ─── Task 3: authApi (Supabase Auth + workspace bootstrap) ───────────────────
 
 import type { AuthToken, Me, User, Workspace } from "@/types";
-import { ApiException } from "@/lib/apiRest";
+import { ApiException, authApi as restAuthApi } from "@/lib/apiRest";
 import { getSupabase, getWorkspaceId, setWorkspaceId, getAppUserId, setAppUserId } from "@/lib/supabaseClient";
 import { toApiException } from "@/lib/supabaseError";
 
@@ -87,24 +87,28 @@ async function loadMe(): Promise<Me> {
   return { user, workspace: ws as Workspace };
 }
 
+async function supabaseSignIn(email: string, password: string): Promise<AuthToken> {
+  const sb = await getSupabase();
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) throw toApiException(error, 401);
+  const meResult = await loadMe();
+  return {
+    access_token: data.session?.access_token ?? "",
+    token_type: "bearer",
+    user: meResult.user,
+  };
+}
+
 export const authApi = {
-  register: async (): Promise<AuthToken> => {
-    throw new ApiException(
-      "Create your account on the AllHaven desktop app, then sign in here.",
-      "REGISTER_ON_DESKTOP", 501, null,
-    );
+  // Mobile registration provisions the full account through the backend (creates the
+  // LocalUser + a matching Supabase Auth user + profile + workspace, all with the same
+  // password), then signs into Supabase for the data session. Backend/validation errors
+  // surface to the user as-is — no "register on desktop" wall.
+  register: async (email: string, password: string, fullName?: string): Promise<AuthToken> => {
+    await restAuthApi.register(email, password, fullName);
+    return supabaseSignIn(email, password);
   },
-  login: async (email: string, password: string): Promise<AuthToken> => {
-    const sb = await getSupabase();
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) throw toApiException(error, 401);
-    const meResult = await loadMe();
-    return {
-      access_token: data.session?.access_token ?? "",
-      token_type: "bearer",
-      user: meResult.user,
-    };
-  },
+  login: (email: string, password: string): Promise<AuthToken> => supabaseSignIn(email, password),
   logout: async (): Promise<{ logged_out: boolean }> => {
     const sb = await getSupabase();
     await sb.auth.signOut();
@@ -169,13 +173,27 @@ export const tasksApi = {
   },
   create: async (payload: Record<string, unknown>): Promise<Task> => {
     const sb = await getSupabase();
+    // `checklist` is a list of step titles, NOT a column on `tasks` — spreading it
+    // into the insert caused "Could not find the 'checklist' column of 'tasks'".
+    // Create the task, then add normalized task_checklist_items (mirrors backend
+    // task_service.create_task, capped at 5).
+    const { checklist, ...taskFields } = payload;
     const { data, error } = await sb
       .from("tasks")
-      .insert({ status: "TODO", priority: "NORMAL", ...payload, ...newRow() })
+      .insert({ status: "TODO", priority: "NORMAL", ...taskFields, ...newRow() })
       .select("id")
       .single();
     if (error) throw toApiException(error);
-    return fetchTask((data as { id: string }).id);
+    const taskId = (data as { id: string }).id;
+    const titles = Array.isArray(checklist)
+      ? (checklist as unknown[]).map((t) => String(t).trim()).filter(Boolean).slice(0, 5)
+      : [];
+    if (titles.length) {
+      const rows = titles.map((title, position) => ({ task_id: taskId, title, position, ...newRow() }));
+      const { error: ciErr } = await sb.from("task_checklist_items").insert(rows);
+      if (ciErr) throw toApiException(ciErr);
+    }
+    return fetchTask(taskId);
   },
   update: async (id: string, payload: Partial<Task>): Promise<Task> => {
     const sb = await getSupabase();
