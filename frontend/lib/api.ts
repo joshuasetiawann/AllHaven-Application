@@ -18,6 +18,8 @@ import type {
   Integration,
   Me,
   MultiChatResponse,
+  N8nWorkflow,
+  N8nWorkflowList,
   Note,
   Task,
   ToolProposal,
@@ -320,6 +322,13 @@ export const driveApi = {
   },
   downloadUrl: (id: string) => `${API_BASE_URL}/drive/files/${id}/download`,
   remove: (id: string) => request<{ id: string }>(`/drive/files/${id}`, { method: "DELETE" }),
+};
+
+// --- Live n8n workflows (read + activate/deactivate the connected n8n) ---
+export const n8nApi = {
+  listWorkflows: () => request<N8nWorkflowList>("/n8n/workflows"),
+  setActive: (id: string, active: boolean) =>
+    request<N8nWorkflow>(`/n8n/workflows/${id}/active`, { method: "POST", body: json({ active }) }),
 };
 
 // --- Automations ---
