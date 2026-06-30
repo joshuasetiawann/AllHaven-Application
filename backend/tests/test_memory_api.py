@@ -159,6 +159,14 @@ def test_create_memory_blank_content(auth_client):
     assert resp.status_code == 422, resp.text
 
 
+def test_create_memory_whitespace_fields_rejected(auth_client):
+    resp = auth_client.post(
+        MEMORY_PREFIX,
+        json={"category": "Profile", "title": "   ", "content": "   "},
+    )
+    assert resp.status_code == 422, resp.text
+
+
 # ---------------------------------------------------------------------------
 # Search memories
 # ---------------------------------------------------------------------------
@@ -236,6 +244,20 @@ def test_update_memory_partial(auth_client):
     data = resp.json()["data"]
     assert data["title"] == "Updated title only"
     assert data["content"] == "My content"  # unchanged
+
+
+def test_update_memory_whitespace_content_rejected(auth_client):
+    create = auth_client.post(
+        MEMORY_PREFIX,
+        json={"category": "Profile", "title": "My title", "content": "My content"},
+    )
+    memory_id = create.json()["data"]["id"]
+
+    resp = auth_client.patch(
+        f"{MEMORY_PREFIX}/{memory_id}",
+        json={"content": "   "},
+    )
+    assert resp.status_code == 422, resp.text
 
 
 def test_update_memory_not_found(auth_client):
