@@ -11,6 +11,20 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.10.0] - 2026-06-10 — Reliable one-click startup + responsive menu
+
+Detailed notes: [`docs/releases/v0.10.0.md`](docs/releases/v0.10.0.md)
+
+### Fixed
+- **Services now start reliably from the launcher/wizard.** Previously the backend could be unreachable when started via the app even though manual runs worked. The launch path is now faithful to `allhaven.sh`: it binds services to `0.0.0.0` (not `127.0.0.1`, which a `localhost`→IPv6 lookup can miss), creates `frontend/.env.local`, **waits for PostgreSQL**, runs `alembic upgrade head`, **health-gates** the backend, enriches `PATH` for GUI launches, and **installs missing dependencies on first run** (venv + pip, `npm install`). Failures now surface a masked log tail instead of failing silently.
+- The setup wizard's "Start" step and the desktop shortcut both drive the one proven launcher path (`installer/haven_launch.py`).
+
+### Changed
+- **Responsive, polished navigation menu:** a collapsible desktop rail (persisted, with tooltips), a persistent icon rail on tablets (`md`+) with the full sidebar at `xl`, a signed-in user chip, refined active/hover states, and accessibility (`aria-current`, focus rings). The mobile drawer is retained for small screens.
+
+### Security
+- The control agent still binds **127.0.0.1 only**; only the managed app services bind `0.0.0.0` (LAN-reachable, matching the project's default `allhaven.sh` behavior). Logs remain masked.
+
 ## [0.9.0] - 2026-06-10 — One-click desktop installer, setup wizard & System Control
 
 Detailed notes: [`docs/releases/v0.9.0.md`](docs/releases/v0.9.0.md)
