@@ -8,6 +8,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { Loading } from "@/components/ui/States";
 import { authApi } from "@/lib/api";
 import { clearAuth, setStoredUser } from "@/lib/auth";
+import { hydrateBearerToken } from "@/lib/mobileAuth";
 import { applyPrefs, loadPrefs } from "@/lib/prefs";
 import { cn } from "@/lib/format";
 
@@ -35,8 +36,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     applyPrefs(loadPrefs());
-    authApi
-      .me()
+    // Mobile: load the persisted bearer token into memory before the first API
+    // call (no-op on web/desktop, which authenticates via the session cookie).
+    hydrateBearerToken()
+      .then(() => authApi.me())
       .then((me) => {
         if (!active) return;
         setStoredUser(me.user);
