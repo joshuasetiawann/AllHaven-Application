@@ -147,9 +147,31 @@ def _effective_config(row: Optional[IntegrationConfig], spec: ProviderSpec) -> t
     secrets = dict(_env_secret_present(spec))
     if row is not None:
         public.update(row.public_config or {})
-        secrets.update(cc.decrypt_all(row, spec.secret_fields()))
+        # Empty DB rows are common: opening/testing an integration creates a row
+        # before the user has saved any fields. Do not let those empty decrypted
+        # values shadow valid .env credentials, or Supabase env fallback loses
+        # its service_role key and sync becomes read-only.
+        row_secrets = {
+            k: v for k, v in cc.decrypt_all(row, spec.secret_fields()).items() if v
+        }
+        secrets.update(row_secrets)
         secrets = {k: v for k, v in secrets.items() if v}
     return public, secrets
+
+
+def _effective_secret_previews(row: IntegrationConfig, spec: ProviderSpec) -> dict:
+    """Return masked secret previews, falling back to env secrets for empty rows."""
+    previews = cc.secret_previews(row, spec)
+    env_secrets = _env_secret_present(spec)
+    for field in spec.secret_fields():
+        if previews.get(field, {}).get("configured"):
+            continue
+        env_value = env_secrets.get(field)
+        if env_value:
+            from app.core.secrets import mask_secret
+
+            previews[field] = {"configured": True, "preview": mask_secret(env_value)}
+    return previews
 
 
 def effective_config(db: Session, principal: Principal, provider_id: str) -> tuple[dict, dict]:
@@ -268,8 +290,8 @@ def _view(db: Session, principal: Principal, spec: ProviderSpec, row: Optional[I
 
     if row is not None:
         status = row.status
-        public = {k: v for k, v in (row.public_config or {}).items()}
-        secrets = cc.secret_previews(row, spec)
+        public, _ = _effective_config(row, spec)
+        secrets = _effective_secret_previews(row, spec)
         return _base_view(spec, group, enabled=row.enabled, status=status, public=public,
                           secrets=secrets, last_verified_at=row.last_verified_at, last_error=row.last_error)
 
