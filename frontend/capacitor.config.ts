@@ -12,9 +12,18 @@ const config: CapacitorConfig = {
   appId: "id.allhaven.app",
   appName: "AllHaven",
   webDir: "out",
+  android: {
+    // The bundled app is served as https://localhost, while a private desktop
+    // bridge may be plain HTTP on LAN/Tailscale (192.168.x.x / 100.x.y.z).
+    // Allow mixed content so Backend Bridge tests and REST calls can reach it.
+    allowMixedContent: true,
+  },
   server: {
     // Serve the bundled app over https://localhost inside the WebView.
     androidScheme: "https",
+    // Permit cleartext requests from the WebView to private LAN/Tailscale
+    // bridge URLs. The app never embeds service-role secrets in the client.
+    cleartext: true,
   },
 };
 
