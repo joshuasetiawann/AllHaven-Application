@@ -1,10 +1,10 @@
 -- ───────────────────────────────────────────────────────────────────────────
--- AllHaven · Supabase manual migration for 0019 + 0020
+-- AllHaven · Supabase manual migration for 0018 + 0019 + 0020
 --
 -- WHY: the two-way sync engine and the mobile (Supabase-direct) app rely on a few
--- columns/indexes that exist on the local desktop Postgres but were never applied to
+-- columns/indexes that exist on the local desktop Postgres but may not be applied to
 -- Supabase. Probing the live project shows:
---   • ai_tool_proposals.executed_at  → ALREADY present (migration 0018 applied) ✓
+--   • ai_tool_proposals.executed_by/target_entity_id → may be missing (migration 0018)
 --   • transactions.dedup_key         → MISSING (migration 0019)  ✗
 --   • calendar_events.dedup_key      → MISSING (migration 0019)  ✗
 --   • ai_memories.is_deleted/at      → MISSING (migration 0020)  ✗
@@ -26,6 +26,10 @@
 --   B) Or paste this whole file into Supabase → SQL Editor → Run, then (optionally)
 --      keep Alembic in sync:  UPDATE alembic_version SET version_num='0020_ai_memory_soft_delete';
 -- ───────────────────────────────────────────────────────────────────────────
+
+-- 0018 · cross-device proposal idempotency metadata.
+ALTER TABLE public.ai_tool_proposals ADD COLUMN IF NOT EXISTS executed_by uuid;
+ALTER TABLE public.ai_tool_proposals ADD COLUMN IF NOT EXISTS target_entity_id uuid;
 
 -- 0019 · proposal-scoped dedup_key on the two tables proposals can write to.
 ALTER TABLE public.transactions    ADD COLUMN IF NOT EXISTS dedup_key varchar(80);
