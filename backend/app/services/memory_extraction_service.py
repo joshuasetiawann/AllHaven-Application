@@ -157,11 +157,19 @@ def _auto_save_or_suggest(
     principal: Principal,
     candidate: MemoryCandidate,
     session_id: Optional[uuid.UUID],
+    extraction_method: str = "rule_based",
 ) -> None:
-    from app.services import memory_service
+    from app.services import ai_settings_service, memory_service
 
-    # HIGH sensitivity or low confidence → always suggest, never auto-save.
-    needs_approval = candidate.sensitivity in ("MEDIUM", "HIGH") or candidate.confidence < 0.7
+    require_approval_sensitive = ai_settings_service.is_memory_require_approval_sensitive(
+        db, principal
+    )
+
+    # Low confidence → always suggest, never auto-save (regardless of setting).
+    # Sensitivity-based approval only applies when require_approval_sensitive is ON.
+    needs_approval = candidate.confidence < 0.7 or (
+        require_approval_sensitive and candidate.sensitivity in ("MEDIUM", "HIGH")
+    )
     if needs_approval:
         memory_service.create_suggestion(
             db, principal,
@@ -172,10 +180,11 @@ def _auto_save_or_suggest(
             source_snippet=candidate.snippet,
             confidence=candidate.confidence,
             sensitivity=candidate.sensitivity,
+            extraction_method=extraction_method,
         )
         return
 
-    # LOW sensitivity + HIGH confidence → upsert directly (auto-save).
+    # Setting OFF (or LOW sensitivity) + HIGH confidence → upsert directly (auto-save).
     memory_service.upsert_memory(
         db, principal,
         category=candidate.category,
@@ -214,7 +223,7 @@ def _llm_extract_thread(
         session_id = uuid.UUID(session_id_str) if session_id_str else None
         candidates = _llm_extract_candidates(user_msg, assistant_msg, principal, db)
         for c in candidates:
-            _auto_save_or_suggest(db, principal, c, session_id)
+            _auto_save_or_suggest(db, principal, c, session_id, extraction_method="llm")
         db.commit()
     except Exception:  # noqa: BLE001 - background thread must never raise
         pass
@@ -227,6 +236,7 @@ def _llm_extract_candidates(
 ) -> List[MemoryCandidate]:
     """Use the workspace's default provider to extract memory candidates from a turn.
     Returns empty list if no provider configured or on any error."""
+    from app.domain.ai_memory import MEMORY_CATEGORIES, SENSITIVITY_LEVELS
     from app.services import ai_provider_router, ai_settings_service
 
     if not ai_settings_service.is_memory_auto_learning_enabled(db, principal):
@@ -263,11 +273,18 @@ def _llm_extract_candidates(
             if not isinstance(item, dict):
                 continue
             cat = str(item.get("category", "Profile"))
+            # Validate category: bogus or >50-char value would break String(50) column.
+            if cat not in MEMORY_CATEGORIES:
+                cat = "Profile"
             title = str(item.get("title", ""))[:200]
             content_str = str(item.get("content", ""))
             conf = float(item.get("confidence", 0.7))
-            sens = str(item.get("sensitivity", "LOW"))
-            if not title or not content_str or _contains_secret(content_str):
+            sens = str(item.get("sensitivity", "MEDIUM"))
+            # Validate sensitivity: unknown value → fail-safe MEDIUM (requires approval).
+            if sens not in SENSITIVITY_LEVELS:
+                sens = "MEDIUM"
+            # Drop candidates whose title or content contains secrets.
+            if not title or not content_str or _contains_secret(content_str) or _contains_secret(title):
                 continue
             candidates.append(MemoryCandidate(
                 category=cat, title=title, content=content_str,
