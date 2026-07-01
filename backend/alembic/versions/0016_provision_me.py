@@ -39,6 +39,7 @@ AS $$
 DECLARE
   v_uid uuid := auth.uid();
   v_email text;
+  v_name text;
   v_profile_id uuid;
   v_ws_id uuid;
   v_ws_name text;
@@ -47,7 +48,10 @@ BEGIN
     RAISE EXCEPTION 'not authenticated';
   END IF;
 
-  SELECT email INTO v_email FROM auth.users WHERE id = v_uid;
+  -- Email + (fallback) display name from the auth user's signUp metadata.
+  SELECT email, raw_user_meta_data->>'full_name'
+    INTO v_email, v_name FROM auth.users WHERE id = v_uid;
+  v_name := COALESCE(NULLIF(p_full_name, ''), NULLIF(v_name, ''));
 
   -- 1) Profile: reuse by supabase_user_id; else adopt an unlinked same-email
   --    profile (desktop-first case); else create a fresh one.
@@ -57,11 +61,11 @@ BEGIN
     IF v_profile_id IS NULL THEN
       v_profile_id := gen_random_uuid();
       INSERT INTO profiles (id, email, full_name, supabase_user_id, created_at, updated_at)
-        VALUES (v_profile_id, v_email, NULLIF(p_full_name, ''), v_uid, now(), now());
+        VALUES (v_profile_id, v_email, v_name, v_uid, now(), now());
     ELSE
       UPDATE profiles
          SET supabase_user_id = v_uid,
-             full_name = COALESCE(full_name, NULLIF(p_full_name, ''))
+             full_name = COALESCE(full_name, v_name)
        WHERE id = v_profile_id;
     END IF;
   END IF;
@@ -70,7 +74,7 @@ BEGIN
   SELECT id INTO v_ws_id FROM workspaces
     WHERE owner_id = v_profile_id ORDER BY created_at ASC LIMIT 1;
   IF v_ws_id IS NULL THEN
-    v_ws_name := COALESCE(NULLIF(p_full_name, '') || '''s Workspace', 'My Workspace');
+    v_ws_name := COALESCE(v_name || '''s Workspace', 'My Workspace');
     v_ws_id := gen_random_uuid();
     INSERT INTO workspaces (id, name, owner_id, created_at, updated_at)
       VALUES (v_ws_id, v_ws_name, v_profile_id, now(), now());

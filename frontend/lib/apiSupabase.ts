@@ -91,6 +91,10 @@ async function supabaseSignIn(email: string, password: string): Promise<AuthToke
   const sb = await getSupabase();
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error) throw toApiException(error, 401);
+  // Best-effort self-provision (idempotent): covers first login after email
+  // confirmation and repairs unlinked/legacy accounts. Swallowed if the RPC isn't
+  // deployed yet — loadMe() stays the source of truth for whether the account works.
+  await sb.rpc("provision_me", { p_full_name: null }).then(() => {}, () => {});
   const meResult = await loadMe();
   return {
     access_token: data.session?.access_token ?? "",
@@ -107,7 +111,13 @@ export const authApi = {
   // exists (e.g. created on desktop first): provision_me adopts/links it.
   register: async (email: string, password: string, fullName?: string): Promise<AuthToken> => {
     const sb = await getSupabase();
-    const { error: signUpErr } = await sb.auth.signUp({ email, password });
+    const { error: signUpErr } = await sb.auth.signUp({
+      email,
+      password,
+      // Stash the name on the auth user so provisioning can recover it even when
+      // the profile is created on a later (post-confirmation) login.
+      options: fullName ? { data: { full_name: fullName } } : undefined,
+    });
     // "already registered" is fine — fall through to sign-in + provision.
     if (signUpErr && !/already\s*(registered|exists|in use)/i.test(signUpErr.message)) {
       throw toApiException(signUpErr);
