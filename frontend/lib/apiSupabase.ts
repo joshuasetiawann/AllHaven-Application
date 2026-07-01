@@ -676,25 +676,42 @@ async function calList(): Promise<CalendarEvent[]> {
   return (data ?? []) as CalendarEvent[];
 }
 
+function missingSchemaColumn(message?: string | null): string | null {
+  return message?.match(/Could not find the '([^']+)' column .*schema cache/i)?.[1] ?? null;
+}
+
+function payloadHasColumn(rows: Record<string, unknown> | Record<string, unknown>[], column: string): boolean {
+  const list = Array.isArray(rows) ? rows : [rows];
+  return list.some((row) => column in row);
+}
+
+function stripPayloadColumn(rows: Record<string, unknown> | Record<string, unknown>[], column: string) {
+  const strip = (row: Record<string, unknown>) => {
+    const rest = { ...row };
+    delete rest[column];
+    return rest;
+  };
+  return Array.isArray(rows) ? rows.map(strip) : strip(rows);
+}
+
 /**
- * Insert tolerant of a Supabase project not yet migrated to 0019 (the proposal-scoped
- * `dedup_key` column). On the "could not find the dedup_key column" error it retries
- * ONCE without that key, so approving finance/routine on mobile never 404s before the
- * migration lands — cross-device dedup simply no-ops until the column exists. Returns
- * the inserted rows (array; no `.single()`).
+ * Insert tolerant of a Supabase project whose schema is a little behind the app.
+ * PostgREST returns PGRST204 for unknown columns; strip that optional column and retry
+ * so mobile writes keep working while the additive migration catches up.
  */
 async function insertTolerant(table: string, rows: Record<string, unknown> | Record<string, unknown>[]) {
   const sb = await getSupabase();
-  let res = await sb.from(table).insert(rows).select("*");
-  if (res.error && (res.error.message ?? "").includes("dedup_key")) {
-    const strip = (r: Record<string, unknown>) => {
-      const rest = { ...r };
-      delete rest.dedup_key;
-      return rest;
-    };
-    res = await sb.from(table).insert(Array.isArray(rows) ? rows.map(strip) : strip(rows)).select("*");
+  let payload = rows;
+  const stripped = new Set<string>();
+  while (true) {
+    const res = await sb.from(table).insert(payload).select("*");
+    const missing = missingSchemaColumn(res.error?.message);
+    if (!res.error || !missing || stripped.has(missing) || !payloadHasColumn(payload, missing)) {
+      return res;
+    }
+    stripped.add(missing);
+    payload = stripPayloadColumn(payload, missing);
   }
-  return res;
 }
 
 async function calCreate(payload: Record<string, unknown>): Promise<CalendarEvent> {

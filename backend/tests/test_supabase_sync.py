@@ -15,7 +15,9 @@ from __future__ import annotations
 import json
 import threading
 import uuid
+from io import BytesIO
 from unittest.mock import MagicMock, patch
+from urllib.error import HTTPError
 
 from app.core.principal import Principal
 from app.core.secrets import encrypt_secret
@@ -540,6 +542,32 @@ def test_do_sync_body_is_valid_json_list(auth_client, db_session):
     assert isinstance(body, list)
     assert len(body) == 1
     assert body[0]["title"] == "JSON test"
+
+
+def test_upsert_retries_without_schema_cache_missing_column():
+    """A lagging Supabase schema should not block the whole table sync."""
+    attempts: list[list[dict]] = []
+
+    def fake_urlopen(req, timeout=None):
+        attempts.append(json.loads(req.data.decode()))
+        if len(attempts) == 1:
+            body = b'{"code":"PGRST204","message":"Could not find the \'dedup_key\' column of \'transactions\' in the schema cache"}'
+            raise HTTPError(req.get_full_url(), 400, "Bad Request", hdrs={}, fp=BytesIO(body))
+        fake_resp = MagicMock()
+        fake_resp.__enter__ = lambda s: s
+        fake_resp.__exit__ = MagicMock(return_value=False)
+        return fake_resp
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        supabase_sync_service._upsert(
+            "https://abc.supabase.co",
+            "key",
+            "transactions",
+            [{"id": "tx-1", "amount": 155000, "dedup_key": "proposal:0"}],
+        )
+
+    assert attempts[0][0]["dedup_key"] == "proposal:0"
+    assert "dedup_key" not in attempts[1][0]
 
 
 # ---------------------------------------------------------------------------
