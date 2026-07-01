@@ -17,6 +17,7 @@ os.environ["SETTINGS_ENCRYPTION_KEY"] = "test-encryption-key"
 os.environ["BACKEND_CORS_ORIGINS"] = "http://localhost:3000"
 os.environ["AI_ALLOW_EXTERNAL_PROVIDERS"] = "false"
 os.environ["AI_DEFAULT_PROVIDER"] = "ollama"
+os.environ["SYNC_INTERVAL_SECONDS"] = "0"  # no background Supabase sync loop in tests
 # Redirect the .env mirror and Drive storage to temp dirs so tests never touch
 # the real repo .env or pollute the working tree.
 _TMP = tempfile.mkdtemp(prefix="allhaven-test-")
