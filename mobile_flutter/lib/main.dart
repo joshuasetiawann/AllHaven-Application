@@ -71,6 +71,7 @@ class _AllHavenWebShellState extends State<AllHavenWebShell> {
   void initState() {
     super.initState();
     _armBlockingLoaderTimeout();
+    final initialUri = widget.baseUri.resolve('/login/');
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF070B10))
@@ -102,7 +103,7 @@ class _AllHavenWebShellState extends State<AllHavenWebShell> {
           },
         ),
       )
-      ..loadRequest(widget.baseUri);
+      ..loadRequest(initialUri);
   }
 
   @override

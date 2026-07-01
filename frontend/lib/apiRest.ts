@@ -140,9 +140,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
+    const baseUrl = getApiBaseUrl();
+    if (!baseUrl) {
+      throw new ApiException(
+        "Connect the Backend Bridge with your desktop Tailscale URL to use this feature from mobile.",
+        "BRIDGE_REQUIRED",
+        501,
+      );
+    }
+
     let res: Response;
     try {
-      res = await fetch(`${getApiBaseUrl()}${path}`, {
+      res = await fetch(`${baseUrl}${path}`, {
         ...options,
         headers,
         credentials,
