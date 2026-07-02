@@ -1,7 +1,7 @@
-"""Local calendar events (workspace-scoped, MVP).
+"""Local routine schedule events (workspace-scoped, MVP).
 
-Local events persist in PostgreSQL and work without Google. Google Calendar sync
-status is reported honestly via the integration config; this table is local-only.
+Routine events persist in the local PostgreSQL database and work without Google.
+The old table name stays for compatibility with previous Calendar releases.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.domain.base import GUID, Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.domain.base import GUID, Base, JSONType, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class CalendarEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -27,5 +27,10 @@ class CalendarEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     all_day: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    time_period: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    repeat_rule: Mapped[str] = mapped_column(String(16), default="once", nullable=False)
+    repeat_days: Mapped[list[str] | None] = mapped_column(JSONType, nullable=True)
+    icon: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    color: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

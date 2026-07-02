@@ -103,7 +103,11 @@ def _note(n, with_content: bool = False) -> dict:
 
 def _event(e) -> dict:
     return {"id": str(e.id), "title": e.title, "location": e.location, "all_day": bool(e.all_day),
-            "start_at": _iso(e.start_at), "end_at": _iso(e.end_at)}
+            "start_at": _iso(e.start_at), "end_at": _iso(e.end_at),
+            "time_period": getattr(e, "time_period", None),
+            "repeat_rule": getattr(e, "repeat_rule", "once"),
+            "repeat_days": getattr(e, "repeat_days", None) or [],
+            "icon": getattr(e, "icon", None), "color": getattr(e, "color", None)}
 
 
 def _txn(t) -> dict:
@@ -736,12 +740,20 @@ _TASK_FIELDS = {
     "due_at": _str_prop("Due date-time, ISO 8601 (e.g. 2026-06-12T09:00:00)"),
 }
 _EVENT_FIELDS = {
-    "title": _str_prop("Event title"),
+    "title": _str_prop("Routine title"),
     "description": _str_prop("Optional details"),
     "location": _str_prop("Optional location"),
     "start_at": _str_prop("Start, ISO 8601"),
     "end_at": _str_prop("End, ISO 8601 (optional)"),
     "all_day": {"type": "boolean"},
+    "time_period": {"type": "string", "enum": ["morning", "afternoon", "evening"]},
+    "repeat_rule": {"type": "string", "enum": ["once", "daily", "weekly", "monthly"]},
+    "repeat_days": {
+        "type": "array",
+        "items": {"type": "string", "enum": ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]},
+    },
+    "icon": _str_prop("Optional routine icon key"),
+    "color": _str_prop("Optional routine color key"),
 }
 _TXN_FIELDS = {
     "type": {"type": "string", "enum": ["INCOME", "EXPENSE"]},
