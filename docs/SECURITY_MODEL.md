@@ -42,12 +42,6 @@ strong random value outside local development.
 ## Transport & input
 
 - CORS is restricted to configured frontend origins (`BACKEND_CORS_ORIGINS`).
-- Local/dev can reach private LAN and Tailscale integration URLs for Ollama/n8n.
-  Production/staging blocks server-side requests to localhost, private LAN,
-  link-local, and Tailscale 100.64.0.0/10 addresses unless
-  `ALLOW_PRIVATE_INTEGRATION_URLS=true` is set explicitly.
-- Swagger/OpenAPI docs are exposed by default only in local/dev. Production can
-  opt in with `API_DOCS_ENABLED=true`.
 - All input is validated by Pydantic schemas; validation errors return the standard envelope.
 - Unhandled errors return a generic 500 — **never a raw stack trace**.
 
@@ -65,7 +59,5 @@ is treated as *not configured*.
 ## Known limitations (MVP)
 
 - Tokens are not refreshable/revocable (short-lived access tokens only).
-- Auth endpoints have a single-instance in-memory rate limiter; production with
-  multiple replicas should also rate-limit at the gateway.
-- No account lockout.
+- No rate limiting or account lockout.
 - Local auth is for development; use a hardened provider in production.

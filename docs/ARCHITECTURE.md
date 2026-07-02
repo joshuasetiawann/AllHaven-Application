@@ -1,6 +1,6 @@
 # Architecture
 
-AllHaven is a local-first, modular web application: a **FastAPI** backend, a **PostgreSQL**
+CoreOS is a local-first, modular web application: a **FastAPI** backend, a **PostgreSQL**
 database, and a **Next.js (App Router)** frontend.
 
 ## Topology (MVP)
@@ -84,6 +84,6 @@ unwraps the standard envelope into typed data or an `ApiException`.
 
 ## Design system
 
-The UI implements the Stitch "AllHaven Command Center" tokens: a matte "Deep Night" palette
+The UI implements the Stitch "CoreOS Command Center" tokens: a matte "Deep Night" palette
 (`#0B0E14` background, `#161B22` glass panels, `#30363D` hairline borders), an electric-cyan
 primary (`#00F5FF`), a muted-royal secondary (`#8A2BE2`), and Inter/Geist typography.

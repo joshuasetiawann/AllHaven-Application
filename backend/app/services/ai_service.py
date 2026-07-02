@@ -16,76 +16,9 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError
 from app.core.principal import Principal
-from app.domain.ai import (
-    AiAgentResponse,
-    AiMultiAgentRun,
-    AiToolProposal,
-    ChatGroup,
-    ChatMessage,
-    ChatSession,
-)
-from app.services import ai_provider_router
+from app.domain.ai import AiToolProposal, ChatMessage, ChatSession
 from app.services.audit_service import write_audit
-
-
-def _auto_title(message: str) -> str:
-    """Title from the first user message, max 40 chars."""
-    text = " ".join((message or "").split()).strip()
-    if len(text) > 40:
-        text = text[:39].rstrip() + "…"
-    return text or "New Chat"
-
-
-# --- groups ---------------------------------------------------------------
-
-
-def list_groups(db: Session, principal: Principal) -> List[ChatGroup]:
-    stmt = (
-        select(ChatGroup)
-        .where(ChatGroup.workspace_id == principal.workspace_id)
-        .order_by(ChatGroup.created_at.asc())
-    )
-    return list(db.scalars(stmt).all())
-
-
-def create_group(db: Session, principal: Principal, name: str) -> ChatGroup:
-    group = ChatGroup(workspace_id=principal.workspace_id, created_by=principal.user_id, name=name)
-    db.add(group)
-    db.commit()
-    db.refresh(group)
-    return group
-
-
-def _get_group(db: Session, principal: Principal, group_id: uuid.UUID) -> ChatGroup:
-    group = db.scalar(
-        select(ChatGroup).where(
-            ChatGroup.id == group_id, ChatGroup.workspace_id == principal.workspace_id
-        )
-    )
-    if not group:
-        raise NotFoundError("Group not found.")
-    return group
-
-
-def update_group(db: Session, principal: Principal, group_id: uuid.UUID, name: str) -> ChatGroup:
-    group = _get_group(db, principal, group_id)
-    group.name = name
-    db.commit()
-    db.refresh(group)
-    return group
-
-
-def delete_group(db: Session, principal: Principal, group_id: uuid.UUID) -> None:
-    group = _get_group(db, principal, group_id)
-    # Detach conversations (don't delete them), then remove the group.
-    for s in db.scalars(
-        select(ChatSession).where(
-            ChatSession.workspace_id == principal.workspace_id, ChatSession.group_id == group_id
-        )
-    ).all():
-        s.group_id = None
-    db.delete(group)
-    db.commit()
+from app.services.llm_service import llm_service
 
 
 def list_sessions(db: Session, principal: Principal) -> List[ChatSession]:
@@ -110,71 +43,17 @@ def get_session(db: Session, principal: Principal, session_id: uuid.UUID) -> Cha
 
 
 def create_session(
-    db: Session,
-    principal: Principal,
-    title: Optional[str] = None,
-    group_id: Optional[uuid.UUID] = None,
+    db: Session, principal: Principal, title: Optional[str] = None
 ) -> ChatSession:
-    if group_id is not None:
-        _get_group(db, principal, group_id)  # validate ownership
     session = ChatSession(
         workspace_id=principal.workspace_id,
         created_by=principal.user_id,
         title=title,
-        group_id=group_id,
     )
     db.add(session)
     db.commit()
     db.refresh(session)
     return session
-
-
-def update_session(db: Session, principal: Principal, session_id: uuid.UUID, data: dict) -> ChatSession:
-    """Rename a conversation and/or move it to a group (group_id=None removes it)."""
-    session = get_session(db, principal, session_id)
-    if "title" in data and data["title"] is not None:
-        session.title = data["title"]
-    if "group_id" in data:
-        gid = data["group_id"]
-        if gid is not None:
-            _get_group(db, principal, gid)
-        session.group_id = gid
-    db.commit()
-    db.refresh(session)
-    return session
-
-
-def delete_session(db: Session, principal: Principal, session_id: uuid.UUID) -> None:
-    """Delete a conversation and all of its messages + multi-agent run records."""
-    session = get_session(db, principal, session_id)
-    ws = principal.workspace_id
-    for msg in db.scalars(
-        select(ChatMessage).where(ChatMessage.workspace_id == ws, ChatMessage.session_id == session_id)
-    ).all():
-        db.delete(msg)
-    run_ids = [
-        r.id
-        for r in db.scalars(
-            select(AiMultiAgentRun).where(
-                AiMultiAgentRun.workspace_id == ws, AiMultiAgentRun.session_id == session_id
-            )
-        ).all()
-    ]
-    if run_ids:
-        for resp in db.scalars(
-            select(AiAgentResponse).where(
-                AiAgentResponse.workspace_id == ws, AiAgentResponse.run_id.in_(run_ids)
-            )
-        ).all():
-            db.delete(resp)
-        for run in db.scalars(
-            select(AiMultiAgentRun).where(
-                AiMultiAgentRun.workspace_id == ws, AiMultiAgentRun.session_id == session_id
-            )
-        ).all():
-            db.delete(run)
-    db.delete(session)
-    db.commit()
 
 
 def list_messages(db: Session, principal: Principal, session_id: uuid.UUID) -> List[ChatMessage]:
@@ -196,116 +75,53 @@ def chat(
     *,
     message: str,
     session_id: Optional[uuid.UUID] = None,
-    provider_id: Optional[str] = None,
-    section_key: Optional[str] = "general",
-    thinking_mode: str = "balance",
-    response_language: Optional[str] = None,
 ) -> dict:
-    """Persist the user message, route to the AI provider, persist the reply.
-
-    The provider router is honest: if the selected/default provider is not
-    configured, disabled, or blocked (external disabled), it returns a clear
-    message instead of fake output. It never executes writes.
-    """
+    """Persist the user message, generate an honest reply, persist it, return it."""
     if session_id is not None:
         session = get_session(db, principal, session_id)
     else:
         session = ChatSession(
             workspace_id=principal.workspace_id,
             created_by=principal.user_id,
-            title=_auto_title(message),
-            section_key=section_key or "general",
+            title=message[:60],
         )
         db.add(session)
         db.flush()
-    # Auto-title an untitled conversation from its first user message.
-    if not (session.title or "").strip():
-        session.title = _auto_title(message)
-    session.section_key = section_key or "general"
 
     user_message = ChatMessage(
         workspace_id=principal.workspace_id,
         session_id=session.id,
         role="user",
         content=message,
-        section_key=section_key or "general",
-        meta={"chat_mode": "single", "thinking_mode": thinking_mode, "section_key": section_key or "general"},
     )
     db.add(user_message)
     db.flush()
 
-    # Build a real context packet (memory, section, mode, summary, knowledge).
-    from app.services import ai_context_builder, ai_orchestrator, memory_extraction_service
-
-    context_packet = ai_context_builder.build(
-        db, principal, message=message, session_id=session.id,
-        section_key=section_key or "general", thinking_mode=thinking_mode,
-        response_language=response_language,
-    )
-
-    # Orchestrated chat: history-aware, with a safe tool loop on tool-capable
-    # providers (reads execute; writes become pending approvals — never silent).
-    result = ai_orchestrator.run_with_tools(
-        db, principal, message=message, session_id=session.id,
-        provider_id=provider_id, extra_context=context_packet.get("context"),
-        section_key=section_key or "general", thinking_mode=thinking_mode,
-        user_message_id=user_message.id,
-        response_language=response_language,
-    )
-    meta = {
-        "source": "provider" if result["ok"] else "system",
-        "provider_id": result.get("provider_id"),
-        "blocked": result.get("blocked", False),
-        "ok": result["ok"],
-        "error": result.get("error") or None,
-        **context_packet.get("meta", {}),
-    }
-    if result.get("tool_calls"):
-        meta["tool_calls"] = result["tool_calls"]
-    if result.get("proposal_ids"):
-        meta["proposal_ids"] = result["proposal_ids"]
-    if result.get("quality"):
-        meta["quality"] = result["quality"]
+    reply = llm_service.generate_reply([{"role": "user", "content": message}])
     assistant_message = ChatMessage(
         workspace_id=principal.workspace_id,
         session_id=session.id,
         role="assistant",
-        content=result["content"],
-        section_key=section_key or "general",
-        meta=meta,
+        content=reply["content"],
+        meta=reply["meta"],
     )
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
 
-    # Trigger hybrid memory extraction (rule-based inline, LLM in background).
-    # On failure the content is a system error explainer — noise to the LLM
-    # extractor — so extract from the user message only (early-exit convention).
-    memory_extraction_service.extract_and_commit(
-        db, principal,
-        user_msg=message,
-        assistant_msg=result["content"] if result["ok"] else "",
-        session_id=session.id,
-    )
-
     return {
         "session_id": session.id,
         "reply": assistant_message,
-        "ai_configured": result["ok"],
-        "provider_id": result.get("provider_id"),
-        "blocked": result.get("blocked", False),
+        "ai_configured": reply["configured"],
     }
 
 
 def list_proposals(db: Session, principal: Principal) -> List[AiToolProposal]:
-    # Open = PENDING/NEEDS_EDIT/FAILED — failed/needs-edit approvals must not vanish.
-    from app.domain.ai import PROPOSAL_OPEN_STATUSES
-
     stmt = (
         select(AiToolProposal)
         .where(
             AiToolProposal.workspace_id == principal.workspace_id,
-            AiToolProposal.status.in_(PROPOSAL_OPEN_STATUSES),
+            AiToolProposal.status == "PENDING",
         )
         .order_by(AiToolProposal.created_at.desc())
     )

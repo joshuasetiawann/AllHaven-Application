@@ -2,145 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Accessibility: honour the OS "reduce motion" setting — animations and
-   transitions collapse to near-instant, and smooth-scroll is disabled. */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
 @layer base {
   :root {
     color-scheme: dark;
-    /* Aurora Glass — near-black navy canvas, luminous cyan→violet accents. */
-    --color-bg: 6 7 14; /* #06070E */
-    --color-bg-deep: 10 12 22; /* #0A0C16 — opaque wells, dial inner ring */
-    --color-surface: 18 20 34; /* #121422 — opaque panels (popovers, modals) */
-    --color-surface-raised: 24 27 45;
-    --color-surface-high: 31 35 58;
-    --color-surface-input: 15 16 24; /* ≈ white 3.5% over the canvas */
-    --color-border: 34 38 56; /* ≈ white 9% over the canvas */
-    --color-border-strong: 52 58 84;
-    --color-primary: 45 225 225; /* #2DE1E1 accent/cyan */
-    --color-primary-dim: 32 196 196;
-    --color-primary-bright: 127 247 242; /* #7FF7F2 accent/cyan-hi */
-    --color-primary-fg: 10 21 18; /* #0A1512 dark glyph on gradient */
-    --color-secondary: 167 139 250; /* #A78BFA accent/violet */
-    --color-secondary-soft: 196 181 253; /* #C4B5FD accent/violet-hi */
-    --color-secondary-deep: 139 92 246; /* #8B5CF6 violet bar base */
-    --color-content: 234 242 255; /* #EAF2FF */
-    --color-content-muted: 154 166 196; /* #9AA6C4 */
-    --color-content-subtle: 124 134 164; /* #7C86A4 */
-    --color-content-faint: 93 103 136; /* #5D6788 */
-    --color-success: 52 211 153; /* #34D399 dots */
-    --color-success-soft: 94 235 176; /* #5EEBB0 text */
-    --color-warning: 252 211 77; /* #FCD34D */
-    --color-warning-deep: 245 181 68; /* #F5B544 */
-    --color-danger: 255 148 148; /* #FF9494 */
-    --color-info: 56 189 248;
-    --color-magenta: 226 77 184; /* #E24DB8 — third aurora blob only */
-    /* Primary gradient stops (buttons, logo, avatar, active nav icon). */
-    --grad-a: 107 245 240; /* #6BF5F0 */
-    --grad-a-hi: 127 247 242; /* #7FF7F2 */
-    --grad-b: 167 139 250; /* #A78BFA */
-    /* Controlled by the Settings "Glassmorphism" preference. */
-    --glass-blur: 20px;
-    --panel-alpha: 0;
-  }
-
-  [data-theme="light"] {
-    color-scheme: light;
-    --color-bg: 246 248 251;
-    --color-bg-deep: 234 239 245;
-    --color-surface: 255 255 255;
-    --color-surface-raised: 244 247 251;
-    --color-surface-high: 232 239 247;
-    --color-surface-input: 248 250 252;
-    --color-border: 214 222 232;
-    --color-border-strong: 172 184 199;
-    --color-primary-fg: 255 255 255;
-    --color-secondary-soft: 109 40 217;
-    --color-content: 16 24 38;
-    --color-content-muted: 82 96 114;
-    --color-content-subtle: 113 128 150;
-    --color-content-faint: 128 141 162;
-  }
-
-  /* Color nuance (Settings → Appearance): Aurora / Mint / Magenta / Amber. */
-  [data-accent="cyan"] {
-    --color-primary: 45 225 225;
-    --color-primary-dim: 32 196 196;
-    --color-primary-bright: 127 247 242;
-    --grad-a: 107 245 240;
-    --grad-a-hi: 127 247 242;
-    --grad-b: 167 139 250;
-  }
-
-  [data-accent="emerald"] {
-    --color-primary: 52 211 153;
-    --color-primary-dim: 22 163 74;
-    --color-primary-bright: 94 235 176;
-    --grad-a: 94 235 176;
-    --grad-a-hi: 134 245 200;
-    --grad-b: 45 225 225;
-  }
-
-  [data-accent="violet"] {
-    --color-primary: 167 139 250;
-    --color-primary-dim: 139 92 246;
-    --color-primary-bright: 196 181 253;
-    --grad-a: 167 139 250;
-    --grad-a-hi: 196 181 253;
-    --grad-b: 226 77 184;
-  }
-
-  [data-accent="amber"] {
-    --color-primary: 245 181 68;
-    --color-primary-dim: 217 119 6;
-    --color-primary-bright: 252 211 77;
-    --grad-a: 252 211 77;
-    --grad-a-hi: 253 224 130;
-    --grad-b: 249 115 22;
-  }
-
-  /* Density preference (Settings → Performance Mode) */
-  [data-density="compact"] {
-    --pad-card: 1rem;
   }
 
   html,
   body {
     height: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
   }
 
   body {
     @apply bg-bg text-content font-sans antialiased;
-    min-width: 320px;
+    background-image:
+      radial-gradient(900px 500px at 12% -8%, rgba(0, 245, 255, 0.06), transparent 60%),
+      radial-gradient(800px 500px at 100% 0%, rgba(138, 43, 226, 0.07), transparent 55%);
+    background-attachment: fixed;
   }
 
   ::selection {
-    background: rgb(var(--color-primary) / 0.28);
-    color: rgb(var(--color-content));
+    background: rgba(0, 245, 255, 0.25);
+    color: #e9feff;
   }
 
+  /* Slim, on-brand scrollbars */
   .custom-scrollbar::-webkit-scrollbar {
-    width: 9px;
-    height: 9px;
+    width: 8px;
+    height: 8px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
+    background: #30363d;
     border-radius: 9999px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgb(var(--color-primary) / 0.4);
   }
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
@@ -148,264 +40,17 @@
 }
 
 @layer components {
-  /* Canonical Aurora Glass card. */
+  /* Core glass panel used across the app */
   .panel {
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018)),
-      rgb(var(--color-surface) / var(--panel-alpha));
-    box-shadow:
-      0 24px 60px -24px rgba(0, 0, 0, 0.72),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-  }
-
-  [data-theme="light"] .panel {
-    border-color: rgb(var(--color-border));
-    background: rgb(var(--color-surface) / 0.86);
-    box-shadow: 0 18px 44px -28px rgba(15, 26, 42, 0.35);
+    @apply rounded-xl border border-border bg-surface/85 backdrop-blur-[12px];
   }
 
   .panel-hover {
-    @apply transition-all duration-200 hover:-translate-y-0.5;
-  }
-  .panel-hover:hover {
-    border-color: rgba(255, 255, 255, 0.16);
-    box-shadow:
-      0 28px 64px -24px rgba(0, 0, 0, 0.78),
-      0 0 30px rgb(var(--color-primary) / 0.08),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    @apply transition-colors duration-200 hover:bg-surface-raised hover:border-border-strong;
   }
 
-  /* Accent / emphasis card — cyan-tinted border and cyan→violet wash. */
-  .panel-gradient {
-    border-radius: 20px;
-    border: 1px solid rgb(var(--color-primary) / 0.22);
-    background:
-      linear-gradient(120deg, rgb(var(--color-primary) / 0.08), rgb(var(--color-secondary) / 0.05)),
-      rgb(var(--color-surface) / var(--panel-alpha));
-    box-shadow:
-      0 24px 60px -24px rgba(0, 0, 0, 0.72),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-  }
-
-  [data-theme="light"] .panel-gradient {
-    background:
-      linear-gradient(120deg, rgb(var(--color-primary) / 0.1), rgb(var(--color-secondary) / 0.06)),
-      rgb(var(--color-surface) / 0.9);
-    box-shadow: 0 18px 44px -28px rgba(15, 26, 42, 0.35);
-  }
-
-  /* Nested tile inside a glass card (stat tiles, list rows, inputs). */
-  .glass-tile {
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    background: rgba(255, 255, 255, 0.03);
-  }
-
-  [data-theme="light"] .glass-tile {
-    border-color: rgb(var(--color-border));
-    background: rgb(var(--color-surface-raised) / 0.8);
-  }
-
-  /* Primary cyan→violet gradient fill (buttons, logo tile, avatar, active nav icon). */
-  .grad-primary {
-    background-image: linear-gradient(135deg, rgb(var(--grad-a)), rgb(var(--grad-b)));
-  }
-
-  /* Gradient-clipped text ("Haven", greeting name). */
-  .text-grad {
-    background-image: linear-gradient(90deg, rgb(var(--grad-a-hi)), rgb(var(--grad-b)));
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-  }
-
-  /* Hero metric glow (cashflow balance, clock display). */
-  .glow-text {
-    text-shadow: 0 0 24px rgb(var(--color-primary) / 0.45);
-  }
-
+  /* Technical label styling (timestamps, metadata) */
   .label-mono {
-    @apply font-mono text-[10px] uppercase tracking-[0.18em] text-content-faint;
-  }
-
-  /* Aurora background — three drifting radial blobs behind content. */
-  .aurora {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    pointer-events: none;
-  }
-  .aurora::before,
-  .aurora::after,
-  .aurora > i {
-    content: "";
-    position: absolute;
-    border-radius: 9999px;
-  }
-  .aurora::before {
-    top: -10%;
-    left: 8%;
-    width: 620px;
-    height: 520px;
-    background: radial-gradient(circle, rgb(var(--color-primary) / var(--aurora-1, 0.22)), transparent 65%);
-    filter: blur(56px);
-    animation: aurora-drift 18s ease-in-out infinite;
-  }
-  .aurora::after {
-    top: -6%;
-    right: 6%;
-    width: 560px;
-    height: 520px;
-    background: radial-gradient(circle, rgb(var(--color-secondary) / var(--aurora-2, 0.18)), transparent 65%);
-    filter: blur(60px);
-    animation: aurora-drift 24s ease-in-out infinite reverse;
-  }
-  .aurora > i {
-    bottom: -18%;
-    left: 36%;
-    width: 620px;
-    height: 520px;
-    background: radial-gradient(circle, rgb(var(--color-magenta) / var(--aurora-3, 0.1)), transparent 65%);
-    filter: blur(66px);
-    animation: float-y 16s ease-in-out infinite;
-  }
-  /* Login canvas runs the blobs a touch brighter. */
-  .aurora-bright {
-    --aurora-1: 0.26;
-    --aurora-2: 0.22;
-    --aurora-3: 0.14;
-  }
-
-  [data-theme="light"] .aurora::before,
-  [data-theme="light"] .aurora::after,
-  [data-theme="light"] .aurora > i {
-    opacity: 0.5;
-  }
-
-  .skeleton {
-    @apply relative overflow-hidden rounded-md bg-surface-high/60;
-  }
-  .skeleton::after {
-    content: "";
-    @apply absolute inset-0;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
-    transform: translateX(-100%);
-    animation: shimmer 1.4s infinite;
-  }
-
-  /* Focus ring used by interactive elements */
-  .focus-ring {
-    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-0;
-  }
-}
-
-@keyframes shimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-@keyframes aurora-drift {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(3%, 2%) scale(1.06);
-  }
-}
-
-@keyframes float-y {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-@keyframes pulse-glow {
-  0%,
-  100% {
-    opacity: 0.45;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-  .line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .line-clamp-3 {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-}
-
-/* Mobile performance pass: Android WebView and phone GPUs stutter on stacked
-   backdrop filters + long-running glow animations. Keep the Aurora look, but
-   make touch/mobile surfaces cheaper to composite. */
-@media (max-width: 768px), (hover: none) and (pointer: coarse) {
-  html {
-    scroll-behavior: auto;
-  }
-
-  .aurora::before,
-  .aurora::after,
-  .aurora > i {
-    animation: none !important;
-    filter: blur(34px);
-    opacity: 0.52;
-    transform: translateZ(0);
-  }
-
-  .panel,
-  .panel-gradient {
-    box-shadow:
-      0 16px 38px -28px rgba(0, 0, 0, 0.7),
-      inset 0 1px 0 rgba(255, 255, 255, 0.07);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-  }
-
-  [class*="backdrop-blur"] {
-    backdrop-filter: blur(8px) !important;
-    -webkit-backdrop-filter: blur(8px) !important;
-  }
-
-  .panel-hover {
-    transition-property: border-color, background-color, box-shadow !important;
-  }
-
-  .panel-hover:hover {
-    transform: none !important;
-  }
-
-  .animate-fade-in,
-  .animate-scale-in,
-  .animate-slide-up {
-    animation-duration: 110ms !important;
-  }
-
-  .animate-pulse-glow {
-    animation: none !important;
+    @apply font-mono text-[11px] uppercase tracking-[0.12em] text-content-subtle;
   }
 }

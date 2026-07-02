@@ -56,30 +56,3 @@ def test_monthly_summary(auth_client):
     assert data["balance"] == 750
     assert data["transaction_count"] == 2
     assert data["currency"] == "IDR"
-
-
-def test_finance_report_range_excludes_archived_periods(auth_client):
-    auth_client.post(
-        f"{API}/finance/transactions",
-        json={"type": "income", "amount": 30000, "transaction_date": "2026-06-12"},
-    )
-    auth_client.post(
-        f"{API}/finance/transactions",
-        json={"type": "expense", "amount": 10000, "transaction_date": "2026-06-13"},
-    )
-    auth_client.post(
-        f"{API}/finance/transactions",
-        json={"type": "income", "amount": 20000, "transaction_date": "2023-10-05"},
-    )
-
-    report = auth_client.get(
-        f"{API}/finance/report",
-        params={"start": "2026-06-08", "end": "2026-06-14", "period_type": "week"},
-    )
-    assert report.status_code == 200, report.text
-    data = report.json()["data"]
-    assert data["period_type"] == "week"
-    assert data["total_income"] == 30000
-    assert data["total_expense"] == 10000
-    assert data["balance"] == 20000
-    assert data["transaction_count"] == 2

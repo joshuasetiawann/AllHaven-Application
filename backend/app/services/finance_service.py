@@ -1,6 +1,6 @@
 """Finance service: categories, transactions, and the monthly summary.
 
-AllHaven tracks cashflow only — it never provides financial advice or moves money.
+CoreOS tracks cashflow only — it never provides financial advice or moves money.
 All writes are workspace-scoped, soft-deleted, and audited.
 """
 
@@ -135,34 +135,13 @@ def list_transactions(
     *,
     limit: int = 100,
     offset: int = 0,
-    year: Optional[int] = None,
-    month: Optional[int] = None,
-    currency: Optional[str] = None,
-    start: Optional[date] = None,
-    end: Optional[date] = None,
 ) -> List[Transaction]:
-    filters = [
-        Transaction.workspace_id == principal.workspace_id,
-        Transaction.is_deleted.is_(False),
-    ]
-    if start is not None:
-        filters.append(Transaction.transaction_date >= start)
-    if end is not None:
-        filters.append(Transaction.transaction_date <= end)
-    if start is None and end is None and year is not None and month is not None:
-        start = date(year, month, 1)
-        last_day = calendar.monthrange(year, month)[1]
-        end = date(year, month, last_day)
-        filters.extend([
-            Transaction.transaction_date >= start,
-            Transaction.transaction_date <= end,
-        ])
-    if currency:
-        filters.append(Transaction.currency == currency.upper())
-
     stmt = (
         select(Transaction)
-        .where(*filters)
+        .where(
+            Transaction.workspace_id == principal.workspace_id,
+            Transaction.is_deleted.is_(False),
+        )
         .order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
         .limit(limit)
         .offset(offset)
@@ -184,7 +163,7 @@ def get_transaction(db: Session, principal: Principal, transaction_id: uuid.UUID
 
 
 def create_transaction(
-    db: Session, principal: Principal, data: TransactionCreate, dedup_key: str | None = None
+    db: Session, principal: Principal, data: TransactionCreate
 ) -> Transaction:
     category_name = _resolve_category_snapshot(db, principal, data.category_id)
     transaction = Transaction(
@@ -197,8 +176,6 @@ def create_transaction(
         category_name_snapshot=category_name,
         description=data.description,
         transaction_date=data.transaction_date,
-        # Cross-device idempotency stamp from an approved proposal (None for direct calls).
-        dedup_key=dedup_key,
     )
     db.add(transaction)
     db.flush()
@@ -282,35 +259,7 @@ def monthly_summary(
     start = date(year, month, 1)
     last_day = calendar.monthrange(year, month)[1]
     end = date(year, month, last_day)
-    result = range_summary(
-        db,
-        principal,
-        start=start,
-        end=end,
-        currency=currency,
-        period_type="month",
-    )
-    return {
-        "year": year,
-        "month": month,
-        "currency": result["currency"],
-        "total_income": result["total_income"],
-        "total_expense": result["total_expense"],
-        "balance": result["balance"],
-        "transaction_count": result["transaction_count"],
-    }
 
-
-def range_summary(
-    db: Session,
-    principal: Principal,
-    *,
-    start: date,
-    end: date,
-    currency: str = "IDR",
-    period_type: str = "custom",
-) -> dict:
-    """Aggregate income/expense for any reporting period."""
     stmt = select(Transaction).where(
         Transaction.workspace_id == principal.workspace_id,
         Transaction.is_deleted.is_(False),
@@ -325,9 +274,8 @@ def range_summary(
     balance = total_income - total_expense
 
     return {
-        "period_type": period_type,
-        "start_date": start,
-        "end_date": end,
+        "year": year,
+        "month": month,
         "currency": currency,
         "total_income": float(total_income),
         "total_expense": float(total_expense),
