@@ -31,18 +31,32 @@ def test_calendar_event_crud_persists(auth_client):
 def test_routine_alias_crud_persists(auth_client):
     created = auth_client.post(
         f"{API}/routines/events",
-        json={"title": "Morning review", "start_at": "2026-06-10T07:30:00Z"},
+        json={
+            "title": "Morning review",
+            "start_at": "2026-06-10T07:30:00Z",
+            "time_period": "morning",
+            "repeat_rule": "daily",
+            "repeat_days": ["mon", "tue", "wed"],
+            "icon": "star",
+            "color": "violet",
+        },
     )
     assert created.status_code == 200, created.text
     event_id = created.json()["data"]["id"]
+    assert created.json()["data"]["time_period"] == "morning"
+    assert created.json()["data"]["repeat_rule"] == "daily"
+    assert created.json()["data"]["repeat_days"] == ["mon", "tue", "wed"]
 
     listed = auth_client.get(f"{API}/routines/events").json()["data"]
     assert any(e["id"] == event_id for e in listed)
 
     updated = auth_client.put(
-        f"{API}/routines/events/{event_id}", json={"title": "Morning planning"}
+        f"{API}/routines/events/{event_id}",
+        json={"title": "Morning planning", "time_period": "afternoon", "repeat_rule": "weekly"},
     )
     assert updated.json()["data"]["title"] == "Morning planning"
+    assert updated.json()["data"]["time_period"] == "afternoon"
+    assert updated.json()["data"]["repeat_rule"] == "weekly"
 
     auth_client.delete(f"{API}/routines/events/{event_id}")
     listed = auth_client.get(f"{API}/routines/events").json()["data"]
