@@ -130,7 +130,7 @@ export function RoutineFormModal({
     >
       <form id="routine-form" onSubmit={submit} className="space-y-4">
         {error ? (
-          <div className="rounded-lg border border-danger/35 bg-danger/10 px-3 py-2 text-[13px] text-danger">
+          <div className="rounded-md border border-danger/35 bg-danger/10 px-3 py-2 text-[13px] text-danger">
             {error}
           </div>
         ) : null}
@@ -147,7 +147,7 @@ export function RoutineFormModal({
 
         <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
           <div>
-            <p className="mb-2 text-[12px] font-medium uppercase tracking-wide text-content-muted">Repeat</p>
+            <p className="label-mono mb-2">Repeat</p>
             <div className="grid grid-cols-2 gap-2">
               {REPEAT_OPTIONS.map((item) => (
                 <button
@@ -155,9 +155,9 @@ export function RoutineFormModal({
                   type="button"
                   onClick={() => setForm({ ...form, repeat_rule: item.key })}
                   className={cn(
-                    "h-10 rounded-lg border text-sm font-medium transition-colors focus-ring",
+                    "h-10 rounded-md border text-sm font-medium transition-colors focus-ring",
                     form.repeat_rule === item.key
-                      ? "border-primary/55 bg-primary text-primary-fg"
+                      ? "grad-primary border-transparent font-semibold text-primary-fg shadow-btn-primary"
                       : "border-border bg-surface-input/45 text-content-muted hover:border-border-strong hover:text-content",
                   )}
                 >
@@ -168,7 +168,7 @@ export function RoutineFormModal({
           </div>
 
           <div>
-            <p className="mb-2 text-[12px] font-medium uppercase tracking-wide text-content-muted">Time of day</p>
+            <p className="label-mono mb-2">Time of day</p>
             <div className="grid grid-cols-3 gap-2">
               {PERIODS.map((period) => {
                 const Icon = period.Icon;
@@ -179,9 +179,9 @@ export function RoutineFormModal({
                     type="button"
                     onClick={() => setPeriod(period.key)}
                     className={cn(
-                      "flex h-10 items-center justify-center gap-1.5 rounded-lg border text-sm font-medium transition-colors focus-ring",
+                      "flex h-10 items-center justify-center gap-1.5 rounded-md border text-sm font-medium transition-colors focus-ring",
                       active
-                        ? "border-primary/55 bg-primary text-primary-fg"
+                        ? "grad-primary border-transparent font-semibold text-primary-fg shadow-btn-primary"
                         : "border-border bg-surface-input/45 text-content-muted hover:border-border-strong hover:text-content",
                     )}
                   >
@@ -194,7 +194,7 @@ export function RoutineFormModal({
         </div>
 
         {showRepeatDays ? (
-          <div className="rounded-xl border border-border bg-surface-input/25 p-3">
+          <div className="glass-tile p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-content">Repeat days</p>
@@ -229,7 +229,7 @@ export function RoutineFormModal({
                     className={cn(
                       "flex aspect-square min-h-9 items-center justify-center rounded-full border text-[12px] font-semibold transition-colors focus-ring",
                       active
-                        ? "border-primary/50 bg-primary text-primary-fg"
+                        ? "grad-primary border-transparent text-primary-fg shadow-toggle-on"
                         : "border-border bg-surface-input/45 text-content-muted hover:border-border-strong hover:text-content",
                     )}
                   >
@@ -263,7 +263,7 @@ export function RoutineFormModal({
           />
         </div>
 
-        <div className="flex items-center justify-between rounded-xl border border-border bg-surface-input/25 px-3 py-2">
+        <div className="glass-tile flex items-center justify-between px-3 py-2">
           <div>
             <p className="text-sm font-medium text-content">All day</p>
             <p className="text-[12px] text-content-subtle">Use this when you don&apos;t need an exact time.</p>
