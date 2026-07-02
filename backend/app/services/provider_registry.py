@@ -105,6 +105,32 @@ INTEGRATIONS: tuple[ProviderSpec, ...] = (
             FieldSpec("api_key", "API key", secret=True, required=True),
         ),
     ),
+    ProviderSpec(
+        id="drive_storage",
+        name="Drive Storage",
+        provider_type="storage",
+        purpose="File storage (local or Supabase)",
+        fields=(
+            FieldSpec("provider", "Provider", placeholder="local", default="local"),
+            FieldSpec("bucket", "Bucket / folder (optional)", placeholder="coreos-files"),
+        ),
+    ),
+    ProviderSpec(
+        id="google",
+        name="Google OAuth",
+        provider_type="auth_provider",
+        purpose="Google login & scoped API access",
+        fields=(
+            FieldSpec("client_id", "Client ID", required=True, placeholder="…apps.googleusercontent.com"),
+            FieldSpec(
+                "redirect_uri",
+                "Redirect URI",
+                required=True,
+                placeholder="http://localhost:3000/oauth/google/callback",
+            ),
+            FieldSpec("client_secret", "Client secret (server-side only)", secret=True, required=True),
+        ),
+    ),
 )
 
 
