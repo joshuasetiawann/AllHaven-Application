@@ -175,7 +175,6 @@ _INTEGRATION_MAP = {
         "client_secret": "GOOGLE_CALENDAR_CLIENT_SECRET",
         "redirect_uri": "GOOGLE_CALENDAR_REDIRECT_URI",
     },
-    "weather_api": {"api_key": "WEATHER_API_KEY", "provider": "WEATHER_PROVIDER"},
     "drive_storage": {"provider": "DRIVE_STORAGE_PROVIDER"},
     "ollama": {"base_url": "OLLAMA_BASE_URL", "default_model": "OLLAMA_DEFAULT_MODEL"},
 }

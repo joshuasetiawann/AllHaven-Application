@@ -84,8 +84,6 @@ class Settings(BaseSettings):
     GOOGLE_CALENDAR_CLIENT_ID: str = ""
     GOOGLE_CALENDAR_CLIENT_SECRET: str = ""
     GOOGLE_CALENDAR_REDIRECT_URI: str = ""
-    WEATHER_API_KEY: str = ""
-    WEATHER_PROVIDER: str = ""
     DRIVE_STORAGE_PROVIDER: str = ""
     # Local Drive storage root for uploaded file bytes (metadata lives in the DB).
     DRIVE_STORAGE_DIR: str = ""
