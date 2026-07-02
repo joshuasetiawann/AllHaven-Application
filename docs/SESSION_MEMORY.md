@@ -1,4 +1,4 @@
-# Session Memory — AllHaven Command Center "Release-Ready Repair"
+# Session Memory — CoreOS Command Center "Release-Ready Repair"
 
 > Catatan memori lengkap untuk sesi pengerjaan ini. Disimpan agar permanen
 > (container bersifat ephemeral; hanya yang di-commit yang bertahan).
@@ -9,8 +9,8 @@
 ## 0. Konteks lingkungan & aturan
 
 - **Lokasi kerja:** repo di-clone di `/home/user/CORE-OS-APPLICATION-` (cloud container).
-  Path lock di brief (`~/CORE-OS-APPLICATION`)
-  **tidak ada** di container ini — bekerja di clone asli; membuat path lokal tersebut
+  Path lock di brief (`/home/thunity/Desktop/Project Joshua/CORE-OS-APPLICATION`)
+  **tidak ada** di container ini — bekerja di clone asli; membuat path `/home/thunity`
   justru akan melanggar aturan "do not create a duplicate repo elsewhere".
 - **Git:** semua commit di branch `claude/funny-ride-jtb9g`, author `Claude
   <noreply@anthropic.com>`. **Tidak push, tidak buat PR, tidak pakai GitHub MCP**
@@ -27,7 +27,7 @@
 
 ## 1. Tugas utama sesi ini
 
-Brief besar "Release-Ready Repair" untuk app **AllHaven Command Center** (FastAPI +
+Brief besar "Release-Ready Repair" untuk app **CoreOS Command Center** (FastAPI +
 PostgreSQL backend, Next.js + TS + Tailwind frontend; **bukan OS sungguhan**).
 Memperbaiki app yang sudah ada (bukan bikin dari nol) sampai layak rilis:
 
@@ -128,7 +128,7 @@ Memperbaiki app yang sudah ada (bukan bikin dari nol) sampai layak rilis:
   sandbox (Ollama asli tak bisa diinstall di sini). Hasil: Test → **ONLINE**
   (`last_verified` terisi); chat single → balasan asli; multi-agent → `completed` (25 ms).
   Di mesin user, Ollama asli berperilaku identik lewat konektor yang sama.
-- **Cara Ollama gratis di mesin user:** install dari ollama.com → `./allhaven.sh ollama
+- **Cara Ollama gratis di mesin user:** install dari ollama.com → `./coreos.sh ollama
   llama3.2` (atau `ollama serve` + `ollama pull llama3.2`) → Settings → AI Providers →
   Ollama: base_url `http://localhost:11434`, model `llama3.2` → Save → Test → Online.
 
