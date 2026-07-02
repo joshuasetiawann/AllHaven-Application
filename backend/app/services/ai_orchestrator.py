@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from app.core.principal import Principal
 from app.domain.ai import ChatMessage
 from app.services import ai_intent_router, ai_local_answers, ai_provider_router, ai_tools_registry, schedule_parser
+from app.services.reasoning import quality
 from app.services.thinking import thinking_params
 
 MAX_TOOL_ROUNDS = 5
@@ -195,6 +196,17 @@ def _fallback_text(tool_meta: List[dict], proposal_ids: List[str]) -> str:
     return " ".join(parts) or "Tidak ada aksi yang perlu dijalankan."
 
 
+def _ok_result(base: dict, message: str, content: str) -> dict:
+    """Success result with a deterministic quality score attached when low, so
+    weak/irrelevant replies are visible downstream instead of persisted silently."""
+    out = {**base, "ok": True, "configured": True, "blocked": False,
+           "content": content, "error": ""}
+    score = quality.score_response(message, content or "")
+    if score.is_low():
+        out["quality"] = score.to_meta()
+    return out
+
+
 def _current_context_block() -> str:
     """A compact current date/time block so the model never invents a date (e.g. a
     2023 start_at). Uses the app timezone (Asia/Jakarta by default)."""
@@ -278,14 +290,17 @@ def run_with_tools(
     if extra_context:
         base_system = f"{base_system}\n\n{extra_context}"
 
-    if not plan.supports_tool_loop:
+    # Smalltalk ("halo", "makasih") never needs the tool loop: one plain, warm
+    # reply with history is the whole job — cheaper and never a bare "completed".
+    simple_input = ai_intent_router.is_simple_message(message)
+
+    if not plan.supports_tool_loop or simple_input:
         # Honest non-tool path (Ollama/Anthropic/Gemini/Blackbox today): plain chat
         # with history; we never pretend tools ran. Memory context still arrives
         # through the system prompt so non-tool providers follow the same style.
         result = plan.execute([{"role": "system", "content": base_system}, *history, user_turn], params)
         if result.ok:
-            return {**base, "ok": True, "configured": True, "blocked": False,
-                    "content": result.content, "error": ""}
+            return _ok_result(base, message, result.content)
         return {**base, "ok": False, "configured": True, "blocked": False,
                 "content": f"The '{plan.provider_name}' provider could not complete the request: {result.error}",
                 "error": result.error}
@@ -339,10 +354,11 @@ def run_with_tools(
     base = {"provider_id": pid, "tool_calls": tool_meta, "proposal_ids": proposal_ids}
     if result is not None and result.ok:
         content = result.content
-        if not (content or "").strip() and tool_meta:
+        # Empty OR bare-noop ("completed", "done", "selesai") replies after tool
+        # activity are replaced with a specific human-readable summary.
+        if tool_meta and (not (content or "").strip() or quality.is_noop_reply(content)):
             content = _fallback_text(tool_meta, proposal_ids)
-        return {**base, "ok": True, "configured": True, "blocked": False,
-                "content": content, "error": ""}
+        return _ok_result(base, message, content)
     error = result.error if result is not None else "no response"
     return {**base, "ok": False, "configured": True, "blocked": False,
             "content": f"The '{plan.provider_name}' provider could not complete the request: {error}",
