@@ -87,7 +87,7 @@ export function IntegrationConfigModal({
         </div>
       }
     >
-      <div className="mb-4 flex items-center justify-between rounded-lg border border-border bg-surface-input px-3 py-2.5">
+      <div className="glass-tile mb-4 flex items-center justify-between px-3.5 py-2.5">
         <span className="flex items-center gap-2 text-[13px] text-content-muted">
           <Plug size={15} /> Current status
         </span>
@@ -119,14 +119,17 @@ export function IntegrationConfigModal({
           if (field.key === "connection_mode") {
             return (
               <div key={field.key}>
-                <label htmlFor={`f-${field.key}`} className="mb-1.5 block text-[13px] font-medium text-content-muted">
+                <label
+                  htmlFor={`f-${field.key}`}
+                  className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-content-subtle"
+                >
                   {field.label}
                 </label>
                 <select
                   id={`f-${field.key}`}
                   value={publicValues[field.key] || "local_desktop"}
                   onChange={(e) => setPublicValues((s) => ({ ...s, [field.key]: e.target.value }))}
-                  className="h-10 w-full rounded-lg border border-border bg-surface-input px-3 text-sm text-content focus-ring"
+                  className="h-10 w-full rounded-md border border-border bg-surface-input/80 px-3 text-sm text-content focus-ring"
                 >
                   <option value="local_desktop">Local Desktop — localhost (this machine)</option>
                   <option value="tailscale_private">Tailscale Private — device IP / MagicDNS</option>
@@ -185,12 +188,14 @@ export function IntegrationConfigModal({
 
       {integration.key === "supabase" ? (
         <div className="mt-4 border-t border-border pt-4">
-          <label className="text-sm text-content-muted">Confirm your password to link Supabase Auth</label>
+          <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-content-subtle">
+            Confirm your password to link Supabase Auth
+          </label>
           <input
             type="password"
             value={connectPassword}
             onChange={(e) => setConnectPassword(e.target.value)}
-            className="mt-1 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm"
+            className="mt-1.5 h-10 w-full rounded-md border border-border bg-surface-input/80 px-3 text-sm text-content placeholder:text-content-faint focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
           />
           <Button
             className="mt-2"

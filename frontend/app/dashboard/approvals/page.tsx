@@ -1,21 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import {
+  Bot,
   Brain,
   CheckCircle2,
   ClipboardCheck,
+  Clock,
   Pencil,
   RefreshCw,
+  Send,
   ShieldAlert,
+  Trash2,
+  Wallet,
+  Wrench,
   XCircle,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardHeader } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
@@ -23,6 +29,7 @@ import { useToast } from "@/components/ui/Toast";
 import { aiApi, ApiException, memoryApi } from "@/lib/api";
 import { cn, relativeTime } from "@/lib/format";
 import type { AiMemory, MemorySuggestion, ToolProposal } from "@/types";
+import { ProposalDetails } from "@/components/approvals/ProposalPreview";
 import {
   isTransactionTool,
   todayIso,
@@ -37,19 +44,64 @@ const RISK_TONE: Record<string, "neutral" | "warning" | "danger"> = {
   HIGH: "danger",
 };
 
+/* Risk-tinted approval card — High = red border/wash, Medium = amber, Low = plain glass. */
+const RISK_CARD: Record<string, string> = {
+  HIGH: "border-danger/30 bg-[linear-gradient(135deg,rgb(var(--color-danger)/0.07),rgb(var(--color-danger)/0.015)_60%)]",
+  MEDIUM:
+    "border-warning/25 bg-[linear-gradient(135deg,rgb(var(--color-warning)/0.06),rgb(var(--color-warning)/0.012)_60%)]",
+};
+
+const RISK_TILE: Record<string, string> = {
+  HIGH: "border-danger/30 bg-danger/10 text-danger",
+  MEDIUM: "border-warning/30 bg-warning/10 text-warning",
+};
+
+/** Presentational glyph for the risk tile, picked from the tool name. */
+function toolIcon(name: string) {
+  const n = name.toLowerCase();
+  if (isTransactionTool(name)) return Wallet;
+  if (n.includes("delete") || n.includes("remove")) return Trash2;
+  if (n.includes("send") || n.includes("email") || n.includes("invoice")) return Send;
+  if (n.includes("memory")) return Brain;
+  return Wrench;
+}
+
 function humanizeTool(name: string): string {
   const spaced = name.replace(/[_.-]+/g, " ").trim();
   return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : name;
 }
 
-function previewJson(value: unknown, max = 220): string {
-  let text: string;
-  try {
-    text = JSON.stringify(value) || String(value);
-  } catch {
-    text = String(value);
-  }
-  return text.length > max ? `${text.slice(0, max)}...` : text;
+/** Mono provenance chip (agent / tool / relative time). */
+function ProvenanceChip({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5 rounded-sm border border-border bg-surface-input/60 px-2 py-1 font-mono text-[10.5px] text-content-muted">
+      <span className="shrink-0">{icon}</span>
+      <span className="min-w-0 truncate">{children}</span>
+    </span>
+  );
+}
+
+/** Small section eyebrow above each approval column. */
+function SectionHeading({
+  icon,
+  title,
+  meta,
+}: {
+  icon: ReactNode;
+  title: string;
+  meta: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2.5">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary-bright">
+        {icon}
+      </span>
+      <h2 className="truncate text-[15px] font-semibold text-content">{title}</h2>
+      <span className="ml-auto shrink-0 font-mono text-[10.5px] uppercase tracking-[0.12em] text-content-faint">
+        {meta}
+      </span>
+    </div>
+  );
 }
 
 export default function ApprovalsPage() {
@@ -249,34 +301,66 @@ export default function ApprovalsPage() {
 
   return (
     <AppShell>
-      <PageHeader
-        title="Approvals"
-        subtitle="Review pending AI changes, memory suggestions, and other actions before they run."
-        actions={
+      {/* Header — title + pending warning chip + subtitle, filter segments right. */}
+      <div className="mb-[18px] flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2.5">
+            <h1 className="text-2xl font-semibold tracking-[-0.02em] text-content sm:text-[30px]">
+              Approvals
+            </h1>
+            <Badge tone="warning" className="px-3 py-[3px] text-xs font-semibold">
+              {totals.all} pending
+            </Badge>
+          </div>
+          <p className="max-w-2xl text-[13.5px] leading-relaxed text-content-muted">
+            Risky AI actions and memory suggestions wait here for your decision. Nothing runs
+            until you approve.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-0.5 rounded-md border border-border bg-surface-input/60 p-[3px]">
+            <span className="rounded-sm border border-primary/30 bg-[linear-gradient(90deg,rgb(var(--color-primary)/0.2),rgb(var(--color-secondary)/0.12))] px-3 py-1.5 text-[12.5px] font-semibold text-content">
+              Pending
+            </span>
+            <span
+              aria-disabled="true"
+              title="Decision history is not stored yet"
+              className="cursor-not-allowed px-3 py-1.5 text-[12.5px] text-content-faint"
+            >
+              Approved
+            </span>
+            <span
+              aria-disabled="true"
+              title="Decision history is not stored yet"
+              className="cursor-not-allowed px-3 py-1.5 text-[12.5px] text-content-faint"
+            >
+              Rejected
+            </span>
+          </div>
           <Button variant="ghost" onClick={() => void load()}>
             <RefreshCw size={15} /> Refresh
           </Button>
-        }
-      />
+        </div>
+      </div>
 
       {error ? <div className="mb-4"><ErrorState message={error} onRetry={load} /></div> : null}
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card padding="sm" className="border-primary/25">
+        <Card padding="sm" gradient>
           <p className="label-mono">Waiting</p>
-          <p className="mt-1 text-2xl font-semibold text-content">{totals.all}</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-[-0.02em] text-content">{totals.all}</p>
         </Card>
         <Card padding="sm">
           <p className="label-mono">AI changes</p>
-          <p className="mt-1 text-2xl font-semibold text-warning">{totals.actions}</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-[-0.02em] text-warning">{totals.actions}</p>
         </Card>
         <Card padding="sm">
           <p className="label-mono">Memory review</p>
-          <p className="mt-1 text-2xl font-semibold text-primary">{totals.memories}</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-[-0.02em] text-primary-bright">{totals.memories}</p>
         </Card>
         <Card padding="sm">
           <p className="label-mono">High risk</p>
-          <p className="mt-1 text-2xl font-semibold text-danger">{totals.highRisk}</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-[-0.02em] text-danger">{totals.highRisk}</p>
         </Card>
       </div>
 
@@ -291,11 +375,12 @@ export default function ApprovalsPage() {
         />
       ) : (
         <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-          <Card>
-            <CardHeader
+          {/* AI change approvals — standalone risk-tinted glass cards. */}
+          <div className="min-w-0 space-y-3.5">
+            <SectionHeading
+              icon={<ShieldAlert size={16} />}
               title="AI change approvals"
-              subtitle={`${proposals.length} pending action${proposals.length === 1 ? "" : "s"}`}
-              icon={<ShieldAlert size={18} />}
+              meta={`${proposals.length} pending action${proposals.length === 1 ? "" : "s"}`}
             />
             {proposals.length === 0 ? (
               <EmptyState
@@ -304,63 +389,91 @@ export default function ApprovalsPage() {
                 className="py-10"
               />
             ) : (
-              <div className="space-y-3">
-                {proposals.map((proposal) => {
-                  const risk = proposal.risk_level.toUpperCase();
-                  const busy = busyId === proposal.id;
-                  const isTxn = isTransactionTool(proposal.tool_name);
-                  const invalid = isTxn && transactionPayloadErrors(proposal.tool_payload).length > 0;
-                  const cardError = cardErrors[proposal.id];
-                  return (
-                    <div key={proposal.id} className="rounded-xl border border-border bg-surface-input p-3">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <p className="min-w-0 break-words text-sm font-semibold text-content">{humanizeTool(proposal.tool_name)}</p>
-                        <Badge tone={RISK_TONE[risk] ?? "neutral"}>{risk} risk</Badge>
-                        <span className="text-[11px] text-content-subtle">{relativeTime(proposal.created_at)}</span>
-                      </div>
-                      {isTxn ? (
-                        <TransactionSummary payload={proposal.tool_payload} />
-                      ) : (
-                        <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-bg/50 p-2 font-mono text-[11.5px] leading-relaxed text-content-muted">
-                          {previewJson(proposal.tool_payload, 800)}
-                        </pre>
-                      )}
-                      {cardError ? (
-                        <p className="mt-2 flex items-start gap-1.5 rounded-lg border border-danger/30 bg-danger/10 px-2.5 py-2 text-[12px] text-danger">
-                          <ShieldAlert size={13} className="mt-0.5 shrink-0" />
-                          <span className="min-w-0 break-words">{cardError}</span>
-                        </p>
-                      ) : null}
-                      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                        <Button
-                          size="sm"
-                          loading={busy}
-                          disabled={busy || invalid}
-                          onClick={() => void approveProposal(proposal)}
-                          title={invalid ? "Fix the highlighted fields before approving" : undefined}
-                          className="w-full sm:w-auto"
-                        >
-                          <CheckCircle2 size={14} /> Approve
-                        </Button>
-                        <Button size="sm" variant="ghost" disabled={busy} onClick={() => openEdit(proposal)} className="w-full sm:w-auto">
-                          <Pencil size={14} /> Edit
-                        </Button>
-                        <Button size="sm" variant="danger" loading={busy} disabled={busy} onClick={() => void rejectProposal(proposal)} className="w-full sm:w-auto">
-                          <XCircle size={14} /> Reject
-                        </Button>
+              proposals.map((proposal) => {
+                const risk = proposal.risk_level.toUpperCase();
+                const busy = busyId === proposal.id;
+                const isTxn = isTransactionTool(proposal.tool_name);
+                const invalid = isTxn && transactionPayloadErrors(proposal.tool_payload).length > 0;
+                const cardError = cardErrors[proposal.id];
+                const Glyph = toolIcon(proposal.tool_name);
+                return (
+                  <div
+                    key={proposal.id}
+                    className={cn(
+                      "panel relative rounded-[18px] p-4 sm:p-5",
+                      RISK_CARD[risk],
+                    )}
+                  >
+                    <div className="flex items-start gap-3.5">
+                      <span
+                        className={cn(
+                          "flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] border",
+                          RISK_TILE[risk] ?? "border-border bg-surface-high/60 text-content-muted",
+                        )}
+                      >
+                        <Glyph size={20} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1.5 flex min-w-0 flex-wrap items-center gap-2">
+                          <p className="min-w-0 break-words text-[15px] font-semibold text-content">
+                            {humanizeTool(proposal.tool_name)}
+                          </p>
+                          <Badge
+                            tone={RISK_TONE[risk] ?? "neutral"}
+                            className="text-[10px] font-semibold uppercase tracking-[0.05em]"
+                          >
+                            {risk} risk
+                          </Badge>
+                        </div>
+                        {isTxn ? (
+                          <TransactionSummary payload={proposal.tool_payload} />
+                        ) : (
+                          <ProposalDetails toolName={proposal.tool_name} payload={proposal.tool_payload ?? {}} />
+                        )}
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          <ProvenanceChip icon={<Bot size={11} />}>{proposal.tool_name}</ProvenanceChip>
+                          <ProvenanceChip icon={<Clock size={11} />}>
+                            {relativeTime(proposal.created_at)}
+                          </ProvenanceChip>
+                        </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                    {cardError ? (
+                      <p className="mt-3 flex items-start gap-1.5 rounded-md border border-danger/30 bg-danger/10 px-2.5 py-2 text-[12px] text-danger">
+                        <ShieldAlert size={13} className="mt-0.5 shrink-0" />
+                        <span className="min-w-0 break-words">{cardError}</span>
+                      </p>
+                    ) : null}
+                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                      <Button
+                        size="sm"
+                        loading={busy}
+                        disabled={busy || invalid}
+                        onClick={() => void approveProposal(proposal)}
+                        title={invalid ? "Fix the highlighted fields before approving" : undefined}
+                        className="w-full sm:w-auto"
+                      >
+                        <CheckCircle2 size={14} /> Approve
+                      </Button>
+                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => openEdit(proposal)} className="w-full sm:w-auto">
+                        <Pencil size={14} /> Edit
+                      </Button>
+                      <Button size="sm" variant="danger" loading={busy} disabled={busy} onClick={() => void rejectProposal(proposal)} className="w-full sm:w-auto">
+                        <XCircle size={14} /> Reject
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
             )}
-          </Card>
+          </div>
 
-          <Card>
-            <CardHeader
+          {/* Memory suggestions — violet-tinted review cards. */}
+          <div className="min-w-0 space-y-3.5">
+            <SectionHeading
+              icon={<Brain size={16} />}
               title="Memory suggestions"
-              subtitle={`${suggestions.length} pending memor${suggestions.length === 1 ? "y" : "ies"}`}
-              icon={<Brain size={18} />}
+              meta={`${suggestions.length} pending memor${suggestions.length === 1 ? "y" : "ies"}`}
             />
             {suggestions.length === 0 ? (
               <EmptyState
@@ -369,38 +482,55 @@ export default function ApprovalsPage() {
                 className="py-10"
               />
             ) : (
-              <div className="space-y-3">
-                {suggestions.map((suggestion) => {
-                  const busy = busyId === suggestion.id;
-                  return (
-                    <div key={suggestion.id} className="rounded-xl border border-border bg-surface-input p-3">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <p className="min-w-0 break-words text-sm font-semibold text-content">{suggestion.title}</p>
-                        <Badge tone="primary">{suggestion.category}</Badge>
-                        <Badge tone={suggestion.sensitivity === "LOW" ? "success" : "warning"}>
-                          {suggestion.sensitivity}
-                        </Badge>
-                      </div>
-                      <p className="mt-2 text-[13px] leading-relaxed text-content-muted">{suggestion.content}</p>
-                      {suggestion.source_snippet ? (
-                        <p className="mt-2 line-clamp-2 text-[11.5px] italic text-content-subtle">
-                          From: "{suggestion.source_snippet}"
-                        </p>
-                      ) : null}
-                      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                        <Button size="sm" loading={busy} disabled={busy} onClick={() => void approveSuggestion(suggestion)} className="w-full sm:w-auto">
-                          <CheckCircle2 size={14} /> Save memory
-                        </Button>
-                        <Button size="sm" variant="ghost" loading={busy} disabled={busy} onClick={() => void rejectSuggestion(suggestion)} className="w-full sm:w-auto">
-                          <XCircle size={14} /> Dismiss
-                        </Button>
+              suggestions.map((suggestion) => {
+                const busy = busyId === suggestion.id;
+                return (
+                  <div key={suggestion.id} className="panel relative rounded-[18px] p-4 sm:p-5">
+                    <div className="flex items-start gap-3.5">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] border border-secondary/30 bg-secondary/10 text-secondary-soft">
+                        <Brain size={20} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1.5 flex min-w-0 flex-wrap items-center gap-2">
+                          <p className="min-w-0 break-words text-[15px] font-semibold text-content">
+                            {suggestion.title}
+                          </p>
+                          <Badge tone="secondary" className="text-[10px] font-semibold uppercase tracking-[0.05em]">
+                            {suggestion.category}
+                          </Badge>
+                          <Badge
+                            tone={suggestion.sensitivity === "LOW" ? "success" : "warning"}
+                            className="text-[10px] font-semibold uppercase tracking-[0.05em]"
+                          >
+                            {suggestion.sensitivity}
+                          </Badge>
+                        </div>
+                        <p className="text-[13px] leading-[1.55] text-content-muted">{suggestion.content}</p>
+                        {suggestion.source_snippet ? (
+                          <p className="mt-2 line-clamp-2 text-[11.5px] italic text-content-subtle">
+                            From: "{suggestion.source_snippet}"
+                          </p>
+                        ) : null}
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          <ProvenanceChip icon={<Clock size={11} />}>
+                            {relativeTime(suggestion.created_at)}
+                          </ProvenanceChip>
+                        </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                      <Button size="sm" loading={busy} disabled={busy} onClick={() => void approveSuggestion(suggestion)} className="w-full sm:w-auto">
+                        <CheckCircle2 size={14} /> Save memory
+                      </Button>
+                      <Button size="sm" variant="danger" loading={busy} disabled={busy} onClick={() => void rejectSuggestion(suggestion)} className="w-full sm:w-auto">
+                        <XCircle size={14} /> Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
             )}
-          </Card>
+          </div>
         </div>
       )}
 

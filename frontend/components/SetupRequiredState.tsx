@@ -22,11 +22,12 @@ export function SetupRequiredState({
 }) {
   const isBridge = needs === "bridge";
   return (
-    <div className="mx-auto max-w-md rounded-2xl border border-border bg-surface/60 px-5 py-8 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
+    <div className="panel-gradient mx-auto max-w-md px-5 py-8 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#7FF7F2,#A78BFA)] text-primary-fg shadow-glow-primary">
         <PlugZap size={22} />
       </div>
-      <h2 className="mt-4 text-lg font-semibold tracking-tight text-content">
+      <p className="label-mono mt-4">Connection required</p>
+      <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-content">
         {feature} needs a connection
       </h2>
       <p className="mt-1.5 text-[13.5px] leading-relaxed text-content-muted">
@@ -36,9 +37,9 @@ export function SetupRequiredState({
             : `${feature} needs the AllHaven backend. Connect to it to continue — your data and keys stay server-side.`)}
       </p>
 
-      <div className="mt-4 rounded-xl border border-border bg-surface-input/40 p-3 text-left text-[12.5px] text-content-muted">
+      <div className="glass-tile mt-4 p-3 text-left text-[12.5px] text-content-muted">
         <p className="flex items-center gap-1.5 font-medium text-content">
-          <ShieldCheck size={14} className="text-success" /> What you need
+          <ShieldCheck size={14} className="text-success-soft" /> What you need
         </p>
         <ul className="mt-1.5 list-disc space-y-1 pl-5">
           {isBridge ? (

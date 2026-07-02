@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlarmClock, Clock as ClockIcon, Flag, Pause, Play, Plus, RotateCcw, Timer as TimerIcon, Trash2 } from "lucide-react";
+import { AlarmClock, Flag, Pause, Play, Plus, RotateCcw, Timer as TimerIcon, Trash2, Watch } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
+import { Card, CardHeader } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/format";
-
-type Tab = "clock" | "stopwatch" | "timer" | "alarm";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -32,6 +31,13 @@ function beep(ms = 600) {
   }
 }
 
+const WORLD_CLOCKS: { city: string; tz: string }[] = [
+  { city: "London", tz: "Europe/London" },
+  { city: "New York", tz: "America/New_York" },
+  { city: "Tokyo", tz: "Asia/Tokyo" },
+  { city: "Sydney", tz: "Australia/Sydney" },
+];
+
 function LiveClock() {
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
@@ -40,16 +46,52 @@ function LiveClock() {
     return () => clearInterval(id);
   }, []);
   const tz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "";
+  const city = tz ? (tz.split("/").pop() ?? tz).replace(/_/g, " ") : "";
+  const tzAbbr = now
+    ? new Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
+        .formatToParts(now)
+        .find((p) => p.type === "timeZoneName")?.value ?? ""
+    : "";
+
+  const worldTime = (zone: string) =>
+    now ? now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: zone }) : "--:--";
+  const worldOffset = (zone: string) => {
+    if (!now) return "";
+    try {
+      const there = new Date(now.toLocaleString("en-US", { timeZone: zone })).getTime();
+      const here = new Date(now.toLocaleString("en-US")).getTime();
+      const diff = Math.round(((there - here) / 3600000) * 2) / 2;
+      if (diff === 0) return "±0h";
+      return `${diff > 0 ? "+" : "−"}${Math.abs(diff)}h`;
+    } catch {
+      return "";
+    }
+  };
+
   return (
-    <div className="flex flex-col items-center py-8 text-center">
-      <p className="font-mono text-5xl font-semibold tabular-nums text-content sm:text-7xl">
-        {now ? now.toLocaleTimeString(undefined, { hour12: false }) : "--:--:--"}
-      </p>
-      <p className="mt-3 text-sm text-content-muted sm:text-base">
-        {now ? now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : ""}
-      </p>
-      {tz ? <p className="mt-1 text-[12px] text-content-subtle">{tz}</p> : null}
-    </div>
+    <>
+      <Card gradient padding="none" className="mb-5 p-[30px] text-center">
+        <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-primary-bright">
+          {city ? `${city}${tzAbbr ? ` · ${tzAbbr}` : ""}` : "Local time"}
+        </p>
+        <p className="glow-text mt-2.5 font-mono text-5xl font-semibold leading-none tabular-nums text-content sm:text-[64px] sm:tracking-[-0.02em]">
+          {now ? `${pad(now.getHours())}:${pad(now.getMinutes())}` : "--:--"}
+          <span className="text-2xl text-content-subtle sm:text-[28px]">:{now ? pad(now.getSeconds()) : "--"}</span>
+        </p>
+        <p className="mt-3 text-sm text-content-muted">
+          {now ? now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : " "}
+        </p>
+      </Card>
+      <div className="mb-5 grid grid-cols-2 gap-3.5 md:grid-cols-4">
+        {WORLD_CLOCKS.map((w) => (
+          <div key={w.tz} className="glass-tile p-4">
+            <p className="text-[12.5px] text-content-muted">{w.city}</p>
+            <p className="mt-1.5 font-mono text-[22px] tabular-nums text-content">{worldTime(w.tz)}</p>
+            <p className="mt-[3px] text-[11px] text-content-faint">{worldOffset(w.tz)}</p>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -76,30 +118,37 @@ function Stopwatch() {
     `${pad(Math.floor(ms / 60000))}:${pad(Math.floor((ms % 60000) / 1000))}.${pad(Math.floor((ms % 1000) / 10))}`;
 
   return (
-    <div className="flex flex-col items-center py-8">
-      <p className="font-mono text-5xl font-semibold tabular-nums text-content sm:text-6xl">{fmt(elapsed)}</p>
-      <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-        <Button onClick={() => setRunning((r) => !r)} className="px-5">
-          {running ? <><Pause size={15} className="mr-1.5" /> Pause</> : <><Play size={15} className="mr-1.5" /> Start</>}
+    <Card padding="none" className="p-[22px] text-center">
+      <div className="mb-3.5 flex items-center justify-center gap-2">
+        <Watch size={16} className="text-secondary-soft" />
+        <span className="text-[13px] font-semibold text-content">Stopwatch</span>
+      </div>
+      <p className="font-mono text-[40px] font-semibold leading-none tabular-nums text-content">
+        {pad(Math.floor(elapsed / 60000))}:{pad(Math.floor((elapsed % 60000) / 1000))}
+        <span className="text-[22px] text-content-subtle">.{pad(Math.floor((elapsed % 1000) / 10))}</span>
+      </p>
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+        <Button onClick={() => setRunning((r) => !r)} className="px-[18px]">
+          {running ? <><Pause size={14} className="mr-1.5" /> Pause</> : <><Play size={14} className="mr-1.5" /> Start</>}
         </Button>
-        <Button variant="secondary" onClick={() => setLaps((l) => [elapsed, ...l])} disabled={!running}>
-          <Flag size={15} className="mr-1.5" /> Lap
+        <Button variant="ghost" onClick={() => setLaps((l) => [elapsed, ...l])} disabled={!running}>
+          <Flag size={14} className="mr-1.5" /> Lap
         </Button>
         <Button variant="ghost" onClick={() => { setRunning(false); setElapsed(0); setLaps([]); }}>
-          <RotateCcw size={15} className="mr-1.5" /> Reset
+          <RotateCcw size={14} className="mr-1.5" /> Reset
         </Button>
       </div>
       {laps.length ? (
-        <ul className="custom-scrollbar mt-6 max-h-48 w-full max-w-xs space-y-1 overflow-y-auto">
+        <ul className="custom-scrollbar mx-auto mt-5 max-h-48 w-full max-w-xs space-y-1.5 overflow-y-auto text-left">
           {laps.map((l, i) => (
-            <li key={i} className="flex justify-between rounded-md border border-border bg-surface-input px-3 py-1.5 text-sm">
-              <span className="text-content-subtle">Lap {laps.length - i}</span>
+            <li key={i} className="glass-tile flex justify-between rounded-md px-3 py-1.5 text-sm">
+              <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-content-subtle">Lap {laps.length - i}</span>
               <span className="font-mono tabular-nums text-content">{fmt(l)}</span>
             </li>
           ))}
         </ul>
       ) : null}
-    </div>
+    </Card>
   );
 }
 
@@ -133,37 +182,41 @@ function CountdownTimer() {
   const left = remaining || (h * 3600 + m * 60 + s) * 1000;
   const disp = `${pad(Math.floor(left / 3600000))}:${pad(Math.floor((left % 3600000) / 60000))}:${pad(Math.floor((left % 60000) / 1000))}`;
   const numField = (val: number, set: (n: number) => void, max: number, label: string) => (
-    <label className="flex flex-col items-center gap-1">
+    <label className="flex flex-col items-center gap-1.5">
       <input
         type="number" min={0} max={max} value={val} disabled={running}
         onChange={(e) => set(Math.max(0, Math.min(max, Number(e.target.value) || 0)))}
-        className="h-12 w-16 rounded-lg border border-border bg-surface-input text-center text-lg text-content focus:border-primary/70 focus:outline-none disabled:opacity-60"
+        className="glass-tile h-12 w-16 rounded-md text-center font-mono text-lg tabular-nums text-content focus:border-primary/60 focus:outline-none disabled:opacity-60"
       />
-      <span className="text-[11px] uppercase tracking-wide text-content-subtle">{label}</span>
+      <span className="label-mono">{label}</span>
     </label>
   );
 
   return (
-    <div className="flex flex-col items-center py-8">
+    <Card padding="none" className="p-[22px] text-center">
+      <div className="mb-3.5 flex items-center justify-center gap-2">
+        <TimerIcon size={16} className="text-primary-bright" />
+        <span className="text-[13px] font-semibold text-content">Timer</span>
+      </div>
       {remaining > 0 || running ? (
-        <p className={cn("font-mono text-5xl font-semibold tabular-nums sm:text-6xl", done ? "text-warning" : "text-content")}>{disp}</p>
+        <p className={cn("font-mono text-[40px] font-semibold leading-none tabular-nums", done ? "text-warning" : "text-content")}>{disp}</p>
       ) : (
-        <div className="flex items-end gap-2">
-          {numField(h, setH, 99, "hrs")}<span className="pb-6 text-2xl text-content-subtle">:</span>
-          {numField(m, setM, 59, "min")}<span className="pb-6 text-2xl text-content-subtle">:</span>
+        <div className="flex items-end justify-center gap-2">
+          {numField(h, setH, 99, "hrs")}<span className="pb-7 font-mono text-2xl text-content-subtle">:</span>
+          {numField(m, setM, 59, "min")}<span className="pb-7 font-mono text-2xl text-content-subtle">:</span>
           {numField(s, setS, 59, "sec")}
         </div>
       )}
       {done ? <p className="mt-3 text-sm font-medium text-warning">Time&apos;s up!</p> : null}
-      <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
         {!running ? (
-          <Button onClick={start} className="px-5"><Play size={15} className="mr-1.5" /> Start</Button>
+          <Button onClick={start} className="px-[18px]"><Play size={14} className="mr-1.5" /> Start</Button>
         ) : (
-          <Button onClick={() => setRunning(false)} className="px-5"><Pause size={15} className="mr-1.5" /> Pause</Button>
+          <Button onClick={() => setRunning(false)} className="px-[18px]"><Pause size={14} className="mr-1.5" /> Pause</Button>
         )}
-        <Button variant="ghost" onClick={reset}><RotateCcw size={15} className="mr-1.5" /> Reset</Button>
+        <Button variant="ghost" onClick={reset}><RotateCcw size={14} className="mr-1.5" /> Reset</Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -205,83 +258,76 @@ function Alarms() {
   };
 
   return (
-    <div className="py-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <label className="flex flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-wide text-content-subtle">Time</span>
+    <Card padding="none" className="mt-4 p-[22px]">
+      <CardHeader
+        icon={<AlarmClock size={16} />}
+        title="Alarms"
+        subtitle="Alarms are saved in your browser and ring while AllHaven is open."
+      />
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end">
+        <label className="flex flex-col gap-1.5">
+          <span className="label-mono">Time</span>
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
-            className="h-11 rounded-lg border border-border bg-surface-input px-3 text-content focus:border-primary/70 focus:outline-none" />
+            className="glass-tile h-11 rounded-md px-3 font-mono tabular-nums text-content focus:border-primary/60 focus:outline-none" />
         </label>
-        <label className="flex flex-1 flex-col gap-1">
-          <span className="text-[11px] uppercase tracking-wide text-content-subtle">Label (optional)</span>
+        <label className="flex flex-1 flex-col gap-1.5">
+          <span className="label-mono">Label (optional)</span>
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Wake up, meeting…"
-            className="h-11 rounded-lg border border-border bg-surface-input px-3 text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none" />
+            className="glass-tile h-11 rounded-md px-3 text-content placeholder:text-content-subtle focus:border-primary/60 focus:outline-none" />
         </label>
-        <Button onClick={add} className="px-4"><Plus size={16} className="mr-1.5" /> Add</Button>
+        <Button onClick={add} className="px-4"><Plus size={15} className="mr-1.5" /> Add</Button>
       </div>
 
       <ul className="mt-5 space-y-2">
         {alarms.length === 0 ? (
-          <li className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-content-subtle">
+          <li className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-content-subtle">
             No alarms yet. Alarms ring while this page is open.
           </li>
         ) : alarms.map((a) => (
-          <li key={a.id} className="flex items-center gap-3 rounded-lg border border-border bg-surface-input px-3.5 py-2.5">
+          <li key={a.id} className="glass-tile flex items-center gap-3 px-3.5 py-2.5">
             <span className="font-mono text-xl tabular-nums text-content">{a.time}</span>
             {a.label ? <span className="min-w-0 flex-1 truncate text-sm text-content-muted">{a.label}</span> : <span className="flex-1" />}
             <button
               type="button"
               onClick={() => setAlarms((p) => p.map((x) => (x.id === a.id ? { ...x, enabled: !x.enabled } : x)))}
-              className={cn("relative h-5 w-9 rounded-full transition-colors", a.enabled ? "bg-primary" : "bg-surface-high")}
+              className={cn(
+                "relative h-5 w-9 rounded-full transition-all",
+                a.enabled
+                  ? "bg-[linear-gradient(90deg,rgb(var(--color-primary)),rgb(var(--color-secondary)))] shadow-toggle-on"
+                  : "bg-white/10",
+              )}
               aria-label="Toggle alarm"
             >
               <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform", a.enabled ? "translate-x-4" : "translate-x-0.5")} />
             </button>
             <button type="button" onClick={() => setAlarms((p) => p.filter((x) => x.id !== a.id))}
-              className="text-content-subtle hover:text-danger" aria-label="Delete alarm">
+              className="text-content-subtle transition-colors hover:text-danger" aria-label="Delete alarm">
               <Trash2 size={16} />
             </button>
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[11px] text-content-subtle">
+      <p className="mt-3 font-mono text-[11px] text-content-faint">
         Foundation: alarms are saved in your browser and ring while AllHaven is open. Background/push alarms come later.
       </p>
-    </div>
+    </Card>
   );
 }
 
-const TABS: { id: Tab; label: string; icon: typeof ClockIcon }[] = [
-  { id: "clock", label: "Clock", icon: ClockIcon },
-  { id: "stopwatch", label: "Stopwatch", icon: TimerIcon },
-  { id: "timer", label: "Timer", icon: TimerIcon },
-  { id: "alarm", label: "Alarm", icon: AlarmClock },
-];
-
 export default function ClockPage() {
-  const [tab, setTab] = useState<Tab>("clock");
   return (
     <AppShell>
-      <div className="mx-auto w-full max-w-lg">
-        <h1 className="mb-4 text-lg font-semibold text-content">Clock</h1>
-        <div className="inline-flex w-full flex-wrap gap-1 rounded-xl border border-border bg-surface-input p-1">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] transition-colors",
-                tab === t.id ? "bg-surface-high text-content" : "text-content-muted hover:text-content",
-              )}
-            >
-              <t.icon size={14} /> {t.label}
-            </button>
-          ))}
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="mb-5">
+          <h1 className="text-[30px] font-semibold tracking-[-0.02em] text-content">Clock</h1>
+          <p className="mt-2 text-[13.5px] text-content-muted">World clocks, timer, stopwatch, and alarms.</p>
         </div>
-        <div className="mt-4 rounded-2xl border border-border bg-surface/40 px-4 sm:px-6">
-          {tab === "clock" ? <LiveClock /> : tab === "stopwatch" ? <Stopwatch /> : tab === "timer" ? <CountdownTimer /> : <Alarms />}
+        <LiveClock />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CountdownTimer />
+          <Stopwatch />
         </div>
+        <Alarms />
       </div>
     </AppShell>
   );

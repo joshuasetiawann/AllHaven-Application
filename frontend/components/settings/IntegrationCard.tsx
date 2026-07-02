@@ -47,7 +47,7 @@ export function IntegrationCard({
   return (
     <Card hover className="flex h-full flex-col">
       <div className="flex items-start justify-between">
-        <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface-input text-primary">
+        <span className="flex h-[38px] w-[38px] items-center justify-center rounded-[11px] bg-primary/12 text-primary-bright">
           {icon}
         </span>
         <ConfigStatusBadge status={integration.status} />
@@ -78,7 +78,12 @@ export function IntegrationCard({
             </Button>
           ) : null}
           {integration.editable === false ? null : (
-            <Button variant="subtle" size="sm" onClick={onConfigure}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onConfigure}
+              className="border-primary/30 bg-primary/10 font-semibold text-primary-bright hover:border-primary/50 hover:bg-primary/15 hover:text-primary-bright"
+            >
               <Settings2 size={14} /> Configure
             </Button>
           )}

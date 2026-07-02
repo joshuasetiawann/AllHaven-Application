@@ -38,7 +38,7 @@ export function BarChart({
   const hasValues = data.some((d) => d.value > 0);
   return (
     <div className={cn("relative flex gap-2", className)} style={{ height }}>
-      <div className="pointer-events-none absolute inset-x-0 bottom-5 border-t border-border/80" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-5 border-t border-white/[0.07]" />
       {data.map((bar, index) => {
         // Floor only non-empty bars, so genuinely-zero buckets render flat
         // instead of uniform stubs that look like a static placeholder.
@@ -59,11 +59,11 @@ export function BarChart({
             <div className="flex min-h-0 w-full flex-1 items-end">
               <div
                 className={cn(
-                  "min-h-0 w-full rounded-t-md transition-[height] duration-700 ease-out",
+                  "min-h-0 w-full rounded-t-[9px] rounded-b-[3px] transition-[height] duration-700 ease-out",
                   bar.value > 0
                     ? isPeak
-                      ? "bg-primary shadow-glow-primary"
-                      : "bg-primary/45"
+                      ? "bg-[linear-gradient(180deg,rgb(var(--color-secondary-soft)),rgb(var(--color-secondary-deep))_65%,rgb(var(--color-secondary-deep)/0.15))] shadow-[0_0_22px_rgb(var(--color-secondary-deep)/0.35)]"
+                      : "bg-[linear-gradient(180deg,rgb(var(--grad-a-hi)),rgb(var(--color-primary))_65%,rgb(var(--color-primary)/0.15))] shadow-[0_0_20px_rgb(var(--color-primary)/0.3)]"
                     : "bg-transparent",
                 )}
                 style={{
@@ -73,7 +73,7 @@ export function BarChart({
                 title={`${bar.label}: ${formatValue ? formatValue(bar.value) : bar.value}`}
               />
             </div>
-            <span className="text-[10px] uppercase tracking-wide text-content-subtle">{bar.label}</span>
+            <span className="font-mono text-[10px] uppercase tracking-wide text-content-faint">{bar.label}</span>
           </div>
         );
       })}

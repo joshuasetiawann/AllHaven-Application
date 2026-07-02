@@ -31,10 +31,17 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const toneStyles: Record<ToastTone, string> = {
-  success: "border-success/30 bg-success/10 text-success",
+  success: "border-success/25",
+  danger: "border-danger/30",
+  warning: "border-warning/30",
+  info: "border-white/10",
+};
+
+const toneIconStyles: Record<ToastTone, string> = {
+  success: "border-success/25 bg-success/10 text-success-soft",
   danger: "border-danger/30 bg-danger/10 text-danger",
-  warning: "border-warning/35 bg-warning/10 text-warning",
-  info: "border-info/30 bg-info/10 text-info",
+  warning: "border-warning/30 bg-warning/10 text-warning",
+  info: "border-info/25 bg-info/10 text-info",
 };
 
 const icons: Record<ToastTone, typeof CheckCircle2> = {
@@ -86,14 +93,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={item.id}
               className={cn(
-                "pointer-events-auto animate-slide-up rounded-xl border px-3 py-3 shadow-glow backdrop-blur-xl",
-                "bg-surface/95",
+                "pointer-events-auto animate-slide-up rounded-xl border px-3 py-3 shadow-glow backdrop-blur-[22px]",
+                "bg-[linear-gradient(180deg,rgba(18,20,34,0.94),rgba(10,11,20,0.96))]",
                 toneStyles[item.tone],
               )}
             >
               <div className="flex items-start gap-2.5">
-                <Icon size={17} className="mt-0.5 shrink-0" />
-                <div className="min-w-0 flex-1">
+                <span
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border",
+                    toneIconStyles[item.tone],
+                  )}
+                >
+                  <Icon size={15} />
+                </span>
+                <div className="min-w-0 flex-1 pt-0.5">
                   <p className="text-[13px] font-semibold text-content">{item.title}</p>
                   {item.description ? (
                     <p className="mt-0.5 text-[12px] leading-relaxed text-content-muted">{item.description}</p>
@@ -102,7 +116,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 <button
                   type="button"
                   onClick={() => dismiss(item.id)}
-                  className="rounded-md p-1 text-content-subtle transition-colors hover:bg-surface-high hover:text-content"
+                  className="rounded-md p-1 text-content-subtle transition-colors hover:bg-white/[0.06] hover:text-content"
                   aria-label="Dismiss notification"
                 >
                   <X size={14} />
