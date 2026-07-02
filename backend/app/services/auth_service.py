@@ -66,18 +66,6 @@ def register_user(
         after={"email": email},
     )
 
-    # Best-effort: provision a matching Supabase Auth user (env-level creds only at
-    # signup — no workspace IntegrationConfig exists yet). Never blocks/raises.
-    from app.services import supabase_auth_service
-
-    sb_url, sb_key = supabase_auth_service.get_service_credentials(db, workspace_id=None)
-    if sb_url and sb_key:
-        sb_id = supabase_auth_service.create_user(
-            sb_url, sb_key, email=email, password=password, full_name=full_name
-        )
-        if sb_id:
-            profile.supabase_user_id = sb_id
-
     db.commit()
     db.refresh(user)
     db.refresh(workspace)

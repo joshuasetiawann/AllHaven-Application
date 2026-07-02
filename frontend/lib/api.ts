@@ -1,32 +1,155 @@
-// frontend/lib/api.ts — selects the data implementation at build time.
-// When NEXT_PUBLIC_DATA_MODE=supabase the Supabase-backed impl is used;
-// otherwise falls back to the REST impl (web/desktop default).
-import { DATA_MODE } from "@/lib/supabaseClient";
+// API client. Reads the base URL from NEXT_PUBLIC_API_BASE_URL, attaches the
+// bearer token when present, and unwraps the standard success/error envelope.
 
-export { ApiException, getApiBaseUrl } from "@/lib/apiRest";
-export type { AiPolicy, ProposalApproval } from "@/lib/apiRest";
+import { clearAuth, getToken } from "@/lib/auth";
+import type {
+  AuthToken,
+  ChatMessage,
+  ChatResponse,
+  ChatSession,
+  FinanceCategory,
+  FinanceSummary,
+  Integration,
+  Me,
+  Note,
+  Task,
+  ToolProposal,
+  Transaction,
+} from "@/types";
 
-import * as rest from "@/lib/apiRest";
-import * as supa from "@/lib/apiSupabase";
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
 
-const impl = DATA_MODE ? supa : rest;
+export class ApiException extends Error {
+  code: string;
+  statusCode: number;
+  details: unknown;
 
-export const authApi = impl.authApi;
-export const tasksApi = impl.tasksApi;
-export const notesApi = impl.notesApi;
-export const financeApi = impl.financeApi;
-export const calendarApi = impl.calendarApi;
-export const routinesApi = impl.routinesApi;
-export const automationsApi = impl.automationsApi;
-// aiApi + memoryApi are HYBRID: proposal/suggestion reads + accept/reject/edit go
-// Supabase-direct on mobile so the pending list is shared with desktop; chat/providers
-// stay REST. (On desktop impl=rest, so these are the full REST impls.)
-export const aiApi = impl.aiApi;
-export const memoryApi = impl.memoryApi;
-// remaining compute/file groups always come from REST (hidden on mobile UI)
-export const knowledgeApi = rest.knowledgeApi;
-export const driveApi = rest.driveApi;
-export const systemApi = rest.systemApi;
-export const n8nApi = rest.n8nApi;
-export const googleApi = rest.googleApi;
-export const settingsApi = rest.settingsApi;
+  constructor(message: string, code: string, statusCode: number, details?: unknown) {
+    super(message);
+    this.name = "ApiException";
+    this.code = code;
+    this.statusCode = statusCode;
+    this.details = details;
+  }
+}
+
+interface ApiEnvelope<T> {
+  status: "success" | "error";
+  data?: T;
+  message?: string;
+  error_code?: string;
+  details?: unknown;
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string> | undefined),
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  } catch {
+    throw new ApiException(
+      "Cannot reach the CoreOS API. Is the backend running?",
+      "NETWORK_ERROR",
+      0,
+    );
+  }
+
+  let body: ApiEnvelope<T> | null = null;
+  try {
+    body = (await res.json()) as ApiEnvelope<T>;
+  } catch {
+    body = null;
+  }
+
+  if (!res.ok || body?.status === "error") {
+    if (res.status === 401) clearAuth();
+    throw new ApiException(
+      body?.message || `Request failed (${res.status})`,
+      body?.error_code || "HTTP_ERROR",
+      res.status,
+      body?.details,
+    );
+  }
+
+  return (body?.data ?? null) as T;
+}
+
+const json = (payload: unknown) => JSON.stringify(payload);
+
+// --- Auth ---
+export const authApi = {
+  register: (email: string, password: string, full_name?: string) =>
+    request<AuthToken>("/auth/register", {
+      method: "POST",
+      body: json({ email, password, full_name: full_name || null }),
+    }),
+  login: (email: string, password: string) =>
+    request<AuthToken>("/auth/login", { method: "POST", body: json({ email, password }) }),
+  me: () => request<Me>("/auth/me"),
+};
+
+// --- Tasks ---
+export const tasksApi = {
+  list: () => request<Task[]>("/tasks"),
+  create: (payload: Partial<Task>) =>
+    request<Task>("/tasks", { method: "POST", body: json(payload) }),
+  update: (id: string, payload: Partial<Task>) =>
+    request<Task>(`/tasks/${id}`, { method: "PATCH", body: json(payload) }),
+  remove: (id: string) => request<{ id: string }>(`/tasks/${id}`, { method: "DELETE" }),
+};
+
+// --- Notes ---
+export const notesApi = {
+  list: () => request<Note[]>("/notes"),
+  create: (payload: Partial<Note>) =>
+    request<Note>("/notes", { method: "POST", body: json(payload) }),
+  update: (id: string, payload: Partial<Note>) =>
+    request<Note>(`/notes/${id}`, { method: "PATCH", body: json(payload) }),
+  remove: (id: string) => request<{ id: string }>(`/notes/${id}`, { method: "DELETE" }),
+};
+
+// --- Finance ---
+export const financeApi = {
+  listCategories: () => request<FinanceCategory[]>("/finance/categories"),
+  createCategory: (payload: { name: string; type: string }) =>
+    request<FinanceCategory>("/finance/categories", { method: "POST", body: json(payload) }),
+  removeCategory: (id: string) =>
+    request<{ id: string }>(`/finance/categories/${id}`, { method: "DELETE" }),
+  listTransactions: () => request<Transaction[]>("/finance/transactions"),
+  createTransaction: (payload: Record<string, unknown>) =>
+    request<Transaction>("/finance/transactions", { method: "POST", body: json(payload) }),
+  removeTransaction: (id: string) =>
+    request<{ id: string }>(`/finance/transactions/${id}`, { method: "DELETE" }),
+  summary: (year: number, month: number, currency = "IDR") =>
+    request<FinanceSummary>(
+      `/finance/summary?year=${year}&month=${month}&currency=${currency}`,
+    ),
+};
+
+// --- AI ---
+export const aiApi = {
+  listSessions: () => request<ChatSession[]>("/ai/sessions"),
+  listMessages: (sessionId: string) =>
+    request<ChatMessage[]>(`/ai/sessions/${sessionId}/messages`),
+  chat: (message: string, sessionId?: string) =>
+    request<ChatResponse>("/ai/chat", {
+      method: "POST",
+      body: json({ message, session_id: sessionId || null }),
+    }),
+  listProposals: () => request<ToolProposal[]>("/ai/proposals"),
+  rejectProposal: (id: string) =>
+    request<ToolProposal>(`/ai/proposals/${id}/reject`, { method: "POST" }),
+};
+
+// --- Settings ---
+export const settingsApi = {
+  integrations: () =>
+    request<{ integrations: Integration[] }>("/settings/integrations"),
+};

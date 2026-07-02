@@ -15,23 +15,12 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 
 # Values that indicate a placeholder rather than a real configuration.
-_PLACEHOLDER_HINTS = (
-    "changeme", "change-me", "placeholder", "example", "your-", "your_",
-    "xxx", "todo", "<", "...",
-)
-_PLACEHOLDER_EXACT = {
-    "", "none", "null", "disabled", "test", "sk-test", "your-api-key",
-    "your_api_key", "api-key", "api_key", "apikey", "key", "secret",
-}
+_PLACEHOLDER_HINTS = ("changeme", "placeholder", "example", "your-", "your_", "xxx", "todo")
+_PLACEHOLDER_EXACT = {"", "none", "null", "disabled"}
 
 
 def is_configured_value(value: Optional[str]) -> bool:
-    """Return True only if a value looks like a real (non-placeholder) setting.
-
-    This only filters *obvious* placeholders so they stay ``not_configured``. It is
-    NOT a substitute for verification — a non-placeholder value is treated as
-    ``configured``, never ``online`` (that requires a successful Test Connection).
-    """
+    """Return True only if a value looks like a real (non-placeholder) setting."""
     if not value:
         return False
     normalized = value.strip().lower()
@@ -118,6 +107,18 @@ def get_integration_status(db: Session) -> list[dict]:
             "status": _status(calendar),
             "configured": calendar,
             "detail": "Configured" if calendar else "Not configured",
+        }
+    )
+
+    # Weather API.
+    weather = is_configured_value(settings.WEATHER_API_KEY)
+    integrations.append(
+        {
+            "key": "weather",
+            "name": "Weather API",
+            "status": _status(weather),
+            "configured": weather,
+            "detail": "Configured" if weather else "Not configured",
         }
     )
 

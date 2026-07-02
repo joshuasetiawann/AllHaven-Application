@@ -4,7 +4,7 @@ Revision ID: 0001_initial
 Revises:
 Create Date: 2026-06-05
 
-Creates the full AllHaven MVP schema: identity, workspaces, tasks, notes, finance,
+Creates the full CoreOS MVP schema: identity, workspaces, tasks, notes, finance,
 AI chat/proposals, and audit logs. Uses the portable column types defined in
 app.domain.base so the same definitions map to PostgreSQL native types.
 """

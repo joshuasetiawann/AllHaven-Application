@@ -1,17 +1,23 @@
-// Browser auth state. The actual credential is an HttpOnly session cookie set
-// by the backend — JavaScript can never read it, and NOTHING sensitive is kept
-// in localStorage. We cache only the non-sensitive user profile for instant
-// rendering; the real auth check is `GET /auth/me` (see AppShell).
+// Minimal MVP token storage in localStorage.
+// Documented as replaceable by a provider SDK (e.g. Supabase Auth) later.
 
 import type { User } from "@/types";
 
-const USER_KEY = "allhaven_user";
-// Pre-cookie versions stored the bearer token here; always scrub it.
-const LEGACY_TOKEN_KEY = "allhaven_token";
+const TOKEN_KEY = "coreos_token";
+const USER_KEY = "coreos_user";
+
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(TOKEN_KEY, token);
+}
 
 export function getStoredUser(): User | null {
   if (typeof window === "undefined") return null;
-  window.localStorage.removeItem(LEGACY_TOKEN_KEY);
   const raw = window.localStorage.getItem(USER_KEY);
   if (!raw) return null;
   try {
@@ -23,12 +29,15 @@ export function getStoredUser(): User | null {
 
 export function setStoredUser(user: User): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(LEGACY_TOKEN_KEY);
   window.localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
 export function clearAuth(): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(LEGACY_TOKEN_KEY);
+  window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
+}
+
+export function isAuthenticated(): boolean {
+  return Boolean(getToken());
 }
