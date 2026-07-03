@@ -22,6 +22,7 @@ import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
 import { BarChart } from "@/components/ui/BarChart";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
+import { useToast } from "@/components/ui/Toast";
 import { financeApi, ApiException } from "@/lib/api";
 import { cn, formatCurrency, formatDate, monthLabel } from "@/lib/format";
 import type { FinanceCategory, FinanceReport, FinanceType, Transaction } from "@/types";
@@ -81,6 +82,7 @@ const isInRange = (dateValue: string, start: string, end: string) =>
   dateValue >= start && dateValue <= end;
 
 export default function FinancePage() {
+  const toast = useToast();
   const [mode, setMode] = useState<ReportMode>("month");
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const period = useMemo(() => periodFor(mode, anchorDate), [mode, anchorDate]);
@@ -197,8 +199,11 @@ export default function FinancePage() {
       } else {
         setAnchorDate(parseLocalDate(created.transaction_date));
       }
+      toast.success("Transaction saved", `${txnForm.type === "INCOME" ? "Income" : "Expense"} ${formatCurrency(created.amount, created.currency)} recorded.`);
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : "Failed to create transaction.");
+      const message = err instanceof ApiException ? err.message : "Failed to create transaction.";
+      setError(message);
+      toast.danger("Could not save transaction", message);
     } finally {
       setSaving(false);
     }
@@ -209,10 +214,13 @@ export default function FinancePage() {
     setSaving(true);
     try {
       await financeApi.createCategory({ name: catForm.name, type: catForm.type });
+      toast.success("Category added", catForm.name);
       setCatForm({ name: "", type: "EXPENSE" });
       await load();
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : "Failed to create category.");
+      const message = err instanceof ApiException ? err.message : "Failed to create category.";
+      setError(message);
+      toast.danger("Category failed", message);
     } finally {
       setSaving(false);
     }
@@ -224,7 +232,9 @@ export default function FinancePage() {
     try {
       await financeApi.removeTransaction(txn.id);
       await load();
+      toast.success("Transaction deleted");
     } catch {
+      toast.danger("Delete failed", "The transaction could not be removed.");
       void load();
     }
   };
@@ -237,8 +247,11 @@ export default function FinancePage() {
     try {
       await financeApi.updateTransaction(txn.id, { transaction_date: transactionDate });
       await load();
+      toast.success("Transaction moved", `Now counted in ${period.label}.`);
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : "Failed to move transaction into this report.");
+      const message = err instanceof ApiException ? err.message : "Failed to move transaction into this report.";
+      setError(message);
+      toast.danger("Move failed", message);
     } finally {
       setSaving(false);
     }
@@ -248,7 +261,9 @@ export default function FinancePage() {
     setCategories((prev) => prev.filter((c) => c.id !== category.id));
     try {
       await financeApi.removeCategory(category.id);
+      toast.success("Category deleted", category.name);
     } catch {
+      toast.danger("Delete failed", "The category could not be removed.");
       void load();
     }
   };
@@ -270,7 +285,7 @@ export default function FinancePage() {
         }
       />
 
-      <div className="mb-5 flex flex-wrap items-center gap-2">
+      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="inline-flex rounded-lg border border-border bg-surface-input p-0.5 text-[12.5px]">
           {(["month", "week"] as ReportMode[]).map((item) => (
             <button
@@ -286,7 +301,7 @@ export default function FinancePage() {
             </button>
           ))}
         </div>
-        <div className="inline-flex items-center rounded-lg border border-border bg-surface-input p-0.5">
+        <div className="inline-flex w-full items-center rounded-lg border border-border bg-surface-input p-0.5 sm:w-auto">
           <button
             type="button"
             onClick={() => shiftPeriod(-1)}
@@ -295,13 +310,13 @@ export default function FinancePage() {
           >
             <ChevronLeft size={15} />
           </button>
-          <label className="flex h-8 items-center gap-2 border-x border-border px-2 text-[12px] text-content-muted">
+          <label className="flex h-8 min-w-0 flex-1 items-center gap-2 border-x border-border px-2 text-[12px] text-content-muted sm:flex-none">
             <CalendarDays size={13} />
             <input
               type={mode === "month" ? "month" : "date"}
               value={periodInputValue}
               onChange={(e) => changePeriodInput(e.target.value)}
-              className="w-[132px] bg-transparent text-[12.5px] text-content outline-none"
+              className="min-w-0 flex-1 bg-transparent text-[12.5px] text-content outline-none sm:w-[132px] sm:flex-none"
             />
           </label>
           <button
@@ -313,7 +328,7 @@ export default function FinancePage() {
             <ChevronRight size={15} />
           </button>
         </div>
-        <Button size="sm" variant="ghost" onClick={() => setAnchorDate(new Date())}>
+        <Button size="sm" variant="ghost" onClick={() => setAnchorDate(new Date())} className="w-full sm:w-auto">
           Current
         </Button>
       </div>
@@ -388,7 +403,7 @@ export default function FinancePage() {
                       </div>
                       <ul className="space-y-1.5">
                         {latestOutsidePeriod.map((txn) => (
-                          <li key={txn.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md px-2 py-1.5">
+                          <li key={txn.id} className="flex flex-col gap-2 rounded-md px-2 py-1.5 sm:flex-row sm:items-center sm:justify-between">
                             <span className="min-w-0">
                               <span className="block truncate text-[13px] text-content">
                                 {txn.description || txn.category_name_snapshot || (txn.type === "INCOME" ? "Income" : "Expense")}
@@ -426,7 +441,7 @@ export default function FinancePage() {
                   {transactions.map((txn) => {
                     const income = txn.type === "INCOME";
                     return (
-                      <li key={txn.id} className="flex items-center justify-between gap-4 py-3">
+                      <li key={txn.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex min-w-0 items-center gap-3">
                           <span
                             className={
@@ -448,7 +463,7 @@ export default function FinancePage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-3">
+                        <div className="flex w-full shrink-0 items-center justify-between gap-3 sm:w-auto sm:justify-end">
                           <span className={"text-sm font-semibold " + (income ? "text-success" : "text-danger")}>
                             {income ? "+" : "-"}
                             {formatCurrency(txn.amount, txn.currency)}
@@ -499,7 +514,7 @@ export default function FinancePage() {
         }
       >
         <form id="txn-form" onSubmit={createTransaction} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Select
               label="Type"
               value={txnForm.type}
@@ -553,7 +568,7 @@ export default function FinancePage() {
       </Modal>
 
       <Modal open={catOpen} onClose={() => setCatOpen(false)} title="Categories">
-        <form onSubmit={createCategory} className="mb-4 grid grid-cols-[1fr_auto_auto] items-end gap-2">
+        <form onSubmit={createCategory} className="mb-4 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
           <Input
             id="cat-name"
             label="New category"
@@ -564,12 +579,12 @@ export default function FinancePage() {
           <Select
             value={catForm.type}
             onChange={(e) => setCatForm({ ...catForm, type: e.target.value as FinanceType })}
-            className="w-28"
+            className="w-full sm:w-28"
           >
             <option value="EXPENSE">Expense</option>
             <option value="INCOME">Income</option>
           </Select>
-          <Button type="submit" loading={saving} disabled={!catForm.name.trim()}>
+          <Button type="submit" loading={saving} disabled={!catForm.name.trim()} className="w-full sm:w-auto">
             Add
           </Button>
         </form>
@@ -581,7 +596,7 @@ export default function FinancePage() {
             {categories.map((category) => (
               <li
                 key={category.id}
-                className="flex items-center justify-between rounded-md border border-border px-3 py-2"
+                className="flex flex-col gap-2 rounded-md border border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
               >
                 <span className="flex items-center gap-2 text-sm text-content">
                   {category.name}

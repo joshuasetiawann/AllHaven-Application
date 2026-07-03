@@ -116,6 +116,24 @@ def test_skips_values_shorter_than_two_chars():
     assert rule_based_extract("My name is A .") == []
 
 
+def test_extracts_direct_style_and_ai_needs():
+    candidates = rule_based_extract(
+        "saya mau ainya ga basa basi dan langsung sat set. kebutuhan saya untuk ai ini adalah ngoding dan ngatur jadwal."
+    )
+    titles = {c.title for c in candidates}
+    assert "Direct response style" in titles
+    assert "AI usage needs" in titles
+    assert all(c.confidence > 0.55 for c in candidates)
+
+
+def test_extracts_broad_goal_for_direct_memory_save():
+    candidates = rule_based_extract("saya mau website ini siap launching dan gampang diinstall.")
+    assert len(candidates) == 1
+    assert candidates[0].category == "Goals"
+    assert "siap launching" in candidates[0].content
+    assert candidates[0].confidence > 0.55
+
+
 # --- schedule_extraction: auto-learning disabled --------------------------------
 
 

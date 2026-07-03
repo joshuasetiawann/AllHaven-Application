@@ -97,7 +97,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden">
       {/* Persistent sidebar — full rail on md+, hidden on mobile (drawer instead) */}
       <div
         className={cn(
@@ -140,7 +140,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <Topbar onMenu={() => setMobileOpen(true)} />
         {/* Keyed by route so page content gently animates in on navigation. */}
-        <main key={pathname} className="custom-scrollbar mx-auto max-w-[1320px] animate-page-in px-4 py-6 sm:px-6 lg:px-8">
+        <main
+          key={pathname}
+          className="custom-scrollbar mx-auto w-full max-w-[1440px] animate-page-in overflow-x-hidden px-3 py-4 sm:px-5 sm:py-5 lg:px-8 lg:py-6"
+        >
           {children}
         </main>
       </div>
