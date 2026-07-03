@@ -107,7 +107,7 @@ def _run_round(
         return outcomes
     with ThreadPoolExecutor(max_workers=len(runnable)) as pool:
         futures = {
-            pool.submit(_run_one, plan, [{"role": "user", "content": prompts[pid], "images": images or []}], params): pid
+            pool.submit(_run_one, plan, [{"role": "user", "content": prompts[pid], "images": images or []}], params, bool(images)): pid
             for pid, plan in runnable.items()
         }
         for future, pid in list(futures.items()):

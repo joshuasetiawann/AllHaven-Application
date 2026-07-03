@@ -43,6 +43,21 @@ UNSUPPORTED_IMAGE_MSG = (
     "(e.g. GPT-4o, Claude, Gemini, or an Ollama vision model like llava)."
 )
 
+# Shown when a vision-capable PROVIDER rejects an image because the chosen MODEL is
+# text-only (the provider's API returns a multimodal/"no image endpoint" error).
+MODEL_NO_VISION_MSG = (
+    "This model can't read images. Pick a vision model in Settings → AI Providers — "
+    "e.g. an Ollama vision model (llava, llama3.2-vision), an OpenRouter vision model "
+    "(openai/gpt-4o-mini, google/gemini-2.0-flash-001), or the GPT / Claude / Gemini agents."
+)
+_IMAGE_UNSUPPORTED_HINTS = ("multimodal", "support image", "image input")
+
+
+def _is_image_unsupported(error: str) -> bool:
+    """True if a provider error indicates the model can't accept image input."""
+    e = (error or "").lower()
+    return any(h in e for h in _IMAGE_UNSUPPORTED_HINTS)
+
 
 def _dedup(provider_ids: List[str]) -> List[str]:
     seen: set[str] = set()
@@ -62,7 +77,7 @@ def _user_meta(chat_mode: str, thinking_mode: str, images: Optional[List[str]]) 
     return meta
 
 
-def _run_one(plan: ChatPlan, messages: list[dict], params: Optional[dict] = None) -> dict:
+def _run_one(plan: ChatPlan, messages: list[dict], params: Optional[dict] = None, has_images: bool = False) -> dict:
     """Execute a single runnable plan and capture an isolated result."""
     started = time.monotonic()
     try:
@@ -70,6 +85,11 @@ def _run_one(plan: ChatPlan, messages: list[dict], params: Optional[dict] = None
         latency = int((time.monotonic() - started) * 1000)
         if result.ok:
             return {"status": "completed", "content": result.content, "error": None, "latency_ms": latency}
+        # A vision-capable PROVIDER can still reject an image if the chosen MODEL is
+        # text-only (e.g. Ollama llama3.1, OpenRouter llama-3.1-8b). Surface that as
+        # an honest 'unsupported' with guidance instead of a raw API error.
+        if has_images and _is_image_unsupported(result.error or ""):
+            return {"status": "unsupported", "content": None, "error": MODEL_NO_VISION_MSG, "latency_ms": latency}
         return {"status": "error", "content": None, "error": result.error, "latency_ms": latency}
     except Exception as exc:  # noqa: BLE001 - one agent's failure stays isolated
         latency = int((time.monotonic() - started) * 1000)
@@ -147,7 +167,7 @@ def multi_chat(
     outcomes: dict[str, dict] = {}
     if runnable:
         with ThreadPoolExecutor(max_workers=len(runnable)) as pool:
-            futures = {pool.submit(_run_one, p, messages, params): pid for pid, p in runnable.items()}
+            futures = {pool.submit(_run_one, p, messages, params, has_images): pid for pid, p in runnable.items()}
             for future, pid in list(futures.items()):
                 try:
                     outcomes[pid] = future.result(timeout=AGENT_TIMEOUT_SECONDS)
