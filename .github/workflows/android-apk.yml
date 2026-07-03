@@ -56,9 +56,11 @@ jobs:
       - name: Build static export + sync Capacitor
         env:
           NEXT_PUBLIC_API_BASE_URL: ${{ env.API_URL }}
-          # build:mobile already sets NEXT_PUBLIC_AUTH_MODE=bearer
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          # build:mobile sets NEXT_PUBLIC_AUTH_MODE=bearer + NEXT_PUBLIC_DATA_MODE=supabase
         run: |
-          echo "Building APK pointed at: $NEXT_PUBLIC_API_BASE_URL"
+          echo "Building Supabase-mode APK"
           npm run build:mobile
           npx cap sync android
 
