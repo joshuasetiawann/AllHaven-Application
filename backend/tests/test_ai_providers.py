@@ -8,17 +8,25 @@ from tests.conftest import API
 def test_provider_list_has_six_apis_plus_ollama(auth_client):
     data = auth_client.get(f"{API}/ai/providers").json()["data"]["providers"]
     ids = {p["id"] for p in data}
-    # Five single external providers + three OpenRouter slots + local Ollama.
+    # Five single external providers + six OpenRouter slots + local Ollama.
     assert {
         "openai", "anthropic", "gemini", "grok", "blackbox",
-        "openrouter_1", "openrouter_2", "openrouter_3", "ollama",
+        "openrouter_1", "openrouter_2", "openrouter_3",
+        "openrouter_4", "openrouter_5", "openrouter_6", "ollama",
     }.issubset(ids)
-    assert len(data) == 9
+    assert len(data) == 12
     ollama = next(p for p in data if p["id"] == "ollama")
     assert ollama["external"] is False
     assert ollama["api_key_required"] is False
     # GPT Agent display name
     assert next(p for p in data if p["id"] == "openai")["name"] == "GPT Agent"
+    # Every provider exposes selectable model slots: OpenRouter agents are
+    # single-slot; every other provider has two (slot 2 optional/secondary).
+    openrouter_4 = next(p for p in data if p["id"] == "openrouter_4")
+    assert len(openrouter_4["model_slots"]) == 1
+    anthropic = next(p for p in data if p["id"] == "anthropic")
+    assert [s["slot"] for s in anthropic["model_slots"]] == [1, 2]
+    assert anthropic["model_slots"][1]["configured"] is False  # no secondary model yet
 
 
 def test_ollama_configurable_without_api_key(auth_client):
