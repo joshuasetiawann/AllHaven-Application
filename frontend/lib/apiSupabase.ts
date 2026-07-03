@@ -17,7 +17,7 @@ export {
 // ─── Task 3: authApi (Supabase Auth + workspace bootstrap) ───────────────────
 
 import type { AuthToken, Me, User, Workspace } from "@/types";
-import { ApiException, authApi as restAuthApi } from "@/lib/apiRest";
+import { ApiException } from "@/lib/apiRest";
 import { getSupabase, getWorkspaceId, setWorkspaceId, getAppUserId, setAppUserId } from "@/lib/supabaseClient";
 import { toApiException } from "@/lib/supabaseError";
 
@@ -100,13 +100,35 @@ async function supabaseSignIn(email: string, password: string): Promise<AuthToke
 }
 
 export const authApi = {
-  // Mobile registration provisions the full account through the backend (creates the
-  // LocalUser + a matching Supabase Auth user + profile + workspace, all with the same
-  // password), then signs into Supabase for the data session. Backend/validation errors
-  // surface to the user as-is — no "register on desktop" wall.
+  // Mobile registration runs entirely against Supabase — no backend required (a phone
+  // can't reach the local backend). Flow: signUp → signIn (get an authed session) →
+  // provision_me() RPC (SECURITY DEFINER: creates profile + workspace + owner membership,
+  // bypassing the RLS chicken-and-egg) → loadMe(). Idempotent if the account already
+  // exists (e.g. created on desktop first): provision_me adopts/links it.
   register: async (email: string, password: string, fullName?: string): Promise<AuthToken> => {
-    await restAuthApi.register(email, password, fullName);
-    return supabaseSignIn(email, password);
+    const sb = await getSupabase();
+    const { error: signUpErr } = await sb.auth.signUp({ email, password });
+    // "already registered" is fine — fall through to sign-in + provision.
+    if (signUpErr && !/already\s*(registered|exists|in use)/i.test(signUpErr.message)) {
+      throw toApiException(signUpErr);
+    }
+    const { data: signIn, error: signInErr } = await sb.auth.signInWithPassword({ email, password });
+    if (signInErr) {
+      // Most common standalone cause: project requires email confirmation, so no
+      // session is issued until the link is clicked. Make that actionable.
+      const hint = /confirm/i.test(signInErr.message)
+        ? " — confirm your email, or disable email confirmation in Supabase → Authentication → Providers → Email."
+        : "";
+      throw toApiException({ ...signInErr, message: signInErr.message + hint }, 401);
+    }
+    const { error: provErr } = await sb.rpc("provision_me", { p_full_name: fullName ?? null });
+    if (provErr) throw toApiException(provErr);
+    const me = await loadMe();
+    return {
+      access_token: signIn.session?.access_token ?? "",
+      token_type: "bearer",
+      user: me.user,
+    };
   },
   login: (email: string, password: string): Promise<AuthToken> => supabaseSignIn(email, password),
   logout: async (): Promise<{ logged_out: boolean }> => {
