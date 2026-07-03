@@ -38,6 +38,14 @@ export interface Task {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+  checklist_items: ChecklistItem[];
+}
+
+export interface ChecklistItem {
+  id: string;
+  title: string;
+  is_done: boolean;
+  position: number;
 }
 
 export interface Note {
