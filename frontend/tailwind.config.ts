@@ -1,9 +1,10 @@
 import type { Config } from "tailwindcss";
 
 /**
- * AllHaven design system — "Command Center" premium dark theme.
- * Near-black canvas, refined teal-cyan primary, muted-purple secondary,
- * hairline borders, restrained glass panels. Tuned to the provided screens.
+ * AllHaven design system — "Aurora Glass" dark theme.
+ * Near-black navy canvas (#06070E), frosted-glass panels, luminous
+ * cyan→violet accents and slow-drifting aurora glow blobs. Tokens live as
+ * CSS variables in globals.css; this file maps them onto Tailwind.
  */
 const config: Config = {
   content: [
@@ -37,34 +38,47 @@ const config: Config = {
         secondary: {
           DEFAULT: "rgb(var(--color-secondary) / <alpha-value>)",
           soft: "rgb(var(--color-secondary-soft) / <alpha-value>)",
+          deep: "rgb(var(--color-secondary-deep) / <alpha-value>)",
         },
         content: {
           DEFAULT: "rgb(var(--color-content) / <alpha-value>)", // primary text
           muted: "rgb(var(--color-content-muted) / <alpha-value>)", // secondary text
           subtle: "rgb(var(--color-content-subtle) / <alpha-value>)", // tertiary / metadata
+          faint: "rgb(var(--color-content-faint) / <alpha-value>)", // timestamps, axis ticks
         },
-        success: "rgb(var(--color-success) / <alpha-value>)",
-        warning: "rgb(var(--color-warning) / <alpha-value>)",
+        success: {
+          DEFAULT: "rgb(var(--color-success) / <alpha-value>)",
+          soft: "rgb(var(--color-success-soft) / <alpha-value>)",
+        },
+        warning: {
+          DEFAULT: "rgb(var(--color-warning) / <alpha-value>)",
+          deep: "rgb(var(--color-warning-deep) / <alpha-value>)",
+        },
         danger: "rgb(var(--color-danger) / <alpha-value>)",
         info: "rgb(var(--color-info) / <alpha-value>)",
+        magenta: "rgb(var(--color-magenta) / <alpha-value>)",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+        sans: ["Geist", "Inter", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
         label: ["Geist", "Inter", "system-ui", "sans-serif"],
         mono: ["Geist Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
+      // Aurora radii — cards 18–20, tiles 16, buttons 11–14, icon tiles 9–13.
       borderRadius: {
-        sm: "0.25rem",
-        DEFAULT: "0.375rem",
-        md: "0.5rem",
-        lg: "0.625rem",
-        xl: "0.875rem",
-        "2xl": "1.125rem",
+        sm: "0.5rem", // 8
+        DEFAULT: "0.625rem", // 10
+        md: "0.75rem", // 12
+        lg: "0.875rem", // 14
+        xl: "1rem", // 16
+        "2xl": "1.25rem", // 20
+        "3xl": "1.625rem", // 26
       },
       boxShadow: {
-        glow: "0 0 0 1px rgba(24,224,214,0.08), 0 10px 40px rgba(0,0,0,0.45)",
-        "glow-primary": "0 0 24px rgb(var(--color-primary) / 0.35)",
-        panel: "0 1px 0 0 rgba(255,255,255,0.02) inset, 0 12px 40px -12px rgba(0,0,0,0.6)",
+        glow: "0 0 0 1px rgb(var(--color-primary) / 0.08), 0 24px 60px -24px rgba(0,0,0,0.72)",
+        "glow-primary": "0 0 26px rgb(var(--color-primary) / 0.22)",
+        panel: "0 24px 60px -24px rgba(0,0,0,0.72), inset 0 1px 0 rgba(255,255,255,0.08)",
+        "btn-primary": "0 14px 30px -12px rgb(var(--color-primary) / 0.8), inset 0 1px 0 rgba(255,255,255,0.3)",
+        "toggle-on": "0 0 14px rgb(var(--color-primary) / 0.3)",
       },
       transitionTimingFunction: {
         // Soft, premium ease-out (easeOutExpo-ish) used across micro-interactions.
@@ -98,6 +112,20 @@ const config: Config = {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.35" },
         },
+        // Live status dots (Aurora spec).
+        "pulse-glow": {
+          "0%, 100%": { opacity: "0.45" },
+          "50%": { opacity: "1" },
+        },
+        // Aurora blob drift.
+        "aurora-drift": {
+          "0%, 100%": { transform: "translate(0,0) scale(1)" },
+          "50%": { transform: "translate(3%,2%) scale(1.06)" },
+        },
+        "float-y": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-6px)" },
+        },
         shimmer: {
           "100%": { transform: "translateX(100%)" },
         },
@@ -109,6 +137,9 @@ const config: Config = {
         "page-in": "page-in 0.24s cubic-bezier(0.16, 1, 0.3, 1)",
         "slide-up": "slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
         "pulse-soft": "pulse-soft 2s ease-in-out infinite",
+        "pulse-glow": "pulse-glow 1.8s ease-in-out infinite",
+        "aurora-drift": "aurora-drift 20s ease-in-out infinite",
+        "float-y": "float-y 6s ease-in-out infinite",
       },
     },
   },

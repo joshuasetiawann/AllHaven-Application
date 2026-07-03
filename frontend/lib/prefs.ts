@@ -27,10 +27,10 @@ export const THEME_OPTIONS: Array<{ value: AppTheme; label: string; helper: stri
 ];
 
 export const ACCENT_OPTIONS: Array<{ value: AppAccent; label: string; swatch: string }> = [
-  { value: "cyan", label: "Cyan", swatch: "#18E0D6" },
-  { value: "emerald", label: "Emerald", swatch: "#22C55E" },
-  { value: "violet", label: "Violet", swatch: "#8B5CF6" },
-  { value: "amber", label: "Amber", swatch: "#F59E0B" },
+  { value: "cyan", label: "Aurora", swatch: "#2DE1E1" },
+  { value: "emerald", label: "Mint", swatch: "#5EEBB0" },
+  { value: "violet", label: "Magenta", swatch: "#A78BFA" },
+  { value: "amber", label: "Amber", swatch: "#F5B544" },
 ];
 
 export const DEFAULT_PREFS: Prefs = {
@@ -78,15 +78,17 @@ export function savePrefs(prefs: Prefs): void {
 export function applyPrefs(prefs: Prefs): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  root.style.setProperty("--glass-blur", prefs.glass ? "14px" : "0px");
-  root.style.setProperty("--panel-alpha", prefs.glass ? "0.72" : "0.95");
+  // Aurora Glass: blur 20 on cards; with glass off, fall back to a solid
+  // surface fill so panels stay readable without backdrop-filter.
+  root.style.setProperty("--glass-blur", prefs.glass ? "20px" : "0px");
+  root.style.setProperty("--panel-alpha", prefs.glass ? "0" : "0.92");
   root.setAttribute("data-density", prefs.compact ? "compact" : "comfortable");
   root.setAttribute("data-theme", prefs.theme);
   root.setAttribute("data-accent", prefs.accent);
   root.lang = prefs.language;
 
   const metaTheme = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-  if (metaTheme) metaTheme.content = prefs.theme === "light" ? "#F6F8FB" : "#0A0C10";
+  if (metaTheme) metaTheme.content = prefs.theme === "light" ? "#F6F8FB" : "#06070E";
 }
 
 export function responseLanguageLabel(language: AppLanguage): string {
