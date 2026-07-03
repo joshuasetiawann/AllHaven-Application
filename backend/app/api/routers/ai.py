@@ -24,10 +24,37 @@ from app.schemas.ai import (
     SessionCreate,
     SessionOut,
 )
+from pydantic import BaseModel
+
 from app.schemas.ai_providers import AiProviderUpdateRequest
-from app.services import ai_provider_router, ai_service
+from app.services import ai_policy_service, ai_provider_router, ai_service
+
+
+class AiPolicyUpdate(BaseModel):
+    allow_external: bool
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+
+# --- AI policy ------------------------------------------------------------
+
+
+@router.get("/policy")
+def get_policy(
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    return success_response(ai_policy_service.get_policy(db, principal), "AI policy")
+
+
+@router.put("/policy")
+def update_policy(
+    payload: AiPolicyUpdate,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    data = ai_policy_service.set_allow_external(db, principal, payload.allow_external)
+    return success_response(data, "AI policy updated")
 
 
 # --- AI providers ---------------------------------------------------------
