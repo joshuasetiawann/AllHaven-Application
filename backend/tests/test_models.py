@@ -11,6 +11,7 @@ EXPECTED_TABLES = {
     "notes",
     "finance_categories",
     "transactions",
+    "chat_groups",
     "chat_sessions",
     "chat_messages",
     "ai_multi_agent_runs",

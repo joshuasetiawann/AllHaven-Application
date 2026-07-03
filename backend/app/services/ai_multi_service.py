@@ -30,6 +30,7 @@ from app.domain.ai import (
 )
 from app.services import ai_provider_router
 from app.services.ai_provider_router import ChatPlan
+from app.services.ai_service import _auto_title
 
 # Hard ceiling per agent network call (seconds). Adapters also set their own
 # httpx timeouts; this guards against a single agent hanging the whole run.
@@ -88,10 +89,13 @@ def multi_chat(
         session = ChatSession(
             workspace_id=principal.workspace_id,
             created_by=principal.user_id,
-            title=message[:60],
+            title=_auto_title(message),
         )
         db.add(session)
         db.flush()
+    # Auto-title an untitled conversation from its first user message.
+    if not (session.title or "").strip():
+        session.title = _auto_title(message)
 
     user_message = ChatMessage(
         workspace_id=principal.workspace_id,
@@ -159,6 +163,25 @@ def multi_chat(
         )
         db.add(row)
         responses.append(row)
+        # Also persist the agent reply as an assistant ChatMessage so reloading the
+        # conversation shows the full thread (content for success, message for errors).
+        db.add(
+            ChatMessage(
+                workspace_id=principal.workspace_id,
+                session_id=session.id,
+                role="assistant",
+                content=content if status == "completed" and content else (error or status),
+                meta={
+                    "provider_id": pid,
+                    "provider_name": plan.provider_name,
+                    "status": status,
+                    "run_id": str(run.id),
+                    "latency_ms": latency,
+                    "external": plan.external,
+                    "multi": True,
+                },
+            )
+        )
 
     if completed == len(ids):
         run.status = "completed"
