@@ -390,3 +390,45 @@ export interface PortsApplyResult {
   applied: boolean;
   message: string;
 }
+
+// --- AI Memory ---
+export type MemoryCategory = "Profile" | "Preferences" | "Projects" | "WorkStyle" | "Technical" | "Goals";
+export type MemorySensitivity = "LOW" | "MEDIUM" | "HIGH";
+export type MemorySource = "chat_extracted" | "manual" | "llm_extracted";
+
+export interface AiMemory {
+  id: string;
+  category: MemoryCategory;
+  title: string;
+  content: string;
+  source: MemorySource;
+  status: string;
+  sensitivity: MemorySensitivity;
+  enabled: boolean;
+  confidence: number;
+  relevance_score: number;
+  last_used_at: string | null;
+  source_session_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemorySuggestion {
+  id: string;
+  memory_id: string | null;
+  category: MemoryCategory;
+  title: string;
+  content: string;
+  source_session_id: string | null;
+  source_snippet: string | null;
+  confidence: number;
+  sensitivity: MemorySensitivity;
+  extraction_method: "rule_based" | "llm";
+  status: string;
+  created_at: string;
+}
+
+export interface MemorySettings {
+  auto_learning_enabled: boolean;
+  require_approval_sensitive: boolean;
+}
