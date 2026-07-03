@@ -204,6 +204,14 @@ class AIProvider:
     external: bool = True
     requires_api_key: bool = True
     default_model: str = ""
+    # Capability metadata (honest defaults). Vision/tools are off unless a concrete
+    # adapter opts in. Used to route images only to vision-capable providers.
+    supports_text: bool = True
+    supports_image: bool = False
+    supports_tools: bool = False
+
+    def capabilities(self) -> dict:
+        return {"text": self.supports_text, "image": self.supports_image, "tools": self.supports_tools}
 
     def is_configured(self, public: dict, secrets: dict) -> bool:
         raise NotImplementedError
