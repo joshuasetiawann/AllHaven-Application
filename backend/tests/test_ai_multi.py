@@ -5,10 +5,10 @@ import json
 from tests.conftest import API
 
 
-def test_rejects_more_than_three_agents(auth_client):
+def test_rejects_more_than_seven_agents(auth_client):
     resp = auth_client.post(
         f"{API}/ai/chat/multi",
-        json={"message": "hi", "provider_ids": ["openai", "anthropic", "gemini", "grok"]},
+        json={"message": "hi", "provider_ids": ["openai", "anthropic", "gemini", "grok", "blackbox", "openrouter_1", "openrouter_2", "openrouter_3"]},
     )
     assert resp.status_code == 422, resp.text
 
