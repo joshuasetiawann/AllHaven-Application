@@ -1,8 +1,8 @@
 """Base classes and helpers for AI provider adapters.
 
-Adapters perform real HTTP calls so they genuinely work once a user supplies a
-key. When something is missing or fails, they return an honest error — they never
-fabricate success.
+Verification is honest: a provider is only "online" after a real, authenticated
+check succeeds. Endpoints that don't actually validate the key (e.g. a public
+``/models`` list) must NOT be used for verification — see per-provider overrides.
 """
 
 from __future__ import annotations
@@ -14,12 +14,23 @@ import httpx
 
 DEFAULT_TIMEOUT = 8.0
 
+# Verification statuses produced by test_connection.
+VERIFY_STATUSES = ("online", "error", "unavailable", "not_configured", "configured")
+
 
 @dataclass
 class ChatResult:
     ok: bool
     content: str = ""
     error: str = ""
+
+
+@dataclass
+class VerifyResult:
+    """Typed result of a connection test. ``status`` is one of VERIFY_STATUSES."""
+
+    status: str
+    message: str = ""
 
 
 def safe_request(
@@ -44,6 +55,29 @@ def safe_request(
         return None, None, str(exc)[:200]
 
 
+def interpret_http(code: Optional[int], err: str) -> VerifyResult:
+    """Map an HTTP result to an honest verification status.
+
+    * no response (exception/timeout) -> unavailable
+    * 200/2xx                          -> online
+    * 401/403                          -> error (invalid/unauthorized key)
+    * other 4xx/5xx                    -> error
+    """
+    if err or code is None:
+        return VerifyResult("unavailable", f"Could not reach provider: {err}" if err else "No response")
+    if 200 <= code < 300:
+        return VerifyResult("online", "Verified")
+    if code in (401, 403):
+        return VerifyResult("error", "Unauthorized — the API key was rejected")
+    if code == 404:
+        return VerifyResult("error", "Verification endpoint not found (check base URL / model)")
+    if code == 429:
+        return VerifyResult("error", "Rate limited by provider")
+    if code >= 500:
+        return VerifyResult("error", f"Provider error (HTTP {code})")
+    return VerifyResult("error", f"Verification failed (HTTP {code})")
+
+
 class AIProvider:
     """Provider adapter interface."""
 
@@ -56,7 +90,7 @@ class AIProvider:
     def is_configured(self, public: dict, secrets: dict) -> bool:
         raise NotImplementedError
 
-    def test_connection(self, public: dict, secrets: dict) -> tuple[bool, str]:
+    def test_connection(self, public: dict, secrets: dict) -> VerifyResult:
         raise NotImplementedError
 
     def chat(self, public: dict, secrets: dict, messages: list[dict], model: Optional[str] = None) -> ChatResult:
@@ -64,10 +98,15 @@ class AIProvider:
 
 
 class OpenAICompatibleProvider(AIProvider):
-    """Shared adapter for OpenAI-style /chat/completions + /models endpoints."""
+    """Shared adapter for OpenAI-style /chat/completions + /models endpoints.
+
+    ``verify_path`` MUST be an authenticated endpoint so a bad key fails. If a
+    provider's ``/models`` is public, override ``test_connection`` (see OpenRouter).
+    """
 
     default_base_url = "https://api.openai.com/v1"
     extra_headers: dict = {}
+    verify_path = "/models"
 
     def base_url(self, public: dict) -> str:
         return (public.get("base_url") or self.default_base_url).rstrip("/")
@@ -78,16 +117,14 @@ class OpenAICompatibleProvider(AIProvider):
     def is_configured(self, public: dict, secrets: dict) -> bool:
         return bool(secrets.get("api_key"))
 
-    def test_connection(self, public: dict, secrets: dict) -> tuple[bool, str]:
+    def test_connection(self, public: dict, secrets: dict) -> VerifyResult:
         key = secrets.get("api_key")
         if not key:
-            return False, "API key not set"
-        code, _, err = safe_request("GET", f"{self.base_url(public)}/models", headers=self._headers(key))
-        if err:
-            return False, err
-        if code == 200:
-            return True, ""
-        return False, f"Verification failed (HTTP {code})"
+            return VerifyResult("not_configured", "API key not set")
+        code, _, err = safe_request(
+            "GET", f"{self.base_url(public)}{self.verify_path}", headers=self._headers(key)
+        )
+        return interpret_http(code, err)
 
     def chat(self, public: dict, secrets: dict, messages: list[dict], model: Optional[str] = None) -> ChatResult:
         key = secrets.get("api_key")
