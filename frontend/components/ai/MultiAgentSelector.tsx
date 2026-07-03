@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Eye, Plus, X } from "lucide-react";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { cn } from "@/lib/format";
 import type { AiProvider } from "@/types";
@@ -58,6 +58,7 @@ export function MultiAgentSelector({
             >
               <StatusDot status={p?.status ?? "not_configured"} />
               <span className="max-w-[140px] truncate">{p?.name ?? id}</span>
+              {p?.capabilities?.image ? <Eye size={11} className="text-content-subtle" aria-label="Supports images" /> : null}
               <span className="text-[10px] uppercase text-content-subtle">{p?.external ? "ext" : "local"}</span>
               <button
                 type="button"
@@ -99,6 +100,7 @@ export function MultiAgentSelector({
                   >
                     <StatusDot status={p.status} />
                     <span className="flex-1 truncate">{p.name}</span>
+                    {p.capabilities?.image ? <Eye size={11} className="text-content-subtle" aria-label="Supports images" /> : null}
                     <span className="text-[10px] uppercase text-content-subtle">{p.external ? "ext" : "local"}</span>
                   </button>
                 ))

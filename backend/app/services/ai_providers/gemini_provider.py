@@ -24,6 +24,8 @@ class GeminiProvider(AIProvider):
     external = True
     requires_api_key = True
     default_model = "gemini-1.5-flash"
+    supports_image = True
+    supports_tools = True
 
     def is_configured(self, public: dict, secrets: dict) -> bool:
         return bool(secrets.get("api_key"))
