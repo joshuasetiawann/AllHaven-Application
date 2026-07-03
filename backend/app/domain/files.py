@@ -7,8 +7,9 @@ table stores metadata only. Path traversal is prevented in the service layer.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, String
+from sqlalchemy import BigInteger, Boolean, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -27,3 +28,4 @@ class DriveFile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
