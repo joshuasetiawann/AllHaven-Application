@@ -138,6 +138,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen overflow-x-hidden">
+      {/* Aurora glow layer — three drifting blobs pinned behind all content. */}
+      <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden>
+        <div className="aurora">
+          <i />
+        </div>
+      </div>
+
       {/* Persistent sidebar — full rail on md+, hidden on mobile (drawer instead) */}
       <div
         className={cn(
@@ -174,7 +181,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div
         className={cn(
-          "transition-[padding] duration-200 ease-out",
+          "relative z-[1] transition-[padding] duration-200 ease-out",
           rail ? "md:pl-[80px]" : "md:pl-[280px]",
         )}
       >
@@ -182,7 +189,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* Keyed by route so page content gently animates in on navigation. */}
         <main
           key={pathname}
-          className="custom-scrollbar mx-auto w-full max-w-[1480px] animate-page-in overflow-x-hidden px-3 py-4 sm:px-5 sm:py-5 lg:px-8 lg:py-7"
+          className="custom-scrollbar mx-auto w-full max-w-[1480px] animate-page-in overflow-x-hidden px-3 py-4 sm:px-5 sm:py-5 lg:px-[26px] lg:py-[26px]"
         >
           {children}
         </main>
