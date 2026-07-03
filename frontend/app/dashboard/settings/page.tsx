@@ -31,6 +31,7 @@ import { Loading, ErrorState } from "@/components/ui/States";
 import { IntegrationCard } from "@/components/settings/IntegrationCard";
 import { IntegrationConfigModal } from "@/components/settings/IntegrationConfigModal";
 import { AiProviderCard } from "@/components/settings/AiProviderCard";
+import { GoogleOAuthCard } from "@/components/settings/GoogleOAuthCard";
 import { aiApi, authApi, settingsApi } from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
 import { initials } from "@/lib/format";
@@ -45,6 +46,7 @@ const INTEGRATION_ICONS: Record<string, LucideIcon> = {
   google_calendar: Calendar,
   weather_api: CloudSun,
   drive_storage: HardDrive,
+  google: Globe,
 };
 
 const AI_ICONS: Record<string, LucideIcon> = {
@@ -236,6 +238,15 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </Card>
+
+              <GoogleOAuthCard
+                google={integrations.find((i) => i.key === "google")}
+                onConfigure={() => {
+                  const g = integrations.find((i) => i.key === "google");
+                  if (g) setConfiguring(g);
+                }}
+                onChange={updateIntegration}
+              />
             </div>
           ) : null}
         </>

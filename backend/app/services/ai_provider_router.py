@@ -147,7 +147,7 @@ def _view(spec: ProviderSpec, row: Optional[AiAgentConfig]) -> dict:
         last_verified = None
         last_error = None
 
-    configured = status in ("configured", "online")
+    configured = status in cc.HAS_CONFIG_STATUSES
     return {
         "id": spec.id,
         "provider_id": spec.id,
@@ -238,14 +238,12 @@ def test_provider(db: Session, principal: Principal, provider_id: str) -> dict:
         row.status = "not_configured"
         row.last_error = "Provider is not configured"
     else:
-        ok, error = adapter.test_connection(public, secrets)
-        if ok:
-            row.status = "online"
-            row.last_error = None
+        result = adapter.test_connection(public, secrets)
+        # Trust the adapter's honest status; only "online" sets verified time.
+        row.status = result.status
+        row.last_error = None if result.status == "online" else (result.message or None)
+        if result.status == "online":
             row.last_verified_at = datetime.now(timezone.utc)
-        else:
-            row.status = "error"
-            row.last_error = error
     db.flush()
     db.commit()
     db.refresh(row)

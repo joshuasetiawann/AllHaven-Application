@@ -6,7 +6,7 @@ const colorByStatus: Record<string, string> = {
   connected: "bg-success",
   configured: "bg-primary",
   not_configured: "bg-content-subtle",
-  unavailable: "bg-content-subtle",
+  unavailable: "bg-warning",
   disabled: "bg-content-subtle",
   error: "bg-danger",
 };
