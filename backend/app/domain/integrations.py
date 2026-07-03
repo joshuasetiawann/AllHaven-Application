@@ -42,6 +42,7 @@ class IntegrationConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AiAgentConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -71,3 +72,4 @@ class AiAgentConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
