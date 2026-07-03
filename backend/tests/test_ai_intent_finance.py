@@ -14,7 +14,7 @@ from app.domain.ai import AiToolProposal
 from app.domain.ai_memory import AiMemory, AiMemorySuggestion
 from app.services import ai_intent_router as router
 from app.services.ai_tools_registry import normalize_tool_payload
-from app.services.memory_extraction_service import _should_skip_memory, schedule_extraction
+from app.services.memory_extraction_service import _should_skip_memory, rule_based_extract, schedule_extraction
 from tests.conftest import API
 
 
@@ -114,7 +114,16 @@ def test_should_skip_memory_for_finance_and_greeting():
     assert _should_skip_memory("saya dapat pendapatan 500 ribu") is True
     assert _should_skip_memory("catat pengeluaran makan 50 ribu") is True
     assert _should_skip_memory("halo") is True
+    assert _should_skip_memory("Michael adalah babi") is True
     assert _should_skip_memory("ingat bahwa saya suka kopi") is False  # explicit memory survives
+
+
+def test_relationship_statement_extracts_but_question_does_not():
+    partner = rule_based_extract("pacar saya Kelly")
+    assert any(c.title == "User partner" and "Kelly" in c.content for c in partner)
+
+    question = rule_based_extract("siapa pacar saya?")
+    assert question == []
 
 
 def _principal(auth_client) -> Principal:
@@ -179,4 +188,3 @@ def test_failed_proposal_stays_visible(auth_client, db_session):
     db_session.commit()
     listed = ai_service.list_proposals(db_session, principal)
     assert any(x.id == p.id for x in listed)
-

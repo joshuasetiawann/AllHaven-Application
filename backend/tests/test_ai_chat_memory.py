@@ -125,6 +125,28 @@ def test_chat_extracts_english_name_memory(auth_client, db_session):
     assert any("Alice" in m.content for m in memories)
 
 
+def test_chat_extracts_partner_memory_synchronously(auth_client, db_session):
+    """A simple relationship fact should be saved under one stable profile slot."""
+    principal = _principal(auth_client)
+
+    result = chat(
+        db_session,
+        principal,
+        message="pacar saya Kelly",
+    )
+    assert result["reply"].role == "assistant"
+
+    memories = (
+        db_session.query(AiMemory)
+        .filter(
+            AiMemory.workspace_id == principal.workspace_id,
+            AiMemory.category == "Profile",
+        )
+        .all()
+    )
+    assert any(m.title == "User partner" and "Kelly" in m.content for m in memories)
+
+
 # ---------------------------------------------------------------------------
 # Memory extraction disabled → no memories written
 # ---------------------------------------------------------------------------
