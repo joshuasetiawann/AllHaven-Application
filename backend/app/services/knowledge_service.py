@@ -13,17 +13,31 @@ from typing import Iterable, List
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.exceptions import NotFoundError, ValidationAppError
 from app.core.principal import Principal
 from app.domain.ai_knowledge import AiKnowledgeChunk, AiKnowledgeDocument
 
-SUPPORTED_TEXT_EXTENSIONS = {".txt", ".md", ".csv"}
-MAX_KNOWLEDGE_UPLOAD_BYTES = 25 * 1024 * 1024
+SUPPORTED_TEXT_EXTENSIONS = {
+    ".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".jsonl", ".yaml", ".yml",
+    ".xml", ".html", ".htm", ".css", ".scss", ".js", ".jsx", ".ts", ".tsx", ".py",
+    ".rb", ".go", ".rs", ".java", ".kt", ".swift", ".c", ".h", ".cpp", ".hpp", ".cs",
+    ".php", ".sql", ".sh", ".bash", ".zsh", ".ps1", ".bat", ".env", ".ini", ".toml",
+    ".cfg", ".conf", ".log", ".dockerfile", ".gitignore", ".gitattributes",
+}
 CHUNK_SIZE = 1200
 CHUNK_OVERLAP = 160
 MAX_SEARCH_CANDIDATES = 500
 
 _WORD_RE = re.compile(r"[A-Za-z0-9_\-]{3,}")
+_SECRET_PATTERNS: list[re.Pattern] = [
+    re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b"),
+    re.compile(r"\b(?:gsk|pk|rk|xoxb|xoxp|ghp|gho|github_pat)_[A-Za-z0-9_-]{8,}\b"),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"\bBearer\s+[A-Za-z0-9._-]{12,}\b", re.IGNORECASE),
+    re.compile(r"\beyJ[A-Za-z0-9._-]{20,}\b"),
+    re.compile(r"\b(api[_-]?key|secret|token|password|passwd|pwd|authorization)\b\s*[:=]\s*\S+", re.IGNORECASE),
+]
 
 
 def _safe_basename(filename: str) -> str:
@@ -41,20 +55,63 @@ def _decode_text(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def _knowledge_upload_limit_bytes() -> int:
+    mb = max(1, int(getattr(settings, "DRIVE_MAX_UPLOAD_MB", 250) or 250))
+    return mb * 1024 * 1024
+
+
+def _looks_like_text(data: bytes) -> bool:
+    if not data:
+        return False
+    sample = data[:4096]
+    if b"\x00" in sample:
+        return False
+    try:
+        sample.decode("utf-8")
+        return True
+    except UnicodeDecodeError:
+        printable = sum(1 for b in sample if b in (9, 10, 13) or 32 <= b <= 126)
+        return printable / max(1, len(sample)) > 0.88
+
+
+def _contains_secret(text: str) -> bool:
+    return any(pattern.search(text or "") for pattern in _SECRET_PATTERNS)
+
+
+def _metadata_text(filename: str, mime_type: str, size_bytes: int, reason: str) -> str:
+    return (
+        "[Stored AI Knowledge file metadata]\n"
+        f"Filename: {filename}\n"
+        f"MIME type: {mime_type or 'application/octet-stream'}\n"
+        f"Size: {size_bytes} bytes\n"
+        f"Indexing status: {reason}\n"
+        "Text content was not extracted. The AI can reference that this file exists, "
+        "but it must not claim to know the file contents until a parser is available."
+    )
+
+
 def _extract_text(filename: str, mime_type: str, data: bytes) -> tuple[str | None, str | None]:
     ext = os.path.splitext(filename.lower())[1]
-    if ext in {".txt", ".md"} or mime_type.startswith("text/"):
-        return _decode_text(data), None
     if ext == ".csv" or mime_type == "text/csv":
         text = _decode_text(data)
+        if _contains_secret(text):
+            note = "Secret-like content was detected; only metadata was indexed for safety."
+            return _metadata_text(filename, mime_type, len(data), note), note
         try:
             rows = csv.reader(io.StringIO(text))
             return "\n".join(" | ".join(cell.strip() for cell in row) for row in rows), None
         except csv.Error:
             return text, None
-    if ext in {".pdf", ".docx"}:
-        return None, f"{ext} parser is not installed yet; document is stored but not indexable."
-    return None, "File type is stored but not indexable yet. Supported MVP types: .txt, .md, .csv."
+    if ext in SUPPORTED_TEXT_EXTENSIONS or mime_type.startswith("text/") or _looks_like_text(data):
+        text = _decode_text(data)
+        if _contains_secret(text):
+            note = "Secret-like content was detected; only metadata was indexed for safety."
+            return _metadata_text(filename, mime_type, len(data), note), note
+        return text, None
+    parser_note = (
+        f"{ext or 'file'} parser is not installed yet; the file is stored and searchable by metadata only."
+    )
+    return _metadata_text(filename, mime_type, len(data), parser_note), parser_note
 
 
 def _chunks(text: str) -> Iterable[str]:
@@ -114,8 +171,10 @@ def create_document_from_upload(
 ) -> AiKnowledgeDocument:
     if not data:
         raise ValidationAppError("Uploaded knowledge document is empty.")
-    if len(data) > MAX_KNOWLEDGE_UPLOAD_BYTES:
-        raise ValidationAppError("Knowledge document exceeds the 25 MB ingestion limit.")
+    limit = _knowledge_upload_limit_bytes()
+    if len(data) > limit:
+        mb = max(1, limit // (1024 * 1024))
+        raise ValidationAppError(f"Knowledge document exceeds the {mb} MB upload limit.")
 
     safe = _safe_basename(filename)
     row = AiKnowledgeDocument(
@@ -133,11 +192,6 @@ def create_document_from_upload(
     db.flush()
 
     text, error = _extract_text(safe, row.mime_type, data)
-    if error:
-        row.status = "uploaded"
-        row.error_message = error
-        db.flush()
-        return row
     if not text or not text.strip():
         row.status = "failed"
         row.error_message = "No readable text could be extracted from this document."
@@ -157,12 +211,17 @@ def create_document_from_upload(
             document_id=row.id,
             chunk_index=idx,
             content=content,
-            meta={"filename": safe},
+            meta={"filename": safe, "metadata_only": bool(error)},
         ))
-    row.status = "indexed"
+    row.status = "uploaded" if error else "indexed"
     row.chunk_count = len(pieces)
-    row.last_indexed_at = datetime.now(timezone.utc)
-    row.error_message = None
+    row.last_indexed_at = datetime.now(timezone.utc) if not error else None
+    row.error_message = error
+    row.meta = {
+        "indexable": not bool(error),
+        "metadata_only": bool(error),
+        "upload_limit_mb": max(1, limit // (1024 * 1024)),
+    }
     db.flush()
     return row
 
@@ -189,6 +248,7 @@ def reindex_document(db: Session, principal: Principal, document_id: uuid.UUID) 
         row.error_message = row.error_message or "No source text is available to re-index this document."
         db.flush()
         return row
+    metadata_only = bool((row.meta or {}).get("metadata_only")) or any((c.meta or {}).get("metadata_only") for c in old_chunks)
     text = "\n".join(c.content for c in old_chunks)
     db.execute(delete(AiKnowledgeChunk).where(
         AiKnowledgeChunk.workspace_id == principal.workspace_id,
@@ -201,12 +261,16 @@ def reindex_document(db: Session, principal: Principal, document_id: uuid.UUID) 
             document_id=row.id,
             chunk_index=idx,
             content=content,
-            meta={"filename": row.filename, "reindexed": True},
+            meta={"filename": row.filename, "reindexed": True, "metadata_only": metadata_only},
         ))
-    row.status = "indexed" if pieces else "failed"
+    row.status = "uploaded" if metadata_only and pieces else ("indexed" if pieces else "failed")
     row.chunk_count = len(pieces)
-    row.last_indexed_at = datetime.now(timezone.utc) if pieces else row.last_indexed_at
-    row.error_message = None if pieces else "No chunks were produced while re-indexing."
+    row.last_indexed_at = datetime.now(timezone.utc) if pieces and not metadata_only else row.last_indexed_at
+    if metadata_only and pieces:
+        row.error_message = row.error_message or "Text content is not available for this file type yet."
+    else:
+        row.error_message = None if pieces else "No chunks were produced while re-indexing."
+    row.meta = {**(row.meta or {}), "metadata_only": metadata_only, "indexable": not metadata_only}
     db.flush()
     return row
 
@@ -222,7 +286,7 @@ def search_knowledge(db: Session, principal: Principal, query: str, *, limit: in
         .where(
             AiKnowledgeChunk.workspace_id == principal.workspace_id,
             AiKnowledgeDocument.workspace_id == principal.workspace_id,
-            AiKnowledgeDocument.status == "indexed",
+            AiKnowledgeDocument.status.in_(("indexed", "uploaded")),
         )
         .order_by(AiKnowledgeDocument.updated_at.desc(), AiKnowledgeChunk.chunk_index.asc())
         .limit(MAX_SEARCH_CANDIDATES)
