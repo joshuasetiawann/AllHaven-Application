@@ -108,12 +108,12 @@ cd AllHaven-Application
 ./install.sh
 ```
 
-| Your OS | Run / double-click |
-|---------|--------------------|
-| **Windows** | **`START_HAVEN_WINDOWS.bat`** |
-| **macOS** | **`START_HAVEN_MAC.command`** (right-click → Open the first time) |
-| **Linux** | **`./START_HAVEN_LINUX.sh`** |
-| **Any terminal** | **`./install.sh`** &nbsp;or&nbsp; **`npm run setup`** |
+| Step | Command |
+|------|---------|
+| **Fresh install** (Linux/macOS) | **`./install.sh`** |
+| **Fresh install** (Windows) | **`python installer\haven_cli.py`** (or WSL + `./install.sh`) |
+| **Run** (already installed) | **`./allhaven.sh run`** (foreground) · **`./allhaven.sh start`** (background) |
+| **Restart / stop** | **`./allhaven.sh restart`** · **`./allhaven.sh stop`** |
 
 After setup, the **Haven desktop shortcut** (or the same launcher) starts services and
 opens the app — **no terminal needed**; if a service is down it starts it safely first.
@@ -233,9 +233,10 @@ AllHaven-Application/
 
 ## Quick start
 
-> **Fastest for a fresh clone:** `./install.sh` (Linux/macOS) or `START_HAVEN_WINDOWS.bat`
-> (Windows) installs dependencies, runs migrations, starts backend + frontend, and opens
-> the app. `./scripts/healthcheck.sh` verifies running services. Full guide:
+> **Fastest for a fresh clone:** `./install.sh` (Linux/macOS) or `python installer\haven_cli.py`
+> (Windows) installs dependencies, runs migrations, starts backend + frontend, and opens the
+> app. Once installed, use `./allhaven.sh` (`run` | `start` | `restart` | `stop`).
+> `./scripts/healthcheck.sh` verifies running services. Full guide:
 > [`docs/LOCAL_SETUP.md`](./docs/LOCAL_SETUP.md). Deploy: [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
 > Release status: [`docs/RELEASE_CHECKLIST.md`](./docs/RELEASE_CHECKLIST.md).
 

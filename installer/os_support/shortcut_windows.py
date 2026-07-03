@@ -1,9 +1,12 @@
 """Windows desktop-shortcut helper.
 
-Preferred path: drive a tiny PowerShell script that creates a real ``Haven.lnk``
-on the Desktop pointing at the Windows launcher ``.bat`` (with the repo root as
-the working directory). If PowerShell is unavailable or fails, fall back to
-writing a ``Haven.bat`` on the Desktop that simply calls the launcher.
+Windows has no shell launcher to commit (``allhaven.sh`` is bash-only); the
+Windows entry point is the Python installer/launcher ``installer\\haven_cli.py``,
+which installs on first run and starts the services on later runs. This helper
+writes a ``Haven.bat`` on the Desktop that invokes it, then (preferred) drives a
+tiny PowerShell script to create a real ``Haven.lnk`` pointing at that ``.bat``
+(with the repo root as the working directory). If PowerShell is unavailable or
+fails, the ``Haven.bat`` itself is the shortcut.
 
 Stdlib only. Everything is guarded — this code may run on a box where it can't
 actually be exercised (e.g. this Linux sandbox), so it must import cleanly and
@@ -32,7 +35,8 @@ Write-Output $lnk
 
 _BAT_TEMPLATE = """@echo off
 cd /d "{repo_root}"
-call "{launcher}"
+python installer\\haven_cli.py
+if errorlevel 1 pause
 """
 
 
@@ -79,33 +83,36 @@ def _try_powershell(target: Path, workdir: Path, desktop: Path) -> dict | None:
                 pass
 
 
-def _write_bat_fallback(repo_root: Path, launcher: Path, desktop: Path) -> dict:
-    """Fallback: a Haven.bat on the Desktop that calls the launcher."""
+def _write_desktop_bat(repo_root: Path, desktop: Path) -> Path:
+    """Write the Desktop ``Haven.bat`` that launches via the Python installer."""
     path = desktop / "Haven.bat"
-    content = _BAT_TEMPLATE.format(repo_root=str(repo_root), launcher=str(launcher))
+    content = _BAT_TEMPLATE.format(repo_root=str(repo_root))
     path.write_text(content, encoding="utf-8")
-    return {
-        "created": True,
-        "path": str(path),
-        "message": f"Created desktop launcher at {path} (PowerShell shortcut unavailable).",
-    }
+    return path
 
 
 def create_shortcut(repo_root: Path, app_url: str) -> dict:
     """Create a Windows desktop shortcut to the launcher. Never raises."""
     try:
         repo_root = Path(repo_root)
-        launcher = repo_root / "START_HAVEN_WINDOWS.bat"
         desktop = _desktop_dir()
 
-        result = _try_powershell(launcher, repo_root, desktop)
+        # The launcher is the Python installer/launcher; expose it via a Desktop
+        # Haven.bat (this is also the fallback shortcut if PowerShell is absent).
+        try:
+            bat_path = _write_desktop_bat(repo_root, desktop)
+        except OSError as exc:
+            return {"created": False, "path": None, "message": f"Could not create shortcut: {exc}"}
+
+        # Preferred: a real .lnk pointing at the Haven.bat we just wrote.
+        result = _try_powershell(bat_path, repo_root, desktop)
         if result is not None:
             return result
 
-        # PowerShell failed/unavailable — write a .bat launcher instead.
-        try:
-            return _write_bat_fallback(repo_root, launcher, desktop)
-        except OSError as exc:
-            return {"created": False, "path": None, "message": f"Could not create shortcut: {exc}"}
+        return {
+            "created": True,
+            "path": str(bat_path),
+            "message": f"Created desktop launcher at {bat_path} (PowerShell shortcut unavailable).",
+        }
     except Exception as exc:  # noqa: BLE001
         return {"created": False, "path": None, "message": f"Could not create shortcut: {exc}"}
