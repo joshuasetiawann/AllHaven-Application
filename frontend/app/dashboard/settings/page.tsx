@@ -37,9 +37,9 @@ import { AiProviderCard } from "@/components/settings/AiProviderCard";
 import { GoogleOAuthCard } from "@/components/settings/GoogleOAuthCard";
 import { aiApi, authApi, settingsApi } from "@/lib/api";
 import { getStoredUser, setStoredUser } from "@/lib/auth";
-import { initials } from "@/lib/format";
+import { cn, initials } from "@/lib/format";
 import { DEFAULT_PREFS, loadPrefs, savePrefs, type Prefs } from "@/lib/prefs";
-import type { AiProvider, Integration, Me } from "@/types";
+import type { AiProvider, EnvSync, Integration, Me } from "@/types";
 
 const INTEGRATION_ICONS: Record<string, LucideIcon> = {
   postgresql: Database,
@@ -59,7 +59,9 @@ const AI_ICONS: Record<string, LucideIcon> = {
   gemini: Sparkles,
   grok: Zap,
   blackbox: Box,
-  openrouter: Network,
+  openrouter_1: Network,
+  openrouter_2: Network,
+  openrouter_3: Network,
 };
 
 export default function SettingsPage() {
@@ -76,8 +78,16 @@ export default function SettingsPage() {
   const [savingPolicy, setSavingPolicy] = useState(false);
   const [profileForm, setProfileForm] = useState({ full_name: "", workspace_name: "" });
   const [savingProfile, setSavingProfile] = useState(false);
+  const [envSync, setEnvSync] = useState<EnvSync | null>(null);
 
   useEffect(() => setPrefs(loadPrefs()), []);
+
+  // Surface the .env mirror result for a few seconds after any save.
+  const flashEnvSync = (sync?: EnvSync | null) => {
+    if (!sync) return;
+    setEnvSync(sync);
+    window.setTimeout(() => setEnvSync(null), 6000);
+  };
 
   const toggleExternal = async (next: boolean) => {
     setAllowExternal(next);
@@ -85,6 +95,7 @@ export default function SettingsPage() {
     try {
       const res = await aiApi.setPolicy({ allow_external: next });
       setAllowExternal(res.allow_external);
+      flashEnvSync(res.env_sync);
     } catch {
       setAllowExternal(!next);
     } finally {
@@ -97,6 +108,7 @@ export default function SettingsPage() {
     try {
       const res = await aiApi.setPolicy({ default_provider: id });
       setDefaultProvider(res.default_provider);
+      flashEnvSync(res.env_sync);
     } catch {
       /* keep optimistic */
     }
@@ -152,9 +164,12 @@ export default function SettingsPage() {
   const updateIntegration = (updated: Integration) => {
     setIntegrations((prev) => prev?.map((i) => (i.key === updated.key ? updated : i)) ?? prev);
     setConfiguring((c) => (c && c.key === updated.key ? updated : c));
+    flashEnvSync(updated.env_sync);
   };
-  const updateProvider = (updated: AiProvider) =>
+  const updateProvider = (updated: AiProvider) => {
     setProviders((prev) => prev?.map((p) => (p.id === updated.id ? updated : p)) ?? prev);
+    flashEnvSync(updated.env_sync);
+  };
 
   const updatePref = (patch: Partial<Prefs>) => {
     const next = { ...prefs, ...patch };
@@ -179,6 +194,30 @@ export default function SettingsPage() {
           { value: "privacy", label: "Privacy & Safety" },
         ]}
       />
+
+      {envSync ? (
+        <div
+          className={cn(
+            "mb-4 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-[13px]",
+            envSync.status === "success"
+              ? "border-success/30 bg-success/10 text-success"
+              : envSync.status === "failed"
+                ? "border-danger/30 bg-danger/10 text-danger"
+                : "border-border bg-surface-high text-content-muted",
+          )}
+        >
+          <Plug size={15} className="mt-0.5 shrink-0" />
+          <div>
+            <p>{envSync.message}</p>
+            {envSync.keys.length ? (
+              <p className="mt-0.5 font-mono text-[11px] opacity-80">
+                .env keys: {envSync.keys.join(", ")}
+                {envSync.backup ? ` · backup: ${envSync.backup}` : ""}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {error ? (
         <ErrorState message={error} onRetry={load} />
