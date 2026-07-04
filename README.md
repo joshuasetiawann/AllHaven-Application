@@ -64,6 +64,13 @@ CORE-OS-APPLICATION/
 
 ## Quick start
 
+> **Fastest:** `./scripts/start.sh` (Linux/macOS) or `scripts\start.bat` (Windows) starts
+> backend + frontend. `./scripts/healthcheck.sh` verifies them. Full guide:
+> [`docs/LOCAL_SETUP.md`](./docs/LOCAL_SETUP.md). Deploy: [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
+> Release status: [`docs/RELEASE_CHECKLIST.md`](./docs/RELEASE_CHECKLIST.md).
+
+### Manual
+
 ### 1) Configure environment
 
 ```bash

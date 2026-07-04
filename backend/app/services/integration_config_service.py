@@ -58,6 +58,7 @@ def _env_secret_present(spec: ProviderSpec) -> dict:
     mapping = {
         "weather_api": {"api_key": settings.WEATHER_API_KEY},
         "google": {"client_secret": settings.GOOGLE_CLIENT_SECRET},
+        "supabase": {"service_role_key": settings.SUPABASE_SERVICE_ROLE_KEY},
     }
     return {k: v for k, v in mapping.get(spec.id, {}).items() if is_configured_value(v)}
 
