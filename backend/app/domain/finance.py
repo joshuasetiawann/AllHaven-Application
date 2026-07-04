@@ -1,6 +1,6 @@
 """Finance models: categories and transactions.
 
-CoreOS tracks cashflow only. It does not provide financial advice and never moves
+AllHaven tracks cashflow only. It does not provide financial advice and never moves
 money. Amounts are stored as NUMERIC for accuracy. Both tables are soft-deleted.
 """
 

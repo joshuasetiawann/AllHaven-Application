@@ -151,7 +151,7 @@ export default function AiChatPage() {
                   <Sparkles size={16} />
                 </span>
                 <div className="leading-tight">
-                  <p className="text-sm font-semibold text-content">CoreOS Multi-Agent</p>
+                  <p className="text-sm font-semibold text-content">AllHaven Multi-Agent</p>
                   <p className="label-mono">Concurrent agents · honest status</p>
                 </div>
               </div>
@@ -175,7 +175,7 @@ export default function AiChatPage() {
                 <div className="flex h-full items-center justify-center">
                   <EmptyState
                     title="Start a conversation"
-                    description="Pick 1–3 agents and ask anything. Each agent answers in its own card. CoreOS never fabricates AI output or executes actions on its own."
+                    description="Pick 1–3 agents and ask anything. Each agent answers in its own card. AllHaven never fabricates AI output or executes actions on its own."
                     icon={<Bot size={20} />}
                   />
                 </div>
@@ -322,7 +322,7 @@ export default function AiChatPage() {
               <div>
                 <p className="text-[13px] font-semibold text-content">Local-first by design</p>
                 <p className="mt-0.5 text-[12px] leading-relaxed text-content-muted">
-                  When a local model (Ollama) is configured, AI processing runs on your machine. CoreOS
+                  When a local model (Ollama) is configured, AI processing runs on your machine. AllHaven
                   never fakes AI responses.
                 </p>
               </div>

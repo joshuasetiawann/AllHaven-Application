@@ -81,7 +81,7 @@ def test_automation_crud_persists_disabled_safe(auth_client):
         json={"name": "Nightly backup", "trigger_type": "schedule", "action_type": "noop"},
     )
     assert created.status_code == 200, created.text
-    # Created disabled-safe; CoreOS never auto-runs it.
+    # Created disabled-safe; AllHaven never auto-runs it.
     assert created.json()["data"]["enabled"] is False
     automation_id = created.json()["data"]["id"]
 

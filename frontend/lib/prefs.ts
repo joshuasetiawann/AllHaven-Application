@@ -6,7 +6,7 @@ export interface Prefs {
   compact: boolean; // denser layout
 }
 
-const KEY = "coreos_prefs";
+const KEY = "allhaven_prefs";
 
 export const DEFAULT_PREFS: Prefs = { glass: true, compact: false };
 
