@@ -33,6 +33,21 @@ class VerifyResult:
     message: str = ""
 
 
+# Marker used to flag an infrastructure/proxy block (e.g. an egress allowlist),
+# so it is reported honestly as "unavailable / blocked by network" instead of
+# being mistaken for a provider auth rejection.
+NETWORK_BLOCK_MARKER = "NETWORK_POLICY_BLOCK"
+_NETWORK_BLOCK_SIGNATURES = (
+    "not in allowlist",
+    "allowlist",
+    "forbidden host",
+    "proxy",
+    "gateway",
+    "tunnel",
+    "egress",
+)
+
+
 def safe_request(
     method: str,
     url: str,
@@ -50,6 +65,14 @@ def safe_request(
             body = resp.json()
         except Exception:  # noqa: BLE001 - body may not be JSON
             body = None
+        # An infrastructure/proxy block (egress allowlist, gateway) is NOT a
+        # provider auth failure. Detect the plain-text signature and surface it as
+        # an error so callers report it honestly as "unavailable", not "key rejected".
+        if body is None and resp.status_code in (403, 407, 451, 502, 503):
+            text = (resp.text or "")[:200]
+            low = text.lower()
+            if any(sig in low for sig in _NETWORK_BLOCK_SIGNATURES):
+                return resp.status_code, None, f"{NETWORK_BLOCK_MARKER}: {text.strip()}"
         return resp.status_code, body, ""
     except Exception as exc:  # noqa: BLE001 - network failures are expected/honest
         return None, None, str(exc)[:200]
@@ -58,11 +81,19 @@ def safe_request(
 def interpret_http(code: Optional[int], err: str) -> VerifyResult:
     """Map an HTTP result to an honest verification status.
 
-    * no response (exception/timeout) -> unavailable
-    * 200/2xx                          -> online
-    * 401/403                          -> error (invalid/unauthorized key)
-    * other 4xx/5xx                    -> error
+    * blocked by network policy/proxy   -> unavailable (NOT "key rejected")
+    * no response (exception/timeout)    -> unavailable
+    * 200/2xx                            -> online
+    * 401/403                            -> error (invalid/unauthorized key)
+    * other 4xx/5xx                      -> error
     """
+    if err and NETWORK_BLOCK_MARKER in err:
+        return VerifyResult(
+            "unavailable",
+            "Blocked by the network policy (host not allowed) — this server can't reach "
+            "the provider. Run AllHaven where the host is reachable, or allow it in your "
+            "environment's network policy.",
+        )
     if err or code is None:
         return VerifyResult("unavailable", f"Could not reach provider: {err}" if err else "No response")
     if 200 <= code < 300:
@@ -81,6 +112,13 @@ def interpret_http(code: Optional[int], err: str) -> VerifyResult:
 def network_error_message(err: str) -> str:
     """Friendly message for a transport-level failure (no HTTP response)."""
     low = (err or "").lower()
+    if NETWORK_BLOCK_MARKER.lower() in low or "not in allowlist" in low:
+        return (
+            "could not reach the provider — the host is blocked by the current network policy "
+            "(egress allowlist). This is a network restriction, not your API key. Run AllHaven "
+            "where the host is reachable (e.g. your own machine), or allow the host in your "
+            "environment's network policy."
+        )
     if "name resolution" in low or "getaddrinfo" in low or "nodename" in low:
         return (
             "could not reach the provider — DNS/name resolution failed. Check your internet "
