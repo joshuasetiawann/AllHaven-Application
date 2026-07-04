@@ -20,6 +20,7 @@ node_modules/
 out/
 npm-debug.log*
 yarn-error.log*
+*.tsbuildinfo
 
 # Build / backups
 *.zip
@@ -30,3 +31,6 @@ yarn-error.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# Runtime / app data (Drive uploads, local file storage)
+var/
