@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from app.services.ai_providers.base import AIProvider, ChatResult, VerifyResult, interpret_http, safe_request
+from app.services.ai_providers.base import (
+    AIProvider,
+    ChatResult,
+    VerifyResult,
+    chat_error_message,
+    interpret_http,
+    safe_request,
+)
 
 API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
@@ -49,5 +56,5 @@ class GeminiProvider(AIProvider):
             try:
                 return ChatResult(True, content=body["candidates"][0]["content"]["parts"][0]["text"])
             except (KeyError, IndexError, TypeError):
-                return ChatResult(False, error="Unexpected response from provider")
-        return ChatResult(False, error=f"Provider returned HTTP {code}")
+                return ChatResult(False, error="the provider returned an unexpected response")
+        return ChatResult(False, error=chat_error_message(code, body))
