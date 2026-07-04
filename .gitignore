@@ -1,36 +1,19 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-venv/
-.pytest_cache/
-.mypy_cache/
-
-# Environment
-.env
-.env.local
-.env.prod
-.env.bak.*
-*.local
-
-# Node / Next.js
-node_modules/
-.next/
-out/
-npm-debug.log*
-yarn-error.log*
-*.tsbuildinfo
-
-# Build / backups
-*.zip
-*.bundle
-
+# Dependencies / build output (any version folder)
+**/node_modules/
+**/.next/
+**/.venv/
+**/__pycache__/
+**/*.py[cod]
+**/*.tsbuildinfo
+# Env / secrets
+**/.env
+**/.env.local
+**/.env.prod
+**/.env.bak.*
+# Runtime data
+**/var/
 # OS / editor
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
-
-# Runtime / app data (Drive uploads, local file storage)
-var/
