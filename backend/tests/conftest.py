@@ -12,16 +12,30 @@ import os
 # Configure the environment before any app import so settings pick it up.
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret-key"
+os.environ["SETTINGS_ENCRYPTION_KEY"] = "test-encryption-key"
 os.environ["BACKEND_CORS_ORIGINS"] = "http://localhost:3000"
+os.environ["AI_ALLOW_EXTERNAL_PROVIDERS"] = "false"
+os.environ["AI_DEFAULT_PROVIDER"] = "ollama"
+# Force these empty so a local .env file can never make tests non-deterministic
+# (real env vars take priority over any .env file).
 for _placeholder in (
     "OLLAMA_BASE_URL",
+    "OLLAMA_DEFAULT_MODEL",
     "N8N_BASE_URL",
     "SUPABASE_URL",
     "SUPABASE_ANON_KEY",
     "GOOGLE_CALENDAR_CLIENT_ID",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
     "WEATHER_API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GEMINI_API_KEY",
+    "GROK_API_KEY",
+    "BLACKBOX_API_KEY",
+    "OPENROUTER_API_KEY",
 ):
-    os.environ.pop(_placeholder, None)
+    os.environ[_placeholder] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
