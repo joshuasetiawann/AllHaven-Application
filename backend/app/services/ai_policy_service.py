@@ -35,8 +35,10 @@ def get_policy(db: Session, principal: Principal) -> dict:
         allow_external = bool(config["allow_external"])
     else:
         allow_external = settings.AI_ALLOW_EXTERNAL_PROVIDERS
+    default_provider = config.get("default_provider") or settings.AI_DEFAULT_PROVIDER or "ollama"
     return {
         "allow_external": allow_external,
+        "default_provider": default_provider,
         "default_privacy_mode": settings.AI_DEFAULT_PRIVACY_MODE,
         "env_default": settings.AI_ALLOW_EXTERNAL_PROVIDERS,
     }
@@ -46,7 +48,11 @@ def is_external_allowed(db: Session, principal: Principal) -> bool:
     return get_policy(db, principal)["allow_external"]
 
 
-def set_allow_external(db: Session, principal: Principal, allow_external: bool) -> dict:
+def default_provider(db: Session, principal: Principal) -> str:
+    return get_policy(db, principal)["default_provider"]
+
+
+def _ensure_row(db: Session, principal: Principal) -> IntegrationConfig:
     row = _row(db, principal)
     if row is None:
         row = IntegrationConfig(
@@ -62,9 +68,27 @@ def set_allow_external(db: Session, principal: Principal, allow_external: bool) 
         )
         db.add(row)
         db.flush()
+    return row
+
+
+def set_policy(
+    db: Session,
+    principal: Principal,
+    *,
+    allow_external: bool | None = None,
+    default_provider: str | None = None,  # noqa: A002 - clear name
+) -> dict:
+    row = _ensure_row(db, principal)
     config = dict(row.public_config or {})
-    config["allow_external"] = bool(allow_external)
+    if allow_external is not None:
+        config["allow_external"] = bool(allow_external)
+    if default_provider is not None:
+        config["default_provider"] = default_provider
     row.public_config = config
     row.updated_by = principal.user_id
     db.commit()
     return get_policy(db, principal)
+
+
+def set_allow_external(db: Session, principal: Principal, allow_external: bool) -> dict:
+    return set_policy(db, principal, allow_external=allow_external)
