@@ -21,6 +21,7 @@ from app.schemas.ai import (
     AgentResponseOut,
     ChatRequest,
     ChatResponse,
+    DebateChatRequest,
     GroupCreate,
     GroupOut,
     GroupUpdate,
@@ -35,7 +36,13 @@ from app.schemas.ai import (
 from pydantic import BaseModel
 
 from app.schemas.ai_providers import AiProviderUpdateRequest
-from app.services import ai_multi_service, ai_policy_service, ai_provider_router, ai_service
+from app.services import (
+    ai_debate_service,
+    ai_multi_service,
+    ai_policy_service,
+    ai_provider_router,
+    ai_service,
+)
 
 
 class AiPolicyUpdate(BaseModel):
@@ -285,6 +292,24 @@ def chat_multi(
         session_id=payload.session_id,
     )
     return success_response(_multi_view(result), "Multi-agent run processed")
+
+
+@router.post("/chat/debate")
+def chat_debate(
+    payload: DebateChatRequest,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Run a multi-agent debate (2–3 agents argue across rounds, then synthesize)."""
+    result = ai_debate_service.debate_chat(
+        db,
+        principal,
+        message=payload.message,
+        provider_ids=payload.provider_ids,
+        session_id=payload.session_id,
+        rounds=payload.rounds,
+    )
+    return success_response(_multi_view(result), "Debate run processed")
 
 
 @router.get("/runs/{run_id}")
