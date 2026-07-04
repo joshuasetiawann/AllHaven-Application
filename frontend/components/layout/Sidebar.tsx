@@ -64,7 +64,7 @@ export function Sidebar({
         </div>
         <div className="leading-tight">
           <p className="text-[15px] font-semibold tracking-tight text-content">
-            Core<span className="text-primary">OS</span>
+            All<span className="text-primary">Haven</span>
           </p>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-content-subtle">
             {APP_VERSION}

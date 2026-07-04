@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     )
 
     # --- Application ---
-    APP_NAME: str = "CoreOS Command Center"
+    APP_NAME: str = "AllHaven Command Center"
     APP_ENV: str = "local"
     API_V1_PREFIX: str = "/api/v1"
     # Comma-separated list (or JSON array) of allowed frontend origins.
@@ -48,9 +48,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
 
     # --- Database ---
-    POSTGRES_USER: str = "coreos"
-    POSTGRES_PASSWORD: str = "coreos"
-    POSTGRES_DB: str = "coreos"
+    POSTGRES_USER: str = "allhaven"
+    POSTGRES_PASSWORD: str = "allhaven"
+    POSTGRES_DB: str = "allhaven"
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
     # If empty, it is assembled from the POSTGRES_* values above.
