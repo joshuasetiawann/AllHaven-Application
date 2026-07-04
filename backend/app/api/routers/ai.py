@@ -29,6 +29,7 @@ from app.schemas.ai import (
     MultiChatRequest,
     MultiChatResponse,
     ProposalOut,
+    ReasoningChatRequest,
     SessionCreate,
     SessionOut,
     SessionUpdate,
@@ -41,6 +42,7 @@ from app.services import (
     ai_multi_service,
     ai_policy_service,
     ai_provider_router,
+    ai_reasoning_service,
     ai_service,
 )
 
@@ -310,6 +312,24 @@ def chat_debate(
         rounds=payload.rounds,
     )
     return success_response(_multi_view(result), "Debate run processed")
+
+
+@router.post("/chat/reason")
+def chat_reason(
+    payload: ReasoningChatRequest,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Run the reasoning council (Analyst -> Critic -> Synthesizer + quality gate)."""
+    result = ai_reasoning_service.reasoning_chat(
+        db,
+        principal,
+        message=payload.message,
+        provider_ids=payload.provider_ids,
+        session_id=payload.session_id,
+        mode=payload.mode,
+    )
+    return success_response(_multi_view(result), "Reasoning run processed")
 
 
 @router.get("/runs/{run_id}")

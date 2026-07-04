@@ -25,6 +25,18 @@ class ChatResult:
     error: str = ""
 
 
+# Generation parameters (temperature, top_p, penalties, max_tokens) the Reasoning
+# Quality Layer passes per call. Adapters forward the subset their API supports.
+_OPENAI_PARAM_KEYS = ("temperature", "top_p", "presence_penalty", "frequency_penalty", "max_tokens")
+
+
+def openai_gen_params(params: Optional[dict]) -> dict:
+    """Whitelist of OpenAI-style generation params, dropping unset values."""
+    if not params:
+        return {}
+    return {k: params[k] for k in _OPENAI_PARAM_KEYS if params.get(k) is not None}
+
+
 @dataclass
 class VerifyResult:
     """Typed result of a connection test. ``status`` is one of VERIFY_STATUSES."""
@@ -174,7 +186,10 @@ class AIProvider:
     def test_connection(self, public: dict, secrets: dict) -> VerifyResult:
         raise NotImplementedError
 
-    def chat(self, public: dict, secrets: dict, messages: list[dict], model: Optional[str] = None) -> ChatResult:
+    def chat(
+        self, public: dict, secrets: dict, messages: list[dict],
+        model: Optional[str] = None, params: Optional[dict] = None,
+    ) -> ChatResult:
         raise NotImplementedError
 
 
@@ -207,7 +222,10 @@ class OpenAICompatibleProvider(AIProvider):
         )
         return interpret_http(code, err)
 
-    def chat(self, public: dict, secrets: dict, messages: list[dict], model: Optional[str] = None) -> ChatResult:
+    def chat(
+        self, public: dict, secrets: dict, messages: list[dict],
+        model: Optional[str] = None, params: Optional[dict] = None,
+    ) -> ChatResult:
         key = secrets.get("api_key")
         if not key:
             return ChatResult(False, error="API key not set")
@@ -216,7 +234,7 @@ class OpenAICompatibleProvider(AIProvider):
             "POST",
             f"{self.base_url(public)}/chat/completions",
             headers=self._headers(key),
-            json={"model": chosen, "messages": messages},
+            json={"model": chosen, "messages": messages, **openai_gen_params(params)},
         )
         if err:
             return ChatResult(False, error=network_error_message(err))
