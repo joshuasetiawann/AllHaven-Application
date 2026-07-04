@@ -21,6 +21,7 @@ from app.core.exceptions import ForbiddenError, NotFoundError
 from app.core.principal import Principal
 from app.domain.integrations import IntegrationConfig
 from app.services import config_common as cc
+from app.services import env_file_service
 from app.services.ai_providers.base import interpret_http, safe_request
 from app.services.audit_service import write_audit
 from app.services.integration_status_service import is_configured_value
@@ -325,7 +326,12 @@ def upsert_integration(db: Session, principal: Principal, provider_id: str, publ
                 meta={"provider_id": provider_id, "status": row.status})
     db.commit()
     db.refresh(row)
-    return _view(db, principal, spec, row)
+    view = _view(db, principal, spec, row)
+    # Mirror real (non-placeholder) values to the local .env for persistence.
+    clean_secrets = {k: v for k, v in (secrets or {}).items() if is_configured_value(v)}
+    env_updates = env_file_service.map_integration_updates(provider_id, public or {}, clean_secrets)
+    view["env_sync"] = env_file_service.sync_env(env_updates)
+    return view
 
 
 def test_integration(db: Session, principal: Principal, provider_id: str) -> dict:
