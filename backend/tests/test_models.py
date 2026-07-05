@@ -5,6 +5,7 @@ from app.domain.base import Base
 EXPECTED_TABLES = {
     "local_users",
     "profiles",
+    "user_sessions",
     "workspaces",
     "workspace_members",
     "tasks",

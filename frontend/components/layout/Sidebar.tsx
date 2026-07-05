@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogOut, LifeBuoy, Plus, ShieldCheck } from "lucide-react";
 import { APP_VERSION, MODULE_NAV, PRIMARY_NAV, SETTINGS_NAV } from "@/components/layout/nav";
 import type { NavItem } from "@/components/layout/nav";
+import { authApi } from "@/lib/api";
 import { clearAuth } from "@/lib/auth";
 import { cn } from "@/lib/format";
 
@@ -20,7 +21,9 @@ export function Sidebar({
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === href : pathname.startsWith(href);
 
-  const signOut = () => {
+  const signOut = async () => {
+    // Revoke the server-side session + clear cookies, then drop the local cache.
+    await authApi.logout().catch(() => {});
     clearAuth();
     router.replace("/login");
   };
