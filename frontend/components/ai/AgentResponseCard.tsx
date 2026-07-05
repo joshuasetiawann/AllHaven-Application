@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Bot, Globe, Loader2 } from "lucide-react";
+import { AlertTriangle, Bot, Globe, ImageOff, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { cn } from "@/lib/format";
@@ -28,6 +28,7 @@ const STATUS_META: Record<
   not_configured: { tone: "neutral", label: "Not configured" },
   disabled: { tone: "neutral", label: "Disabled" },
   blocked: { tone: "warning", label: "Blocked" },
+  unsupported: { tone: "warning", label: "No image support" },
 };
 
 export function AgentResponseCard({ data }: { data: AgentCardData }) {
@@ -65,6 +66,11 @@ export function AgentResponseCard({ data }: { data: AgentCardData }) {
                 Open Settings →
               </Link>
             </span>
+          </div>
+        ) : data.status === "unsupported" ? (
+          <div className="flex items-start gap-1.5 text-content-muted">
+            <ImageOff size={13} className="mt-0.5 shrink-0 text-warning" />
+            <span className="break-words">{data.error_message}</span>
           </div>
         ) : (
           <p className={cn("break-words text-danger")}>{data.error_message || "The agent failed."}</p>

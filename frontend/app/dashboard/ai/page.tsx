@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Bot, Brain, Crown, Cpu, ImagePlus, Layers, Loader2, PanelLeft, SendHorizonal, Sparkles, Swords, User, X } from "lucide-react";
+import { AlertTriangle, Bot, Brain, Crown, Cpu, Eye, ImageOff, ImagePlus, Layers, Loader2, PanelLeft, SendHorizonal, Sparkles, Swords, User, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -12,10 +12,11 @@ import { AgentResponseCard, type AgentCardData } from "@/components/ai/AgentResp
 import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { aiApi, ApiException } from "@/lib/api";
 import { cn } from "@/lib/format";
-import type { AgentResponseStatus, AiProvider, ChatGroup, ChatMessage, ChatSession } from "@/types";
+import type { AgentResponseStatus, AiProvider, ChatGroup, ChatMessage, ChatSession, ThinkingMode } from "@/types";
 
 type ChatMode = "parallel" | "debate" | "reason";
-type ReasoningMode = "fast" | "balanced" | "deep";
+
+const THINKING_MODES: ThinkingMode[] = ["fast", "balance", "thinking", "deep"];
 
 const ROLE_LABEL: Record<string, string> = { analyst: "Analyst", critic: "Critic", synthesis: "Synthesizer", synthesizer: "Synthesizer" };
 
@@ -95,8 +96,7 @@ export default function AiChatPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [mode, setMode] = useState<ChatMode>("parallel");
   const [rounds, setRounds] = useState(2);
-  const [reasoningMode, setReasoningMode] = useState<ReasoningMode>("balanced");
-  const [showSummary, setShowSummary] = useState(true);
+  const [thinking, setThinking] = useState<ThinkingMode>("balance");
   const [debug, setDebug] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -113,6 +113,9 @@ export default function AiChatPage() {
   const providerById = useMemo(() => Object.fromEntries(providers.map((p) => [p.id, p])), [providers]);
   const anyExternal = selected.some((id) => providerById[id]?.external);
   const anyLocal = selected.some((id) => providerById[id] && !providerById[id]!.external);
+  // Image attached but one or more selected models can't read images (vision).
+  const visionMissing = images.length > 0 && selected.some((id) => providerById[id] && !providerById[id]!.capabilities?.image);
+  const visionOk = images.length > 0 && !visionMissing;
   const activeSession = sessions.find((s) => s.id === activeId) || null;
   const thread = useMemo(() => buildThread(messages), [messages]);
 
@@ -259,10 +262,10 @@ export default function AiChatPage() {
     setImages([]);
     try {
       const run = mode === "debate"
-        ? await aiApi.debateChat(msg, selected, activeId ?? undefined, rounds, imgs)
+        ? await aiApi.debateChat(msg, selected, activeId ?? undefined, rounds, imgs, thinking)
         : mode === "reason"
-          ? await aiApi.reasonChat(msg, selected, activeId ?? undefined, reasoningMode, imgs)
-          : await aiApi.multiChat(msg, selected, activeId ?? undefined, imgs);
+          ? await aiApi.reasonChat(msg, selected, activeId ?? undefined, thinking, imgs)
+          : await aiApi.multiChat(msg, selected, activeId ?? undefined, imgs, thinking);
       setActiveId(run.session_id);
       const msgs = await aiApi.listMessages(run.session_id);
       setMessages(msgs);
@@ -358,7 +361,7 @@ export default function AiChatPage() {
             </span>
           </p>
         ) : null}
-        {isReasoning && showSummary && summary ? (
+        {isReasoning && debug && summary ? (
           <p className="mt-2 text-[11.5px] text-content-subtle">
             <span className="font-medium text-content-muted">Reasoning:</span> {summary}
           </p>
@@ -452,7 +455,7 @@ export default function AiChatPage() {
                     mode === "reason" ? "bg-surface-high text-primary" : "text-content-muted hover:text-content",
                   )}
                 >
-                  <Brain size={13} /> Reason
+                  <Brain size={13} /> Reasoning
                 </button>
               </div>
               {mode === "debate" ? (
@@ -476,43 +479,16 @@ export default function AiChatPage() {
                 </div>
               ) : null}
               {mode === "reason" ? (
-                <>
-                  <div className="inline-flex shrink-0 items-center rounded-lg border border-border bg-surface-input p-0.5 text-[12px]">
-                    {(["fast", "balanced", "deep"] as ReasoningMode[]).map((rm) => (
-                      <button
-                        key={rm}
-                        type="button"
-                        onClick={() => setReasoningMode(rm)}
-                        className={cn(
-                          "rounded-md px-2 py-1 capitalize transition-colors",
-                          reasoningMode === rm ? "bg-surface-high text-content" : "text-content-muted hover:text-content",
-                        )}
-                      >
-                        {rm}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowSummary((v) => !v)}
-                    className={cn(
-                      "shrink-0 rounded-md border px-2 py-1 text-[12px] transition-colors",
-                      showSummary ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-content-muted hover:text-content",
-                    )}
-                  >
-                    Summary
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDebug((v) => !v)}
-                    className={cn(
-                      "shrink-0 rounded-md border px-2 py-1 text-[12px] transition-colors",
-                      debug ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-content-muted hover:text-content",
-                    )}
-                  >
-                    Debug
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={() => setDebug((v) => !v)}
+                  className={cn(
+                    "shrink-0 rounded-md border px-2 py-1 text-[12px] transition-colors",
+                    debug ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-content-muted hover:text-content",
+                  )}
+                >
+                  Debug
+                </button>
               ) : null}
               {anyLocal ? <Badge tone="success"><Cpu size={11} className="mr-1 inline" /> Local AI</Badge> : null}
               {anyExternal ? <Badge tone="warning"><AlertTriangle size={11} className="mr-1 inline" /> External AI</Badge> : null}
@@ -528,7 +504,11 @@ export default function AiChatPage() {
           </div>
 
           {/* Messages */}
-          <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
+          <div
+            className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => { e.preventDefault(); void addImages(e.dataTransfer.files); }}
+          >
             {messages.length === 0 && !pendingUser ? (
               <div className="flex h-full flex-col items-center justify-center text-center">
                 <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -595,7 +575,7 @@ export default function AiChatPage() {
                   <div className="flex gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary"><Bot size={15} /></span>
                     <div className="rounded-xl border border-border bg-surface-input px-3.5 py-2.5 text-sm text-content-subtle">
-                      <Loader2 size={14} className="mr-1.5 inline animate-spin" /> {mode === "reason" ? `Reasoning (${reasoningMode})…` : mode === "debate" ? `${selected.length} agents debating across ${rounds} rounds…` : selected.length > 1 ? `${selected.length} agents thinking…` : "Thinking…"}
+                      <Loader2 size={14} className="mr-1.5 inline animate-spin" /> {mode === "reason" ? "Reasoning…" : mode === "debate" ? `${selected.length} agents debating across ${rounds} rounds…` : selected.length > 1 ? `${selected.length} agents thinking…` : "Thinking…"}
                     </div>
                   </div>
                 ) : null}
@@ -610,8 +590,38 @@ export default function AiChatPage() {
               <AlertTriangle size={12} className="mt-0.5 shrink-0" /> External AI may process your prompt. Don&apos;t send confidential data unless allowed in Settings.
             </p>
           ) : null}
+          {visionMissing ? (
+            <p className="mx-3 mb-1 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-3 py-1.5 text-[11.5px] text-warning">
+              <ImageOff size={12} className="mt-0.5 shrink-0" /> Some selected models can&apos;t read images — they&apos;ll return an honest &ldquo;no image support&rdquo; status. Pick models marked with the eye icon for image answers.
+            </p>
+          ) : null}
+          {visionOk ? (
+            <p className="mx-3 mb-1 flex items-start gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-[11.5px] text-primary">
+              <Eye size={12} className="mt-0.5 shrink-0" /> Vision-ready — the selected model(s) will analyze your image.
+            </p>
+          ) : null}
           {error ? <p className="px-5 pb-1 text-[12px] text-danger">{error}</p> : null}
           <div className="border-t border-border p-3">
+            {/* Thinking Mode (reasoning depth + sampling) — applies to every chat mode. */}
+            <div className="mb-2 flex items-center gap-2">
+              <span className="shrink-0 text-[10.5px] font-medium uppercase tracking-wide text-content-subtle">Thinking</span>
+              <div className="flex min-w-0 flex-1 overflow-x-auto rounded-lg border border-border bg-surface-input p-0.5 text-[12px] sm:flex-none">
+                {THINKING_MODES.map((tm) => (
+                  <button
+                    key={tm}
+                    type="button"
+                    onClick={() => setThinking(tm)}
+                    title={tm === "fast" ? "Quick, lighter reasoning" : tm === "balance" ? "Good quality + speed (default)" : tm === "thinking" ? "More careful, checks assumptions" : "Maximum reasoning depth"}
+                    className={cn(
+                      "flex-1 rounded-md px-2.5 py-1 capitalize transition-colors sm:flex-none",
+                      thinking === tm ? "bg-surface-high text-content" : "text-content-muted hover:text-content",
+                    )}
+                  >
+                    {tm}
+                  </button>
+                ))}
+              </div>
+            </div>
             {images.length ? (
               <div className="mb-2 flex flex-wrap gap-2">
                 {images.map((src, i) => (
