@@ -323,8 +323,13 @@ def docker_running() -> bool:
     import subprocess
 
     try:
-        r = subprocess.run(["docker", "info"], capture_output=True, timeout=12, text=True)  # noqa: S603,S607
-        return r.returncode == 0
+        # `docker info` can be heavy; a server-version query is a lighter daemon
+        # round-trip and bounded by a short timeout so the check never stalls.
+        r = subprocess.run(  # noqa: S603,S607
+            ["docker", "version", "--format", "{{.Server.Version}}"],
+            capture_output=True, timeout=8, text=True,
+        )
+        return r.returncode == 0 and bool((r.stdout or "").strip())
     except (OSError, subprocess.SubprocessError):
         return False
 
@@ -335,7 +340,7 @@ def compose_available() -> bool:
     import subprocess
 
     try:
-        r = subprocess.run(["docker", "compose", "version"], capture_output=True, timeout=12, text=True)  # noqa: S603,S607
+        r = subprocess.run(["docker", "compose", "version"], capture_output=True, timeout=8, text=True)  # noqa: S603,S607
         return r.returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
@@ -496,19 +501,70 @@ def enriched_env() -> dict:
 
 
 def ensure_env_files() -> dict:
-    """Create ``frontend/.env.local`` from its example if missing (Next.js reads it
-    for the API base URL). The backend reads the repo-root ``.env`` directly via an
-    absolute path, so no per-folder copy is needed (and copying would risk staleness).
+    """Keep the per-folder env files in sync with the repo-root ``.env``.
+
+    * ``backend/.env`` is mirrored from the repo-root ``.env`` (rewritten whenever it
+      differs) so running uvicorn from ``backend/`` always sees the same config.
+      Because this runs on every start, a later root-``.env`` change (e.g. a port
+      edit) propagates on the next launch — no staleness.
+    * ``frontend/.env.local`` is created from its example if missing (Next.js reads
+      it for the API base URL).
 
     Returns ``{"created": [...]}`` — file names only, never any values.
     """
     created: list[str] = []
     root = repo_root()
+    root_env = root / ".env"
+    backend_env = root / "backend" / ".env"
+    if root_env.exists():
+        try:
+            content = root_env.read_text(encoding="utf-8")
+            if (not backend_env.exists()) or backend_env.read_text(encoding="utf-8") != content:
+                backend_env.write_text(content, encoding="utf-8")
+                try:
+                    backend_env.chmod(stat.S_IRUSR | stat.S_IWUSR)
+                except OSError:
+                    pass
+                created.append("backend/.env")
+        except OSError:
+            pass
     fe_local = root / "frontend" / ".env.local"
     fe_example = root / "frontend" / ".env.local.example"
     if not fe_local.exists() and fe_example.exists():
         fe_local.write_text(fe_example.read_text(encoding="utf-8"), encoding="utf-8")
         created.append("frontend/.env.local")
+    return {"created": created}
+
+
+def ensure_dotenv() -> dict:
+    """Create the repo-root ``.env`` from ``.env.example`` with fresh secrets if it
+    doesn't exist yet (never overwrites an existing ``.env``). Then mirror it to
+    ``backend/.env``. Returns ``{"created": bool}`` — never any secret values."""
+    import re as _re
+    import secrets as _secrets
+
+    p = env_path()
+    created = False
+    if not p.exists():
+        example = env_example_path()
+        text = example.read_text(encoding="utf-8") if example.exists() else ""
+
+        def _set(t: str, key: str, val: str) -> str:
+            if _re.search(rf"(?m)^{key}=", t):
+                return _re.sub(rf"(?m)^{key}=.*$", f"{key}={val}", t)
+            sep = "" if (not t or t.endswith("\n")) else "\n"
+            return f"{t}{sep}{key}={val}\n"
+
+        text = _set(text, "SECRET_KEY", _secrets.token_urlsafe(48))
+        text = _set(text, "SETTINGS_ENCRYPTION_KEY", _secrets.token_urlsafe(32))
+        text = _set(text, "BACKEND_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+        p.write_text(text, encoding="utf-8")
+        try:
+            p.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        except OSError:
+            pass
+        created = True
+    ensure_env_files()  # mirror to backend/.env (+ frontend/.env.local)
     return {"created": created}
 
 
