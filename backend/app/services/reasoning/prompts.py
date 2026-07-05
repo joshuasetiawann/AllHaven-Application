@@ -110,7 +110,11 @@ def synthesizer_message(
         f"USER REQUEST:\n{user_text}\n\n"
         f"ANALYST RESPONSE:\n{analyst_answer}\n\n{critic_block}{issue_block}"
         "Reject any criticism that is irrelevant or wrong. Fix the verified issues above. Produce the "
-        "single best final answer that directly solves the user's request."
+        "single best final answer that directly solves the user's request.\n"
+        "Final-answer style: start with the direct answer; be concrete and specific; no generic "
+        "filler or repetition; preserve important warnings; when choosing between options, pick one "
+        "and justify it briefly; be honest about uncertainty and missing data; include next steps "
+        "when actionable; answer in the user's language (Indonesian in → natural Indonesian out)."
     )
 
 
