@@ -1,7 +1,8 @@
-// API client. Reads the base URL from NEXT_PUBLIC_API_BASE_URL, attaches the
-// bearer token when present, and unwraps the standard success/error envelope.
+// API client. Reads the base URL from NEXT_PUBLIC_API_BASE_URL, authenticates
+// via the HttpOnly session cookie (credentials: "include" + CSRF header on
+// state-changing requests), and unwraps the standard success/error envelope.
 
-import { clearAuth, getToken } from "@/lib/auth";
+import { clearAuth } from "@/lib/auth";
 import type {
   AiProvider,
   Automation,
@@ -64,17 +65,28 @@ interface ApiEnvelope<T> {
   details?: unknown;
 }
 
+// The CSRF cookie is intentionally readable: its value must be echoed in the
+// X-CSRF-Token header on state-changing requests (double-submit check).
+function getCsrfToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)allhaven_csrf=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const method = (options.method || "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    const csrf = getCsrfToken();
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+    res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers, credentials: "include" });
   } catch {
     throw new ApiException(
       "Cannot reach the AllHaven API. Is the backend running?",
@@ -114,6 +126,8 @@ export const authApi = {
     }),
   login: (email: string, password: string) =>
     request<AuthToken>("/auth/login", { method: "POST", body: json({ email, password }) }),
+  // Revokes the server-side session and clears the auth cookies.
+  logout: () => request<{ logged_out: boolean }>("/auth/logout", { method: "POST" }),
   me: () => request<Me>("/auth/me"),
   updateMe: (payload: { full_name?: string; workspace_name?: string }) =>
     request<Me>("/auth/me", { method: "PATCH", body: json(payload) }),
@@ -283,15 +297,16 @@ export const calendarApi = {
 export const driveApi = {
   list: () => request<DriveFile[]>("/drive/files"),
   upload: async (file: File): Promise<DriveFile> => {
-    const token = getToken();
     const form = new FormData();
     form.append("file", file);
+    const csrf = getCsrfToken();
     let res: Response;
     try {
       res = await fetch(`${API_BASE_URL}/drive/files`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
         body: form,
+        credentials: "include",
       });
     } catch {
       throw new ApiException("Cannot reach the AllHaven API. Is the backend running?", "NETWORK_ERROR", 0);
