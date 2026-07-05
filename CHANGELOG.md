@@ -11,6 +11,17 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.11.0] - 2026-06-10 — Terminal installer + backend/.env sync + faster Docker check
+
+Detailed notes: [`docs/releases/v0.11.0.md`](docs/releases/v0.11.0.md)
+
+### Added
+- **Terminal installer** (`installer/haven_cli.py`). The `START_HAVEN_*` launchers now run a terminal-first setup **by default** that shows **live progress** for the slow steps (Docker image pull, `pip install`, `npm install`), then starts the app and opens the browser. Idempotent — first run installs everything, later runs just start. The browser wizard is still available via `HAVEN_SETUP_WEB=1`.
+
+### Fixed
+- **`backend/.env` now follows the repo-root `.env`.** Generating or updating `.env` (terminal installer, web wizard, or any service start) mirrors it to `backend/.env` and re-syncs whenever it changes — so the backend always sees the same configuration you just set.
+- **Docker check no longer appears to hang.** The daemon probe uses a lighter `docker version` query with a shorter (8s) timeout, and the terminal installer **streams `docker compose` output**, so a first-run image pull shows real progress instead of a frozen spinner.
+
 ## [0.10.0] - 2026-06-10 — Reliable one-click startup + responsive menu
 
 Detailed notes: [`docs/releases/v0.10.0.md`](docs/releases/v0.10.0.md)

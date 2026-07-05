@@ -26,11 +26,13 @@ if not defined PY (
   exit /b 1
 )
 
-if exist "%ROOT%.env" (
-  echo Haven is configured - starting services and opening the app...
-  "%PY%" "%ROOT%installer\haven_launch.py"
-) else (
-  echo Welcome to Haven! Launching the setup wizard in your browser...
+REM Default: terminal installer (live Docker/pip/npm progress, then starts the app).
+REM Idempotent. Set HAVEN_SETUP_WEB=1 to use the browser-based wizard instead.
+if "%HAVEN_SETUP_WEB%"=="1" (
+  echo Launching the browser setup wizard ^(HAVEN_SETUP_WEB=1^)...
   "%PY%" "%ROOT%installer\haven_setup.py"
+) else (
+  echo Starting Haven in this terminal ^(first run installs everything automatically^)...
+  "%PY%" "%ROOT%installer\haven_cli.py"
 )
 endlocal

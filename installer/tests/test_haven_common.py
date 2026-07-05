@@ -146,3 +146,39 @@ def test_wait_for_port_times_out(tmp_path):
     result = hc.wait_for_port(59321, timeout=2.0)
     assert isinstance(result, bool)
     assert time.time() - start < 5.0
+
+
+def test_ensure_env_files_mirrors_backend(tmp_path, monkeypatch):
+    (tmp_path / "backend").mkdir()
+    (tmp_path / "frontend").mkdir()
+    (tmp_path / ".env").write_text("BACKEND_PORT=8000\n", encoding="utf-8")
+    monkeypatch.setattr(hc, "repo_root", lambda: tmp_path)
+
+    # First sync copies .env -> backend/.env.
+    assert "backend/.env" in hc.ensure_env_files()["created"]
+    assert (tmp_path / "backend" / ".env").read_text(encoding="utf-8") == "BACKEND_PORT=8000\n"
+    # Idempotent when unchanged.
+    assert "backend/.env" not in hc.ensure_env_files()["created"]
+    # A root .env change re-propagates on the next call (no staleness).
+    (tmp_path / ".env").write_text("BACKEND_PORT=8123\n", encoding="utf-8")
+    assert "backend/.env" in hc.ensure_env_files()["created"]
+    assert (tmp_path / "backend" / ".env").read_text(encoding="utf-8") == "BACKEND_PORT=8123\n"
+
+
+def test_ensure_dotenv_creates_with_secrets_and_mirrors(tmp_path, monkeypatch):
+    (tmp_path / "backend").mkdir()
+    (tmp_path / "frontend").mkdir()
+    (tmp_path / ".env.example").write_text(
+        "SECRET_KEY=dev-insecure-secret-change-me\nFRONTEND_PORT=3000\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(hc, "repo_root", lambda: tmp_path)
+
+    res = hc.ensure_dotenv()
+    assert res["created"] is True
+    text = (tmp_path / ".env").read_text(encoding="utf-8")
+    assert "SECRET_KEY=" in text and "dev-insecure-secret-change-me" not in text  # real secret generated
+    assert "SETTINGS_ENCRYPTION_KEY=" in text
+    # backend/.env mirrors the new .env (the requested behavior).
+    assert (tmp_path / "backend" / ".env").read_text(encoding="utf-8") == text
+    # Never overwrites an existing .env.
+    assert hc.ensure_dotenv()["created"] is False

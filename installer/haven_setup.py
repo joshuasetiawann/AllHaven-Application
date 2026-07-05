@@ -165,13 +165,14 @@ def api_env_apply(body: dict) -> dict:
         updates["DATABASE_URL"] = _database_url(env, ports)
 
     result = hc.apply_env_updates(updates)
+    hc.ensure_env_files()  # mirror the new .env to backend/.env (+ frontend/.env.local)
     # NEVER return secret values — only the key names that changed.
     return {
         "ok": True,
         "backup": result.get("backup"),
         "created": result.get("created", False),
         "updated_keys": result.get("updated_keys", []),
-        "message": "Wrote .env. Existing secrets were preserved; new ones generated where missing.",
+        "message": "Wrote .env (and mirrored it to backend/.env). Existing secrets were preserved; new ones generated where missing.",
     }
 
 
