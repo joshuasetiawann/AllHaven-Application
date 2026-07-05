@@ -58,8 +58,12 @@ Docker runs Haven's database (and is recommended overall).
 ## 4. Opening Haven after installation
 
 - Double-click the **Haven** desktop shortcut, **or** open the launcher file again.
-- Because `.env` now exists, it skips the wizard: it makes sure the control agent
-  and services are running, then opens `http://localhost:<frontend port>`.
+- Because `.env` now exists, it skips the wizard: it installs any missing
+  dependencies (**first run only** — this can take a few minutes), waits for the
+  database, runs migrations, starts the backend & frontend, and opens
+  `http://localhost:<frontend port>` once they're healthy.
+- Progress is printed in the launcher window and saved to `var/logs/` (`setup.log`,
+  `backend.log`, `frontend.log`).
 
 ---
 
@@ -94,7 +98,8 @@ if the Postgres port changes, the database URL is updated automatically.
 
 | Symptom | Fix |
 |---------|-----|
-| *"Cannot reach the AllHaven API"* on login | Backend or database isn't up. Open **Settings → System Control** (or re-run the launcher). Check the database is running and the backend health is green. |
+| *"Cannot reach the AllHaven API"* on login | The backend isn't up yet. On first run it's still installing dependencies — wait a minute and reload. Otherwise re-open the launcher (it now waits for the backend to be healthy before opening) or check **Settings → System Control** and `var/logs/backend.log`. |
+| First launch is slow / seems stuck | Normal on the **first** run: it's creating the Python venv, running `pip install`, and `npm install`. Watch `var/logs/setup.log`. Subsequent launches are fast. |
 | `password authentication failed for user "allhaven"` | The Postgres container's credentials don't match `.env`. Easiest: `docker compose up -d postgres` from the repo (uses the matching defaults), or set the role's password to match. |
 | Port already in use | Re-run the wizard's **Ports** step (or Settings → System Control → Ports) and pick a free port — use **Suggest**. |
 | Docker "not running" | Open Docker Desktop / start the Docker service, wait, then **Check Again**. |
