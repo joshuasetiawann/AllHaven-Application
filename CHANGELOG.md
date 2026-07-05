@@ -11,6 +11,23 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.12.0] - 2026-06-11 — App-wide AI tools with human approval, 6 OpenRouter slots, 7-agent roles
+
+Detailed report: [`docs/releases/v0.12.0.md`](docs/releases/v0.12.0.md)
+
+### Added
+- **AI Tool Registry** — 35 allowlisted, schema-typed tools connect AI Chat to every module (time, tasks, calendar, notes, finance, files, weather, automations, system control). **Read** tools execute instantly; **write** tools always create a **pending approval** — the AI can never change data silently. Every call is audited.
+- **Human approval execution** — Approve (executes via the registry), **Edit payload**, or Reject each pending action from the new in-chat **Pending actions** panel. HIGH-risk tools (file delete, enabling workflows, service control) require approval even when a workspace relaxes approvals.
+- **Native tool calling** on the OpenAI-compatible provider family (OpenAI, Grok, all OpenRouter agents); single-agent chat is now conversation-history-aware. Other providers chat honestly without tools (no fake claims).
+- **Six OpenRouter agents** (`openrouter_1..6`, each with its own key/model/suggested role) — 12 providers total.
+- **Model slots** — every other provider gets 2 slots (a secondary model selectable as "Provider · Slot 2"), with editable roles.
+- **Up to 7 agents per run** (was 3), each with a distinct role (Main, Planner, Research, Coder, Critic/Risk, Product/UX, Synthesizer) — slot roles override defaults.
+- **Debate-flow visibility toggle** — hide the transcript and show only the polished final answer ("N agents collaborated"), persisted per workspace.
+- **Settings → AI Tools** (enable/disable per tool, risk + approval badges) and **Settings → AI Chat** (default mode, approval requirement, tool activity, polish level, max agents).
+
+### Changed
+- Debate/Reasoning **synthesizer prompts** upgraded: direct answer first, concrete and specific, no generic filler, contradictions resolved, warnings preserved, honest uncertainty, replies in the user's language.
+
 ## [0.11.0] - 2026-06-10 — Terminal installer + backend/.env sync + faster Docker check
 
 Detailed notes: [`docs/releases/v0.11.0.md`](docs/releases/v0.11.0.md)
