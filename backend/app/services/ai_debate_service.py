@@ -88,9 +88,18 @@ def _synthesis_prompt(question: str, transcript: List[Tuple[str, List[Tuple[str,
         "You are the moderator of a panel debate among AI agents. Read the full debate below and "
         "produce the single best final answer for the user.\n\n"
         f"QUESTION:\n{question}\n\nDEBATE TRANSCRIPT:\n{body}\n\n"
-        "Synthesize the strongest, most accurate answer: integrate the best points, resolve "
-        "disagreements explicitly when they matter, and present a clear, direct final answer. "
-        "Do not mention that you are a moderator — just give the answer."
+        "Write the final answer with these rules:\n"
+        "1. Start with the direct answer/decision — no preamble.\n"
+        "2. Integrate the agents' best points; remove contradictions, repetition, and rambling — "
+        "but PRESERVE important warnings, risks, and security concerns.\n"
+        "3. Be concrete and specific (exact names, numbers, steps); never generic.\n"
+        "4. When agents disagree on something that matters, pick a position and say why in one "
+        "line — do not just list options.\n"
+        "5. Be honest about uncertainty and missing data; never invent facts the debate "
+        "doesn't support.\n"
+        "6. End with next steps when the topic is actionable.\n"
+        "7. Answer in the user's language (Indonesian question → natural Indonesian answer).\n"
+        "Do not mention that you are a moderator or that a debate happened — just give the answer."
     )
 
 

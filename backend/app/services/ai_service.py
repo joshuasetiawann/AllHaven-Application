@@ -227,21 +227,30 @@ def chat(
     db.add(user_message)
     db.flush()
 
-    result = ai_provider_router.run_chat(
-        db, principal, messages=[{"role": "user", "content": message}], provider_id=provider_id
+    # Orchestrated chat: history-aware, with a safe tool loop on tool-capable
+    # providers (reads execute; writes become pending approvals — never silent).
+    from app.services import ai_orchestrator
+
+    result = ai_orchestrator.run_with_tools(
+        db, principal, message=message, session_id=session.id, provider_id=provider_id
     )
+    meta = {
+        "source": "provider" if result["ok"] else "system",
+        "provider_id": result.get("provider_id"),
+        "blocked": result.get("blocked", False),
+        "ok": result["ok"],
+        "error": result.get("error") or None,
+    }
+    if result.get("tool_calls"):
+        meta["tool_calls"] = result["tool_calls"]
+    if result.get("proposal_ids"):
+        meta["proposal_ids"] = result["proposal_ids"]
     assistant_message = ChatMessage(
         workspace_id=principal.workspace_id,
         session_id=session.id,
         role="assistant",
         content=result["content"],
-        meta={
-            "source": "provider" if result["ok"] else "system",
-            "provider_id": result.get("provider_id"),
-            "blocked": result.get("blocked", False),
-            "ok": result["ok"],
-            "error": result.get("error") or None,
-        },
+        meta=meta,
     )
     db.add(assistant_message)
     db.commit()
