@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Info, Pencil, Plus, Trash2, Workflow, Zap } from "lucide-react";
+import Link from "next/link";
+import { ExternalLink, Info, Pencil, Plus, RefreshCw, Trash2, Workflow, Zap } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -13,8 +14,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Toggle } from "@/components/ui/Toggle";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
-import { automationsApi, ApiException } from "@/lib/api";
-import type { Automation } from "@/types";
+import { automationsApi, n8nApi, ApiException } from "@/lib/api";
+import type { Automation, N8nWorkflow, N8nWorkflowList } from "@/types";
 
 const TRIGGER_TYPES = ["manual", "schedule", "webhook", "event"];
 const ACTION_TYPES = ["notify", "http_request", "create_task", "create_note", "custom"];
@@ -40,6 +41,7 @@ export default function AutomationsPage() {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<Automation | null>(null);
   const [form, setForm] = useState<AutomationForm>(emptyForm);
+  const [n8n, setN8n] = useState<N8nWorkflowList | null>(null);
 
   const load = async () => {
     setError(null);
@@ -50,8 +52,29 @@ export default function AutomationsPage() {
     }
   };
 
+  const loadN8n = async () => {
+    try {
+      setN8n(await n8nApi.listWorkflows());
+    } catch {
+      setN8n({ status: "error", message: "Could not load n8n workflows.", base_url: "", workflows: [] });
+    }
+  };
+
+  const toggleWorkflow = async (w: N8nWorkflow) => {
+    // Optimistic; reload on failure so the UI reflects n8n's real state.
+    setN8n((prev) =>
+      prev ? { ...prev, workflows: prev.workflows.map((x) => (x.id === w.id ? { ...x, active: !x.active } : x)) } : prev,
+    );
+    try {
+      await n8nApi.setActive(w.id, !w.active);
+    } catch {
+      await loadN8n();
+    }
+  };
+
   useEffect(() => {
     void load();
+    void loadN8n();
   }, []);
 
   const openCreate = () => {
@@ -129,16 +152,82 @@ export default function AutomationsPage() {
         }
       />
 
+      {/* Live workflows from the connected n8n instance. */}
+      <section className="mb-7">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold text-content">Your n8n workflows</h2>
+            <p className="text-[12.5px] text-content-muted">Live from your connected n8n — toggle active state or open in n8n.</p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={loadN8n}>
+            <RefreshCw size={14} /> Refresh
+          </Button>
+        </div>
+
+        {!n8n ? (
+          <Loading />
+        ) : n8n.status === "online" ? (
+          n8n.workflows.length === 0 ? (
+            <Card padding="md">
+              <p className="text-[13px] text-content-muted">No workflows in n8n yet. Create one in n8n, then Refresh.</p>
+            </Card>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {n8n.workflows.map((w) => (
+                <Card key={w.id}>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-primary">
+                      <Workflow size={18} />
+                    </span>
+                    <Toggle checked={w.active} onChange={() => toggleWorkflow(w)} label="Activate workflow" />
+                  </div>
+                  <h3 className="mt-3 truncate text-sm font-semibold text-content" title={w.name}>{w.name}</h3>
+                  <div className="mt-2">
+                    <Badge tone={w.active ? "success" : "neutral"}>{w.active ? "Active" : "Inactive"}</Badge>
+                  </div>
+                  <div className="mt-4 flex items-center justify-end border-t border-border pt-3">
+                    <a
+                      href={`${n8n.base_url}/workflow/${w.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[12.5px] text-primary hover:underline"
+                    >
+                      Open in n8n <ExternalLink size={13} />
+                    </a>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )
+        ) : (
+          <Card padding="md" className={n8n.status === "not_configured" || n8n.status === "no_api_key" ? "" : "border-warning/30"}>
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/12 text-warning">
+                <Info size={18} />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-content">n8n not ready</p>
+                <p className="mt-0.5 text-[13px] text-content-muted">{n8n.message}</p>
+                <Link href="/dashboard/settings" className="mt-1 inline-block text-[12.5px] text-primary hover:underline">
+                  Open Settings → Connected Tools →
+                </Link>
+              </div>
+            </div>
+          </Card>
+        )}
+      </section>
+
+      <h2 className="mb-3 text-sm font-semibold text-content">Local drafts</h2>
       <Card className="mb-5 border-warning/20" padding="md">
         <div className="flex items-start gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/12 text-warning">
             <Info size={18} />
           </span>
           <div>
-            <p className="text-sm font-semibold text-content">Saved drafts only</p>
+            <p className="text-sm font-semibold text-content">Local draft definitions</p>
             <p className="mt-0.5 text-[13px] text-content-muted">
-              AllHaven does not execute automations in the MVP — these are saved drafts. n8n connection
-              status is shown in Settings → Connected Tools.
+              These are draft definitions stored in AllHaven — they are <span className="font-medium text-content">not executed</span>.
+              Your real, runnable automations live in n8n above.
             </p>
           </div>
         </div>
