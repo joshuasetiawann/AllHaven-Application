@@ -11,6 +11,21 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.5.0] - 2026-06-09 — Calculator, Clock, Thinking Mode & vision routing
+
+Detailed notes: [`docs/releases/v0.5.0.md`](docs/releases/v0.5.0.md)
+
+### Added
+- **Calculator** module (`/dashboard/calculator`): +, −, ×, ÷, %, ±, decimal, clear, backspace, full keyboard support, responsive dark UI.
+- **Clock** module (`/dashboard/clock`): live local time/date/timezone, stopwatch with laps, countdown timer with alert, and an alarm foundation (saved locally, rings while open).
+- **Thinking Mode** (Fast / Balance / Thinking / Deep) near the chat input — controls reasoning depth + sampling (temperature/top_p), separate from Chat Mode. Default Balance.
+- **Provider capability metadata** (`supports_text` / `supports_image` / `supports_tools`) exposed in `GET /ai/providers`; vision-capable models show an eye icon in the agent picker.
+- **Vision routing**: images are sent only to vision-capable providers; non-vision providers return an honest `unsupported` status. The composer warns when an attached image won't reach a selected model, and confirms when it's vision-ready. Drag-and-drop image upload added.
+- Safe backend arithmetic evaluator (`calc_service`, no `eval`).
+
+### Changed
+- Chat modes simplified to exactly **Parallel · Debate · Reasoning**. The reasoning depth/summary controls moved into the bottom Thinking Mode selector. Reasoning depth now derives from Thinking Mode (fast→fast, balance→balanced, thinking/deep→deep).
+
 ## [0.4.0] - 2026-06-09 — Image input (vision) & polished chat output
 
 Detailed notes: [`docs/releases/v0.4.0.md`](docs/releases/v0.4.0.md)

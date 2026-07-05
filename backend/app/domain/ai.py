@@ -23,6 +23,7 @@ MULTI_RUN_STATUSES = ("running", "completed", "partial", "error", "empty")
 # Per-agent response statuses (honest: blocked/not_configured/disabled are real).
 AGENT_RESPONSE_STATUSES = (
     "queued", "running", "completed", "error", "not_configured", "disabled", "blocked",
+    "unsupported",  # provider can't process an attached image (no vision)
 )
 MAX_AGENTS_PER_RUN = 3
 

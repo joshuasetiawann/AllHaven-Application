@@ -31,10 +31,17 @@ from app.domain.ai import (
 from app.services import ai_provider_router
 from app.services.ai_provider_router import ChatPlan
 from app.services.ai_service import _auto_title
+from app.services.thinking import thinking_params
 
 # Hard ceiling per agent network call (seconds). Adapters also set their own
 # httpx timeouts; this guards against a single agent hanging the whole run.
 AGENT_TIMEOUT_SECONDS = 45.0
+
+# Shown when an image is attached but the selected provider has no vision support.
+UNSUPPORTED_IMAGE_MSG = (
+    "This model can't read images. Choose a vision-capable model "
+    "(e.g. GPT-4o, Claude, Gemini, or an Ollama vision model like llava)."
+)
 
 
 def _dedup(provider_ids: List[str]) -> List[str]:
@@ -45,6 +52,14 @@ def _dedup(provider_ids: List[str]) -> List[str]:
             seen.add(pid)
             ordered.append(pid)
     return ordered
+
+
+def _user_meta(chat_mode: str, thinking_mode: str, images: Optional[List[str]]) -> dict:
+    """Metadata persisted on the user's turn: chat mode, thinking mode, attachments."""
+    meta: dict = {"chat_mode": chat_mode, "thinking_mode": thinking_mode}
+    if images:
+        meta["images"] = images
+    return meta
 
 
 def _run_one(plan: ChatPlan, messages: list[dict], params: Optional[dict] = None) -> dict:
@@ -69,6 +84,7 @@ def multi_chat(
     provider_ids: List[str],
     session_id: Optional[uuid.UUID] = None,
     images: Optional[List[str]] = None,
+    thinking_mode: str = "balance",
 ) -> dict:
     ids = _dedup(provider_ids)
     if not ids:
@@ -103,7 +119,7 @@ def multi_chat(
         session_id=session.id,
         role="user",
         content=message,
-        meta={"images": images} if images else None,
+        meta=_user_meta("parallel", thinking_mode, images),
     )
     db.add(user_message)
     db.flush()
@@ -122,13 +138,16 @@ def multi_chat(
     # Resolve every provider on this thread (DB reads only).
     plans = {pid: ai_provider_router.plan_chat(db, principal, pid) for pid in ids}
     messages = [{"role": "user", "content": message, "images": images or []}]
+    params = thinking_params(thinking_mode)
+    has_images = bool(images)
 
-    # Execute only the runnable plans concurrently.
-    runnable = {pid: p for pid, p in plans.items() if p.runnable}
+    # Execute only runnable plans; when an image is attached, skip non-vision
+    # providers — they are reported as 'unsupported' below instead of running.
+    runnable = {pid: p for pid, p in plans.items() if p.runnable and not (has_images and not p.supports_image)}
     outcomes: dict[str, dict] = {}
     if runnable:
         with ThreadPoolExecutor(max_workers=len(runnable)) as pool:
-            futures = {pool.submit(_run_one, p, messages): pid for pid, p in runnable.items()}
+            futures = {pool.submit(_run_one, p, messages, params): pid for pid, p in runnable.items()}
             for future, pid in list(futures.items()):
                 try:
                     outcomes[pid] = future.result(timeout=AGENT_TIMEOUT_SECONDS)
@@ -148,6 +167,9 @@ def multi_chat(
             status, content, error, latency = oc["status"], oc["content"], oc["error"], oc["latency_ms"]
             if status == "completed":
                 completed += 1
+        elif has_images and plan.runnable and not plan.supports_image:
+            # Configured + enabled, but can't read the attached image.
+            status, content, error, latency = "unsupported", None, UNSUPPORTED_IMAGE_MSG, None
         else:
             # Not runnable: honest status straight from the plan.
             status = plan.status if plan.status in ("blocked", "not_configured", "disabled") else "error"
