@@ -257,6 +257,39 @@ def api_services_start() -> dict:
     return {"ok": True, "message": "PostgreSQL container is starting.", "output": output}
 
 
+def api_launch() -> dict:
+    """Start the full app via the launcher: install deps on first run, run
+    migrations, start the backend (bound to all interfaces) and the frontend.
+    Detached — progress lands in var/logs/setup.log; the Health step reflects
+    readiness. This is the same proven path the desktop shortcut uses."""
+    hc.ensure_dirs()
+    hc.ensure_env_files()
+    launch_script = hc.repo_root() / "installer" / "haven_launch.py"
+    if not launch_script.exists():
+        return {"ok": False, "message": f"Launcher not found at {launch_script}."}
+    try:
+        logf = open(hc.logs_dir() / "setup.log", "ab", buffering=0)  # noqa: SIM115 — handed to child
+    except OSError as exc:
+        return {"ok": False, "message": f"Could not open setup log: {hc.mask_secrets(str(exc))}"}
+    kwargs: dict = {
+        "stdout": logf, "stderr": subprocess.STDOUT, "stdin": subprocess.DEVNULL,
+        "cwd": str(hc.repo_root()), "env": hc.enriched_env(),
+    }
+    if POSIX:
+        kwargs["start_new_session"] = True
+    else:  # Windows
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    try:
+        subprocess.Popen([hc.venv_python() or sys.executable, str(launch_script)], **kwargs)  # noqa: S603
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "message": hc.mask_secrets(str(exc))}
+    return {
+        "ok": True,
+        "message": "Starting backend & frontend. First run installs dependencies "
+                   "(this can take a few minutes) — watch the Health step below.",
+    }
+
+
 def api_health() -> dict:
     ports = _current_ports()
     backend_port = ports.get("backend") or hc.default_port("backend")
@@ -374,6 +407,8 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._send_json(200, api_agent_start())
             if path == "/api/services/start":
                 return self._send_json(200, api_services_start())
+            if path == "/api/launch":
+                return self._send_json(200, api_launch())
             if path == "/api/shortcut":
                 return self._send_json(200, api_shortcut())
             return self._send_json(404, {"ok": False, "message": "Unknown endpoint."})

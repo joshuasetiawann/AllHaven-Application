@@ -89,10 +89,11 @@ def _configured_port(name: str) -> int | None:
 # --------------------------------------------------------------------------- #
 
 
-def _spawn(name: str, argv: list[str], cwd: Path) -> None:
+def _spawn(name: str, argv: list[str], cwd: Path, env: dict | None = None) -> None:
     hc.ensure_dirs()
     logf = open(_log_file(name), "ab", buffering=0)  # noqa: SIM115 (kept open for child)
-    kwargs: dict = {"cwd": str(cwd), "stdout": logf, "stderr": subprocess.STDOUT, "stdin": subprocess.DEVNULL}
+    kwargs: dict = {"cwd": str(cwd), "stdout": logf, "stderr": subprocess.STDOUT,
+                    "stdin": subprocess.DEVNULL, "env": env or hc.enriched_env()}
     if POSIX:
         kwargs["start_new_session"] = True  # detach: survives agent, own process group
     else:  # Windows
@@ -101,20 +102,49 @@ def _spawn(name: str, argv: list[str], cwd: Path) -> None:
     _pid_file(name).write_text(str(proc.pid), encoding="utf-8")
 
 
+def _migrate_backend(env: dict) -> None:
+    """Best-effort ``alembic upgrade head`` before the backend starts.
+
+    Logged to the backend log; never fatal (if the DB isn't ready yet, uvicorn
+    still comes up so /health responds and the error is visible, instead of the
+    process silently not listening)."""
+    try:
+        with open(_log_file("backend"), "ab") as lf:
+            lf.write(b"\n--- alembic upgrade head ---\n")
+            subprocess.run(  # noqa: S603 (fixed argv, no shell)
+                [hc.venv_python(), "-m", "alembic", "upgrade", "head"],
+                cwd=str(hc.repo_root() / "backend"), env=env,
+                stdout=lf, stderr=subprocess.STDOUT, timeout=180,
+            )
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
 def _host_start(name: str) -> dict:
     if _host_is_running(name):
         return {"ok": True, "message": f"{name} already running."}
+    if name == "backend" and not hc.backend_setup_ok():
+        return {"ok": False, "message": "Backend isn't set up yet (no virtualenv). "
+                                        "Start Haven via the launcher once (it installs deps), "
+                                        "or run './allhaven.sh setup'."}
+    if name == "frontend" and not hc.frontend_setup_ok():
+        return {"ok": False, "message": "Frontend isn't set up yet (no node_modules). "
+                                        "Start Haven via the launcher once (it installs deps), "
+                                        "or run './allhaven.sh setup'."}
     port = _configured_port(name) or hc.default_port(name)
+    env = hc.enriched_env()
+    hc.ensure_env_files()
     if name == "backend":
-        argv = hc.backend_command(hc.venv_python(), port)
+        _migrate_backend(env)
+        argv = hc.backend_command(hc.venv_python(), port, host=hc.APP_BIND_HOST)
         cwd = hc.repo_root() / "backend"
     elif name == "frontend":
-        argv = hc.frontend_command(port)
+        argv = hc.frontend_command(port, host=hc.APP_BIND_HOST)
         cwd = hc.repo_root() / "frontend"
     else:
         return {"ok": False, "message": f"Unknown host service '{name}'."}
     try:
-        _spawn(name, argv, cwd)
+        _spawn(name, argv, cwd, env=env)
     except (OSError, ValueError) as exc:
         return {"ok": False, "message": f"Could not start {name}: {hc.mask_secrets(str(exc))}"}
     return {"ok": True, "message": f"Starting {name} on port {port}."}
