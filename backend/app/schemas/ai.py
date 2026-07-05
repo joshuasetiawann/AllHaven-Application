@@ -68,11 +68,16 @@ class ChatResponse(BaseModel):
     blocked: bool = False
 
 
+# Up to 4 image data URLs (data:image/...;base64,...) attached to a chat turn.
+ImageList = Optional[List[str]]
+
+
 class MultiChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     session_id: Optional[uuid.UUID] = None
     # 1–3 agents. >3 fails validation (HTTP 422: "Maximum 3 agents per run").
     provider_ids: List[str] = Field(min_length=1, max_length=3)
+    images: ImageList = Field(default=None, max_length=4)
 
 
 class DebateChatRequest(BaseModel):
@@ -83,6 +88,7 @@ class DebateChatRequest(BaseModel):
     provider_ids: List[str] = Field(min_length=1, max_length=3)
     # Round 1 opening + rebuttal rounds. Bounded so a run can't explode in calls.
     rounds: int = Field(default=2, ge=1, le=4)
+    images: ImageList = Field(default=None, max_length=4)
 
 
 class ReasoningChatRequest(BaseModel):
@@ -93,6 +99,7 @@ class ReasoningChatRequest(BaseModel):
     provider_ids: List[str] = Field(min_length=1, max_length=3)
     # Depth + sampling: fast (1 pass), balanced (analyst+synthesizer), deep (+critic).
     mode: Literal["fast", "balanced", "deep"] = "balanced"
+    images: ImageList = Field(default=None, max_length=4)
 
 
 class AgentResponseOut(ORMModel):

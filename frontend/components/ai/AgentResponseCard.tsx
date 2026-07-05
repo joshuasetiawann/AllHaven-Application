@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AlertTriangle, Bot, Globe, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { cn } from "@/lib/format";
 import type { AgentResponseStatus } from "@/types";
 
@@ -52,7 +53,7 @@ export function AgentResponseCard({ data }: { data: AgentCardData }) {
 
       <div className="min-w-0 flex-1 px-3 py-2.5 text-[13px] leading-relaxed">
         {data.status === "completed" ? (
-          <p className="whitespace-pre-wrap break-words text-content-muted">{data.content}</p>
+          <MarkdownMessage content={data.content || ""} className="text-content-muted" />
         ) : busy ? (
           <p className="text-content-subtle">Waiting for a response…</p>
         ) : needsSetup ? (
