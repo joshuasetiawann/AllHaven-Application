@@ -122,6 +122,8 @@ def _build_event(principal: Principal, data: dict) -> CalendarEvent:
         repeat_days=data.get("repeat_days") or [],
         icon=data.get("icon") or "star",
         color=data.get("color") or "cyan",
+        # Cross-device idempotency stamp from an approved proposal (None otherwise).
+        dedup_key=data.get("dedup_key"),
     )
 
 
