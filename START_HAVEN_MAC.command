@@ -28,10 +28,13 @@ if [ -z "$PY" ]; then
   exit 1
 fi
 
-if [ -f "$ROOT/.env" ]; then
-  echo "Haven is configured — starting services and opening the app…"
-  exec "$PY" "$ROOT/installer/haven_launch.py"
-else
-  echo "Welcome to Haven! Launching the setup wizard in your browser…"
+# Default: terminal installer (shows live Docker/pip/npm progress, then starts &
+# opens the app). It is idempotent — first run installs everything, later runs just
+# start. Set HAVEN_SETUP_WEB=1 to use the browser-based wizard instead.
+if [ "${HAVEN_SETUP_WEB:-}" = "1" ]; then
+  echo "Launching the browser setup wizard (HAVEN_SETUP_WEB=1)…"
   exec "$PY" "$ROOT/installer/haven_setup.py"
+else
+  echo "Starting Haven in this terminal (first run installs everything automatically)…"
+  exec "$PY" "$ROOT/installer/haven_cli.py"
 fi
