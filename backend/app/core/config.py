@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     #   public_demo   → temporary public preview (Funnel optional, off by default).
     DEPLOYMENT_PROFILE: str = "private"
     API_V1_PREFIX: str = "/api/v1"
+    # Local developers keep Swagger/OpenAPI by default. Production/staging must
+    # opt in explicitly so public deployments don't advertise every route.
+    API_DOCS_ENABLED: bool | None = None
     # Used for deterministic local answers such as "sekarang jam berapa?"
     APP_TIMEZONE: str = "Asia/Jakarta"
     # Comma-separated list (or JSON array) of allowed frontend origins. Includes
@@ -179,6 +182,13 @@ class Settings(BaseSettings):
     def is_local_env(self) -> bool:
         """True in local/development mode, where writing back to .env is allowed."""
         return (self.APP_ENV or "").strip().lower() in ("local", "dev", "development")
+
+    @property
+    def api_docs_enabled(self) -> bool:
+        """Expose Swagger/OpenAPI only in local mode unless explicitly enabled."""
+        if self.API_DOCS_ENABLED is not None:
+            return bool(self.API_DOCS_ENABLED)
+        return self.is_local_env
 
     @property
     def cors_origins(self) -> List[str]:
