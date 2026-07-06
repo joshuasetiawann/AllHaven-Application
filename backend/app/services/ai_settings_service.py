@@ -171,6 +171,7 @@ def set_memory_settings(db: Session, principal: Principal, updates: dict) -> dic
         if k in valid_keys:
             cfg[k] = v
     row.public_config = cfg
+    row.updated_by = principal.user_id
     db.commit()
     return {**MEMORY_DEFAULTS, **{k: v for k, v in cfg.items() if k in MEMORY_DEFAULTS}}
 
