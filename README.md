@@ -8,7 +8,7 @@
 
 _The AI proposes — a human approves every write action._
 
-[![Version](https://img.shields.io/badge/version-0.12.0%20·%20AllHaven%202.4-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.13.0%20·%20AllHaven%202.5-18E0D6?style=flat-square)](CHANGELOG.md)
 &nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 &nbsp;![Next.js 14](https://img.shields.io/badge/Next.js%2014-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 &nbsp;![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
