@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError, ValidationAppError
 from app.core.principal import Principal
-from app.domain.ai_memory import AiMemory, AiMemorySuggestion
+from app.domain.ai_memory import SENSITIVITY_LEVELS, AiMemory, AiMemorySuggestion
 
 MAX_MEMORIES_PER_WORKSPACE = 500
 MAX_SUGGESTIONS_PENDING = 50
@@ -57,8 +57,8 @@ def search_memories(db: Session, principal: Principal, query: str, limit: int = 
             AiMemory.status == "active",
             AiMemory.enabled == True,  # noqa: E712
             or_(
-                func.lower(AiMemory.title).contains(q),
-                func.lower(AiMemory.content).contains(q),
+                func.lower(AiMemory.title).contains(q, autoescape=True),
+                func.lower(AiMemory.content).contains(q, autoescape=True),
             ),
         )
         .order_by(AiMemory.relevance_score.desc())
@@ -177,12 +177,16 @@ def find_existing_memory(
     db: Session, principal: Principal, category: str, title: str
 ) -> Optional[AiMemory]:
     """Find an active memory in the same category with a similar title (for dedup)."""
-    title_lower = title.lower().strip()
-    candidates = list_memories(db, principal, category=category, limit=50)
-    for m in candidates:
-        if m.title.lower().strip() == title_lower:
-            return m
-    return None
+    return db.scalar(
+        select(AiMemory)
+        .where(
+            AiMemory.workspace_id == principal.workspace_id,
+            AiMemory.status == "active",
+            AiMemory.category == category,
+            func.lower(func.trim(AiMemory.title)) == title.lower().strip(),
+        )
+        .limit(1)
+    )
 
 
 def upsert_memory(
@@ -202,6 +206,7 @@ def upsert_memory(
     if existing:
         existing.content = content
         existing.confidence = max(existing.confidence, confidence)
+        existing.sensitivity = max(existing.sensitivity, sensitivity, key=SENSITIVITY_LEVELS.index)
         existing.source = source
         existing.status = "active"
         existing.enabled = True
@@ -248,16 +253,26 @@ def create_suggestion(
     extraction_method: str = "rule_based",
     memory_id: Optional[uuid.UUID] = None,
 ) -> AiMemorySuggestion:
-    # Skip if identical pending suggestion already exists.
+    # Skip if identical pending suggestion already exists (case-insensitive,
+    # trimmed, category-scoped — same semantics as memory dedup).
     existing = db.scalar(
         select(AiMemorySuggestion).where(
             AiMemorySuggestion.workspace_id == principal.workspace_id,
-            AiMemorySuggestion.title == title[:200],
+            AiMemorySuggestion.category == category,
+            func.lower(func.trim(AiMemorySuggestion.title)) == title[:200].lower().strip(),
             AiMemorySuggestion.status == "pending",
         )
     )
     if existing:
         return existing
+    pending_count = db.scalar(
+        select(func.count()).where(
+            AiMemorySuggestion.workspace_id == principal.workspace_id,
+            AiMemorySuggestion.status == "pending",
+        )
+    ) or 0
+    if pending_count >= MAX_SUGGESTIONS_PENDING:
+        raise ValidationAppError(f"Pending suggestion limit ({MAX_SUGGESTIONS_PENDING}) reached. Approve or reject existing suggestions first.")
     s = AiMemorySuggestion(
         workspace_id=principal.workspace_id,
         memory_id=memory_id,
