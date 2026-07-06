@@ -206,22 +206,53 @@ def test_chat_builds_memory_context_from_existing_memories(
 # ---------------------------------------------------------------------------
 
 
-def test_chat_completes_even_when_extraction_raises(auth_client, db_session, monkeypatch):
-    """If an internal extraction step raises, chat() still returns the assistant reply.
+def test_chat_completes_even_when_extraction_flush_fails(auth_client, db_session, monkeypatch):
+    """If the db.flush() inside schedule_extraction fails, chat() still returns normally.
 
-    We force a failure deep inside schedule_extraction (rule_based_extract) so the
-    real rollback-safety code in schedule_extraction is exercised, then assert:
-    (a) chat() returns normally (no exception propagates to the caller), and
+    We force a real flush failure by:
+    1. Patching rule_based_extract to return one valid MemoryCandidate.
+    2. Patching _auto_save_or_suggest to db.add() an AiMemory with nullable=False
+       columns set to None, so the subsequent db.flush() raises IntegrityError.
+
+    This exercises the actual rollback-safety code path (db.rollback() inside
+    schedule_extraction's except clause, and the outer try/except in ai_service.chat).
+
+    Assertions:
+    (a) chat() returns normally — no exception propagates to the caller.
     (b) the assistant ChatMessage was persisted in the database.
     """
     principal = _principal(auth_client)
 
     from app.services import memory_extraction_service as _mes
+    from app.services.memory_extraction_service import MemoryCandidate
 
-    def _always_raise(text):
-        raise RuntimeError("boom")
+    # Patch rule_based_extract to return one valid candidate so _auto_save_or_suggest is called.
+    def _one_candidate(text):
+        return [
+            MemoryCandidate(
+                category="Profile",
+                title="User name",
+                content="User's name is TestFlushFail.",
+                confidence=0.95,
+                sensitivity="LOW",
+                snippet="Hello there",
+            )
+        ]
 
-    monkeypatch.setattr(_mes, "rule_based_extract", _always_raise)
+    monkeypatch.setattr(_mes, "rule_based_extract", _one_candidate)
+
+    # Patch _auto_save_or_suggest to add a broken AiMemory row (title=None violates NOT NULL),
+    # guaranteeing the db.flush() at the end of schedule_extraction's try block raises IntegrityError.
+    def _bad_save(db, principal, candidate, session_id):
+        db.add(
+            AiMemory(
+                workspace_id=principal.workspace_id,
+                title=None,   # nullable=False — triggers IntegrityError on flush
+                content=None, # nullable=False
+            )
+        )
+
+    monkeypatch.setattr(_mes, "_auto_save_or_suggest", _bad_save)
 
     result = chat(
         db_session,
@@ -243,4 +274,4 @@ def test_chat_completes_even_when_extraction_raises(auth_client, db_session, mon
             ChatMessage.role == "assistant",
         )
     )
-    assert msg is not None, "Assistant message was not persisted when extraction raised"
+    assert msg is not None, "Assistant message was not persisted when extraction flush failed"
