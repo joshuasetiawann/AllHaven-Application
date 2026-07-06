@@ -202,26 +202,15 @@ export default function DashboardOverview() {
                 <p className="py-4 text-[13px] text-content-muted">No open tasks. You&apos;re all caught up.</p>
               ) : (
                 <ul className="space-y-2.5">
-                  {openTasks.slice(0, 5).map((task) => {
-                    const items = task.checklist_items ?? [];
-                    const doneCount = items.filter((i) => i.is_done).length;
-                    return (
-                      <li
-                        key={task.id}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface-input/50 px-3 py-2.5"
-                      >
-                        <span className="min-w-0">
-                          <span className="block truncate text-[13px] text-content">{task.title}</span>
-                          {items.length > 0 ? (
-                            <span className="font-mono text-[10px] uppercase tracking-wide text-content-subtle">
-                              checklist {doneCount}/{items.length}
-                            </span>
-                          ) : null}
-                        </span>
-                        <PriorityBadge priority={task.priority} />
-                      </li>
-                    );
-                  })}
+                  {openTasks.slice(0, 4).map((task) => (
+                    <li
+                      key={task.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface-input/50 px-3 py-2.5"
+                    >
+                      <span className="truncate text-[13px] text-content">{task.title}</span>
+                      <PriorityBadge priority={task.priority} />
+                    </li>
+                  ))}
                 </ul>
               )}
             </Card>

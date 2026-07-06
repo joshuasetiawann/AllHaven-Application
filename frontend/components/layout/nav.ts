@@ -16,7 +16,7 @@ export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  badge?: string;
+  soon?: boolean;
 }
 
 export const PRIMARY_NAV: NavItem[] = [
@@ -25,16 +25,15 @@ export const PRIMARY_NAV: NavItem[] = [
   { href: "/dashboard/tasks", label: "Tasks", icon: ListTodo },
   { href: "/dashboard/notes", label: "Notes", icon: StickyNote },
   { href: "/dashboard/finance", label: "Finance", icon: Wallet },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
-// Now accessible (MVP preview pages with honest setup states).
-export const MODULE_NAV: NavItem[] = [
-  { href: "/dashboard/drive", label: "Drive", icon: HardDrive, badge: "MVP" },
-  { href: "/dashboard/calendar", label: "Calendar", icon: Calendar, badge: "MVP" },
-  { href: "/dashboard/weather", label: "Weather", icon: CloudSun, badge: "MVP" },
-  { href: "/dashboard/automations", label: "Automations", icon: Workflow, badge: "MVP" },
+// Visible but disabled — honest about what is not built in this MVP.
+export const FUTURE_NAV: NavItem[] = [
+  { href: "#", label: "Drive", icon: HardDrive, soon: true },
+  { href: "#", label: "Calendar", icon: Calendar, soon: true },
+  { href: "#", label: "Weather", icon: CloudSun, soon: true },
+  { href: "#", label: "Automations", icon: Workflow, soon: true },
 ];
 
-export const SETTINGS_NAV: NavItem = { href: "/dashboard/settings", label: "Settings", icon: Settings };
-
-export const APP_VERSION = "v1.0.5-stable";
+export const APP_VERSION = "v1.0.4-stable";
