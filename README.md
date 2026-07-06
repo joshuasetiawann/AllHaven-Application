@@ -8,7 +8,7 @@
 
 _The AI proposes — a human approves every write action._
 
-[![Version](https://img.shields.io/badge/version-0.14.0%20·%20AllHaven%202.6-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.15.0%20·%20AllHaven%202.7-18E0D6?style=flat-square)](CHANGELOG.md)
 &nbsp;![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 &nbsp;![Next.js 14](https://img.shields.io/badge/Next.js%2014-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 &nbsp;![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
@@ -24,10 +24,11 @@ _The AI proposes — a human approves every write action._
 > application (FastAPI + Next.js) that unifies tasks, notes, finance tracking, and a
 > **multi-agent AI** assistant — where **the AI proposes and humans approve** every write action.
 
-**Version:** **v0.14.0** — archive [`AllHaven 2.6`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
+**Version:** **v0.15.0** — archive [`AllHaven 2.7`](../../tree/master) · [Changelog](CHANGELOG.md) · [Versioning](docs/VERSIONING.md) · [Release notes](docs/releases/)
 
 ### 🆕 What's new
 
+- **v0.15.0 — Premium UI polish, persistent model selection & per-section chat memory.** The AI Chat now **remembers your model/agents, mode, and thinking depth** across navigation and refresh (with availability fallback + clear warnings). Each module — and each chat **project/group** — keeps its own **local, editable memory** the AI uses for more relevant answers (secret-redacted; clear per-section or all). Plus **smooth micro-animations** throughout (page transitions, dropdowns, message-in, pending actions) that **honor `prefers-reduced-motion`**, polished Finance/Settings, and a fix for the session-check flash on every navigation. → [release notes](docs/releases/v0.15.0.md)
 - **v0.14.0 — Terminal-only install + faster Docker check.** Install & start run **entirely in the terminal** again (`START_HAVEN_*` / `./install.sh` / `npm run setup`), with live Docker/`pip`/`npm` progress. The browser wizard is now **opt-in** (`HAVEN_SETUP_WEB=1`); the Docker daemon check is quicker (4s). → [release notes](docs/releases/v0.14.0.md)
 - **v0.12.0 — App-wide AI tools with human approval.** AI Chat now connects to **every module** through a safe, allowlisted **Tool Registry** (35 tools): reads execute instantly, **writes always create a pending approval** you Approve/Edit/Reject in chat. Plus **6 OpenRouter agents**, **2 model slots per provider**, **up to 7 agents** with distinct roles, a **debate-flow visibility toggle**, and Settings → **AI Tools** / **AI Chat**. → [release notes](docs/releases/v0.12.0.md)
 - **v0.11.0 — Terminal installer + config sync.** The launchers now install & start Haven from the **terminal by default**, with live progress for the slow steps (Docker pull, `pip`, `npm`); `backend/.env` now mirrors the root `.env`; faster Docker check. Browser wizard via `HAVEN_SETUP_WEB=1`. → [release notes](docs/releases/v0.11.0.md)

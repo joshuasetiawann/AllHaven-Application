@@ -137,7 +137,7 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
 
   return (
     <>
-      <div className="mx-3 mb-1.5 rounded-xl border border-warning/30 bg-warning/5">
+      <div className="mx-3 mb-1.5 animate-slide-up rounded-xl border border-warning/30 bg-warning/5">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
