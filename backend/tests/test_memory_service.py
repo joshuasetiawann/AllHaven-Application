@@ -175,3 +175,23 @@ def test_search_escapes_like_wildcards(auth_client, db_session):
     # Sanity: normal search still works.
     found = memory_service.search_memories(db_session, principal, "alpha")
     assert len(found) == 1 and found[0].title == "Alpha"
+
+
+# --- title truncation dedup ---------------------------------------------------
+
+
+def test_upsert_dedups_with_title_over_200_chars(auth_client, db_session):
+    principal = _principal(auth_client)
+    long_title = "A" * 250
+    first = memory_service.upsert_memory(
+        db_session, principal,
+        category="Technical", title=long_title, content="v1",
+    )
+    second = memory_service.upsert_memory(
+        db_session, principal,
+        category="Technical", title=long_title, content="v2",
+    )
+    assert first.id == second.id
+    assert second.content == "v2"
+    count = _memory_count(db_session, principal)
+    assert count == 1
