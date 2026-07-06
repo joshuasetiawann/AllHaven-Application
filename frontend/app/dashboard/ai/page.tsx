@@ -12,6 +12,7 @@ import { MAX_AGENTS, MultiAgentSelector } from "@/components/ai/MultiAgentSelect
 import { AgentResponseCard, type AgentCardData } from "@/components/ai/AgentResponseCard";
 import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { PendingActionsPanel } from "@/components/ai/PendingActionsPanel";
+import { MemoryIndicator } from "@/components/ai/MemoryIndicator";
 import { SectionMemoryBar } from "@/components/ai/SectionMemoryBar";
 import { aiApi, ApiException } from "@/lib/api";
 import { cn } from "@/lib/format";
@@ -140,6 +141,7 @@ export default function AiChatPage() {
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [chatSettings, setChatSettings] = useState<AiChatSettings | null>(null);
   const [proposalRefresh, setProposalRefresh] = useState(0);
+  const [memoryRefreshKey, setMemoryRefreshKey] = useState(0);
   // Active chat "section" (each keeps its own local memory) + model-availability notice.
   const [section, setSection] = useState<string>(DEFAULT_SECTION_KEY);
   const [availabilityWarn, setAvailabilityWarn] = useState<string | null>(null);
@@ -387,10 +389,10 @@ export default function AiChatPage() {
     const sendText = preface ? `${preface}\n\nUser message:\n${msg}` : msg;
     try {
       const run = mode === "debate"
-        ? await aiApi.debateChat(sendText, selected, activeId ?? undefined, rounds, imgs, thinking)
+        ? await aiApi.debateChat(sendText, selected, activeId ?? undefined, rounds, imgs, thinking, section)
         : mode === "reason"
-          ? await aiApi.reasonChat(sendText, selected, activeId ?? undefined, thinking, imgs)
-          : await aiApi.multiChat(sendText, selected, activeId ?? undefined, imgs, thinking);
+          ? await aiApi.reasonChat(sendText, selected, activeId ?? undefined, thinking, imgs, section)
+          : await aiApi.multiChat(sendText, selected, activeId ?? undefined, imgs, thinking, section);
       setActiveId(run.session_id);
       prefacedRef.current.add(`${run.session_id}:${section}`);
       const msgs = await aiApi.listMessages(run.session_id);
@@ -404,6 +406,8 @@ export default function AiChatPage() {
       setPendingImages([]);
       // The reply may have filed tool proposals — refresh the pending-actions panel.
       setProposalRefresh((n) => n + 1);
+      // Trigger the in-chat memory indicator to check for new/pending memories.
+      setMemoryRefreshKey((n) => n + 1);
     }
   };
 
@@ -599,6 +603,7 @@ export default function AiChatPage() {
                   prefacedRef.current.delete(`${activeId ?? "new"}:${section}`);
                 }}
               />
+              <MemoryIndicator refreshKey={memoryRefreshKey} />
             </div>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
               {/* Mode toggle: parallel fan-out vs multi-round debate. */}
