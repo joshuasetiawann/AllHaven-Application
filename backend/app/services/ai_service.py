@@ -197,6 +197,7 @@ def chat(
     message: str,
     session_id: Optional[uuid.UUID] = None,
     provider_id: Optional[str] = None,
+    section_key: Optional[str] = "general",
 ) -> dict:
     """Persist the user message, route to the AI provider, persist the reply.
 
@@ -227,12 +228,16 @@ def chat(
     db.add(user_message)
     db.flush()
 
+    # Build memory context block (inject into system prompt).
+    from app.services import ai_orchestrator, memory_context_builder, memory_extraction_service
+
+    extra_context = memory_context_builder.build(db, principal, message, section_key)
+
     # Orchestrated chat: history-aware, with a safe tool loop on tool-capable
     # providers (reads execute; writes become pending approvals — never silent).
-    from app.services import ai_orchestrator
-
     result = ai_orchestrator.run_with_tools(
-        db, principal, message=message, session_id=session.id, provider_id=provider_id
+        db, principal, message=message, session_id=session.id,
+        provider_id=provider_id, extra_context=extra_context,
     )
     meta = {
         "source": "provider" if result["ok"] else "system",
@@ -255,6 +260,12 @@ def chat(
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
+
+    # Trigger hybrid memory extraction (rule-based inline, LLM in background).
+    memory_extraction_service.schedule_extraction(
+        db, principal, message, result["content"], session.id
+    )
+    db.commit()  # commit any memories created synchronously
 
     return {
         "session_id": session.id,
