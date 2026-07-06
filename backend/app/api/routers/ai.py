@@ -283,7 +283,7 @@ def chat(
         message=payload.message,
         session_id=payload.session_id,
         provider_id=payload.provider_id,
-        section_key=payload.section_key,
+        section_key=payload.section_key or "general",
     )
     data = ChatResponse(
         session_id=result["session_id"],
