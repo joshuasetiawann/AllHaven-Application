@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.principal import Principal
 from app.domain.integrations import AiAgentConfig
+from app.services import ai_policy_service
 from app.services import config_common as cc
 from app.services.ai_providers.anthropic_provider import AnthropicProvider
 from app.services.ai_providers.base import AIProvider
@@ -288,14 +289,16 @@ def run_chat(
     configured = adapter.is_configured(public, secrets)
     enabled = bool(row.enabled) if row is not None else False
 
-    # External providers are blocked unless globally allowed.
-    if spec.external and not settings.AI_ALLOW_EXTERNAL_PROVIDERS:
+    # External providers are blocked unless allowed by the workspace AI policy
+    # (toggle in Settings → Privacy & Safety) or the AI_ALLOW_EXTERNAL_PROVIDERS env.
+    if spec.external and not ai_policy_service.is_external_allowed(db, principal):
         return {
             "ok": False, "provider_id": pid, "configured": configured, "blocked": True,
             "content": (
-                f"External AI provider '{spec.name}' is blocked. External providers are disabled "
-                "by default. Set AI_ALLOW_EXTERNAL_PROVIDERS=true to allow them, and only send "
-                "non-confidential data. CoreOS never sends data to external AI unless you allow it."
+                f"External AI provider '{spec.name}' is blocked. Turn on "
+                "“Allow external AI providers” in Settings → Privacy & Safety (or set "
+                "AI_ALLOW_EXTERNAL_PROVIDERS=true) to use it, and only send non-confidential "
+                "data. CoreOS never sends data to external AI unless you allow it."
             ),
             "error": "external_disabled",
         }
