@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     # --- Application ---
     APP_NAME: str = "AllHaven Command Center"
     APP_ENV: str = "local"
+    # v4.0 deployment profile — shapes mobile onboarding + which controls are shown:
+    #   private       → owner/internal; Tailscale Desktop Bridge for Ollama/n8n.
+    #   client_portal → hosted multi-tenant; no desktop-bridge prompts for clients.
+    #   public_demo   → temporary public preview (Funnel optional, off by default).
+    DEPLOYMENT_PROFILE: str = "private"
     API_V1_PREFIX: str = "/api/v1"
     # Used for deterministic local answers such as "sekarang jam berapa?"
     APP_TIMEZONE: str = "Asia/Jakarta"
