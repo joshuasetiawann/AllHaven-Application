@@ -13,10 +13,15 @@ import { cn } from "@/lib/format";
 
 const COLLAPSE_KEY = "allhaven.sidebar.collapsed";
 
+// Set once the server confirms the session for this page-load. Navigating
+// between dashboard pages then won't re-flash the full-screen session loader;
+// a hard refresh resets it (module re-evaluated) and verifies again.
+let authConfirmed = false;
+
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState<boolean>(() => authConfirmed);
   const [mobileOpen, setMobileOpen] = useState(false);
   // User's explicit rail preference (persisted). Only takes effect at ≥xl,
   // where there's room for the full sidebar; below xl the rail is forced.
@@ -35,10 +40,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       .then((me) => {
         if (!active) return;
         setStoredUser(me.user);
+        authConfirmed = true;
         setReady(true);
       })
       .catch(() => {
         if (!active) return;
+        authConfirmed = false;
         clearAuth();
         router.replace("/login");
       });
@@ -132,7 +139,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
       >
         <Topbar onMenu={() => setMobileOpen(true)} />
-        <main className="custom-scrollbar mx-auto max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        {/* Keyed by route so page content gently animates in on navigation. */}
+        <main key={pathname} className="custom-scrollbar mx-auto max-w-[1320px] animate-page-in px-4 py-6 sm:px-6 lg:px-8">
+          {children}
+        </main>
       </div>
     </div>
   );
