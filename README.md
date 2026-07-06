@@ -58,6 +58,35 @@ _The AI acts fast, but risky writes still need human approval._
 
 ---
 
+## 🗓️ Routine — plan your day, with AI
+
+A calm, **local-first** planner for habits, daily schedules, and recurring plans —
+organized into clear **Morning / Afternoon / Evening** lanes with repeat rules.
+
+<div align="center">
+
+![Routine planner](docs/assets/screenshot-routine.png)
+
+<sub>Routine — your day at a glance: summary cards (today, upcoming, repeating, sync), a date strip, and time-of-day lanes. Stored in the local database; Supabase mirroring is optional.</sub>
+
+</div>
+
+**🆕 New in 3.5 — Generate with AI.** Describe your day and the configured provider
+drafts realistic routine items for the chosen window. You **review and edit every
+draft**, then save them together in one **atomic batch** — if any item is invalid,
+none are saved. Generation is **honest by design**: it never fabricates routines,
+never saves on its own, and clearly says when a provider is missing or disabled.
+
+<div align="center">
+
+![Generate routines with AI](docs/assets/screenshot-routine-ai.png)
+
+<sub>“Generate with AI” — a prompt plus a Morning/Afternoon/Evening window drafts routines for review. Nothing is saved until you approve.</sub>
+
+</div>
+
+---
+
 ## 🚀 Easiest start — one command in the terminal
 
 After cloning, run **one command**. Haven installs and starts **right in your terminal**,
