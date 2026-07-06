@@ -26,22 +26,22 @@ if not defined PY (
   exit /b 1
 )
 
-REM Bootstrapper only. First run (no .env) opens the browser Setup Wizard, where
-REM ALL configuration happens. After setup, it starts services and opens the app.
-REM   HAVEN_FORCE_WIZARD=1  re-open the wizard even when configured
-REM   HAVEN_SETUP_CLI=1     use the terminal installer instead of the browser
-if "%HAVEN_SETUP_CLI%"=="1" (
-  echo Running the terminal installer ^(HAVEN_SETUP_CLI=1^)...
-  "%PY%" "%ROOT%installer\haven_cli.py"
+REM Terminal installer. First run installs & starts Haven in THIS window (no
+REM website). After setup it just starts services and opens the app.
+REM   HAVEN_FORCE_SETUP=1  re-run the installer even when configured
+REM   HAVEN_SETUP_WEB=1    use the optional browser wizard instead
+if "%HAVEN_SETUP_WEB%"=="1" (
+  echo Opening the optional browser setup wizard ^(HAVEN_SETUP_WEB=1^)...
+  "%PY%" "%ROOT%installer\haven_setup.py"
   goto :done
 )
-if "%HAVEN_FORCE_WIZARD%"=="1" goto :wizard
-if not exist "%ROOT%.env" goto :wizard
+if "%HAVEN_FORCE_SETUP%"=="1" goto :install
+if not exist "%ROOT%.env" goto :install
 echo Starting Haven and opening the app...
 "%PY%" "%ROOT%installer\haven_launch.py"
 goto :done
-:wizard
-echo Opening the Haven Setup Wizard in your browser...
-"%PY%" "%ROOT%installer\haven_setup.py"
+:install
+echo Installing ^& starting Haven in this terminal...
+"%PY%" "%ROOT%installer\haven_cli.py"
 :done
 endlocal
