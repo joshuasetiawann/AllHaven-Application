@@ -37,7 +37,7 @@ The latest version also lives on the
 
 | Date | Branch | Commit | Summary |
 |:--|:--|:--|:--|
-| 2026-07-07 | `main` | `cb3034e` | Stabilized the mobile static export build id so desktop/latest source no longer emits random APK manifest folders. |
+| 2026-07-07 | `main` | `c6d796c` | Stabilized the mobile static export build id so desktop/latest source no longer emits random APK manifest folders. |
 | 2026-07-07 | `mobile` | `bdfa7ad` | Refreshed the standalone Flutter APK bundle to AllHaven 4.2, bumped APK version to `4.2.0+42`, and verified the Android debug build. |
 
 ## 🗓️ Release history
