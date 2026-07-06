@@ -3,14 +3,9 @@
 import { useEffect, useState } from "react";
 import {
   Bot,
-  Box,
-  Boxes,
   Calendar,
   CloudSun,
   Database,
-  Globe,
-  HardDrive,
-  Network,
   Plug,
   RefreshCw,
   Workflow,
@@ -32,25 +27,20 @@ import { initials } from "@/lib/format";
 import { DEFAULT_PREFS, loadPrefs, savePrefs, type Prefs } from "@/lib/prefs";
 import type { Integration, Me } from "@/types";
 
-const INTEGRATION_ICONS: Record<string, LucideIcon> = {
-  postgresql: Database,
-  ollama: Cpu,
-  n8n: Workflow,
-  supabase: Cloud,
-  google_calendar: Calendar,
-  weather_api: CloudSun,
-  drive_storage: HardDrive,
+const TOOL_META: Record<string, { icon: LucideIcon; desc: string; envHint: string }> = {
+  postgresql: { icon: Database, desc: "Primary relational database", envHint: "DATABASE_URL" },
+  ollama: { icon: Bot, desc: "Local LLM orchestration & inference", envHint: "OLLAMA_BASE_URL" },
+  n8n: { icon: Workflow, desc: "Workflow automation & webhooks", envHint: "N8N_BASE_URL" },
+  supabase: { icon: Cloud, desc: "Authentication & real-time sync", envHint: "SUPABASE_URL" },
+  google_calendar: { icon: Calendar, desc: "Task & event synchronization", envHint: "GOOGLE_CALENDAR_CLIENT_ID" },
+  weather: { icon: CloudSun, desc: "Local weather data feed", envHint: "WEATHER_API_KEY" },
 };
 
-const AI_ICONS: Record<string, LucideIcon> = {
-  ollama: Cpu,
-  openai: Sparkles,
-  anthropic: Bot,
-  gemini: Sparkles,
-  grok: Zap,
-  blackbox: Box,
-  openrouter: Network,
-};
+function toolBadge(integration: Integration) {
+  if (integration.status === "connected") return <Badge tone="success" dot>Connected</Badge>;
+  if (integration.configured) return <Badge tone="primary" dot>Configured</Badge>;
+  return <Badge tone="neutral" dot>Not configured</Badge>;
+}
 
 export default function SettingsPage() {
   const user = getStoredUser();
