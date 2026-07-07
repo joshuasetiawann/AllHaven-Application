@@ -576,16 +576,16 @@ def test_workspace_isolation_suggestions(auth_client, client, db_session):
 
 
 def test_sync_supabase_returns_graceful_response(auth_client):
-    """The sync endpoint returns a 200 with status='not_available' when
-    supabase_sync_service has not been implemented yet (Task 16 pending).
+    """The sync endpoint returns 200 with status='not_configured' when
+    supabase_sync_service is present but no credentials have been configured.
 
-    If supabase_sync_service IS present and not configured (returns
-    status='not_configured'), that is also acceptable — the endpoint must
-    never return a 500 or raise an ImportError to the client.
+    Task 16 is complete: the module is always importable.  With no credentials
+    stored, the service must return 'not_configured' — never 'not_available'
+    (that was the pre-Task-16 ImportError fallback) and never a 500.
     """
     resp = auth_client.post(f"{MEMORY_PREFIX}/sync/supabase")
     assert resp.status_code == 200, resp.text
     data = resp.json()["data"]
-    assert data["status"] in ("not_available", "not_configured", "syncing"), (
-        f"Unexpected status: {data['status']!r}"
+    assert data["status"] == "not_configured", (
+        f"Expected 'not_configured' (module present, no creds); got {data['status']!r}"
     )
