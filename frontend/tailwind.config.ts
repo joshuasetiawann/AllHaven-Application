@@ -15,38 +15,38 @@ const config: Config = {
     extend: {
       colors: {
         bg: {
-          DEFAULT: "#0A0C10", // app canvas (near-black, slight blue)
-          deep: "#070809",
+          DEFAULT: "rgb(var(--color-bg) / <alpha-value>)", // app canvas
+          deep: "rgb(var(--color-bg-deep) / <alpha-value>)",
         },
         surface: {
-          DEFAULT: "#10151C", // panels
-          raised: "#161C25", // hover / raised
-          high: "#1B2330", // active nav, chips
-          input: "#0B0F15", // inputs darker than panels
+          DEFAULT: "rgb(var(--color-surface) / <alpha-value>)", // panels
+          raised: "rgb(var(--color-surface-raised) / <alpha-value>)", // hover / raised
+          high: "rgb(var(--color-surface-high) / <alpha-value>)", // active nav, chips
+          input: "rgb(var(--color-surface-input) / <alpha-value>)", // inputs
         },
         border: {
-          DEFAULT: "#1F2730", // hairline
-          strong: "#2C3744",
+          DEFAULT: "rgb(var(--color-border) / <alpha-value>)", // hairline
+          strong: "rgb(var(--color-border-strong) / <alpha-value>)",
         },
         primary: {
-          DEFAULT: "#18E0D6", // signature teal-cyan
-          dim: "#12C2BA",
-          bright: "#54EEE6",
-          fg: "#04201F", // text on primary
+          DEFAULT: "rgb(var(--color-primary) / <alpha-value>)",
+          dim: "rgb(var(--color-primary-dim) / <alpha-value>)",
+          bright: "rgb(var(--color-primary-bright) / <alpha-value>)",
+          fg: "rgb(var(--color-primary-fg) / <alpha-value>)",
         },
         secondary: {
-          DEFAULT: "#8B5CF6", // muted royal purple
-          soft: "#C4B5FD",
+          DEFAULT: "rgb(var(--color-secondary) / <alpha-value>)",
+          soft: "rgb(var(--color-secondary-soft) / <alpha-value>)",
         },
         content: {
-          DEFAULT: "#E6EAF1", // primary text
-          muted: "#8B96A7", // secondary text
-          subtle: "#5C6877", // tertiary / metadata
+          DEFAULT: "rgb(var(--color-content) / <alpha-value>)", // primary text
+          muted: "rgb(var(--color-content-muted) / <alpha-value>)", // secondary text
+          subtle: "rgb(var(--color-content-subtle) / <alpha-value>)", // tertiary / metadata
         },
-        success: "#34D399",
-        warning: "#FBBF24",
-        danger: "#F87171",
-        info: "#38BDF8",
+        success: "rgb(var(--color-success) / <alpha-value>)",
+        warning: "rgb(var(--color-warning) / <alpha-value>)",
+        danger: "rgb(var(--color-danger) / <alpha-value>)",
+        info: "rgb(var(--color-info) / <alpha-value>)",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
@@ -63,7 +63,7 @@ const config: Config = {
       },
       boxShadow: {
         glow: "0 0 0 1px rgba(24,224,214,0.08), 0 10px 40px rgba(0,0,0,0.45)",
-        "glow-primary": "0 0 24px rgba(24,224,214,0.35)",
+        "glow-primary": "0 0 24px rgb(var(--color-primary) / 0.35)",
         panel: "0 1px 0 0 rgba(255,255,255,0.02) inset, 0 12px 40px -12px rgba(0,0,0,0.6)",
       },
       transitionTimingFunction: {

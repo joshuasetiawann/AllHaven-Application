@@ -7,7 +7,7 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   padding?: "none" | "sm" | "md" | "lg";
 }
 
-const paddings = { none: "", sm: "p-4", md: "p-5", lg: "p-6" };
+const paddings = { none: "", sm: "p-4", md: "p-5", lg: "p-6 sm:p-7" };
 
 export function Card({ hover, gradient, padding = "md", className, ...props }: CardProps) {
   return (
@@ -33,10 +33,10 @@ interface CardHeaderProps {
 
 export function CardHeader({ title, subtitle, icon, action, className }: CardHeaderProps) {
   return (
-    <div className={cn("mb-4 flex items-start justify-between gap-3", className)}>
+    <div className={cn("mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between", className)}>
       <div className="flex min-w-0 items-center gap-2.5">
         {icon ? (
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-primary">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
             {icon}
           </span>
         ) : null}
@@ -45,7 +45,7 @@ export function CardHeader({ title, subtitle, icon, action, className }: CardHea
           {subtitle ? <p className="mt-0.5 text-[12.5px] text-content-muted">{subtitle}</p> : null}
         </div>
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? <div className="shrink-0 sm:ml-auto">{action}</div> : null}
     </div>
   );
 }
