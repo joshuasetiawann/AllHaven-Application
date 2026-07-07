@@ -312,13 +312,29 @@ def sync_two_way(db: Session, principal) -> dict:
         upsert = _http_upsert(url, key)
         fetch = _http_fetch(url, key)
         pulled = pushed = 0
+        failures: list[str] = []
         for spec in SYNCED_TABLES:
             try:
                 pulled += pull_table(db, url, key, ws, members, spec, fetch=fetch)
                 pushed += push_table(db, url, key, ws, members, spec, upsert=upsert)
             except Exception as exc:  # per-table isolation; keep going
+                failures.append(f"{spec.table_name}: {exc}")
                 log.debug("sync skipped for %s: %s", spec.table_name, exc)
-        return {"status": "ok", "pulled": pulled, "pushed": pushed, "tables": len(SYNCED_TABLES)}
+        if failures:
+            # Visible signal: a missing Supabase schema makes EVERY table fail here,
+            # which previously stayed silent at DEBUG and looked like a healthy sync.
+            log.warning(
+                "Supabase sync: %d/%d tables failed (first: %s)",
+                len(failures), len(SYNCED_TABLES), failures[0][:300],
+            )
+        status = "ok" if not failures else "partial"
+        return {
+            "status": status,
+            "pulled": pulled,
+            "pushed": pushed,
+            "tables": len(SYNCED_TABLES),
+            "failed": len(failures),
+        }
     except Exception as exc:
         log.debug("sync_two_way failed: %s", exc)
         return {"status": "error", "reason": str(exc)}
