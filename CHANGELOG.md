@@ -11,6 +11,23 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [0.16.0] - 2026-06-12 — Persistent AI memory system
+
+Detailed notes: [`docs/releases/v0.16.0.md`](docs/releases/v0.16.0.md)
+
+A full-stack feature release — new backend services, REST API, DB migration, and frontend pages.
+
+### Added
+- **Persistent AI memory.** A workspace-scoped memory store that survives restarts. Memories are created automatically as you chat (hybrid: rule-based fast-path + async LLM background extraction) and can be managed manually. **Secret detection** runs on every candidate before it is saved, and any memory flagged as sensitive enters an **approval queue** rather than landing directly in the store.
+- **Memory context injection.** All four chat modes — single-agent, multi-agent parallel, debate, and reasoning — receive the workspace memory as a system-level prefix. Each injection is keyed by `section_key` so memories stay section-scoped and can be injected selectively.
+- **Memory tools (Tool Registry).** Five new tools (`memory_list`, `memory_search`, `memory_create`, `memory_update`, `memory_delete`) are registered in the Tool Registry. Write operations (`create`, `update`, `delete`) follow the existing human-approval pattern — the AI proposes, you approve.
+- **REST API `/ai/memory/*`.** Full CRUD and search endpoints: `GET /ai/memory/`, `POST /ai/memory/`, `GET /ai/memory/{id}`, `PATCH /ai/memory/{id}`, `DELETE /ai/memory/{id}`, `POST /ai/memory/search`, plus a `GET /ai/memory/pending` queue for approval suggestions.
+- **Memory management page** (`/dashboard/ai/memory`). Browse, search, approve, edit, and delete memories from the dashboard. Approval-pending items are surfaced prominently.
+- **In-chat MemoryIndicator.** A subtle indicator in every chat mode shows when memory context is active and lets you navigate to the memory page.
+- **AI Memory nav link.** A top-level navigation entry under AI links to the new management page.
+- **Supabase background sync (opt-in).** An optional one-way sync pushes memories to a Supabase table for cross-device access. Disabled by default; enable via `SUPABASE_URL` + `SUPABASE_ANON_KEY` in `.env`.
+- **Migration `0007_ai_memories`.** Three new DB tables: `ai_memories`, `ai_memory_tags`, `ai_memory_sync_log`. **Run `python -m alembic upgrade head` after pulling.**
+
 ## [0.15.0] - 2026-06-12 — Premium UI polish, persistent model selection & per-section chat memory
 
 Detailed notes: [`docs/releases/v0.15.0.md`](docs/releases/v0.15.0.md)
