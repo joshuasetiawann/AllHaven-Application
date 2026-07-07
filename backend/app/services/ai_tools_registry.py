@@ -381,13 +381,26 @@ def _h_search_memories(db, principal, args) -> dict:
 
 
 def _h_create_memory_tool(db, principal, args) -> dict:
+    from app.domain.ai_memory import MEMORY_CATEGORIES
     from app.services import memory_service
+
+    title = str(args.get("title") or "").strip()
+    if not title:
+        raise ToolError("Provide 'title'.")
+    content = str(args.get("content") or "").strip()
+    if not content:
+        raise ToolError("Provide 'content'.")
+    category = str(args.get("category") or "Profile").strip() or "Profile"
+    if category not in MEMORY_CATEGORIES:
+        raise ToolError(
+            f"Invalid category '{category}'. Valid values: {', '.join(MEMORY_CATEGORIES)}."
+        )
 
     m = memory_service.upsert_memory(
         db, principal,
-        category=str(args.get("category") or "Profile"),
-        title=str(args.get("title") or ""),
-        content=str(args.get("content") or ""),
+        category=category,
+        title=title,
+        content=content,
         source="manual",
         sensitivity="LOW",
         confidence=1.0,
