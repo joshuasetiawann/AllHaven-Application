@@ -217,7 +217,58 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
             FieldSpec("base_url", "Base URL (optional)", placeholder="https://api.blackbox.ai/v1"),
         ),
     ),
-    # Three independent OpenRouter agents, each with its own key + default model,
+    ProviderSpec(
+        id="cursor",
+        name="Cursor AI Agent",
+        provider_type="api_key",
+        purpose="Cursor/OpenAI-compatible coding gateway for chat agents",
+        external=True,
+        api_key_required=True,
+        default_model="",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True),
+            FieldSpec("default_model", "Default model", placeholder="cursor-agent or gateway model name"),
+            FieldSpec(
+                "base_url",
+                "Base URL",
+                required=True,
+                placeholder="https://your-openai-compatible-gateway/v1",
+            ),
+        ),
+    ),
+    ProviderSpec(
+        id="deepseek",
+        name="DeepSeek Agent",
+        provider_type="api_key",
+        purpose="DeepSeek chat, coding, and reasoning models",
+        external=True,
+        api_key_required=True,
+        default_model="deepseek-chat",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True),
+            FieldSpec("default_model", "Default model", placeholder="deepseek-chat"),
+            FieldSpec("base_url", "Base URL (optional)", placeholder="https://api.deepseek.com/v1"),
+        ),
+    ),
+    ProviderSpec(
+        id="qwen",
+        name="Qwen Agent",
+        provider_type="api_key",
+        purpose="Alibaba Qwen / DashScope OpenAI-compatible models",
+        external=True,
+        api_key_required=True,
+        default_model="qwen-plus",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True),
+            FieldSpec("default_model", "Default model", placeholder="qwen-plus"),
+            FieldSpec(
+                "base_url",
+                "Base URL (optional)",
+                placeholder="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            ),
+        ),
+    ),
+    # Six independent OpenRouter agents, each with its own key + default model,
     # so users can run several OpenRouter-backed models side by side. Defaults are
     # LIGHT models. Free models exist on OpenRouter (look for the ":free" suffix at
     # openrouter.ai/models) — they rotate, so set the current one in the UI.

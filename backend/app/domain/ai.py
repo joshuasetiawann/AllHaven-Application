@@ -27,9 +27,9 @@ AGENT_RESPONSE_STATUSES = (
     "queued", "running", "completed", "error", "not_configured", "disabled", "blocked",
     "unsupported",  # provider can't process an attached image (no vision)
 )
-MAX_AGENTS_PER_RUN = 7
+MAX_AGENTS_PER_RUN = 10
 
-# Default role per selection position in a multi-agent run. Each of the (up to 7)
+# Default role per selection position in a multi-agent run. Each of the (up to 10)
 # agents gets a distinct job; slot-level role overrides take precedence.
 DEFAULT_AGENT_ROLES = (
     ("Main Assistant", "Understand the user's request and produce the primary answer."),
@@ -38,6 +38,9 @@ DEFAULT_AGENT_ROLES = (
     ("Technical / Coder", "Handle code, architecture, debugging, and implementation detail."),
     ("Critic / Risk", "Find mistakes, risks, security issues, and weak assumptions."),
     ("Product / UX", "Improve usability, product logic, clarity, and user experience."),
+    ("Data / Numbers", "Check totals, dates, quantities, and any structured data."),
+    ("Scheduler", "Turn plans into realistic calendar/task next steps."),
+    ("Creative / Tone", "Make the answer natural, readable, and matched to the user's style."),
     ("Synthesizer", "Merge everything into one polished, decisive final answer."),
 )
 
@@ -107,7 +110,7 @@ class AiToolCall(UUIDPrimaryKeyMixin, Base):
 
 
 class AiMultiAgentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """A single user message fanned out to up to 3 AI agents concurrently."""
+    """A single user message fanned out to up to 10 AI agents concurrently."""
 
     __tablename__ = "ai_multi_agent_runs"
 

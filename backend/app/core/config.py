@@ -119,10 +119,17 @@ class Settings(BaseSettings):
     GROK_DEFAULT_MODEL: str = ""
     BLACKBOX_API_KEY: str = ""
     BLACKBOX_DEFAULT_MODEL: str = ""
+    CURSOR_API_KEY: str = ""
+    CURSOR_DEFAULT_MODEL: str = ""
+    CURSOR_BASE_URL: str = ""
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_DEFAULT_MODEL: str = ""
+    QWEN_API_KEY: str = ""
+    QWEN_DEFAULT_MODEL: str = ""
     # Legacy single OpenRouter key (kept for backward compatibility).
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_DEFAULT_MODEL: str = ""
-    # Three independent OpenRouter agent slots.
+    # Six independent OpenRouter agent slots.
     OPENROUTER_1_API_KEY: str = ""
     OPENROUTER_1_DEFAULT_MODEL: str = ""
     OPENROUTER_2_API_KEY: str = ""

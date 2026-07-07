@@ -269,18 +269,18 @@ def test_debate_chat_injects_memory_context_into_opening_round(
 
 
 # ---------------------------------------------------------------------------
-# Memory prefix appears ONLY in opening round, never in rebuttal/synthesis
+# Memory prefix appears in every debate phase that prompts a model
 # ---------------------------------------------------------------------------
 
 
-def test_debate_chat_memory_prefix_only_in_opening_round(
+def test_debate_chat_memory_prefix_reaches_opening_rebuttal_and_synthesis(
     auth_client, db_session, monkeypatch
 ):
-    """Memory context is injected into opening-round prompts only.
+    """Memory context is injected into opening, rebuttal, and synthesis prompts.
 
     With rounds=2 and two agents: there are 2 opening prompts + 2 rebuttal prompts +
-    1 synthesis prompt = 5 execute calls total. The memory block must appear exactly
-    2 times (once per opening prompt) and zero times in rebuttal/synthesis prompts.
+    1 synthesis prompt = 5 execute calls total. The memory block should be available
+    to every model call so later debate stages do not lose user context.
     """
     principal = _principal(auth_client)
 
@@ -327,24 +327,17 @@ def test_debate_chat_memory_prefix_only_in_opening_round(
 
     assert all_user_prompts, "Expected user prompts to be captured"
 
-    # Discriminate opening vs non-opening by the phrase used in _opening_prompt
-    opening_prompts = [p for p in all_user_prompts if "one of" in p]
-    non_opening_prompts = [p for p in all_user_prompts if "one of" not in p]
-
-    # Exactly one [AI Memory block per opening prompt (2 agents)
-    n_runnable = 2
+    # Exactly one [AI Memory block per prompt (2 opening + 2 rebuttal + 1 synthesis).
     total_memory_occurrences = sum(p.count("[AI Memory") for p in all_user_prompts)
-    assert total_memory_occurrences == n_runnable, (
-        f"Expected memory block in exactly {n_runnable} prompts (opening only), "
+    assert total_memory_occurrences == len(all_user_prompts), (
+        f"Expected one memory block in every debate prompt, "
         f"but total occurrences = {total_memory_occurrences}. "
-        f"Opening prompts: {opening_prompts!r}, non-opening: {non_opening_prompts!r}"
+        f"Prompts: {all_user_prompts!r}"
     )
 
-    # Rebuttal/synthesis prompts must have zero memory blocks
-    for prompt in non_opening_prompts:
-        assert "[AI Memory" not in prompt, (
-            f"Memory block found in non-opening prompt: {prompt!r}"
-        )
+    for prompt in all_user_prompts:
+        assert "DebateTestUser" in prompt
+        assert prompt.count("[AI Memory") == 1
 
 
 # ---------------------------------------------------------------------------

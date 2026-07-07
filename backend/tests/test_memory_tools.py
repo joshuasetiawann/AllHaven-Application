@@ -67,11 +67,11 @@ def test_memory_tools_are_registered(auth_client, db_session):
     # Write tools
     assert defs["create_memory"]["access"] == "write"
     assert defs["create_memory"]["risk"] == "LOW"
-    assert defs["create_memory"]["approval_required"] is True
+    assert defs["create_memory"]["approval_required"] is False
 
     assert defs["update_memory"]["access"] == "write"
     assert defs["update_memory"]["risk"] == "LOW"
-    assert defs["update_memory"]["approval_required"] is True
+    assert defs["update_memory"]["approval_required"] is False
 
     assert defs["delete_memory"]["access"] == "write"
     assert defs["delete_memory"]["risk"] == "MEDIUM"
@@ -232,27 +232,25 @@ def test_search_memories_workspace_scoped(auth_client, db_session, client):
 
 
 # ---------------------------------------------------------------------------
-# create_memory (write tool — goes through proposal flow by default)
+# create_memory (low-risk write tool - executes directly)
 # ---------------------------------------------------------------------------
 
 
-def test_create_memory_creates_pending_proposal(auth_client, db_session):
+def test_create_memory_executes_directly(auth_client, db_session):
     principal = _principal(auth_client)
     outcome = ai_tools_registry.run_tool_call(
         db_session, principal, "create_memory",
         {"category": "Profile", "title": "Nickname", "content": "Goes by Josh"}
     )
     db_session.commit()
-    assert outcome["status"] == "pending_approval"
-    assert outcome["proposal_id"]
-    assert "NOT been executed" in outcome["note"]
+    assert outcome["status"] == "executed"
+    assert outcome["result"]["memory"]["title"] == "Nickname"
 
-    # Memory was NOT yet created
     memories = memory_service.list_memories(db_session, principal)
-    assert all(m.title != "Nickname" for m in memories)
+    assert any(m.title == "Nickname" for m in memories)
 
 
-def test_create_memory_approve_executes(auth_client, db_session):
+def test_create_memory_direct_result_shape(auth_client, db_session):
     principal = _principal(auth_client)
     outcome = ai_tools_registry.run_tool_call(
         db_session, principal, "create_memory",
@@ -260,12 +258,9 @@ def test_create_memory_approve_executes(auth_client, db_session):
     )
     db_session.commit()
 
-    resp = auth_client.post(f"{API}/ai/proposals/{outcome['proposal_id']}/approve")
-    assert resp.status_code == 200, resp.text
-    body = resp.json()["data"]
-    assert body["proposal"]["status"] == "EXECUTED"
-    assert body["result"]["memory"]["title"] == "Theme"
-    assert body["result"]["memory"]["category"] == "Preferences"
+    assert outcome["status"] == "executed"
+    assert outcome["result"]["memory"]["title"] == "Theme"
+    assert outcome["result"]["memory"]["category"] == "Preferences"
 
     # Memory now exists
     memories = memory_service.list_memories(db_session, principal)
@@ -293,7 +288,7 @@ def test_create_memory_auto_executes_when_approval_off(auth_client, db_session):
 # ---------------------------------------------------------------------------
 
 
-def test_update_memory_via_proposal(auth_client, db_session):
+def test_update_memory_executes_directly(auth_client, db_session):
     principal = _principal(auth_client)
     # Create memory directly (bypassing tool for setup)
     m = memory_service.create_memory(
@@ -306,11 +301,8 @@ def test_update_memory_via_proposal(auth_client, db_session):
         {"memory_id": str(m.id), "title": "City", "content": "Lives in Bandung"}
     )
     db_session.commit()
-    assert outcome["status"] == "pending_approval"
-
-    resp = auth_client.post(f"{API}/ai/proposals/{outcome['proposal_id']}/approve")
-    assert resp.status_code == 200, resp.text
-    result = resp.json()["data"]["result"]["memory"]
+    assert outcome["status"] == "executed"
+    result = outcome["result"]["memory"]
     assert result["content"] == "Lives in Bandung"
 
 
