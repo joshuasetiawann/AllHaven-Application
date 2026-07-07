@@ -311,3 +311,169 @@ def test_llm_extract_returns_empty_on_malformed_json(
         _llm_extract_candidates("some message", "some reply", principal, db_session)
         == []
     )
+
+
+# --- Fix 1: require_approval_sensitive wiring -----------------------------------
+
+
+def test_require_approval_sensitive_on_medium_becomes_suggestion(
+    auth_client, db_session
+):
+    """Default setting (ON): MEDIUM sensitivity candidate → suggestion, not memory."""
+    principal = _principal(auth_client)
+    # Default is ON — ensure it's explicitly set.
+    ai_settings_service.set_memory_settings(
+        db_session, principal, {"require_approval_sensitive": True}
+    )
+    candidate = MemoryCandidate(
+        category="Profile",
+        title="Work location",
+        content="User works from home.",
+        confidence=0.9,
+        sensitivity="MEDIUM",
+        snippet="saya kerja dari rumah",
+    )
+    _auto_save_or_suggest(db_session, principal, candidate, None)
+    db_session.flush()
+    assert _memory_count(db_session, principal) == 0
+    assert _suggestion_count(db_session, principal) == 1
+
+
+def test_require_approval_sensitive_off_medium_auto_saves(
+    auth_client, db_session
+):
+    """Setting OFF: MEDIUM sensitivity + high confidence → auto-saved memory, not suggestion."""
+    principal = _principal(auth_client)
+    ai_settings_service.set_memory_settings(
+        db_session, principal, {"require_approval_sensitive": False}
+    )
+    candidate = MemoryCandidate(
+        category="Profile",
+        title="Work location",
+        content="User works from home.",
+        confidence=0.9,
+        sensitivity="MEDIUM",
+        snippet="saya kerja dari rumah",
+    )
+    _auto_save_or_suggest(db_session, principal, candidate, None)
+    db_session.flush()
+    assert _memory_count(db_session, principal) == 1
+    assert _suggestion_count(db_session, principal) == 0
+
+
+def test_require_approval_sensitive_off_low_confidence_still_suggests(
+    auth_client, db_session
+):
+    """Setting OFF: low-confidence candidate still becomes a suggestion (confidence gate is immutable)."""
+    principal = _principal(auth_client)
+    ai_settings_service.set_memory_settings(
+        db_session, principal, {"require_approval_sensitive": False}
+    )
+    candidate = MemoryCandidate(
+        category="Preferences",
+        title="Uncertain preference",
+        content="User might prefer light mode.",
+        confidence=0.55,
+        sensitivity="MEDIUM",
+        snippet="mungkin light mode",
+    )
+    _auto_save_or_suggest(db_session, principal, candidate, None)
+    db_session.flush()
+    assert _memory_count(db_session, principal) == 0
+    assert _suggestion_count(db_session, principal) == 1
+
+
+# --- Fix 2: LLM extraction path hardening --------------------------------------
+
+
+def test_llm_extract_skips_candidate_with_secret_in_title(
+    auth_client, db_session, monkeypatch
+):
+    """A candidate whose *title* contains a secret is dropped."""
+    principal = _principal(auth_client)
+    content = (
+        '[{"category": "Technical", "title": "sk-abc123DEF456ghi789", '
+        '"content": "User exposed a key.", "confidence": 0.9, "sensitivity": "LOW"},'
+        '{"category": "Profile", "title": "Safe title", '
+        '"content": "User is Alice.", "confidence": 0.9, "sensitivity": "LOW"}]'
+    )
+    monkeypatch.setattr(
+        "app.services.ai_provider_router.plan_chat",
+        lambda db, principal, provider_id=None, slot=1: _StubPlan(content),
+    )
+    candidates = _llm_extract_candidates(
+        "some message", "some reply", principal, db_session
+    )
+    assert len(candidates) == 1
+    assert candidates[0].title == "Safe title"
+
+
+def test_llm_extract_invalid_category_defaults_to_profile(
+    auth_client, db_session, monkeypatch
+):
+    """An invalid or >50-char category from the model is replaced with 'Profile'."""
+    principal = _principal(auth_client)
+    bogus_category = "X" * 60  # way too long and not in MEMORY_CATEGORIES
+    content = (
+        f'[{{"category": "{bogus_category}", "title": "Some fact", '
+        f'"content": "User fact here.", "confidence": 0.9, "sensitivity": "LOW"}}]'
+    )
+    monkeypatch.setattr(
+        "app.services.ai_provider_router.plan_chat",
+        lambda db, principal, provider_id=None, slot=1: _StubPlan(content),
+    )
+    candidates = _llm_extract_candidates(
+        "some message", "some reply", principal, db_session
+    )
+    assert len(candidates) == 1
+    assert candidates[0].category == "Profile"
+
+
+def test_llm_path_records_extraction_method_llm(
+    auth_client, db_session, monkeypatch
+):
+    """Candidates from the LLM path are stored as suggestions with extraction_method='llm'."""
+    principal = _principal(auth_client)
+    # Use MEDIUM sensitivity so it becomes a suggestion (default setting ON).
+    content = (
+        '[{"category": "Technical", "title": "IDE preference", '
+        '"content": "User prefers VS Code.", "confidence": 0.85, "sensitivity": "MEDIUM"}]'
+    )
+    monkeypatch.setattr(
+        "app.services.ai_provider_router.plan_chat",
+        lambda db, principal, provider_id=None, slot=1: _StubPlan(content),
+    )
+    candidates = _llm_extract_candidates(
+        "I use VS Code for everything", "Good choice!", principal, db_session
+    )
+    assert len(candidates) == 1
+    _auto_save_or_suggest(
+        db_session, principal, candidates[0], None, extraction_method="llm"
+    )
+    db_session.flush()
+    suggestion = (
+        db_session.query(AiMemorySuggestion)
+        .filter(AiMemorySuggestion.workspace_id == principal.workspace_id)
+        .one()
+    )
+    assert suggestion.extraction_method == "llm"
+
+
+def test_llm_extract_invalid_sensitivity_defaults_to_medium(
+    auth_client, db_session, monkeypatch
+):
+    """An unrecognised sensitivity value is replaced with MEDIUM (fail-safe: requires approval)."""
+    principal = _principal(auth_client)
+    content = (
+        '[{"category": "Profile", "title": "Some fact", '
+        '"content": "User fact here.", "confidence": 0.9, "sensitivity": "UNKNOWN"}]'
+    )
+    monkeypatch.setattr(
+        "app.services.ai_provider_router.plan_chat",
+        lambda db, principal, provider_id=None, slot=1: _StubPlan(content),
+    )
+    candidates = _llm_extract_candidates(
+        "some message", "some reply", principal, db_session
+    )
+    assert len(candidates) == 1
+    assert candidates[0].sensitivity == "MEDIUM"
