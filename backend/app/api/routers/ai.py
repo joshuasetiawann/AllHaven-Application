@@ -284,6 +284,7 @@ def chat(
         session_id=payload.session_id,
         provider_id=payload.provider_id,
         section_key=payload.section_key or "general",
+        thinking_mode=payload.thinking_mode,
     )
     data = ChatResponse(
         session_id=result["session_id"],
@@ -427,10 +428,11 @@ def edit_proposal(
 
 @router.get("/tools")
 def list_tools(
+    section_key: Optional[str] = None,
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    return success_response(ai_tools_registry.list_tools_view(db, principal), "AI tools")
+    return success_response(ai_tools_registry.list_tools_view(db, principal, section_key), "AI tools")
 
 
 @router.put("/tools/{tool_name}")

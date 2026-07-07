@@ -5,11 +5,11 @@ Security model (enforced here, not trusted to the model):
     * Arguments are validated (Pydantic schemas / explicit parsing) per tool.
     * READ tools execute immediately and only return workspace-scoped data via
       the existing module services (which enforce scoping themselves).
-    * WRITE tools never execute directly from a model turn: they create a
-      PENDING ``AiToolProposal`` for human approval. When the workspace turns
-      ``require_approval`` off, LOW/MEDIUM writes may auto-execute, but
-      HIGH-risk tools (deletes of files, enabling workflows, service control)
-      ALWAYS require approval.
+    * Most WRITE tools create a PENDING ``AiToolProposal`` for human approval.
+      Low-risk memory writes execute directly so the assistant can learn user
+      preferences without clutter. When the workspace turns ``require_approval``
+      off, LOW/MEDIUM writes may auto-execute, but HIGH-risk tools (deletes of
+      files, enabling workflows, service control) ALWAYS require approval.
     * Every call — executed, pending, or failed — is written to the audit log.
     * The model's output is never trusted: results are built from real service
       returns, and a pending action is reported as pending, never as done.
@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import AppException, NotFoundError, ValidationAppError
 from app.core.principal import Principal
-from app.domain.ai import AiToolProposal
+from app.domain.ai import AiToolCall, AiToolProposal, ChatMessage, ChatSession
 from app.services import ai_settings_service
 from app.services.audit_service import write_audit
 
@@ -128,10 +128,109 @@ def _automation(a) -> dict:
 
 
 def _h_current_time(db, principal, args) -> dict:
-    now = datetime.now().astimezone()
-    return {"iso": now.isoformat(), "date": now.date().isoformat(),
-            "time": now.strftime("%H:%M:%S"), "timezone": str(now.tzinfo),
-            "utc_offset": now.strftime("%z")}
+    from app.services.ai_local_answers import time_payload
+
+    return time_payload()
+
+
+def _h_current_date(db, principal, args) -> dict:
+    from app.services.ai_local_answers import time_payload
+
+    p = time_payload()
+    return {
+        "date": p["date"],
+        "weekday": p["weekday"],
+        "date_label": p["date_label"],
+        "timezone": p["timezone"],
+        "iso": p["iso"],
+    }
+
+
+# --------------------------------------------------------------------------- #
+# handlers — conversations
+# --------------------------------------------------------------------------- #
+
+
+def _h_get_current_conversation(db, principal, args) -> dict:
+    sid = args.get("session_id")
+    if not sid:
+        return {"conversation": None, "note": "No session_id was provided."}
+    session = db.scalar(select(ChatSession).where(
+        ChatSession.id == _uuid(sid, "session_id"),
+        ChatSession.workspace_id == principal.workspace_id,
+    ))
+    if not session:
+        raise ToolError("Conversation not found.")
+    return {"conversation": {"id": str(session.id), "title": session.title,
+                              "section_key": session.section_key, "updated_at": _iso(session.updated_at)}}
+
+
+def _messages_query(db, principal, session_id=None):
+    stmt = select(ChatMessage).where(ChatMessage.workspace_id == principal.workspace_id)
+    if session_id:
+        stmt = stmt.where(ChatMessage.session_id == _uuid(session_id, "session_id"))
+    return stmt
+
+
+def _h_get_recent_messages(db, principal, args) -> dict:
+    limit = max(1, min(int(args.get("limit") or 12), 50))
+    rows = list(db.scalars(
+        _messages_query(db, principal, args.get("session_id"))
+        .order_by(ChatMessage.created_at.desc())
+        .limit(limit)
+    ).all())
+    rows.reverse()
+    return {"messages": [{"id": str(m.id), "role": m.role, "content": m.content[:1200],
+                            "section_key": m.section_key, "created_at": _iso(m.created_at)} for m in rows],
+            "count": len(rows)}
+
+
+def _h_get_conversation_summary(db, principal, args) -> dict:
+    from app.domain.ai_memory import AiConversationSummary
+
+    sid = args.get("session_id")
+    if not sid:
+        raise ToolError("Provide session_id.")
+    row = db.scalar(select(AiConversationSummary).where(
+        AiConversationSummary.workspace_id == principal.workspace_id,
+        AiConversationSummary.session_id == _uuid(sid, "session_id"),
+    ))
+    return {"summary": row.summary if row else "",
+            "message_count_at_summary": row.message_count_at_summary if row else 0}
+
+
+def _h_search_conversation_history(db, principal, args) -> dict:
+    q = str(args.get("q") or "").strip().lower()
+    if not q:
+        raise ToolError("Provide a search query 'q'.")
+    limit = max(1, min(int(args.get("limit") or 10), 25))
+    rows = list(db.scalars(
+        select(ChatMessage)
+        .where(ChatMessage.workspace_id == principal.workspace_id,
+               ChatMessage.content.ilike(f"%{q}%"))
+        .order_by(ChatMessage.created_at.desc())
+        .limit(limit)
+    ).all())
+    return {"matches": [{"session_id": str(m.session_id) if m.session_id else None,
+                          "role": m.role, "content": m.content[:900],
+                          "section_key": m.section_key, "created_at": _iso(m.created_at)} for m in rows],
+            "count": len(rows)}
+
+
+def _h_get_related_conversations(db, principal, args) -> dict:
+    q = str(args.get("q") or "").strip().lower()
+    if not q:
+        raise ToolError("Provide a query 'q'.")
+    rows = list(db.scalars(
+        select(ChatSession)
+        .where(ChatSession.workspace_id == principal.workspace_id,
+               ChatSession.title.ilike(f"%{q}%"))
+        .order_by(ChatSession.updated_at.desc())
+        .limit(10)
+    ).all())
+    return {"conversations": [{"id": str(s.id), "title": s.title, "section_key": s.section_key,
+                                "updated_at": _iso(s.updated_at)} for s in rows],
+            "count": len(rows)}
 
 
 # --------------------------------------------------------------------------- #
@@ -264,10 +363,11 @@ def _h_list_transactions(db, principal, args) -> dict:
 
 def _h_finance_summary(db, principal, args) -> dict:
     from app.services import finance_service
+    from app.services.ai_local_answers import time_payload
 
-    now = datetime.now(timezone.utc)
-    year = int(args.get("year") or now.year)
-    month = int(args.get("month") or now.month)
+    today = time_payload()
+    year = int(args.get("year") or today["year"])
+    month = int(args.get("month") or today["month"])
     currency = str(args.get("currency") or "IDR")
     return finance_service.monthly_summary(db, principal, year=year, month=month, currency=currency)
 
@@ -282,7 +382,11 @@ def _h_list_categories(db, principal, args) -> dict:
 def _h_create_transaction(db, principal, args) -> dict:
     from app.schemas.finance import TransactionCreate
     from app.services import finance_service
+    from app.services.ai_local_answers import time_payload
 
+    args = dict(args or {})
+    if not args.get("transaction_date"):
+        args["transaction_date"] = time_payload()["date"]
     txn = finance_service.create_transaction(db, principal, TransactionCreate(**args))
     return {"transaction": _txn(txn)}
 
@@ -505,6 +609,122 @@ def _h_service_action(action: str):
 
 
 # --------------------------------------------------------------------------- #
+# handlers — extra module helpers and AI Knowledge
+# --------------------------------------------------------------------------- #
+
+
+def _h_search_tasks(db, principal, args) -> dict:
+    from app.services import task_service
+
+    q = str(args.get("q") or "").lower().strip()
+    if not q:
+        raise ToolError("Provide a search query 'q'.")
+    rows = [t for t in task_service.list_tasks(db, principal, limit=100, offset=0)
+            if q in (t.title or "").lower() or q in (t.description or "").lower()]
+    return {"tasks": [_task(t) for t in rows[:MAX_LIST_ITEMS]], "count": min(len(rows), MAX_LIST_ITEMS)}
+
+
+def _h_summarize_notes(db, principal, args) -> dict:
+    rows = _h_list_notes(db, principal, {"q": args.get("q"), "include_content": True}).get("notes", [])
+    if not rows:
+        return {"summary": "No matching notes found.", "notes": []}
+    bullets = [f"- {n['title']}: {(n.get('content') or '')[:240]}" for n in rows[:8]]
+    return {"summary": "\n".join(bullets), "notes": rows[:8]}
+
+
+def _h_category_finance_summary(db, principal, args) -> dict:
+    from collections import defaultdict
+    from app.services import finance_service
+
+    rows = finance_service.list_transactions(db, principal, limit=500, offset=0)
+    totals = defaultdict(float)
+    for t in rows:
+        key = t.category_name_snapshot or "Uncategorized"
+        sign = 1 if t.type == "INCOME" else -1
+        totals[key] += sign * float(t.amount)
+    return {"categories": [{"category": k, "net_amount": v} for k, v in sorted(totals.items())]}
+
+
+def _h_categorize_transactions(db, principal, args) -> dict:
+    return {"categories": _h_list_categories(db, principal, {}).get("categories", []),
+            "note": "Use create/update transaction proposals to apply a category after user approval."}
+
+
+def _h_get_file_metadata(db, principal, args) -> dict:
+    from app.services import drive_service
+
+    row = drive_service._get(db, principal, _uuid(args.get("file_id"), "file_id"))
+    return {"file": _file(row)}
+
+
+def _h_summarize_file_if_supported(db, principal, args) -> dict:
+    from app.services import drive_service
+
+    row, abs_path = drive_service.resolve_path(db, principal, _uuid(args.get("file_id"), "file_id"))
+    supported = (row.content_type or "").startswith("text/") or row.filename.lower().endswith((".txt", ".md", ".csv"))
+    if not supported:
+        return {"supported": False, "file": _file(row), "summary": "This file type is not summarizable by the Drive tool. Upload it to AI Knowledge if it is a supported document."}
+    try:
+        with open(abs_path, "rb") as fh:
+            data = fh.read(1_000_000)
+        text = data.decode("utf-8", errors="replace")
+    except OSError as exc:
+        raise ToolError(f"Could not read stored file: {exc}")
+    snippet = " ".join(text.split())[:1600]
+    return {"supported": True, "file": _file(row), "summary": snippet}
+
+
+def _h_list_knowledge_documents(db, principal, args) -> dict:
+    from app.services import knowledge_service
+
+    rows = knowledge_service.list_documents(db, principal)[:MAX_LIST_ITEMS]
+    return {"documents": [{"id": str(d.id), "title": d.title, "filename": d.filename,
+                            "status": d.status, "chunk_count": d.chunk_count,
+                            "last_indexed_at": _iso(d.last_indexed_at)} for d in rows],
+            "count": len(rows)}
+
+
+def _h_search_knowledge(db, principal, args) -> dict:
+    from app.services import knowledge_service
+
+    q = str(args.get("q") or "").strip()
+    if not q:
+        raise ToolError("Provide a search query 'q'.")
+    results = knowledge_service.search_knowledge(db, principal, q, limit=int(args.get("limit") or 5))
+    return {"results": [{**r, "document_id": str(r["document_id"]), "chunk_id": str(r["chunk_id"])} for r in results],
+            "count": len(results)}
+
+
+def _h_retrieve_knowledge_context(db, principal, args) -> dict:
+    from app.services import knowledge_service
+
+    q = str(args.get("q") or "").strip()
+    if not q:
+        raise ToolError("Provide a retrieval query 'q'.")
+    context, sources = knowledge_service.retrieve_context(db, principal, q, limit=int(args.get("limit") or 3))
+    return {"context": context or "", "sources": sources, "used_knowledge": bool(context)}
+
+
+def _h_get_knowledge_document_metadata(db, principal, args) -> dict:
+    from app.services import knowledge_service
+
+    row = knowledge_service.get_document(db, principal, _uuid(args.get("document_id"), "document_id"))
+    return {"document": {"id": str(row.id), "title": row.title, "filename": row.filename,
+                          "mime_type": row.mime_type, "size_bytes": row.size_bytes,
+                          "status": row.status, "chunk_count": row.chunk_count,
+                          "last_indexed_at": _iso(row.last_indexed_at),
+                          "error_message": row.error_message}}
+
+
+def _h_disable_memory_tool(db, principal, args) -> dict:
+    from app.services import memory_service
+
+    memory_id = _uuid(args.get("memory_id"), "memory_id")
+    m = memory_service.update_memory(db, principal, memory_id, enabled=False)
+    return {"memory": {"id": str(m.id), "enabled": m.enabled, "title": m.title}}
+
+
+# --------------------------------------------------------------------------- #
 # THE REGISTRY (fixed allowlist — nothing outside this can ever be called)
 # --------------------------------------------------------------------------- #
 
@@ -528,7 +748,7 @@ _TXN_FIELDS = {
     "amount": {"type": "number", "description": "Positive amount"},
     "currency": _str_prop("Currency code, default IDR"),
     "description": _str_prop("What this was for"),
-    "transaction_date": _str_prop("Date, YYYY-MM-DD"),
+    "transaction_date": _str_prop("Date, YYYY-MM-DD. Omit when the user does not specify a date; backend uses the current app date."),
     "category_id": _str_prop("Optional category id (see list_finance_categories)"),
 }
 
@@ -536,14 +756,37 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
     # --- time (read) ---
     ToolSpec("get_current_time", "Current local date, time, and timezone.", "time", "read", "LOW",
              _schema({}), _h_current_time),
+    ToolSpec("get_current_date", "Current local date and weekday.", "time", "read", "LOW",
+             _schema({}), _h_current_date),
+    # --- conversation history ---
+    ToolSpec("get_current_conversation", "Get metadata for the active conversation by session_id.", "conversation", "read", "LOW",
+             _schema({"session_id": _str_prop("Conversation/session id")}), _h_get_current_conversation),
+    ToolSpec("get_recent_messages", "Get recent saved chat messages for a conversation.", "conversation", "read", "LOW",
+             _schema({"session_id": _str_prop("Conversation/session id"), "limit": {"type": "integer", "minimum": 1, "maximum": 50}}), _h_get_recent_messages),
+    ToolSpec("get_conversation_summary", "Get cached conversation summary if available.", "conversation", "read", "LOW",
+             _schema({"session_id": _str_prop("Conversation/session id")}, ["session_id"]), _h_get_conversation_summary),
+    ToolSpec("search_conversation_history", "Search previous chat messages by keyword.", "conversation", "read", "LOW",
+             _schema({"q": _str_prop("Search query"), "limit": {"type": "integer", "minimum": 1, "maximum": 25}}, ["q"]), _h_search_conversation_history),
+    ToolSpec("get_related_conversations", "Find conversations related to a title/query.", "conversation", "read", "LOW",
+             _schema({"q": _str_prop("Search query")}, ["q"]), _h_get_related_conversations),
     # --- tasks ---
     ToolSpec("list_tasks", "List the user's tasks (optionally by status).", "tasks", "read", "LOW",
              _schema({"status": {"type": "string", "enum": ["TODO", "IN_PROGRESS", "DONE"]}}), _h_list_tasks),
-    ToolSpec("create_task", "Create a task.", "tasks", "write", "LOW",
+    ToolSpec("search_tasks", "Search tasks by title or description.", "tasks", "read", "LOW",
+             _schema({"q": _str_prop("Search query")}, ["q"]), _h_search_tasks),
+    ToolSpec("create_task", "Create a task. This becomes a pending action when approval is required.", "tasks", "write", "LOW",
+             _schema(_TASK_FIELDS, ["title"]), _h_create_task),
+    ToolSpec("create_task_draft", "Draft a task from chat context as a pending action.", "tasks", "write", "LOW",
+             _schema(_TASK_FIELDS, ["title"]), _h_create_task),
+    ToolSpec("create_task_after_approval", "Create a task only after human approval.", "tasks", "write", "LOW",
              _schema(_TASK_FIELDS, ["title"]), _h_create_task),
     ToolSpec("update_task", "Update a task's fields.", "tasks", "write", "LOW",
              _schema({"task_id": _str_prop("Task id"), **_TASK_FIELDS}, ["task_id"]), _h_update_task),
+    ToolSpec("update_task_after_approval", "Update a task after human approval.", "tasks", "write", "LOW",
+             _schema({"task_id": _str_prop("Task id"), **_TASK_FIELDS}, ["task_id"]), _h_update_task),
     ToolSpec("complete_task", "Mark a task as done.", "tasks", "write", "LOW",
+             _schema({"task_id": _str_prop("Task id")}, ["task_id"]), _h_complete_task),
+    ToolSpec("complete_task_after_approval", "Complete a task after human approval.", "tasks", "write", "LOW",
              _schema({"task_id": _str_prop("Task id")}, ["task_id"]), _h_complete_task),
     ToolSpec("delete_task", "Delete a task.", "tasks", "write", "MEDIUM",
              _schema({"task_id": _str_prop("Task id")}, ["task_id"]), _h_delete_task),
@@ -552,7 +795,13 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
              _schema({"start": _str_prop("Range start, ISO"), "end": _str_prop("Range end, ISO")}), _h_list_events),
     ToolSpec("create_event", "Create a calendar event.", "calendar", "write", "LOW",
              _schema(_EVENT_FIELDS, ["title", "start_at"]), _h_create_event),
+    ToolSpec("create_event_draft", "Draft a calendar event as a pending action.", "calendar", "write", "LOW",
+             _schema(_EVENT_FIELDS, ["title", "start_at"]), _h_create_event),
+    ToolSpec("create_event_after_approval", "Create a calendar event after human approval.", "calendar", "write", "LOW",
+             _schema(_EVENT_FIELDS, ["title", "start_at"]), _h_create_event),
     ToolSpec("update_event", "Update a calendar event.", "calendar", "write", "LOW",
+             _schema({"event_id": _str_prop("Event id"), **_EVENT_FIELDS}, ["event_id"]), _h_update_event),
+    ToolSpec("update_event_after_approval", "Update a calendar event after human approval.", "calendar", "write", "LOW",
              _schema({"event_id": _str_prop("Event id"), **_EVENT_FIELDS}, ["event_id"]), _h_update_event),
     ToolSpec("delete_event", "Delete a calendar event.", "calendar", "write", "MEDIUM",
              _schema({"event_id": _str_prop("Event id")}, ["event_id"]), _h_delete_event),
@@ -563,10 +812,22 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
     ToolSpec("search_notes", "Search notes by text query.", "notes", "read", "LOW",
              _schema({"q": _str_prop("Search query"),
                       "include_content": {"type": "boolean"}}, ["q"]), _h_list_notes),
-    ToolSpec("create_note", "Create a note.", "notes", "write", "LOW",
+    ToolSpec("summarize_notes", "Summarize matching notes from the real notes database.", "notes", "read", "LOW",
+             _schema({"q": _str_prop("Optional search query")}), _h_summarize_notes),
+    ToolSpec("create_note", "Create a note. This becomes a pending action when approval is required.", "notes", "write", "LOW",
+             _schema({"title": _str_prop("Note title"), "content": _str_prop("Note body"),
+                      "tags": {"type": "array", "items": {"type": "string"}}}, ["title"]), _h_create_note),
+    ToolSpec("create_note_draft", "Draft a note from chat context as a pending action.", "notes", "write", "LOW",
+             _schema({"title": _str_prop("Note title"), "content": _str_prop("Note body"),
+                      "tags": {"type": "array", "items": {"type": "string"}}}, ["title"]), _h_create_note),
+    ToolSpec("create_note_after_approval", "Create a note after human approval.", "notes", "write", "LOW",
              _schema({"title": _str_prop("Note title"), "content": _str_prop("Note body"),
                       "tags": {"type": "array", "items": {"type": "string"}}}, ["title"]), _h_create_note),
     ToolSpec("update_note", "Update a note.", "notes", "write", "LOW",
+             _schema({"note_id": _str_prop("Note id"), "title": _str_prop("New title"),
+                      "content": _str_prop("New body"),
+                      "tags": {"type": "array", "items": {"type": "string"}}}, ["note_id"]), _h_update_note),
+    ToolSpec("update_note_after_approval", "Update a note after human approval.", "notes", "write", "LOW",
              _schema({"note_id": _str_prop("Note id"), "title": _str_prop("New title"),
                       "content": _str_prop("New body"),
                       "tags": {"type": "array", "items": {"type": "string"}}}, ["note_id"]), _h_update_note),
@@ -578,20 +839,35 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
     ToolSpec("finance_monthly_summary", "Income/expense/balance summary for a month.", "finance", "read", "LOW",
              _schema({"year": {"type": "integer"}, "month": {"type": "integer"},
                       "currency": _str_prop("Currency code, default IDR")}), _h_finance_summary),
+    ToolSpec("get_monthly_finance_summary", "Income/expense/balance summary for a month from real finance data.", "finance", "read", "LOW",
+             _schema({"year": {"type": "integer"}, "month": {"type": "integer"},
+                      "currency": _str_prop("Currency code, default IDR")}), _h_finance_summary),
+    ToolSpec("get_category_finance_summary", "Summarize real finance transactions by category.", "finance", "read", "LOW",
+             _schema({}), _h_category_finance_summary),
     ToolSpec("list_finance_categories", "List finance categories (for create_transaction).", "finance", "read", "LOW",
              _schema({}), _h_list_categories),
     ToolSpec("create_transaction", "Record an income/expense transaction.", "finance", "write", "MEDIUM",
-             _schema(_TXN_FIELDS, ["type", "amount", "transaction_date"]), _h_create_transaction),
+             _schema(_TXN_FIELDS, ["type", "amount"]), _h_create_transaction),
+    ToolSpec("create_transaction_draft", "Draft a finance transaction as a pending action.", "finance", "write", "MEDIUM",
+             _schema(_TXN_FIELDS, ["type", "amount"]), _h_create_transaction),
+    ToolSpec("create_transaction_after_approval", "Create a finance transaction after human approval.", "finance", "write", "MEDIUM",
+             _schema(_TXN_FIELDS, ["type", "amount"]), _h_create_transaction),
     ToolSpec("update_transaction", "Update a transaction.", "finance", "write", "MEDIUM",
              _schema({"transaction_id": _str_prop("Transaction id"), **_TXN_FIELDS},
                      ["transaction_id"]), _h_update_transaction),
     ToolSpec("delete_transaction", "Delete a transaction.", "finance", "write", "MEDIUM",
              _schema({"transaction_id": _str_prop("Transaction id")}, ["transaction_id"]), _h_delete_transaction),
+    ToolSpec("categorize_transactions", "Return category options and instructions for safe transaction categorization.", "finance", "read", "LOW",
+             _schema({}), _h_categorize_transactions),
     # --- files (metadata only) ---
     ToolSpec("list_files", "List stored files (metadata only).", "files", "read", "LOW",
              _schema({}), _h_list_files),
     ToolSpec("search_files", "Search stored files by name (metadata only).", "files", "read", "LOW",
              _schema({"q": _str_prop("Filename query")}, ["q"]), _h_search_files),
+    ToolSpec("get_file_metadata", "Get stored file metadata by id.", "files", "read", "LOW",
+             _schema({"file_id": _str_prop("File id")}, ["file_id"]), _h_get_file_metadata),
+    ToolSpec("summarize_file_if_supported", "Summarize supported text-like Drive files; metadata-only otherwise.", "files", "read", "LOW",
+             _schema({"file_id": _str_prop("File id")}, ["file_id"]), _h_summarize_file_if_supported),
     ToolSpec("delete_file", "Delete a stored file.", "files", "write", "HIGH",
              _schema({"file_id": _str_prop("File id")}, ["file_id"]), _h_delete_file),
     # --- weather ---
@@ -621,18 +897,26 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
              _h_set_workflow_enabled(False)),
     # --- AI memories ---
     ToolSpec("list_memories", "List the user's AI memories (optionally by category).", "memory", "read", "LOW",
-             _schema({"category": _str_prop("Category: Profile|Preferences|Projects|WorkStyle|Technical|Goals")}),
+             _schema({"category": _str_prop("Category: Profile|Preferences|Projects|Decisions|Writing style|Work context|UI/UX preferences|Technical|Technical preferences|Tasks context|Finance context|Goals|Other")}),
              _h_list_memories),
+    ToolSpec("get_relevant_memories", "List relevant enabled memories for the user.", "memory", "read", "LOW",
+             _schema({"category": _str_prop("Optional category")}), _h_list_memories),
     ToolSpec("search_memories", "Search AI memories by keyword.", "memory", "read", "LOW",
              _schema({"q": _str_prop("Search query")}, ["q"]),
              _h_search_memories),
     ToolSpec("create_memory", "Create an AI memory for the user.", "memory", "write", "LOW",
              _schema({
-                 "category": _str_prop("Profile|Preferences|Projects|WorkStyle|Technical|Goals"),
+                 "category": _str_prop("Profile|Preferences|Projects|Decisions|Writing style|Work context|UI/UX preferences|Technical|Technical preferences|Tasks context|Finance context|Goals|Other"),
                  "title": _str_prop("Short descriptor (max 50 chars)"),
                  "content": _str_prop("Complete sentence describing the memory"),
              }, ["category", "title", "content"]),
              _h_create_memory_tool),
+    ToolSpec("create_memory_from_chat", "Create a memory extracted from confirmed chat context.", "memory", "write", "LOW",
+             _schema({
+                 "category": _str_prop("Memory category"),
+                 "title": _str_prop("Short descriptor"),
+                 "content": _str_prop("Complete memory sentence"),
+             }, ["category", "title", "content"]), _h_create_memory_tool),
     ToolSpec("update_memory", "Update an existing AI memory.", "memory", "write", "LOW",
              _schema({
                  "memory_id": _str_prop("Memory id"),
@@ -640,9 +924,21 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
                  "content": _str_prop("New content"),
              }, ["memory_id"]),
              _h_update_memory_tool),
+    ToolSpec("disable_memory", "Disable an AI memory without deleting it.", "memory", "write", "LOW",
+             _schema({"memory_id": _str_prop("Memory id")}, ["memory_id"]),
+             _h_disable_memory_tool),
     ToolSpec("delete_memory", "Delete an AI memory.", "memory", "write", "MEDIUM",
              _schema({"memory_id": _str_prop("Memory id")}, ["memory_id"]),
              _h_delete_memory_tool),
+    # --- AI Knowledge ---
+    ToolSpec("list_knowledge_documents", "List AI Knowledge documents and indexing status.", "ai_knowledge", "read", "LOW",
+             _schema({}), _h_list_knowledge_documents),
+    ToolSpec("search_knowledge", "Search indexed AI Knowledge chunks.", "ai_knowledge", "read", "LOW",
+             _schema({"q": _str_prop("Search query"), "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, ["q"]), _h_search_knowledge),
+    ToolSpec("retrieve_knowledge_context", "Retrieve AI Knowledge context for answering a user question.", "ai_knowledge", "read", "LOW",
+             _schema({"q": _str_prop("Retrieval query"), "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, ["q"]), _h_retrieve_knowledge_context),
+    ToolSpec("get_knowledge_document_metadata", "Get AI Knowledge document metadata.", "ai_knowledge", "read", "LOW",
+             _schema({"document_id": _str_prop("Knowledge document id")}, ["document_id"]), _h_get_knowledge_document_metadata),
     # --- system control (allowlisted services/actions; agent-proxied) ---
     ToolSpec("get_service_status", "Status of Haven services (backend, frontend, database…).",
              "system", "read", "LOW", _schema({}), _h_service_status),
@@ -659,28 +955,63 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
 )}
 
 
+_SECTION_TOOL_PRIORITIES = {
+    "tasks": ["list_tasks", "search_tasks", "create_task_draft", "create_task", "update_task", "complete_task"],
+    "notes": ["list_notes", "search_notes", "summarize_notes", "create_note_draft", "create_note"],
+    "finance": ["get_monthly_finance_summary", "get_category_finance_summary", "list_transactions", "create_transaction_draft"],
+    "calendar": ["list_events", "create_event_draft", "create_event"],
+    "files": ["list_files", "search_files", "get_file_metadata", "summarize_file_if_supported"],
+    "drive": ["list_files", "search_files", "get_file_metadata", "summarize_file_if_supported"],
+    "ai_knowledge": ["list_knowledge_documents", "search_knowledge", "retrieve_knowledge_context", "get_knowledge_document_metadata"],
+    "general": ["get_current_date", "get_current_time", "get_relevant_memories", "search_conversation_history"],
+}
+
+
+def active_tool_names_for_section(section_key: str | None) -> list[str]:
+    key = (section_key or "general").strip() or "general"
+    names = list(_SECTION_TOOL_PRIORITIES.get(key, _SECTION_TOOL_PRIORITIES["general"]))
+    return [n for n in names if n in TOOLS]
+
+
+def _ordered_tools(section_key: str | None) -> list[ToolSpec]:
+    priority = active_tool_names_for_section(section_key)
+    seen = set(priority)
+    ordered = [TOOLS[n] for n in priority]
+    ordered.extend(t for n, t in TOOLS.items() if n not in seen)
+    return ordered
+
+
+_DIRECT_MEMORY_WRITE_TOOLS = {"create_memory", "create_memory_from_chat", "update_memory", "disable_memory"}
+
+
+def _executes_without_pending_approval(spec: ToolSpec) -> bool:
+    return spec.module == "memory" and spec.risk == "LOW" and spec.name in _DIRECT_MEMORY_WRITE_TOOLS
+
+
 # --------------------------------------------------------------------------- #
 # public API
 # --------------------------------------------------------------------------- #
 
 
-def list_tools_view(db: Session, principal: Principal) -> list[dict]:
+def list_tools_view(db: Session, principal: Principal, section_key: str | None = None) -> list[dict]:
     disabled = ai_settings_service.disabled_tools(db, principal)
+    active = set(active_tool_names_for_section(section_key))
     return [{
         "name": t.name, "description": t.description, "module": t.module,
         "access": t.access, "risk": t.risk,
-        "approval_required": t.approval_required,
+        "approval_required": t.approval_required and not _executes_without_pending_approval(t),
         "enabled": t.name not in disabled,
-    } for t in TOOLS.values()]
+        "active_for_section": t.name in active,
+    } for t in _ordered_tools(section_key)]
 
 
-def tool_definitions(db: Session, principal: Principal) -> list[dict]:
-    """OpenAI 'tools' array for all enabled tools."""
+def tool_definitions(db: Session, principal: Principal, section_key: str | None = None) -> list[dict]:
+    """OpenAI 'tools' array for enabled tools, ordered by active section."""
     disabled = ai_settings_service.disabled_tools(db, principal)
     return [{
         "type": "function",
         "function": {"name": t.name, "description": t.description, "parameters": t.parameters},
-    } for t in TOOLS.values() if t.name not in disabled]
+    } for t in _ordered_tools(section_key) if t.name not in disabled]
 
 
 def _execute(db: Session, principal: Principal, spec: ToolSpec, args: dict) -> dict:
@@ -697,37 +1028,102 @@ def _execute(db: Session, principal: Principal, spec: ToolSpec, args: dict) -> d
         raise ToolError(f"Invalid arguments: {str(exc)[:200]}")
 
 
-def _audit_call(db, principal, tool: str, args: dict, status: str, extra: dict | None = None) -> None:
+_SENSITIVE_ARG_KEYS = ("api_key", "secret", "token", "password", "authorization", "credential")
+
+
+def _json_safe(value):
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    return value
+
+
+def _redact(value):
+    if isinstance(value, dict):
+        out = {}
+        for k, v in value.items():
+            lk = str(k).lower()
+            out[k] = "[REDACTED]" if any(s in lk for s in _SENSITIVE_ARG_KEYS) else _redact(v)
+        return out
+    if isinstance(value, list):
+        return [_redact(v) for v in value]
+    if isinstance(value, str) and len(value) > 120:
+        return value[:117] + "..."
+    return _json_safe(value)
+
+
+def _result_preview(result):
+    safe = _redact(result or {})
+    text = str(safe)
+    if len(text) <= 1800:
+        return safe
+    return {"preview": text[:1800] + "..."}
+
+
+def _audit_call(
+    db, principal, tool: str, args: dict, status: str, extra: dict | None = None,
+    *, result: dict | None = None, error: str | None = None, session_id=None, message_id=None,
+) -> None:
+    safe_args = _redact(args or {})
+    extra = extra or {}
     write_audit(
         db, action="AI_TOOL_CALL", entity_name="ai_tool",
         workspace_id=principal.workspace_id, user_id=principal.user_id,
-        meta={"tool": tool, "args": args, "status": status, **(extra or {})},
+        meta={"tool": tool, "args": safe_args, "status": status, **_redact(extra)},
     )
+    spec = TOOLS.get(tool) if "TOOLS" in globals() else None
+    db.add(AiToolCall(
+        workspace_id=principal.workspace_id,
+        user_id=principal.user_id,
+        session_id=session_id,
+        message_id=message_id,
+        tool_name=tool,
+        status=status,
+        risk_level=spec.risk if spec else None,
+        access=spec.access if spec else None,
+        arguments=safe_args,
+        result_preview=_result_preview(result),
+        error_message=error,
+        proposal_id=extra.get("proposal_id"),
+    ))
 
 
-def run_tool_call(db: Session, principal: Principal, name: str, args: dict) -> dict:
+def run_tool_call(db: Session, principal: Principal, name: str, args: dict, *, session_id=None, message_id=None) -> dict:
     """Validate + run one model-requested tool call. Returns an outcome dict the
     model can read; NEVER raises (failures are honest outcomes)."""
     spec = TOOLS.get(name)
     if spec is None:
-        return {"status": "error", "tool": name, "error": f"Unknown tool '{name}'. Only registered tools exist."}
+        err = f"Unknown tool '{name}'. Only registered tools exist."
+        _audit_call(db, principal, name, args if isinstance(args, dict) else {}, "error", {"error": err}, error=err, session_id=session_id, message_id=message_id)
+        return {"status": "error", "tool": name, "error": err}
     if not isinstance(args, dict):
-        return {"status": "error", "tool": name, "error": "Tool arguments must be an object."}
+        err = "Tool arguments must be an object."
+        _audit_call(db, principal, name, {}, "error", {"error": err}, error=err, session_id=session_id, message_id=message_id)
+        return {"status": "error", "tool": name, "error": err}
     if not ai_settings_service.is_tool_enabled(db, principal, name):
-        _audit_call(db, principal, name, args, "disabled")
+        _audit_call(db, principal, name, args, "disabled", session_id=session_id, message_id=message_id)
         return {"status": "error", "tool": name, "error": f"The tool '{name}' is disabled in Settings → AI Tools."}
 
     if spec.access == "read":
         try:
             result = _execute(db, principal, spec, args)
         except ToolError as exc:
-            _audit_call(db, principal, name, args, "error", {"error": str(exc)})
+            _audit_call(db, principal, name, args, "error", {"error": str(exc)}, error=str(exc), session_id=session_id, message_id=message_id)
             return {"status": "error", "tool": name, "error": str(exc)}
-        _audit_call(db, principal, name, args, "executed")
+        _audit_call(db, principal, name, args, "executed", result=result, session_id=session_id, message_id=message_id)
         return {"status": "executed", "tool": name, "result": result}
 
     # WRITE: pending approval by default; HIGH risk always needs approval.
-    needs_approval = ai_settings_service.approval_required(db, principal) or spec.risk == "HIGH"
+    # Low-risk memory writes are intentionally direct so user preferences can be
+    # learned without a noisy approval loop.
+    needs_approval = False if _executes_without_pending_approval(spec) else (
+        ai_settings_service.approval_required(db, principal) or spec.risk == "HIGH"
+    )
     if needs_approval:
         proposal = AiToolProposal(
             workspace_id=principal.workspace_id,
@@ -740,7 +1136,7 @@ def run_tool_call(db: Session, principal: Principal, name: str, args: dict) -> d
         )
         db.add(proposal)
         db.flush()
-        _audit_call(db, principal, name, args, "pending_approval", {"proposal_id": str(proposal.id)})
+        _audit_call(db, principal, name, args, "pending_approval", {"proposal_id": str(proposal.id)}, session_id=session_id, message_id=message_id)
         return {
             "status": "pending_approval", "tool": name,
             "proposal_id": str(proposal.id), "risk": spec.risk,
@@ -750,9 +1146,10 @@ def run_tool_call(db: Session, principal: Principal, name: str, args: dict) -> d
     try:
         result = _execute(db, principal, spec, args)
     except ToolError as exc:
-        _audit_call(db, principal, name, args, "error", {"error": str(exc)})
+        _audit_call(db, principal, name, args, "error", {"error": str(exc)}, error=str(exc), session_id=session_id, message_id=message_id)
         return {"status": "error", "tool": name, "error": str(exc)}
-    _audit_call(db, principal, name, args, "executed", {"approval": "auto (workspace setting)"})
+    approval_note = "auto (memory)" if _executes_without_pending_approval(spec) else "auto (workspace setting)"
+    _audit_call(db, principal, name, args, "executed", {"approval": approval_note}, result=result, session_id=session_id, message_id=message_id)
     return {"status": "executed", "tool": name, "result": result}
 
 

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.schemas.common import ORMModel
 
-MemoryCategory = Literal["Profile", "Preferences", "Projects", "WorkStyle", "Technical", "Goals"]
+MemoryCategory = Literal["Profile", "Preferences", "Projects", "Decisions", "Writing style", "Work context", "UI/UX preferences", "Technical", "Technical preferences", "Tasks context", "Finance context", "Goals", "Other"]
 MemorySensitivity = Literal["LOW", "MEDIUM", "HIGH"]
 MemoryStatus = Literal["active", "pending", "disabled", "stale"]
 

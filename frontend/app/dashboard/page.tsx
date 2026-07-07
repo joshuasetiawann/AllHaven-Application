@@ -61,7 +61,7 @@ export default function DashboardOverview() {
         tasksApi.list(),
         notesApi.list(),
         financeApi.summary(year, month),
-        financeApi.listTransactions(),
+        financeApi.listTransactions({ year, month }),
         settingsApi.integrations(),
       ]);
       setData({ tasks, notes, summary, transactions, integrations: integrations.integrations });
