@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError, ValidationAppError
@@ -153,6 +153,18 @@ def delete_memory(db: Session, principal: Principal, memory_id: uuid.UUID) -> No
     m = get_memory(db, principal, memory_id)
     db.delete(m)
     db.flush()
+
+
+def clear_all_memories(db: Session, principal: Principal) -> int:
+    """Bulk-delete ALL memories for the workspace regardless of status.
+
+    Returns the number of rows deleted.
+    """
+    result = db.execute(
+        delete(AiMemory).where(AiMemory.workspace_id == principal.workspace_id)
+    )
+    db.commit()
+    return result.rowcount
 
 
 def mark_used(db: Session, principal: Principal, memory_id: uuid.UUID) -> None:
