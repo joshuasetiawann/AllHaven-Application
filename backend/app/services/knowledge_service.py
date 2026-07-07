@@ -154,6 +154,28 @@ def list_documents(db: Session, principal: Principal) -> List[AiKnowledgeDocumen
     return list(db.scalars(stmt).all())
 
 
+def knowledge_overview(db: Session, principal: Principal, *, limit: int = 6) -> str | None:
+    """Short metadata-only inventory for prompt context.
+
+    This lets every model know AI Knowledge exists without dumping document
+    content. Actual chunks still go through retrieve_context().
+    """
+    rows = list_documents(db, principal)[: max(1, min(limit, 10))]
+    if not rows:
+        return None
+    indexed = sum(1 for r in rows if r.status == "indexed")
+    metadata_only = sum(1 for r in rows if (r.meta or {}).get("metadata_only") or r.status == "uploaded")
+    lines = [
+        "[AI Knowledge library]",
+        f"Documents visible to this workspace: {len(rows)} shown, {indexed} indexed, {metadata_only} metadata-only.",
+    ]
+    for row in rows:
+        mode = "metadata-only" if (row.meta or {}).get("metadata_only") or row.status == "uploaded" else row.status
+        lines.append(f"- {row.title} ({row.filename}) — {mode}, {row.chunk_count} chunk(s)")
+    lines.append("Use retrieved chunks when available; for metadata-only files, say only that the file exists unless a parser/index is available.")
+    return "\n".join(lines)
+
+
 def get_document(db: Session, principal: Principal, document_id: uuid.UUID) -> AiKnowledgeDocument:
     row = db.scalar(
         select(AiKnowledgeDocument).where(

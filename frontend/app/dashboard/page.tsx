@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowUpRight,
   Bot,
+  ClipboardCheck,
   ListTodo,
   ShieldCheck,
   Sparkles,
@@ -19,6 +20,7 @@ import { ConfigStatusBadge, PriorityBadge } from "@/components/ui/meta";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { BarChart } from "@/components/ui/BarChart";
 import { ErrorState, Loading } from "@/components/ui/States";
+import { APP_VERSION } from "@/components/layout/nav";
 import { financeApi, notesApi, settingsApi, tasksApi } from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
 import { formatCurrency, greeting } from "@/lib/format";
@@ -34,9 +36,11 @@ interface Data {
 
 function MiniStat({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-surface-input/70 p-3.5">
-      <div className="mb-2 flex items-center gap-1.5 text-content-subtle">
-        <Icon size={13} />
+    <div className="rounded-xl border border-border bg-surface-input/65 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+      <div className="mb-2 flex items-center gap-2 text-content-subtle">
+        <span className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-surface-high text-primary">
+          <Icon size={13} />
+        </span>
         <span className="text-[10.5px] font-medium uppercase tracking-wide">{label}</span>
       </div>
       <p className="text-xl font-semibold tracking-tight text-content">{value}</p>
@@ -92,14 +96,33 @@ export default function DashboardOverview() {
 
   return (
     <AppShell>
-      {/* Greeting */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-content sm:text-[28px]">
-          {greeting()}, {user?.full_name?.split(" ")[0] || "Operator"}
-        </h1>
-        <p className="mt-1 text-[13.5px] text-content-muted">
-          Your local-first command center is ready. Memory learns fast; risky actions still need approval.
-        </p>
+      <div className="mb-7 flex flex-col gap-4 border-b border-border/70 pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge tone="primary" dot>{APP_VERSION}</Badge>
+            <Badge tone="neutral">Local-first</Badge>
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-content sm:text-[30px]">
+            {greeting()}, {user?.full_name?.split(" ")[0] || "Operator"}
+          </h1>
+          <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-content-muted">
+            Your command center is ready: tasks, knowledge, finance, approvals, and AI context in one focused workspace.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/dashboard/approvals"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-surface-input/55 px-3 text-[13px] font-medium text-content transition-colors hover:border-primary/45 hover:text-primary"
+          >
+            <ClipboardCheck size={15} /> Approvals
+          </Link>
+          <Link
+            href="/dashboard/ai"
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-3 text-[13px] font-semibold text-primary-fg transition-colors hover:bg-primary-bright"
+          >
+            <Bot size={15} /> AI Chat
+          </Link>
+        </div>
       </div>
 
       {error ? (
@@ -107,16 +130,16 @@ export default function DashboardOverview() {
       ) : !data ? (
         <Loading label="Loading your command center…" />
       ) : (
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div className="grid gap-5 xl:grid-cols-3">
           {/* Left column */}
-          <div className="space-y-5 lg:col-span-2">
+          <div className="space-y-5 xl:col-span-2">
             <Card gradient padding="lg">
-              <div className="mb-4 flex items-center gap-2.5">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/12 text-primary">
+              <div className="mb-5 flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/12 text-primary">
                   <Sparkles size={18} />
                 </span>
                 <div>
-                  <h2 className="text-[15px] font-semibold text-content">AI Command Center</h2>
+                  <h2 className="text-[15px] font-semibold text-content">Workspace Snapshot</h2>
                   <p className="text-[12.5px] text-content-muted">A live snapshot of your workspace.</p>
                 </div>
               </div>

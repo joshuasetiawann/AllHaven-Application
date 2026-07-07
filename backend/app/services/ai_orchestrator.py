@@ -95,6 +95,7 @@ def run_with_tools(
     section_key: Optional[str] = "general",
     thinking_mode: str = "balance",
     user_message_id: Optional[uuid.UUID] = None,
+    response_language: Optional[str] = None,
 ) -> dict:
     """Route one chat turn, with the tool loop when the provider supports it.
 
@@ -104,7 +105,7 @@ def run_with_tools(
     plan = ai_provider_router.plan_chat(db, principal, provider_id)
     pid = plan.provider_id
     base = {"provider_id": pid, "tool_calls": [], "proposal_ids": []}
-    local = ai_local_answers.direct_answer(message)
+    local = ai_local_answers.direct_answer(message, response_language)
     if local:
         return {
             **base,

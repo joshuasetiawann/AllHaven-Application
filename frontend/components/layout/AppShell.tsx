@@ -102,7 +102,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div
         className={cn(
           "fixed inset-y-0 left-0 z-40 hidden transition-[width] duration-200 ease-out md:block",
-          rail ? "md:w-[76px]" : "md:w-[260px]",
+          rail ? "md:w-[80px]" : "md:w-[280px]",
         )}
       >
         <Sidebar
@@ -124,7 +124,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         />
         <div
           className={cn(
-            "absolute inset-y-0 left-0 transition-transform duration-200",
+            "absolute inset-y-0 left-0 w-[min(86vw,280px)] transition-transform duration-200",
             mobileOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
@@ -135,14 +135,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div
         className={cn(
           "transition-[padding] duration-200 ease-out",
-          rail ? "md:pl-[76px]" : "md:pl-[260px]",
+          rail ? "md:pl-[80px]" : "md:pl-[280px]",
         )}
       >
         <Topbar onMenu={() => setMobileOpen(true)} />
         {/* Keyed by route so page content gently animates in on navigation. */}
         <main
           key={pathname}
-          className="custom-scrollbar mx-auto w-full max-w-[1440px] animate-page-in overflow-x-hidden px-3 py-4 sm:px-5 sm:py-5 lg:px-8 lg:py-6"
+          className="custom-scrollbar mx-auto w-full max-w-[1480px] animate-page-in overflow-x-hidden px-3 py-4 sm:px-5 sm:py-5 lg:px-8 lg:py-7"
         >
           {children}
         </main>

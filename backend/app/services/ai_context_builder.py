@@ -30,10 +30,10 @@ class ContextBudget:
 
 
 _BUDGETS = {
-    "fast": ContextBudget(8, 0, False, "Fast", "Answer briefly and directly. Use tools only when clearly necessary."),
-    "balance": ContextBudget(20, 2, False, "Balance", "Use relevant memory and tools; keep the answer practical, direct, and specific."),
-    "thinking": ContextBudget(35, 3, False, "Thinking", "Be careful, check assumptions, and use tools when they reduce uncertainty. Keep the final answer concise."),
-    "deep": ContextBudget(55, 5, True, "Deep", "Use deeper context and retrieve knowledge when relevant, but still start with the answer and avoid filler."),
+    "fast": ContextBudget(8, 1, False, "Fast", "Answer briefly and directly. Use tools only when clearly necessary."),
+    "balance": ContextBudget(20, 3, False, "Balance", "Use relevant memory and tools; keep the answer practical, direct, and specific."),
+    "thinking": ContextBudget(35, 4, False, "Thinking", "Be careful, check assumptions, and use tools when they reduce uncertainty. Keep the final answer concise."),
+    "deep": ContextBudget(55, 6, True, "Deep", "Use deeper context and retrieve knowledge when relevant, but still start with the answer and avoid filler."),
 }
 
 _SECTION_HINTS = {
@@ -82,9 +82,23 @@ def _summary(db: Session, principal: Principal, session_id: Optional[uuid.UUID])
     return row.summary if row else None
 
 
+_LANGUAGE_INSTRUCTIONS = {
+    "id": "Answer in natural Bahasa Indonesia unless the user explicitly asks for another language.",
+    "en": "Answer in concise English unless the user explicitly asks for another language.",
+    "zh-Hant": "請使用自然的繁體中文回答，除非使用者明確要求其他語言。",
+}
+
+
+def _language_instruction(response_language: str | None) -> str:
+    key = (response_language or "id").strip()
+    return _LANGUAGE_INSTRUCTIONS.get(key, _LANGUAGE_INSTRUCTIONS["id"])
+
+
 def _wants_knowledge(message: str, section_key: str, budget: ContextBudget) -> bool:
     lower = (message or "").lower()
-    return section_key == "ai_knowledge" or budget.knowledge_chunks > 0 and any(t in lower for t in _KNOWLEDGE_TRIGGERS)
+    if budget.knowledge_chunks <= 0:
+        return False
+    return section_key == "ai_knowledge" or any(t in lower for t in _KNOWLEDGE_TRIGGERS) or bool(lower.strip())
 
 
 def build(
@@ -95,6 +109,7 @@ def build(
     section_key: Optional[str] = "general",
     thinking_mode: Optional[str] = "balance",
     session_id: Optional[uuid.UUID] = None,
+    response_language: Optional[str] = None,
 ) -> dict:
     """Return {'context': str|None, 'meta': dict} for a model request."""
     from app.services import ai_tools_registry, knowledge_service, memory_context_builder
@@ -113,11 +128,13 @@ def build(
         "used_memory": False,
         "used_knowledge": False,
         "knowledge_sources": [],
+        "response_language": response_language or "id",
         "active_tools": ai_tools_registry.active_tool_names_for_section(key),
     }
 
     blocks.append("[AllHaven Context Packet]")
     blocks.append(f"Mode: {budget.label}. {budget.instruction}")
+    blocks.append("Preferred response language: " + _language_instruction(response_language))
     blocks.append(f"Active section: {key}. {_SECTION_HINTS.get(key, _SECTION_HINTS['general'])}")
     if meta["active_tools"]:
         blocks.append("Active tool priority: " + ", ".join(meta["active_tools"][:18]))
@@ -140,6 +157,10 @@ def build(
         if snippets:
             blocks.append("[Recent Conversation Snippets]")
             blocks.append("\n".join(snippets[-12:]))
+
+    overview = knowledge_service.knowledge_overview(db, principal)
+    if overview:
+        blocks.append(overview)
 
     if _wants_knowledge(message, key, budget):
         knowledge_block, sources = knowledge_service.retrieve_context(db, principal, message, limit=budget.knowledge_chunks or 2)

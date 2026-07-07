@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { useToast } from "@/components/ui/Toast";
+import { useAppDialog } from "@/components/ui/AppDialog";
 import { knowledgeApi, ApiException } from "@/lib/api";
 import { cn, formatDateTime } from "@/lib/format";
 import type { KnowledgeDocument, KnowledgeSearchResult } from "@/types";
@@ -30,6 +31,7 @@ function statusTone(status: KnowledgeDocument["status"]): "success" | "warning" 
 
 export default function AiKnowledgePage() {
   const toast = useToast();
+  const dialog = useAppDialog();
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null);
   const [results, setResults] = useState<KnowledgeSearchResult[]>([]);
   const [query, setQuery] = useState("");
@@ -129,7 +131,13 @@ export default function AiKnowledgePage() {
   };
 
   const remove = async (doc: KnowledgeDocument) => {
-    if (!window.confirm(`Delete "${doc.title}" from AI Knowledge?`)) return;
+    const ok = await dialog.confirm({
+      title: "Delete knowledge document?",
+      message: `Delete "${doc.title}" from AI Knowledge? AI models will no longer retrieve it.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     setBusyId(doc.id);
     setError(null);
     setDocuments((prev) => prev?.filter((d) => d.id !== doc.id) ?? prev);

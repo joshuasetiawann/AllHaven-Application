@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Toggle } from "@/components/ui/Toggle";
 import { useToast } from "@/components/ui/Toast";
+import { useAppDialog } from "@/components/ui/AppDialog";
 import { memoryApi, ApiException } from "@/lib/api";
 import { cn, relativeTime } from "@/lib/format";
 import type { AiMemory, MemorySuggestion, MemorySettings, MemoryCategory, MemorySensitivity } from "@/types";
@@ -69,6 +70,7 @@ type Tab = "all" | "auto" | "manual" | "pending";
 
 export default function MemoryPage() {
   const toast = useToast();
+  const dialog = useAppDialog();
   const [memories, setMemories] = useState<AiMemory[]>([]);
   const [suggestions, setSuggestions] = useState<MemorySuggestion[]>([]);
   const [settings, setSettings] = useState<MemorySettings | null>(null);
@@ -148,7 +150,13 @@ export default function MemoryPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this memory?")) return;
+    const ok = await dialog.confirm({
+      title: "Delete memory?",
+      message: "This memory will stop being available to AI context. This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     setError(null);
     try {
       await memoryApi.remove(id);
@@ -245,7 +253,13 @@ export default function MemoryPage() {
   };
 
   const handleClearAll = async () => {
-    if (!window.confirm("Delete ALL memories? This cannot be undone.")) return;
+    const ok = await dialog.confirm({
+      title: "Delete all AI memories?",
+      message: "This clears every saved AI memory in this workspace. This cannot be undone.",
+      confirmLabel: "Delete all",
+      tone: "danger",
+    });
+    if (!ok) return;
     setError(null);
     try {
       await memoryApi.clearAll();
