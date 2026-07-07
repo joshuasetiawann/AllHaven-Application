@@ -72,6 +72,35 @@ def test_n8n_unreachable_endpoint_is_not_online():
 
 # --- API-key AI providers stay independent of the bridge --------------------- #
 
+def test_ollama_chat_resolves_url_by_mode():
+    from app.services.ai_providers.ollama_provider import OllamaProvider
+
+    p = OllamaProvider()
+    assert p.base_url({"connection_mode": "tailscale_private", "tailscale_url": "http://100.1.2.3:11434"}) == "http://100.1.2.3:11434"
+    assert p.base_url({"connection_mode": "local_desktop"}).startswith("http://")  # localhost default
+
+
+def test_ollama_chat_unavailable_when_bridge_url_missing():
+    from app.services.ai_providers.ollama_provider import OllamaProvider
+
+    p = OllamaProvider()
+    # tailscale mode with no URL → must NOT silently fall back to localhost.
+    assert p.base_url({"connection_mode": "tailscale_private"}) == ""
+    assert p.is_configured({"connection_mode": "tailscale_private"}, {}) is False
+    res = p.chat({"connection_mode": "tailscale_private"}, {}, [{"role": "user", "content": "hi"}])
+    assert res.ok is False and "reachable" in (res.error or "").lower()
+
+
+def test_ollama_chat_unreachable_endpoint_is_honest_error():
+    from app.services.ai_providers.ollama_provider import OllamaProvider
+
+    res = OllamaProvider().chat(
+        {"connection_mode": "local_desktop", "base_url": "http://127.0.0.1:1"}, {},
+        [{"role": "user", "content": "hi"}],
+    )
+    assert res.ok is False  # connection refused → honest error, never fake content
+
+
 def test_api_providers_do_not_use_bridge_resolver():
     """AI-key providers (openai, claude, ...) must NOT be gated by Tailscale/bridge:
     the bridge resolver is only wired into the ollama/n8n integration verify paths."""

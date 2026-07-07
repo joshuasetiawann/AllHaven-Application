@@ -142,12 +142,18 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
         id="ollama",
         name="Ollama Local Agent",
         provider_type="local",
-        purpose="Local, private LLM inference",
+        purpose="Local, private LLM inference (reach from another machine via Desktop Bridge)",
         external=False,
         api_key_required=False,
         fields=(
-            FieldSpec("base_url", "Base URL", required=True, placeholder="http://localhost:11434"),
+            FieldSpec("base_url", "Local URL", required=True, placeholder="http://localhost:11434"),
             FieldSpec("default_model", "Default model", placeholder="llama3.1"),
+            # --- Desktop Bridge (v4.0): chat inference resolves the URL by mode ---
+            FieldSpec("connection_mode", "Connection mode", placeholder="local_desktop", default="local_desktop"),
+            FieldSpec("tailscale_url", "Tailscale Private URL", placeholder="http://100.x.y.z:11434"),
+            FieldSpec("serve_url", "Tailscale Serve URL", placeholder="https://desktop.tailnet.ts.net/ollama"),
+            FieldSpec("funnel_url", "Tailscale Funnel URL (public)", placeholder="https://...ts.net (disabled by default)"),
+            FieldSpec("funnel_enabled", "Funnel enabled", placeholder="false", default="false"),
         ),
     ),
     ProviderSpec(
