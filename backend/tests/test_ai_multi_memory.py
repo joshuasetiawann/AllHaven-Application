@@ -270,6 +270,48 @@ def test_multi_chat_injects_memory_context_multi_agent(
 
 
 # ---------------------------------------------------------------------------
+# Build-placement invariant: build() only fires when an agent will run
+# ---------------------------------------------------------------------------
+
+
+def test_multi_chat_never_builds_memory_context_when_no_agent_runnable(
+    auth_client, db_session, monkeypatch
+):
+    """build() must NOT be called when zero agents are runnable.
+
+    build() has a mark_used side effect on every selected memory; firing it when
+    no model will see the context would corrupt usage stats. multi_chat has no
+    early RETURN (the run always completes with honest statuses), so this pins
+    the gated build: context is built only when at least one agent is runnable.
+    """
+    principal = _principal(auth_client)
+
+    import app.services.memory_context_builder as _mcb
+
+    build_calls: list[tuple] = []
+
+    def spy_build(db, principal, message, section_key=None):
+        build_calls.append((message, section_key))
+        return None
+
+    monkeypatch.setattr(_mcb, "build", spy_build)
+
+    # ollama/openai are not configured in tests -> zero runnable agents.
+    result = multi_chat(
+        db_session,
+        principal,
+        message="Hello agents",
+        provider_ids=["ollama", "openai"],
+    )
+
+    assert result.get("session_id") is not None
+    assert build_calls == [], (
+        f"memory_context_builder.build() must not be called when no agent is "
+        f"runnable, but it was called with: {build_calls}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Extraction failure does not break multi_chat
 # ---------------------------------------------------------------------------
 
