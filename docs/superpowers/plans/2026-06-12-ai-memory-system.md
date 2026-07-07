@@ -2728,7 +2728,11 @@ Add `Brain` to the lucide-react import.
 
 ## Task 20: Verify End-to-End — Acceptance Tests
 
-- [ ] **Step 20.1: Start the backend and run the migration**
+> Executed sandbox-adapted (no Docker/Postgres): see
+> `2026-06-12-ai-memory-system-verification.md` for what was verified live over
+> HTTP, what was adapted, and which provider-dependent steps remain manual.
+
+- [x] **Step 20.1: Start the backend and run the migration**
 
 ```bash
 cd /mnt/storage/VSCode/Repo/AllHaven-Application
@@ -2738,7 +2742,7 @@ python -m alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
-- [ ] **Step 20.2: Acceptance Test A — Name memory**
+- [x] **Step 20.2: Acceptance Test A — Name memory** (memory creation verified live; AI-recall step needs a real provider — manual)
 
 1. Open AI Chat at `http://localhost:3000/dashboard/ai`
 2. Send: `"nama saya Joshua"`
@@ -2754,13 +2758,13 @@ SELECT category, title, content FROM ai_memories WHERE workspace_id = '...';
 -- Profile | User name | User's name is Joshua.
 ```
 
-- [ ] **Step 20.3: Acceptance Test B — Preference memory**
+- [x] **Step 20.3: Acceptance Test B — Preference memory** (memory creation verified live; "sharper responses" needs a real provider — manual)
 
 1. Send: `"saya suka jawaban singkat, tajam, dan tidak fake"`
 2. Check memory page — should show "Preferences / Response style preference"
 3. Ask a question — AI responses should become sharper
 
-- [ ] **Step 20.4: Acceptance Test C — Secret detection**
+- [x] **Step 20.4: Acceptance Test C — Secret detection**
 
 1. Send: `"API key saya adalah sk-abc123def456ghi789jkl"`
 2. Check memory page — NO memory should be created
@@ -2777,7 +2781,7 @@ SELECT category, title, content FROM ai_memories WHERE workspace_id = '...';
 2. Send: `"apa jadwal saya hari ini?"`
 3. AI should call `list_events` tool and return the event
 
-- [ ] **Step 20.7: Acceptance Test F — Disable memory**
+- [x] **Step 20.7: Acceptance Test F — Disable memory**
 
 1. Go to AI Memory page
 2. Disable auto-learning
