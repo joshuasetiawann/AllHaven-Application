@@ -85,16 +85,6 @@ class DebateChatRequest(BaseModel):
     rounds: int = Field(default=2, ge=1, le=4)
 
 
-class ReasoningChatRequest(BaseModel):
-    """Reasoning council: Analyst -> Critic -> Synthesizer with a quality gate."""
-
-    message: str = Field(min_length=1, max_length=8000)
-    session_id: Optional[uuid.UUID] = None
-    provider_ids: List[str] = Field(min_length=1, max_length=3)
-    # Depth + sampling: fast (1 pass), balanced (analyst+synthesizer), deep (+critic).
-    mode: Literal["fast", "balanced", "deep"] = "balanced"
-
-
 class AgentResponseOut(ORMModel):
     id: uuid.UUID
     run_id: uuid.UUID
