@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
+import { useAppDialog } from "@/components/ui/AppDialog";
 import { cn } from "@/lib/format";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -224,6 +225,7 @@ type Alarm = { id: string; time: string; label: string; enabled: boolean };
 
 function Alarms() {
   const toast = useToast();
+  const dialog = useAppDialog();
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [time, setTime] = useState("07:00");
   const [label, setLabel] = useState("");
@@ -255,6 +257,18 @@ function Alarms() {
     if (!time) return;
     setAlarms((p) => [...p, { id: crypto.randomUUID(), time, label: label.trim(), enabled: true }].sort((a, b) => a.time.localeCompare(b.time)));
     setLabel("");
+  };
+
+  const remove = async (alarm: Alarm) => {
+    const ok = await dialog.confirm({
+      title: "Anda yakin ingin menghapus?",
+      message: `Hapus alarm ${alarm.label ? `"${alarm.label}" ` : ""}${alarm.time}?`,
+      confirmLabel: "Hapus",
+      cancelLabel: "Batal",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setAlarms((p) => p.filter((x) => x.id !== alarm.id));
   };
 
   return (
@@ -300,7 +314,7 @@ function Alarms() {
             >
               <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform", a.enabled ? "translate-x-4" : "translate-x-0.5")} />
             </button>
-            <button type="button" onClick={() => setAlarms((p) => p.filter((x) => x.id !== a.id))}
+            <button type="button" onClick={() => void remove(a)}
               className="text-content-subtle transition-colors hover:text-danger" aria-label="Delete alarm">
               <Trash2 size={16} />
             </button>
