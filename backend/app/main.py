@@ -31,6 +31,7 @@ from app.api.routers import (
     finance,
     google,
     health,
+    memory,
     n8n,
     notes,
     settings as settings_router,
@@ -95,6 +96,7 @@ def create_app() -> FastAPI:
     app.include_router(notes.router, prefix=prefix)
     app.include_router(finance.router, prefix=prefix)
     app.include_router(ai.router, prefix=prefix)
+    app.include_router(memory.router, prefix=prefix)
     app.include_router(settings_router.router, prefix=prefix)
     app.include_router(google.router, prefix=prefix)
     app.include_router(calendar.router, prefix=prefix)
