@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
   Brain,
   Check,
+  Clock3,
+  Pencil,
   Plus,
   Search,
+  Shield,
   Trash2,
   X,
   Zap,
@@ -18,31 +21,47 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Toggle } from "@/components/ui/Toggle";
 import { memoryApi, ApiException } from "@/lib/api";
-import { cn } from "@/lib/format";
-import type { AiMemory, MemorySuggestion, MemorySettings, MemoryCategory } from "@/types";
+import { cn, relativeTime } from "@/lib/format";
+import type { AiMemory, MemorySuggestion, MemorySettings, MemoryCategory, MemorySensitivity } from "@/types";
 
 const CATEGORIES: MemoryCategory[] = [
   "Profile",
   "Preferences",
   "Projects",
-  "WorkStyle",
+  "Decisions",
+  "Writing style",
+  "Work context",
+  "UI/UX preferences",
   "Technical",
+  "Technical preferences",
+  "Tasks context",
+  "Finance context",
   "Goals",
+  "Other",
 ];
 
 const CATEGORY_COLORS: Record<MemoryCategory, string> = {
   Profile: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   Preferences: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   Projects: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  WorkStyle: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  Decisions: "bg-teal-500/10 text-teal-400 border-teal-500/20",
+  "Writing style": "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  "Work context": "bg-sky-500/10 text-sky-400 border-sky-500/20",
+  "UI/UX preferences": "bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20",
   Technical: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+  "Technical preferences": "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+  "Tasks context": "bg-lime-500/10 text-lime-400 border-lime-500/20",
+  "Finance context": "bg-green-500/10 text-green-400 border-green-500/20",
   Goals: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  Other: "bg-slate-500/10 text-slate-400 border-slate-500/20",
 };
 
 const SOURCE_LABELS: Record<string, string> = {
   chat_extracted: "Auto-learned",
   manual: "Manual",
   llm_extracted: "AI-extracted",
+  tool_result: "Tool result",
+  approved_action: "Approved action",
 };
 
 type Tab = "all" | "auto" | "manual" | "pending";
@@ -57,13 +76,18 @@ export default function MemoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState("");
+  const [editDraft, setEditDraft] = useState<{
+    title: string;
+    category: MemoryCategory;
+    content: string;
+  }>({ title: "", category: "Profile", content: "" });
   const [showAddForm, setShowAddForm] = useState(false);
   const [newMemory, setNewMemory] = useState<{
     category: MemoryCategory;
+    sensitivity: MemorySensitivity;
     title: string;
     content: string;
-  }>({ category: "Profile", title: "", content: "" });
+  }>({ category: "Profile", sensitivity: "LOW", title: "", content: "" });
 
   const load = async () => {
     setLoading(true);
@@ -129,7 +153,11 @@ export default function MemoryPage() {
   const handleSaveEdit = async (id: string) => {
     setError(null);
     try {
-      const updated = await memoryApi.update(id, { content: editContent });
+      const updated = await memoryApi.update(id, {
+        title: editDraft.title,
+        category: editDraft.category,
+        content: editDraft.content,
+      });
       setMemories((prev) => prev.map((m) => (m.id === id ? updated : m)));
       setEditingId(null);
     } catch (e) {
@@ -167,7 +195,7 @@ export default function MemoryPage() {
     try {
       const m = await memoryApi.create(newMemory);
       setMemories((prev) => [m, ...prev]);
-      setNewMemory({ category: "Profile", title: "", content: "" });
+      setNewMemory({ category: "Profile", sensitivity: "LOW", title: "", content: "" });
       setShowAddForm(false);
     } catch (e) {
       setError(e instanceof ApiException ? e.message : "Failed to add memory.");
@@ -200,12 +228,25 @@ export default function MemoryPage() {
     }
   };
 
+  const stats = useMemo(() => {
+    const enabled = memories.filter((m) => m.enabled).length;
+    const recentlyUsed = memories.filter((m) => Boolean(m.last_used_at)).length;
+    return { enabled, recentlyUsed };
+  }, [memories]);
+
   const filtered = memories.filter((m) => {
     if (tab === "auto" && m.source === "manual") return false;
     if (tab === "manual" && m.source !== "manual") return false;
     if (categoryFilter !== "all" && m.category !== categoryFilter) return false;
+    const q = searchQ.trim().toLowerCase();
+    if (q && !`${m.title} ${m.content} ${m.category}`.toLowerCase().includes(q)) return false;
     return true;
   });
+
+  const startEdit = (m: AiMemory) => {
+    setEditingId(m.id);
+    setEditDraft({ title: m.title, category: m.category, content: m.content });
+  };
 
   return (
     <AppShell>
@@ -236,6 +277,25 @@ export default function MemoryPage() {
             >
               <Plus size={14} className="mr-1" /> Add Memory
             </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-4">
+          <div className="rounded-lg border border-border bg-surface/45 px-3 py-2.5">
+            <p className="label-mono">Active</p>
+            <p className="mt-1 text-xl font-semibold text-content">{memories.length}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-surface/45 px-3 py-2.5">
+            <p className="label-mono">Enabled</p>
+            <p className="mt-1 text-xl font-semibold text-success">{stats.enabled}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-surface/45 px-3 py-2.5">
+            <p className="label-mono">Used</p>
+            <p className="mt-1 text-xl font-semibold text-primary">{stats.recentlyUsed}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-surface/45 px-3 py-2.5">
+            <p className="label-mono">Review</p>
+            <p className="mt-1 text-xl font-semibold text-warning">{suggestions.length}</p>
           </div>
         </div>
 
@@ -278,7 +338,7 @@ export default function MemoryPage() {
         {showAddForm && (
           <div className="rounded-xl border border-border bg-surface/50 p-4 space-y-3">
             <p className="text-[13px] font-medium text-content">Add Memory</p>
-            <div className="flex gap-2">
+            <div className="grid gap-2 sm:grid-cols-[160px_120px_1fr]">
               <select
                 value={newMemory.category}
                 onChange={(e) =>
@@ -295,12 +355,26 @@ export default function MemoryPage() {
                   </option>
                 ))}
               </select>
+              <select
+                value={newMemory.sensitivity}
+                onChange={(e) =>
+                  setNewMemory((p) => ({
+                    ...p,
+                    sensitivity: e.target.value as MemorySensitivity,
+                  }))
+                }
+                className="rounded-md border border-border bg-surface-input px-2 py-1.5 text-[12px] text-content"
+              >
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+              </select>
               <Input
                 value={newMemory.title}
                 onChange={(e) =>
                   setNewMemory((p) => ({ ...p, title: e.target.value }))
                 }
-                placeholder="Title (e.g. User name)"
+                placeholder="Title"
                 className="flex-1 text-[12px]"
               />
             </div>
@@ -309,8 +383,8 @@ export default function MemoryPage() {
               onChange={(e) =>
                 setNewMemory((p) => ({ ...p, content: e.target.value }))
               }
-              placeholder="Memory content (e.g. User's name is Joshua.)"
-              rows={2}
+              placeholder="Short memory content, e.g. User prefers concise Indonesian answers."
+              rows={3}
               className="w-full rounded-md border border-border bg-surface-input px-3 py-2 text-[12px] text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none"
             />
             <div className="flex gap-2">
@@ -502,11 +576,29 @@ export default function MemoryPage() {
                       )}
                     </div>
                     {editingId === m.id ? (
-                      <div className="mt-1.5 space-y-1.5">
+                      <div className="mt-2 space-y-2">
+                        <div className="grid gap-2 sm:grid-cols-[160px_1fr]">
+                          <select
+                            value={editDraft.category}
+                            onChange={(e) => setEditDraft((p) => ({ ...p, category: e.target.value as MemoryCategory }))}
+                            className="rounded-md border border-border bg-surface-input px-2 py-1.5 text-[12px] text-content"
+                          >
+                            {CATEGORIES.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                          <Input
+                            value={editDraft.title}
+                            onChange={(e) => setEditDraft((p) => ({ ...p, title: e.target.value }))}
+                            className="text-[12px]"
+                          />
+                        </div>
                         <textarea
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.target.value)}
-                          rows={2}
+                          value={editDraft.content}
+                          onChange={(e) => setEditDraft((p) => ({ ...p, content: e.target.value }))}
+                          rows={3}
                           className="w-full rounded-md border border-border bg-surface-input px-2.5 py-1.5 text-[12px] text-content focus:border-primary/70 focus:outline-none"
                         />
                         <div className="flex gap-1.5">
@@ -526,19 +618,30 @@ export default function MemoryPage() {
                         </div>
                       </div>
                     ) : (
-                      <p
-                        className="mt-0.5 cursor-text text-[12px] text-content-muted hover:text-content"
-                        onClick={() => {
-                          setEditingId(m.id);
-                          setEditContent(m.content);
-                        }}
-                        title="Click to edit"
-                      >
-                        {m.content}
-                      </p>
+                      <>
+                        <p className="mt-0.5 text-[12px] leading-relaxed text-content-muted">
+                          {m.content}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-content-subtle">
+                          <span className="inline-flex items-center gap-1">
+                            <Shield size={11} /> confidence {Math.round(m.confidence * 100)}%
+                          </span>
+                          <span>relevance {Math.round(m.relevance_score * 100)}%</span>
+                          <span className="inline-flex items-center gap-1">
+                            <Clock3 size={11} /> {m.last_used_at ? `used ${relativeTime(m.last_used_at)}` : "not used yet"}
+                          </span>
+                        </div>
+                      </>
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => startEdit(m)}
+                      aria-label="Edit memory"
+                      className="rounded-md p-1 text-content-subtle hover:bg-surface-raised hover:text-content"
+                    >
+                      <Pencil size={13} />
+                    </button>
                     <Toggle
                       checked={m.enabled}
                       onChange={() => void handleToggleEnabled(m)}

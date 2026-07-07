@@ -61,8 +61,9 @@ def _opening_prompt(agent_name: str, n_agents: int, question: str) -> str:
     return (
         f'You are "{agent_name}", one of {n_agents} AI agents on a panel answering the '
         f"same question.\n\nQUESTION:\n{question}\n\n"
-        "Give your best, well-reasoned initial answer. Be substantive but concise. You will "
-        "later see the other agents' answers and get a chance to refine yours."
+        "Start with the answer. Be substantive but concise. No basa-basi or generic filler. "
+        "Match the user's mode: casual if they are casual, serious for work, senior-level for coding. "
+        "You will later see the other agents' answers and get a chance to refine yours."
     )
 
 
@@ -73,7 +74,8 @@ def _rebuttal_prompt(agent_name: str, question: str, others: List[Tuple[str, str
         f"Here are the other agents' latest answers:\n\n{blocks}\n\n"
         "Critically evaluate their answers and your own: point out errors or gaps, defend or "
         "revise your position with reasons, then give your improved answer. If another agent "
-        "made a better point, adopt it. Be concise and focus on getting the answer right."
+        "made a better point, adopt it. Be concise, direct, and focus on getting the answer right."
+        " Match the user's tone without adding filler."
     )
 
 
@@ -89,7 +91,7 @@ def _synthesis_prompt(question: str, transcript: List[Tuple[str, List[Tuple[str,
         "produce the single best final answer for the user.\n\n"
         f"QUESTION:\n{question}\n\nDEBATE TRANSCRIPT:\n{body}\n\n"
         "Write the final answer with these rules:\n"
-        "1. Start with the direct answer/decision — no preamble.\n"
+        "1. Start with the direct answer/decision - no preamble, no praise, no basa-basi.\n"
         "2. Integrate the agents' best points; remove contradictions, repetition, and rambling — "
         "but PRESERVE important warnings, risks, and security concerns.\n"
         "3. Be concrete and specific (exact names, numbers, steps); never generic.\n"
@@ -98,7 +100,9 @@ def _synthesis_prompt(question: str, transcript: List[Tuple[str, List[Tuple[str,
         "5. Be honest about uncertainty and missing data; never invent facts the debate "
         "doesn't support.\n"
         "6. End with next steps when the topic is actionable.\n"
-        "7. Answer in the user's language (Indonesian question → natural Indonesian answer).\n"
+        "7. Match the user's mode: casual chat can be natural, serious work stays focused, "
+        "coding gets senior engineering help, and schedule requests get practical next steps.\n"
+        "8. Answer in the user's language (Indonesian question → natural Indonesian answer).\n"
         "Do not mention that you are a moderator or that a debate happened — just give the answer."
     )
 
@@ -142,7 +146,7 @@ def debate_chat(
     thinking_mode: str = "balance",
     section_key: Optional[str] = "general",
 ) -> dict:
-    from app.services import memory_context_builder, memory_extraction_service
+    from app.services import ai_context_builder, memory_extraction_service
 
     ids = _dedup(provider_ids)
     if not ids:
@@ -166,18 +170,21 @@ def debate_chat(
             workspace_id=principal.workspace_id,
             created_by=principal.user_id,
             title=_auto_title(message),
+            section_key=section_key or "general",
         )
         db.add(session)
         db.flush()
     if not (session.title or "").strip():
         session.title = _auto_title(message)
+    session.section_key = section_key or "general"
 
     user_message = ChatMessage(
         workspace_id=principal.workspace_id,
         session_id=session.id,
         role="user",
         content=message,
-        meta=_user_meta("debate", thinking_mode, images),
+        section_key=section_key or "general",
+        meta=_user_meta("debate", thinking_mode, images, section_key or "general"),
     )
     db.add(user_message)
     db.flush()
@@ -204,6 +211,7 @@ def debate_chat(
     params = thinking_params(thinking_mode)
 
     responses: List[AiAgentResponse] = []
+    context_meta = {"section_key": section_key or "general", "thinking_mode": thinking_mode}
 
     def _record(
         provider_id: str, provider_name: str, status: str, content: Optional[str],
@@ -230,6 +238,7 @@ def debate_chat(
                 session_id=session.id,
                 role="assistant",
                 content=content if status == "completed" and content else (error or status),
+                section_key=section_key or "general",
                 meta={
                     "provider_id": provider_id,
                     "provider_name": provider_name,
@@ -240,6 +249,7 @@ def debate_chat(
                     "debate": True,
                     "round": round_no,
                     "phase": phase,
+                    **context_meta,
                 },
             )
         )
@@ -267,10 +277,11 @@ def debate_chat(
             role="assistant",
             content=(
                 "No selected agent could run, so there is nothing to debate. Configure and enable "
-                "at least two AI agents in Settings → AI Providers (and allow external AI if needed)."
+                "at least two AI agents in Settings -> AI Providers (and allow external AI if needed)."
             ),
+            section_key=section_key or "general",
             meta={"provider_name": "Debate", "status": "error", "run_id": str(run.id),
-                  "debate": True, "debate_final": True},
+                  "debate": True, "debate_final": True, "section_key": section_key or "general"},
         )
         db.add(final_msg)
         db.commit()
@@ -287,9 +298,14 @@ def debate_chat(
     last_answer: Dict[str, str] = {}  # pid -> most recent completed content
     rounds_to_run = rounds if n_runnable >= 2 else 1  # one agent => no rebuttal
 
-    extra_context = memory_context_builder.build(db, principal, message, section_key)
+    context_packet = ai_context_builder.build(
+        db, principal, message=message, session_id=session.id,
+        section_key=section_key or "general", thinking_mode=thinking_mode,
+    )
+    context_meta = context_packet.get("meta", {})
+    extra_context = context_packet.get("context")
     # Debate rounds have no system message; prefix the opening user prompt instead.
-    mem_prefix = memory_context_builder.as_prefix(extra_context)
+    mem_prefix = f"{extra_context}\n\n" if extra_context else ""
     for k in range(1, rounds_to_run + 1):
         if k == 1:
             prompts = {
@@ -376,6 +392,7 @@ def debate_chat(
             session_id=session.id,
             role="assistant",
             content=final_content if final_status == "completed" and final_content else (final_error or final_status),
+            section_key=section_key or "general",
             meta={
                 "provider_id": synth_pid or "debate",
                 "provider_name": synth_name,
@@ -387,6 +404,7 @@ def debate_chat(
                 "debate_final": True,
                 "rounds": len(round_outcomes),
                 "n_agents": n_runnable,
+                **context_meta,
             },
         )
     )

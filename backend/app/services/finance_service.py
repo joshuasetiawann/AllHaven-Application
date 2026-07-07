@@ -135,13 +135,34 @@ def list_transactions(
     *,
     limit: int = 100,
     offset: int = 0,
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    currency: Optional[str] = None,
+    start: Optional[date] = None,
+    end: Optional[date] = None,
 ) -> List[Transaction]:
+    filters = [
+        Transaction.workspace_id == principal.workspace_id,
+        Transaction.is_deleted.is_(False),
+    ]
+    if start is not None:
+        filters.append(Transaction.transaction_date >= start)
+    if end is not None:
+        filters.append(Transaction.transaction_date <= end)
+    if start is None and end is None and year is not None and month is not None:
+        start = date(year, month, 1)
+        last_day = calendar.monthrange(year, month)[1]
+        end = date(year, month, last_day)
+        filters.extend([
+            Transaction.transaction_date >= start,
+            Transaction.transaction_date <= end,
+        ])
+    if currency:
+        filters.append(Transaction.currency == currency.upper())
+
     stmt = (
         select(Transaction)
-        .where(
-            Transaction.workspace_id == principal.workspace_id,
-            Transaction.is_deleted.is_(False),
-        )
+        .where(*filters)
         .order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
         .limit(limit)
         .offset(offset)
@@ -259,7 +280,35 @@ def monthly_summary(
     start = date(year, month, 1)
     last_day = calendar.monthrange(year, month)[1]
     end = date(year, month, last_day)
+    result = range_summary(
+        db,
+        principal,
+        start=start,
+        end=end,
+        currency=currency,
+        period_type="month",
+    )
+    return {
+        "year": year,
+        "month": month,
+        "currency": result["currency"],
+        "total_income": result["total_income"],
+        "total_expense": result["total_expense"],
+        "balance": result["balance"],
+        "transaction_count": result["transaction_count"],
+    }
 
+
+def range_summary(
+    db: Session,
+    principal: Principal,
+    *,
+    start: date,
+    end: date,
+    currency: str = "IDR",
+    period_type: str = "custom",
+) -> dict:
+    """Aggregate income/expense for any reporting period."""
     stmt = select(Transaction).where(
         Transaction.workspace_id == principal.workspace_id,
         Transaction.is_deleted.is_(False),
@@ -274,8 +323,9 @@ def monthly_summary(
     balance = total_income - total_expense
 
     return {
-        "year": year,
-        "month": month,
+        "period_type": period_type,
+        "start_date": start,
+        "end_date": end,
         "currency": currency,
         "total_income": float(total_income),
         "total_expense": float(total_expense),
