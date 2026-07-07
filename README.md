@@ -8,6 +8,9 @@ A modular **AI command center dashboard** for personal and company productivity.
 
 This repository is a complete, runnable **local MVP**.
 
+**Version:** see [`VERSION`](VERSION) · what changed each release: [`CHANGELOG.md`](CHANGELOG.md)
+· how versions work: [`docs/VERSIONING.md`](docs/VERSIONING.md) · per-release notes: [`docs/releases/`](docs/releases/)
+
 ---
 
 ## Highlights
