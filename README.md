@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🛡️ AllHaven Command Center
+![AllHaven Command Center](docs/assets/banner.svg)
+
+# AllHaven Command Center
 
 **A modular, local-first AI command center for personal &amp; company productivity.**
 
@@ -32,6 +34,18 @@ _The AI proposes — a human approves every write action._
 
 ---
 
+## 🖼️ Preview
+
+<div align="center">
+
+![AllHaven dashboard preview](docs/assets/dashboard-preview.svg)
+
+<sub>A stylized preview of the dashboard. Drop real screenshots into <code>docs/assets/</code> to swap these in.</sub>
+
+</div>
+
+---
+
 ## 🚀 Easiest start — one click
 
 After cloning, open the launcher for your operating system. By default it runs a
@@ -52,6 +66,30 @@ opens the app. Manage services anytime from **Settings → System Control**: Sta
 Stop / Restart, change ports, and view logs.
 
 📖 Full beginner walkthrough + troubleshooting: [`docs/DESKTOP_SETUP.md`](docs/DESKTOP_SETUP.md)
+
+---
+
+## 🤖 AI providers & models
+
+<div align="center">
+
+![AI providers and models](docs/assets/ai-models.svg)
+
+</div>
+
+| Provider | Vendor | Runs | Highlights |
+|----------|--------|------|------------|
+| **Ollama** ⭐ | local | On your machine | Private, offline, free — the default **local** agent. Vision-capable models supported. |
+| **GPT** | OpenAI | Cloud | General-purpose reasoning + vision. |
+| **Claude** | Anthropic | Cloud | Long-context reasoning; vision. |
+| **Gemini** | Google | Cloud | Multimodal; vision. |
+| **Grok** | xAI | Cloud | Conversational reasoning. |
+| **Blackbox** | Blackbox AI | Cloud | Coding-focused. |
+| **OpenRouter ×3** | OpenRouter | Cloud | Three independent slots (`openrouter_1/2/3`), each with its own key + default model → route to *any* OpenRouter model. |
+
+- **Multi-agent:** send one prompt to up to **3 agents at once** (Parallel), or use **Debate** / **Reasoning** modes — each agent answers in its own card.
+- **Human-in-the-loop:** the AI **proposes**; a human **approves** every write action. The AI never creates, edits, or deletes data on its own.
+- **Honest status & privacy:** a provider is `online` only after a successful **Test Connection** (never faked); API keys stay **server-side**; a per-workspace policy can disable external providers entirely (local-only mode).
 
 ---
 

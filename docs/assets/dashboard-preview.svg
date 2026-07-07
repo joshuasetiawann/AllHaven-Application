@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 740" role="img" aria-label="AllHaven dashboard preview">
+  <defs>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#18E0D6"/><stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+    <style>
+      .t{font-family:'Segoe UI',system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;}
+      .card{fill:#10151C;stroke:#1F2730;stroke-width:1.5;}
+      .lbl{fill:#8B96A7;}.sub{fill:#5C6675;}.txt{fill:#E6EAF1;}
+      .nav{fill:#8B96A7;font-size:15px;}
+    </style>
+  </defs>
+
+  <rect width="1280" height="740" fill="#0A0C10"/>
+
+  <!-- ===== Sidebar ===== -->
+  <rect x="0" y="0" width="250" height="740" fill="#0B0E13"/>
+  <line x1="250" y1="0" x2="250" y2="740" stroke="#1F2730" stroke-width="1.5"/>
+  <!-- logo -->
+  <rect x="24" y="26" width="34" height="34" rx="9" fill="url(#teal)"/>
+  <path d="M41,36 l-7,7 -3,-3" fill="none" stroke="#06201E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="t txt" x="70" y="42" font-size="18" font-weight="700">All<tspan fill="#18E0D6">Haven</tspan></text>
+  <text class="t sub" x="70" y="57" font-size="10" letter-spacing="2">V0.11.0</text>
+  <!-- New Command -->
+  <rect x="20" y="80" width="210" height="40" rx="10" fill="url(#teal)"/>
+  <text class="t" x="125" y="105" font-size="14" font-weight="700" fill="#06201E" text-anchor="middle">＋  New Command</text>
+  <!-- nav (active = Dashboard) -->
+  <rect x="16" y="146" width="218" height="40" rx="10" fill="#141B24"/>
+  <rect x="16" y="152" width="3" height="28" rx="2" fill="#18E0D6"/>
+  <text class="t" x="44" y="171" font-size="15" font-weight="600" fill="#18E0D6">▦  Dashboard</text>
+  <text class="t nav" x="44" y="217">✦  AI Chat</text>
+  <text class="t nav" x="44" y="259">☑  Tasks</text>
+  <text class="t nav" x="44" y="301">▤  Notes</text>
+  <text class="t nav" x="44" y="343">＄  Finance</text>
+  <text class="t sub" x="44" y="385" font-size="11" letter-spacing="2">MODULES</text>
+  <text class="t nav" x="44" y="421">🖩  Calculator</text>
+  <text class="t nav" x="44" y="463">◷  Clock</text>
+  <text class="t nav" x="44" y="505">⛭  Settings</text>
+
+  <!-- ===== Topbar ===== -->
+  <line x1="250" y1="60" x2="1280" y2="60" stroke="#1F2730" stroke-width="1.5"/>
+  <rect x="282" y="16" width="430" height="30" rx="15" fill="#0F151D" stroke="#1F2730"/>
+  <text class="t sub" x="302" y="36" font-size="13">Search tasks, notes, pages…            ⌘K</text>
+  <rect x="980" y="15" width="150" height="32" rx="16" fill="#0E1A18" stroke="#18E0D6" stroke-opacity="0.5"/>
+  <circle cx="998" cy="31" r="4" fill="#34D399"/>
+  <text class="t" x="1010" y="35" font-size="12" fill="#18E0D6">Local AI · Configured</text>
+  <circle cx="1168" cy="31" r="16" fill="#141B24" stroke="#1F2730"/>
+  <text class="t" x="1168" y="36" font-size="13" fill="#C7D0DC" text-anchor="middle">JS</text>
+
+  <!-- ===== Header ===== -->
+  <text class="t txt" x="282" y="108" font-size="26" font-weight="700">Good morning, Joshua</text>
+  <text class="t lbl" x="282" y="132" font-size="14">Your local-first command center is ready. Human approval required for write actions.</text>
+
+  <!-- ===== Stat cards ===== -->
+  <g>
+    <rect class="card" x="282" y="158" width="286" height="104" rx="14"/>
+    <text class="t lbl" x="302" y="190" font-size="12" letter-spacing="1.5">OPEN TASKS</text>
+    <text class="t txt" x="302" y="236" font-size="34" font-weight="700">12</text>
+
+    <rect class="card" x="586" y="158" width="286" height="104" rx="14"/>
+    <text class="t lbl" x="606" y="190" font-size="12" letter-spacing="1.5">NOTES</text>
+    <text class="t txt" x="606" y="236" font-size="34" font-weight="700">34</text>
+
+    <rect class="card" x="890" y="158" width="350" height="104" rx="14"/>
+    <text class="t lbl" x="910" y="190" font-size="12" letter-spacing="1.5">TXNS / MONTH</text>
+    <text class="t txt" x="910" y="236" font-size="34" font-weight="700">128</text>
+  </g>
+
+  <!-- ===== Cashflow panel ===== -->
+  <rect class="card" x="282" y="284" width="586" height="420" rx="16"/>
+  <text class="t txt" x="306" y="324" font-size="17" font-weight="600">Monthly cashflow</text>
+  <text class="t sub" x="306" y="360" font-size="11" letter-spacing="1.5">CURRENT BALANCE</text>
+  <text class="t txt" x="306" y="398" font-size="30" font-weight="700">Rp 4.20<tspan font-size="18" fill="#8B96A7">M</tspan></text>
+  <!-- bars -->
+  <g>
+    <rect x="330" y="520" width="70" height="120" rx="6" fill="#1C2530"/>
+    <rect x="330" y="560" width="70" height="80"  rx="6" fill="url(#teal)" opacity="0.85"/>
+    <rect x="430" y="500" width="70" height="140" rx="6" fill="#1C2530"/>
+    <rect x="430" y="556" width="70" height="84"  rx="6" fill="url(#teal)" opacity="0.85"/>
+    <rect x="530" y="486" width="70" height="154" rx="6" fill="#1C2530"/>
+    <rect x="530" y="540" width="70" height="100" rx="6" fill="url(#teal)" opacity="0.85"/>
+    <rect x="630" y="510" width="70" height="130" rx="6" fill="#1C2530"/>
+    <rect x="630" y="566" width="70" height="74"  rx="6" fill="url(#teal)" opacity="0.85"/>
+    <rect x="730" y="470" width="70" height="170" rx="6" fill="#1C2530"/>
+    <rect x="730" y="528" width="70" height="112" rx="6" fill="url(#teal)" opacity="0.85"/>
+    <g class="t sub" font-size="12" text-anchor="middle">
+      <text x="365" y="664">W1</text><text x="465" y="664">W2</text><text x="565" y="664">W3</text>
+      <text x="665" y="664">W4</text><text x="765" y="664">W5</text>
+    </g>
+  </g>
+
+  <!-- ===== Integration status panel ===== -->
+  <rect class="card" x="890" y="284" width="350" height="420" rx="16"/>
+  <text class="t txt" x="914" y="324" font-size="17" font-weight="600">Integration status</text>
+  <g font-size="14" class="t">
+    <circle cx="922" cy="372" r="5" fill="#34D399"/><text class="txt" x="940" y="377">PostgreSQL</text>
+    <rect x="1120" y="361" width="92" height="22" rx="11" fill="#0E1A18"/><text x="1166" y="377" fill="#34D399" font-size="11" text-anchor="middle">online</text>
+
+    <circle cx="922" cy="416" r="5" fill="#18E0D6"/><text class="txt" x="940" y="421">Ollama Local AI</text>
+    <rect x="1108" y="405" width="104" height="22" rx="11" fill="#0E1A18"/><text x="1160" y="421" fill="#18E0D6" font-size="11" text-anchor="middle">configured</text>
+
+    <circle cx="922" cy="460" r="5" fill="#3A4452"/><text class="lbl" x="940" y="465">n8n Automation</text>
+    <rect x="1092" y="449" width="120" height="22" rx="11" fill="#161C24"/><text x="1152" y="465" fill="#8B96A7" font-size="11" text-anchor="middle">not configured</text>
+
+    <circle cx="922" cy="504" r="5" fill="#3A4452"/><text class="lbl" x="940" y="509">Supabase</text>
+    <rect x="1092" y="493" width="120" height="22" rx="11" fill="#161C24"/><text x="1152" y="509" fill="#8B96A7" font-size="11" text-anchor="middle">not configured</text>
+
+    <circle cx="922" cy="548" r="5" fill="#3A4452"/><text class="lbl" x="940" y="553">Google Calendar</text>
+    <rect x="1092" y="537" width="120" height="22" rx="11" fill="#161C24"/><text x="1152" y="553" fill="#8B96A7" font-size="11" text-anchor="middle">not configured</text>
+
+    <circle cx="922" cy="592" r="5" fill="#3A4452"/><text class="lbl" x="940" y="597">Weather API</text>
+    <rect x="1092" y="581" width="120" height="22" rx="11" fill="#161C24"/><text x="1152" y="597" fill="#8B96A7" font-size="11" text-anchor="middle">not configured</text>
+  </g>
+  <line x1="914" y1="630" x2="1216" y2="630" stroke="#1F2730"/>
+  <text class="t" x="914" y="664" font-size="13" fill="#18E0D6">Manage integrations  ↗</text>
+</svg>
