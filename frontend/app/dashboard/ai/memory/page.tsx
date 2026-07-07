@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Toggle } from "@/components/ui/Toggle";
+import { useToast } from "@/components/ui/Toast";
 import { memoryApi, ApiException } from "@/lib/api";
 import { cn, relativeTime } from "@/lib/format";
 import type { AiMemory, MemorySuggestion, MemorySettings, MemoryCategory, MemorySensitivity } from "@/types";
@@ -67,6 +68,7 @@ const SOURCE_LABELS: Record<string, string> = {
 type Tab = "all" | "auto" | "manual" | "pending";
 
 export default function MemoryPage() {
+  const toast = useToast();
   const [memories, setMemories] = useState<AiMemory[]>([]);
   const [suggestions, setSuggestions] = useState<MemorySuggestion[]>([]);
   const [settings, setSettings] = useState<MemorySettings | null>(null);
@@ -122,8 +124,11 @@ export default function MemoryPage() {
     try {
       const results = await memoryApi.search(searchQ);
       setMemories(results);
+      if (results.length === 0) toast.info("No memories found", "Try a different keyword.");
     } catch (e) {
-      setError(e instanceof ApiException ? e.message : "Search failed.");
+      const message = e instanceof ApiException ? e.message : "Search failed.";
+      setError(message);
+      toast.danger("Search failed", message);
     }
   };
 
@@ -134,8 +139,11 @@ export default function MemoryPage() {
         ? await memoryApi.disable(m.id)
         : await memoryApi.enable(m.id);
       setMemories((prev) => prev.map((x) => (x.id === m.id ? updated : x)));
+      toast.success(m.enabled ? "Memory disabled" : "Memory enabled", m.title);
     } catch (e) {
-      setError(e instanceof ApiException ? e.message : "Failed to update memory.");
+      const message = e instanceof ApiException ? e.message : "Failed to update memory.";
+      setError(message);
+      toast.danger("Update failed", message);
     }
   };
 
@@ -145,8 +153,11 @@ export default function MemoryPage() {
     try {
       await memoryApi.remove(id);
       setMemories((prev) => prev.filter((m) => m.id !== id));
+      toast.success("Memory deleted");
     } catch (e) {
-      setError(e instanceof ApiException ? e.message : "Failed to delete memory.");
+      const message = e instanceof ApiException ? e.message : "Failed to delete memory.";
+      setError(message);
+      toast.danger("Delete failed", message);
     }
   };
 
@@ -160,8 +171,11 @@ export default function MemoryPage() {
       });
       setMemories((prev) => prev.map((m) => (m.id === id ? updated : m)));
       setEditingId(null);
+      toast.success("Memory updated", updated.title);
     } catch (e) {
-      setError(e instanceof ApiException ? e.message : "Failed to save edit.");
+      const message = e instanceof ApiException ? e.message : "Failed to save edit.";
+      setError(message);
+      toast.danger("Save failed", message);
     }
   };
 
@@ -171,8 +185,11 @@ export default function MemoryPage() {
       const m = await memoryApi.approveSuggestion(id);
       setSuggestions((prev) => prev.filter((s) => s.id !== id));
       setMemories((prev) => [m, ...prev]);
+      toast.success("Memory saved", m.title);
     } catch (e) {
-      setError(e instanceof ApiException ? e.message : "Failed to approve suggestion.");
+      const message = e instanceof ApiException ? e.message : "Failed to approve suggestion.";
+      setError(message);
+      toast.danger("Approval failed", message);
     }
   };
 
@@ -181,14 +198,18 @@ export default function MemoryPage() {
     try {
       await memoryApi.rejectSuggestion(id);
       setSuggestions((prev) => prev.filter((s) => s.id !== id));
+      toast.info("Suggestion dismissed");
     } catch (e) {
-      setError(e instanceof ApiException ? e.message : "Failed to reject suggestion.");
+      const message = e instanceof ApiException ? e.message : "Failed to reject suggestion.";
+      setError(message);
+      toast.danger("Dismiss failed", message);
     }
   };
 
   const handleAddMemory = async () => {
     if (!newMemory.title.trim() || !newMemory.content.trim()) {
       setError("Title and content are required.");
+      toast.warning("Missing memory details", "Title and content are required.");
       return;
     }
     setError(null);
@@ -197,8 +218,11 @@ export default function MemoryPage() {
       setMemories((prev) => [m, ...prev]);
       setNewMemory({ category: "Profile", sensitivity: "LOW", title: "", content: "" });
       setShowAddForm(false);
+      toast.success("Memory added", m.title);
     } catch (e) {
-      setError(e instanceof ApiException ? e.message : "Failed to add memory.");
+      const message = e instanceof ApiException ? e.message : "Failed to add memory.";
+      setError(message);
+      toast.danger("Add failed", message);
     }
   };
 
@@ -211,9 +235,12 @@ export default function MemoryPage() {
     try {
       const saved = await memoryApi.updateSettings(patch);
       setSettings(saved);
+      toast.success("Memory settings saved");
     } catch (e) {
       setSettings(prev); // rollback
-      setError(e instanceof ApiException ? e.message : "Failed to update settings.");
+      const message = e instanceof ApiException ? e.message : "Failed to update settings.";
+      setError(message);
+      toast.danger("Settings failed", message);
     }
   };
 
@@ -223,8 +250,11 @@ export default function MemoryPage() {
     try {
       await memoryApi.clearAll();
       setMemories([]);
+      toast.success("All memories cleared");
     } catch (e) {
-      setError(e instanceof ApiException ? e.message : "Failed to clear memories.");
+      const message = e instanceof ApiException ? e.message : "Failed to clear memories.";
+      setError(message);
+      toast.danger("Clear failed", message);
     }
   };
 
@@ -250,9 +280,9 @@ export default function MemoryPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-4xl space-y-6">
+      <div className="mx-auto w-full max-w-4xl space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Link
             href="/dashboard/ai"
             aria-label="Back to AI chat"
@@ -263,24 +293,25 @@ export default function MemoryPage() {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Brain size={18} />
           </span>
-          <div>
+          <div className="min-w-0 flex-1">
             <h1 className="text-lg font-semibold text-content">AI Memory</h1>
             <p className="text-[12px] text-content-muted">
               {memories.length} memories · {suggestions.length} pending
             </p>
           </div>
-          <div className="ml-auto flex gap-2">
+          <div className="flex w-full gap-2 sm:ml-auto sm:w-auto">
             <Button
               size="sm"
               variant="secondary"
               onClick={() => setShowAddForm((v) => !v)}
+              className="w-full sm:w-auto"
             >
               <Plus size={14} className="mr-1" /> Add Memory
             </Button>
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <div className="rounded-lg border border-border bg-surface/45 px-3 py-2.5">
             <p className="label-mono">Active</p>
             <p className="mt-1 text-xl font-semibold text-content">{memories.length}</p>
@@ -301,7 +332,7 @@ export default function MemoryPage() {
 
         {/* Settings Bar */}
         {settings && (
-          <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border bg-surface/50 px-4 py-3">
+          <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface/50 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
             <span className="text-[12px] font-medium text-content-muted">
               Settings
             </span>
@@ -327,7 +358,7 @@ export default function MemoryPage() {
             </div>
             <button
               onClick={() => void handleClearAll()}
-              className="ml-auto text-[11.5px] text-danger hover:underline"
+              className="text-left text-[11.5px] text-danger hover:underline sm:ml-auto"
             >
               Clear all memories
             </button>
@@ -387,14 +418,15 @@ export default function MemoryPage() {
               rows={3}
               className="w-full rounded-md border border-border bg-surface-input px-3 py-2 text-[12px] text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none"
             />
-            <div className="flex gap-2">
-              <Button size="sm" onClick={() => void handleAddMemory()}>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button size="sm" onClick={() => void handleAddMemory()} className="w-full sm:w-auto">
                 Save
               </Button>
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={() => setShowAddForm(false)}
+                className="w-full sm:w-auto"
               >
                 Cancel
               </Button>
@@ -413,7 +445,7 @@ export default function MemoryPage() {
             {suggestions.map((s) => (
               <div
                 key={s.id}
-                className="flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/5 p-3"
+                className="flex flex-col gap-3 rounded-xl border border-warning/20 bg-warning/5 p-3 sm:flex-row sm:items-start"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -444,7 +476,7 @@ export default function MemoryPage() {
                     </p>
                   )}
                 </div>
-                <div className="flex shrink-0 gap-1.5">
+                <div className="flex shrink-0 flex-wrap gap-1.5 sm:justify-end">
                   <button
                     onClick={() => void handleApproveSuggestion(s.id)}
                     className="flex items-center gap-1 rounded-md border border-success/30 bg-success/10 px-2 py-1 text-[11px] text-success hover:bg-success/20"
@@ -464,14 +496,14 @@ export default function MemoryPage() {
         )}
 
         {/* Tab + Filter bar */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border border-border bg-surface-input p-0.5 text-[12px]">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="custom-scrollbar flex overflow-x-auto rounded-lg border border-border bg-surface-input p-0.5 text-[12px] sm:inline-flex">
             {(["all", "auto", "manual", "pending"] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
                 className={cn(
-                  "rounded-md px-3 py-1 capitalize transition-colors",
+                  "shrink-0 rounded-md px-3 py-1 capitalize transition-colors",
                   tab === t
                     ? "bg-surface-high text-content"
                     : "text-content-muted hover:text-content",
@@ -490,7 +522,7 @@ export default function MemoryPage() {
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="rounded-md border border-border bg-surface-input px-2 py-1 text-[12px] text-content-muted"
+            className="h-8 w-full rounded-md border border-border bg-surface-input px-2 py-1 text-[12px] text-content-muted sm:w-auto"
           >
             <option value="all">All categories</option>
             {CATEGORIES.map((c) => (
@@ -552,7 +584,7 @@ export default function MemoryPage() {
                     : "border-border/50 bg-surface/20 opacity-60",
                 )}
               >
-                <div className="flex items-start gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span
@@ -563,7 +595,7 @@ export default function MemoryPage() {
                       >
                         {m.category}
                       </span>
-                      <span className="text-[12.5px] font-medium text-content">
+                      <span className="min-w-0 break-words text-[12.5px] font-medium text-content">
                         {m.title}
                       </span>
                       <Badge tone="neutral" className="text-[10px]">
@@ -601,10 +633,11 @@ export default function MemoryPage() {
                           rows={3}
                           className="w-full rounded-md border border-border bg-surface-input px-2.5 py-1.5 text-[12px] text-content focus:border-primary/70 focus:outline-none"
                         />
-                        <div className="flex gap-1.5">
+                        <div className="flex flex-col gap-1.5 sm:flex-row">
                           <Button
                             size="sm"
                             onClick={() => void handleSaveEdit(m.id)}
+                            className="w-full sm:w-auto"
                           >
                             Save
                           </Button>
@@ -612,6 +645,7 @@ export default function MemoryPage() {
                             size="sm"
                             variant="secondary"
                             onClick={() => setEditingId(null)}
+                            className="w-full sm:w-auto"
                           >
                             Cancel
                           </Button>
@@ -634,7 +668,7 @@ export default function MemoryPage() {
                       </>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 items-center justify-end gap-2">
                     <button
                       onClick={() => startEdit(m)}
                       aria-label="Edit memory"

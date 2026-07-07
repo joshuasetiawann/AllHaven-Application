@@ -18,7 +18,7 @@ export function Tabs({
   className?: string;
 }) {
   return (
-    <div className={cn("inline-flex rounded-lg border border-border bg-surface-input p-1", className)}>
+    <div className={cn("custom-scrollbar flex max-w-full overflow-x-auto rounded-lg border border-border bg-surface-input p-1", className)}>
       {items.map((item) => {
         const active = item.value === value;
         return (
@@ -26,7 +26,7 @@ export function Tabs({
             key={item.value}
             onClick={() => onChange(item.value)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors focus-ring",
+              "inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors focus-ring",
               active ? "bg-surface-high text-primary" : "text-content-muted hover:text-content",
             )}
           >

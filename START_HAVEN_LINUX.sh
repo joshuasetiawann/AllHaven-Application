@@ -6,7 +6,7 @@
 #                It opens the setup wizard in your browser.
 #   After setup: the same click starts Haven and opens the app.
 #
-# Only Python 3 is required to run the wizard (everything else is guided).
+# Python 3 and Node.js 18+ are required; the terminal installer checks both.
 # =============================================================================
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
