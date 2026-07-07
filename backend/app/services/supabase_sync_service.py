@@ -76,7 +76,8 @@ def is_enabled(db: Session, principal: Principal) -> bool:
 def sync_all(db: Session, principal: Principal) -> dict:
     """Trigger a one-way background sync (local → Supabase) and return immediately.
 
-    Returns ``{"status": "not_configured", ...}`` when credentials are missing.
+    Returns ``{"status": "not_configured", ...}`` when credentials are missing or
+    the URL scheme is not http:// or https://.
     Returns ``{"status": "syncing", ...}`` when a daemon thread has been started.
     Never raises.
     """
@@ -87,6 +88,12 @@ def sync_all(db: Session, principal: Principal) -> dict:
         return {
             "status": "not_configured",
             "message": "Configure Supabase URL and anon key in Settings → Integrations.",
+        }
+
+    if not url.startswith(("http://", "https://")):
+        return {
+            "status": "not_configured",
+            "message": "Supabase URL must start with http:// or https://.",
         }
 
     workspace_id = str(principal.workspace_id)
@@ -142,14 +149,17 @@ def _do_sync(db: Session, url: str, key: str, workspace_id: str) -> None:
             pass
 
     def _serialize(row) -> dict:
+        import sqlalchemy
+
         result = {}
-        for col in row.__table__.columns:
-            val = getattr(row, col.key, None)
+        for attr in sqlalchemy.inspect(row).mapper.column_attrs:
+            col_name = attr.columns[0].name  # actual DB column name (e.g. "metadata")
+            val = getattr(row, attr.key)      # Python attribute name (e.g. "meta")
             if hasattr(val, "isoformat"):
                 val = val.isoformat()
             elif not isinstance(val, (str, int, float, bool, type(None), dict, list)):
                 val = str(val)
-            result[col.key] = val
+            result[col_name] = val
         return result
 
     from sqlalchemy import select
