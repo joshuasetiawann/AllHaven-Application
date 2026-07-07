@@ -98,7 +98,7 @@ export default function DashboardOverview() {
           {greeting()}, {user?.full_name?.split(" ")[0] || "Operator"}
         </h1>
         <p className="mt-1 text-[13.5px] text-content-muted">
-          Your local-first command center is ready. Human approval required for write actions.
+          Your local-first command center is ready. Memory learns fast; risky actions still need approval.
         </p>
       </div>
 
@@ -142,7 +142,7 @@ export default function DashboardOverview() {
               <div className="mt-5">
                 <BarChart data={weeklyBars} />
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border pt-3 text-[13px]">
+              <div className="mt-4 flex flex-col gap-2 border-t border-border pt-3 text-[13px] sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6">
                 <span className="text-content-muted">
                   Income{" "}
                   <span className="font-medium text-success">
@@ -155,7 +155,7 @@ export default function DashboardOverview() {
                     {formatCurrency(data.summary.total_expense, data.summary.currency)}
                   </span>
                 </span>
-                <span className="ml-auto text-[12px] text-content-subtle">
+                <span className="text-[12px] text-content-subtle sm:ml-auto">
                   AllHaven tracks cashflow. It does not provide financial advice.
                 </span>
               </div>
@@ -167,10 +167,10 @@ export default function DashboardOverview() {
                   <ShieldCheck size={20} />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-content">Human-in-the-loop AI</p>
+                  <p className="text-sm font-semibold text-content">Human-in-the-loop where it matters</p>
                   <p className="mt-1 text-[13px] leading-relaxed text-content-muted">
-                    AI suggestions require approval. The assistant can propose actions but never
-                    creates, updates, or deletes data on its own.
+                    Reads and low-risk memory updates can run quickly. Risky writes stay pending
+                    until you approve, edit, or reject them.
                   </p>
                   <Link
                     href="/dashboard/ai"
@@ -230,10 +230,10 @@ export default function DashboardOverview() {
               <CardHeader title="Integration status" icon={<Bot size={18} />} />
               <ul className="space-y-3">
                 {data.integrations.map((integration) => (
-                  <li key={integration.key} className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2.5 text-[13px] text-content">
+                  <li key={integration.key} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-2.5 text-[13px] text-content">
                       <StatusDot status={integration.status} pulse />
-                      {integration.name}
+                      <span className="truncate">{integration.name}</span>
                     </span>
                     <ConfigStatusBadge status={integration.status} />
                   </li>

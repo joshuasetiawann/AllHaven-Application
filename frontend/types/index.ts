@@ -210,6 +210,11 @@ export interface KnowledgeDocument {
   chunk_count: number;
   last_indexed_at: string | null;
   error_message: string | null;
+  meta?: {
+    indexable?: boolean;
+    metadata_only?: boolean;
+    upload_limit_mb?: number;
+  } | null;
   created_at: string;
   updated_at: string;
 }
