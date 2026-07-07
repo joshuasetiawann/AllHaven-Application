@@ -18,7 +18,7 @@ import { BEARER_MODE } from "@/lib/mobileAuth";
 
 const OVERRIDE_KEY = "allhaven.backend_base_url";
 
-export type BackendUrlSource = "override" | "env" | "derived" | "fallback";
+export type BackendUrlSource = "override" | "env" | "derived" | "fallback" | "not_configured";
 
 /**
  * Normalise whatever the user typed into a usable API root:
@@ -76,10 +76,16 @@ export function clearBackendOverride(): void {
 
 function fromEnv(): string {
   const v = process.env.NEXT_PUBLIC_API_BASE_URL;
-  return v && v.trim() ? v.trim() : "";
+  if (!v || !v.trim()) return "";
+  if (BEARER_MODE && isMobileLocalBackend(v)) return "";
+  return v.trim();
 }
 
 function derived(): string {
+  // Mobile is served from a local WebView asset server. Deriving from that
+  // origin would point backend calls at the phone, not the desktop. Mobile must
+  // use a saved/built Tailscale bridge URL for REST-only features.
+  if (BEARER_MODE) return "";
   if (typeof window !== "undefined" && window.location?.hostname) {
     const { protocol, hostname, port } = window.location;
     // Dev: the Next server on :3000 talks to the backend on :8000 of the SAME
@@ -92,6 +98,15 @@ function derived(): string {
     return `${protocol}//${hostname}${port ? `:${port}` : ""}/api/v1`;
   }
   return "";
+}
+
+function isMobileLocalBackend(url: string): boolean {
+  try {
+    const host = new URL(normalizeBackendUrl(url)).hostname.toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host === "::1" || host === "[::1]";
+  } catch {
+    return false;
+  }
 }
 
 // In COOKIE (web/desktop) mode the HttpOnly session cookie is SameSite=Lax, so the
@@ -120,7 +135,9 @@ export function getApiBaseUrl(): string {
   if (sameSiteUsable(override)) return override;
   const env = fromEnv();
   if (sameSiteUsable(env)) return env;
-  return derived() || "http://localhost:8000/api/v1";
+  const sameOrigin = derived();
+  if (sameOrigin) return sameOrigin;
+  return BEARER_MODE ? "" : "http://localhost:8000/api/v1";
 }
 
 /** Which source is currently in effect — for honest status display in Settings. */
@@ -130,5 +147,6 @@ export function getApiBaseUrlSource(): BackendUrlSource {
   if (sameSiteUsable(getBackendOverride())) return "override";
   if (sameSiteUsable(fromEnv())) return "env";
   if (derived()) return "derived";
+  if (BEARER_MODE) return "not_configured";
   return "fallback";
 }

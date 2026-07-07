@@ -25,10 +25,12 @@ export function isBackendUnreachable(err: unknown): boolean {
 
 /** Best-effort: is the REST backend reachable right now? (public /health, short timeout) */
 export async function pingBackend(timeoutMs = 4000): Promise<boolean> {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) return false;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(`${getApiBaseUrl()}/health`, { signal: ctrl.signal });
+    const res = await fetch(`${baseUrl}/health`, { signal: ctrl.signal });
     return res.ok;
   } catch {
     return false;
