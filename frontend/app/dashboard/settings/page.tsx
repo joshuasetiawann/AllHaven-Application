@@ -73,6 +73,9 @@ const AI_ICONS: Record<string, LucideIcon> = {
   gemini: Sparkles,
   grok: Zap,
   blackbox: Box,
+  cursor: Bot,
+  deepseek: Boxes,
+  qwen: Sparkles,
   openrouter_1: Network,
   openrouter_2: Network,
   openrouter_3: Network,
@@ -194,6 +197,16 @@ export default function SettingsPage() {
     savePrefs(next);
   };
 
+  const configuredAi = providers?.filter((p) => p.configured).length ?? 0;
+  const onlineAi = providers?.filter((p) => p.status === "online").length ?? 0;
+  const enabledAi = providers?.filter((p) => p.enabled).length ?? 0;
+  const selectableSlots = providers?.reduce(
+    (count, provider) => count + (provider.model_slots ?? []).filter((slot) => slot.configured && slot.enabled).length,
+    0,
+  ) ?? 0;
+  const directAiProviders = providers?.filter((p) => !p.id.startsWith("openrouter_")) ?? [];
+  const openRouterProviders = providers?.filter((p) => p.id.startsWith("openrouter_")) ?? [];
+
   return (
     <AppShell>
       <PageHeader
@@ -264,8 +277,27 @@ export default function SettingsPage() {
 
           {tab === "ai" ? (
             <>
-              <Card className="mb-4 border-primary/20">
-                <div className="grid gap-4 lg:grid-cols-2">
+              <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <Card className="py-3">
+                  <p className="label-mono">Configured</p>
+                  <p className="mt-1 text-2xl font-semibold text-content">{configuredAi}/{providers.length}</p>
+                </Card>
+                <Card className="py-3">
+                  <p className="label-mono">Online</p>
+                  <p className="mt-1 text-2xl font-semibold text-success">{onlineAi}</p>
+                </Card>
+                <Card className="py-3">
+                  <p className="label-mono">Enabled</p>
+                  <p className="mt-1 text-2xl font-semibold text-primary">{enabledAi}</p>
+                </Card>
+                <Card className="py-3">
+                  <p className="label-mono">Selectable slots</p>
+                  <p className="mt-1 text-2xl font-semibold text-content">{selectableSlots}</p>
+                </Card>
+              </div>
+
+              <Card className="mb-5 border-primary/20">
+                <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
@@ -274,8 +306,8 @@ export default function SettingsPage() {
                       <div>
                         <p className="text-sm font-semibold text-content">Allow external AI providers</p>
                         <p className="mt-0.5 text-[13px] text-content-muted">
-                          Enable to chat with GPT, Claude, Gemini, Grok, Blackbox, OpenRouter. Off =
-                          local-only (Ollama).
+                          Enable GPT, Claude, Gemini, Cursor, DeepSeek, Qwen, Grok, Blackbox, and OpenRouter.
+                          Off keeps chat local-only through Ollama.
                         </p>
                       </div>
                     </div>
@@ -305,19 +337,56 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </Card>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {providers.map((provider) => (
-                  <AiProviderCard
-                    key={provider.id}
-                    provider={provider}
-                    icon={(() => {
-                      const Icon = AI_ICONS[provider.id] ?? Bot;
-                      return <Icon size={18} />;
-                    })()}
-                    onChange={updateProvider}
-                  />
-                ))}
-              </div>
+
+              <section className="mb-6">
+                <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-content">Direct model agents</p>
+                    <p className="text-[13px] text-content-muted">
+                      GPT 1/2, Gemini 1/2, Cursor 1/2, DeepSeek, Qwen, and local Ollama are grouped here for faster setup.
+                    </p>
+                  </div>
+                  <Badge tone="primary">{directAiProviders.length} providers</Badge>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+                  {directAiProviders.map((provider) => (
+                    <AiProviderCard
+                      key={provider.id}
+                      provider={provider}
+                      icon={(() => {
+                        const Icon = AI_ICONS[provider.id] ?? Bot;
+                        return <Icon size={18} />;
+                      })()}
+                      onChange={updateProvider}
+                    />
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-content">OpenRouter model agents</p>
+                    <p className="text-[13px] text-content-muted">
+                      Six independent OpenRouter agents, each with its own key and default model.
+                    </p>
+                  </div>
+                  <Badge tone="neutral">{openRouterProviders.length} agents</Badge>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+                  {openRouterProviders.map((provider) => (
+                    <AiProviderCard
+                      key={provider.id}
+                      provider={provider}
+                      icon={(() => {
+                        const Icon = AI_ICONS[provider.id] ?? Bot;
+                        return <Icon size={18} />;
+                      })()}
+                      onChange={updateProvider}
+                    />
+                  ))}
+                </div>
+              </section>
             </>
           ) : null}
 

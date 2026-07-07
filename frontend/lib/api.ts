@@ -241,7 +241,7 @@ export const aiApi = {
       method: "POST",
       body: json({ message, session_id: sessionId || null, provider_id: providerId || null, section_key: sectionKey, thinking_mode: thinkingMode, response_language: responseLanguage || null }),
     }),
-  // Fan a message out to up to 3 agents concurrently. `images` are data URLs;
+  // Fan a message out to up to 10 agents concurrently. `images` are data URLs;
   // `thinkingMode` controls reasoning depth + sampling.
   multiChat: (message: string, providerIds: string[], sessionId?: string, images?: string[], thinkingMode = "balance", sectionKey = "general", responseLanguage?: string) =>
     request<MultiChatResponse>("/ai/chat/multi", {

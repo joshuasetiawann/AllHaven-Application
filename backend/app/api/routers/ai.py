@@ -312,7 +312,7 @@ def chat_multi(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Fan one message out to up to 3 agents concurrently and persist the run."""
+    """Fan one message out to up to 10 agents concurrently and persist the run."""
     result = ai_multi_service.multi_chat(
         db,
         principal,
@@ -333,7 +333,7 @@ def chat_debate(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Run a multi-agent debate (2–3 agents argue across rounds, then synthesize)."""
+    """Run a multi-agent debate (up to 10 agents argue across rounds, then synthesize)."""
     result = ai_debate_service.debate_chat(
         db,
         principal,
