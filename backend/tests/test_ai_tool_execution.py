@@ -118,8 +118,9 @@ def test_invalid_category_uuid_keeps_proposal_pending(auth_client, db_session):
 def test_approve_is_idempotent_no_duplicate_transaction(auth_client, db_session):
     pid = _propose_transaction(auth_client, db_session)
     assert auth_client.post(f"{API}/ai/proposals/{pid}/approve").status_code == 200
-    # A retry on an already-executed proposal is rejected, not re-run.
-    assert auth_client.post(f"{API}/ai/proposals/{pid}/approve").status_code == 422
+    # A retry on an already-executed proposal is blocked with 409 (already executed),
+    # never re-run — so no duplicate transaction across devices.
+    assert auth_client.post(f"{API}/ai/proposals/{pid}/approve").status_code == 409
     rows = [t for t in _transactions(auth_client) if t["amount"] == 100000]
     assert len(rows) == 1
 

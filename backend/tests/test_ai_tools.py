@@ -164,8 +164,8 @@ def test_approve_executes_the_action(auth_client, db_session):
     assert any(t["title"] == "Ship v0.12" for t in tasks)
     pending = auth_client.get(f"{API}/ai/proposals").json()["data"]
     assert all(p["id"] != outcome["proposal_id"] for p in pending)
-    # Double-approve is rejected honestly.
-    assert auth_client.post(f"{API}/ai/proposals/{outcome['proposal_id']}/approve").status_code == 422
+    # Double-approve is blocked with 409 (already executed on another device).
+    assert auth_client.post(f"{API}/ai/proposals/{outcome['proposal_id']}/approve").status_code == 409
 
 
 def test_reject_does_nothing(auth_client, db_session):
