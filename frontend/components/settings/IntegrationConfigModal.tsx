@@ -48,6 +48,7 @@ export function IntegrationConfigModal({
           Object.entries(secretValues).filter(([, v]) => v !== ""),
         );
         updated = await settingsApi.saveIntegration(integration.id ?? integration.key, publicValues, secrets);
+        setSecretValues({}); // never keep secrets in component state after save
       } else if (kind === "test") {
         updated = await settingsApi.testIntegration(integration.id ?? integration.key);
       } else {
@@ -128,7 +129,7 @@ export function IntegrationConfigModal({
       <p className="mt-4 flex items-start gap-1.5 text-[11.5px] leading-relaxed text-content-subtle">
         <Lock size={13} className="mt-0.5 shrink-0" />
         Secrets are sent to the backend and encrypted at rest (local MVP scheme). They are never
-        stored in your browser and never shown again — only a masked preview.
+        stored in your browser and never shown again — only a masked preview. <strong className="font-medium text-content-muted">Online status requires a successful Test Connection</strong> — saving alone marks it Configured.
       </p>
     </Modal>
   );
