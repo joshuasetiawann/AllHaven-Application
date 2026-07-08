@@ -182,6 +182,11 @@ export interface CalendarEvent {
   start_at: string;
   end_at: string | null;
   all_day: boolean;
+  time_period: "morning" | "afternoon" | "evening" | null;
+  repeat_rule: "once" | "daily" | "weekly" | "monthly";
+  repeat_days: string[] | null;
+  icon: string | null;
+  color: string | null;
   created_at: string;
   updated_at: string;
 }
