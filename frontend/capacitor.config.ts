@@ -25,6 +25,14 @@ const config: CapacitorConfig = {
     // bridge URLs. The app never embeds service-role secrets in the client.
     cleartext: true,
   },
+  plugins: {
+    // On Android, route HTTP through Capacitor's native stack. This avoids
+    // WebView-only failures where Chrome can open the LAN/Tailscale backend but
+    // fetch() inside the APK is blocked by mixed-content/CORS quirks.
+    CapacitorHttp: {
+      enabled: true,
+    },
+  },
 };
 
 export default config;
