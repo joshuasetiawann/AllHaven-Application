@@ -170,7 +170,7 @@ export function ConnectionModeSwitcher() {
         >
           <div className="flex items-center justify-between gap-3 px-2 py-1.5">
             <div className="min-w-0">
-              <p className="text-[13px] font-semibold text-content">Backend connection</p>
+              <p className="text-[13px] font-semibold text-content">Desktop Bridge</p>
               <p className="truncate text-[11.5px] text-content-subtle" title={activeUrl}>
                 {activeUrl || "Not set"}
               </p>
@@ -283,8 +283,8 @@ export function ConnectionModeSwitcher() {
             <Download size={15} className="shrink-0" /> Download Tailscale
           </a>
           <p className="mx-1 mt-2 px-1 text-[11px] leading-relaxed text-content-subtle">
-            Private &amp; Tunnel reach your desktop backend through Tailscale. On desktop web a
-            cross-site URL is ignored (login-loop guard); the phone honours it.
+            Private &amp; Tunnel reach desktop-only services through Tailscale. Core mobile data
+            and cloud AI work without this bridge.
           </p>
         </div>,
         document.body,

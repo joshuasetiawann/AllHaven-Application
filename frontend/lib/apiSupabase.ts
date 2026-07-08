@@ -1190,21 +1190,21 @@ const DIRECT_PROVIDER_DEFS: DirectProviderDefinition[] = [
     keyPlaceholder: "sk-...",
     capabilities: { text: true, image: true, tools: false },
   },
-  {
-    id: "openrouter",
-    name: "OpenRouter Agent",
-    purpose: "OpenRouter-compatible cloud models directly from this APK.",
+  ...Array.from({ length: 6 }, (_, idx) => ({
+    id: `openrouter_${idx + 1}`,
+    name: `OpenRouter ${idx + 1}`,
+    purpose: "Independent OpenRouter agent directly from this APK.",
     provider_type: "openrouter",
     external: true,
     api_key_required: true,
-    kind: "openai_compatible",
+    kind: "openai_compatible" as const,
     defaultBaseUrl: "https://openrouter.ai/api/v1",
     defaultModel: "openai/gpt-4o-mini",
     modelPlaceholder: "openai/gpt-4o-mini",
     keyLabel: "OpenRouter API key",
     keyPlaceholder: "sk-or-...",
     capabilities: { text: true, image: true, tools: false },
-  },
+  })),
   {
     id: "anthropic",
     name: "Claude Agent",
@@ -1422,7 +1422,14 @@ function detailForProvider(def: DirectProviderDefinition, state: StoredProviderS
 
 async function buildProvider(def: DirectProviderDefinition): Promise<AiProvider> {
   const state = await loadProviderState(def.id);
+  const policy = await mobileGetPolicy().catch(() => ({
+    allow_external: true,
+    default_provider: "openai",
+    default_privacy_mode: "external_allowed",
+    env_default: false,
+  } as AiPolicy));
   const configured = providerConfigured(def, state);
+  const disabledByPolicy = configured && def.external && policy.allow_external === false;
   const keyConfigured = Boolean((state.api_key || "").trim());
   return {
     id: def.id,
@@ -1434,10 +1441,12 @@ async function buildProvider(def: DirectProviderDefinition): Promise<AiProvider>
     api_key_required: def.api_key_required,
     capabilities: def.capabilities,
     model_slots: buildSlots(def, state),
-    enabled: state.enabled ?? configured,
-    status: statusForProvider(def, state),
+    enabled: disabledByPolicy ? false : (state.enabled ?? configured),
+    status: disabledByPolicy ? "disabled" : statusForProvider(def, state),
     configured,
-    detail: detailForProvider(def, state),
+    detail: disabledByPolicy
+      ? "External AI is disabled by mobile privacy settings."
+      : detailForProvider(def, state),
     default_model: state.default_model || def.defaultModel,
     privacy_mode: state.privacy_mode || (def.external ? "external_allowed" : "local_private"),
     fields: [
@@ -1579,7 +1588,7 @@ async function mobileTestProvider(id: string): Promise<AiProvider> {
         method: "GET",
         headers: {
           Authorization: `Bearer ${key}`,
-          ...(def.id === "openrouter" ? { "HTTP-Referer": "https://allhaven.local", "X-Title": "AllHaven Mobile" } : {}),
+          ...(def.provider_type === "openrouter" ? { "HTTP-Referer": "https://allhaven.local", "X-Title": "AllHaven Mobile" } : {}),
         },
       }, 12_000);
     }
@@ -1967,7 +1976,7 @@ async function callDirectProvider(params: {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${key}`,
-      ...(def.id === "openrouter" ? { "HTTP-Referer": "https://allhaven.local", "X-Title": "AllHaven Mobile" } : {}),
+      ...(def.provider_type === "openrouter" ? { "HTTP-Referer": "https://allhaven.local", "X-Title": "AllHaven Mobile" } : {}),
     },
     body: JSON.stringify({
       model,

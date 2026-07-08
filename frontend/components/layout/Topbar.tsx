@@ -27,9 +27,8 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
 
   useEffect(() => {
     let active = true;
-    // The "Local AI" provider pill is desktop-only (hidden < lg), and on mobile
-    // listProviders() is a doomed REST call to the desktop backend — skip it there so it
-    // doesn't add a slow background request to every page. Approvals below use Supabase.
+    // The "Local AI" provider pill is desktop-only (hidden < lg). On mobile, skip
+    // this decorative background check; AI/provider settings themselves load directly.
     if (!BEARER_MODE) {
       aiApi
         .listProviders()

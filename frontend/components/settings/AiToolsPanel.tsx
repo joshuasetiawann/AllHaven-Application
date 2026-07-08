@@ -8,9 +8,8 @@ import { Toggle } from "@/components/ui/Toggle";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { NotConnectedNotice } from "@/components/settings/NotConnectedNotice";
 import { aiApi, ApiException } from "@/lib/api";
-import { backendReachable, needsBackendConnection } from "@/lib/connection";
+import { needsBackendConnection } from "@/lib/connection";
 import { BACKEND_CHANGED_EVENT } from "@/lib/connectionMode";
-import { BEARER_MODE } from "@/lib/mobileAuth";
 import type { AiTool } from "@/types";
 
 // Known module display order; anything new from the backend registry is appended after.
@@ -40,14 +39,6 @@ export function AiToolsPanel() {
     setLoadError(null);
     setNeedsBackend(false);
     setBackendIssue("unreachable");
-    // Mobile (bearer build): if the desktop backend isn't reachable right now, show the
-    // connect-state in ~2-3s (one shared, cached ping) instead of firing a doomed request
-    // that spins for the full timeout. Desktop/web (local backend up) passes through.
-    if (BEARER_MODE && !(await backendReachable())) {
-      setBackendIssue("unreachable");
-      setNeedsBackend(true);
-      return;
-    }
     try {
       setTools(await aiApi.listTools());
     } catch (err) {
@@ -97,7 +88,7 @@ export function AiToolsPanel() {
     <div className="space-y-4">
       {/* Stay OPEN with or without the backend — show the registry + a slim notice. */}
       {needsBackend ? (
-        <NotConnectedNotice kind={backendIssue} what="The AI tool registry loads from your backend." onRetry={load} />
+        <NotConnectedNotice kind={backendIssue} what="Backend-only AI tools load from your Desktop Bridge." onRetry={load} />
       ) : null}
 
       <Card padding="md" className="border-primary/15">
@@ -122,7 +113,7 @@ export function AiToolsPanel() {
           title={needsBackend ? "Tools load when you connect" : "No AI tools registered"}
           description={
             needsBackend
-              ? "Connect your backend from the Connection control in the top bar to load and toggle the tool registry."
+              ? "Connect the Desktop Bridge from the server icon in the top bar to load backend-only tools."
               : "The backend Tool Registry has not published any tools yet."
           }
           icon={<Wrench size={20} />}
