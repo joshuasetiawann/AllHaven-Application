@@ -262,10 +262,13 @@ def chat(
     db.refresh(assistant_message)
 
     # Trigger hybrid memory extraction (rule-based inline, LLM in background).
-    memory_extraction_service.schedule_extraction(
-        db, principal, message, result["content"], session.id
-    )
-    db.commit()  # commit any memories created synchronously
+    try:
+        memory_extraction_service.schedule_extraction(
+            db, principal, message, result["content"], session.id
+        )
+        db.commit()  # commit any memories created synchronously
+    except Exception:  # noqa: BLE001
+        db.rollback()
 
     return {
         "session_id": session.id,
