@@ -174,35 +174,36 @@ export default function SettingsPage() {
     // of an inline spinner.
     if (BEARER_MODE) setLoaded(true);
     try {
-      // me() works on mobile (Supabase-direct), so it always runs. The other three are
-      // REST/backend-only: on mobile, gate them behind ONE fast reachability ping so an
-      // unreachable desktop backend degrades the page in ~2-3s instead of three doomed
-      // requests stacking up (that was the "settings loading forever" on the phone).
+      // me() works on mobile (Supabase-direct), so it always runs. In the APK,
+      // aiApi is mobile-direct (device-local provider keys + Supabase chat rows), so
+      // it must NOT be gated by Desktop Bridge reachability. Only integration cards
+      // are backend-only and therefore wait for the optional bridge.
       const meRes = await authApi.me().catch(() => null);
       let integrationsRes: Awaited<ReturnType<typeof settingsApi.integrations>> | null = null;
       let providersRes: Awaited<ReturnType<typeof aiApi.listProviders>> | null = null;
       let policyRes: Awaited<ReturnType<typeof aiApi.getPolicy>> | null = null;
       const bridgeReachable = !BEARER_MODE || (await backendReachable());
       if (bridgeReachable) {
-        const [integrationsSettled, providersSettled, policySettled] = await Promise.allSettled([
-          settingsApi.integrations(),
-          aiApi.listProviders(),
-          aiApi.getPolicy(),
-        ]);
-        const rejected = [integrationsSettled, providersSettled, policySettled].filter(
-          (r): r is PromiseRejectedResult => r.status === "rejected",
-        );
-        if (rejected.some((r) => r.reason instanceof ApiException && (r.reason.statusCode === 401 || r.reason.statusCode === 403))) {
+        const [integrationsSettled] = await Promise.allSettled([settingsApi.integrations()]);
+        if (
+          integrationsSettled.status === "rejected" &&
+          integrationsSettled.reason instanceof ApiException &&
+          (integrationsSettled.reason.statusCode === 401 || integrationsSettled.reason.statusCode === 403)
+        ) {
           setBackendIssue("auth");
-        } else if (rejected.length && BEARER_MODE) {
+        } else if (integrationsSettled.status === "rejected" && BEARER_MODE) {
           setBackendIssue("unreachable");
         }
         if (integrationsSettled.status === "fulfilled") integrationsRes = integrationsSettled.value;
-        if (providersSettled.status === "fulfilled") providersRes = providersSettled.value;
-        if (policySettled.status === "fulfilled") policyRes = policySettled.value;
       } else {
         setBackendIssue("unreachable");
       }
+      const [providersSettled, policySettled] = await Promise.allSettled([
+        aiApi.listProviders(),
+        aiApi.getPolicy(),
+      ]);
+      if (providersSettled.status === "fulfilled") providersRes = providersSettled.value;
+      if (policySettled.status === "fulfilled") policyRes = policySettled.value;
       if (policyRes) {
         setAllowExternal(policyRes.allow_external);
         setDefaultProvider(policyRes.default_provider);
@@ -267,7 +268,7 @@ export default function SettingsPage() {
     loaded ? (
       <NotConnectedNotice
         kind={backendIssue === "auth" ? "auth" : "unreachable"}
-        what={`${feature} loads live data from your backend.`}
+        what={`${feature} loads desktop-local data through the Desktop Bridge.`}
         onRetry={load}
       />
     ) : (
@@ -278,7 +279,11 @@ export default function SettingsPage() {
     <AppShell>
       <PageHeader
         title="Command Center Settings"
-        subtitle="Configure integrations, AI providers, and privacy — credentials are stored securely server-side."
+        subtitle={
+          BEARER_MODE
+            ? "Configure mobile AI, integrations, and privacy — cloud AI keys stay on this device; core data syncs through Supabase."
+            : "Configure integrations, AI providers, and privacy — credentials are stored securely server-side."
+        }
         actions={<Badge tone="secondary">AllHaven {APP_VERSION}</Badge>}
       />
 
@@ -349,7 +354,7 @@ export default function SettingsPage() {
               ) : (
                 backendTabFallback(
                   "Connected Tools",
-                  "Integrations live on the backend (secrets stay server-side). Connect via the Backend Bridge above to configure them — Appearance settings work without it.",
+                  "Integrations live behind the Desktop Bridge (secrets stay server-side). Connect above to configure them — Appearance settings work without it.",
                 )
               )}
             </>
@@ -387,7 +392,7 @@ export default function SettingsPage() {
                       <div>
                         <p className="text-sm font-semibold text-content">Allow external AI providers</p>
                         <p className="mt-0.5 text-[13px] text-content-muted">
-                          Enable GPT, Claude, Gemini, Cursor, DeepSeek, Qwen, Grok, Blackbox, and OpenRouter.
+                          Enable GPT, Claude, Gemini, DeepSeek, Qwen, Grok, and OpenRouter.
                           Off keeps chat local-only through Ollama.
                         </p>
                       </div>
@@ -424,7 +429,7 @@ export default function SettingsPage() {
                   <div>
                     <p className="text-sm font-semibold text-content">Direct model agents</p>
                     <p className="text-[13px] text-content-muted">
-                      GPT 1/2, Gemini 1/2, Cursor 1/2, DeepSeek, Qwen, and local Ollama are grouped here for faster setup.
+                      GPT, Claude, Gemini, DeepSeek, Qwen, Grok, and local Ollama are grouped here for faster setup.
                     </p>
                   </div>
                   <Badge tone="primary">{directAiProviders.length} providers</Badge>
@@ -470,13 +475,17 @@ export default function SettingsPage() {
               </section>
             </>
             ) : (
-              <>
-                <BackendBridgeCard onConnected={load} />
-                {backendTabFallback(
-                  "AI Providers",
-                  "AI-provider configuration lives on the backend. Connect via the Backend Bridge to manage providers — Appearance settings work without it.",
-                )}
-              </>
+              BEARER_MODE ? (
+                <ErrorState message="Could not load mobile AI providers." onRetry={load} />
+              ) : (
+                <>
+                  <BackendBridgeCard onConnected={load} />
+                  {backendTabFallback(
+                    "AI Providers",
+                    "Desktop AI-provider configuration lives on the backend. Connect via the Backend Bridge to manage providers — Appearance settings work without it.",
+                  )}
+                </>
+              )
             )
           ) : null}
 

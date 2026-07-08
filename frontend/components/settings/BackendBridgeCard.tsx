@@ -49,11 +49,12 @@ const SOURCE_LABEL: Record<BackendUrlSource, string> = {
 };
 
 /**
- * Backend Bridge configuration card. Lets the user point the app at the desktop
- * backend over Tailscale (the only way to reach it from mobile, where localhost
- * is the phone). Real Test Connection against GET /api/v1/health; honest status;
- * the previous working URL is kept if a new one fails. Renders fully client-side,
- * so it stays usable even when the backend is unreachable.
+ * Desktop Bridge configuration card. Lets the user point the app at the desktop
+ * backend over LAN/Tailscale for desktop-only services (n8n/system/files, and
+ * local AI helpers). Core mobile data and cloud AI do not require this bridge.
+ * Real Test Connection against GET /api/v1/health; honest status; the previous
+ * working URL is kept if a new one fails. Renders fully client-side, so it stays
+ * usable even when the backend is unreachable.
  */
 export function BackendBridgeCard({ onConnected }: { onConnected?: () => void }) {
   const [activeUrl, setActiveUrl] = useState("");
@@ -159,7 +160,7 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
             <Server size={16} className="text-primary" /> Backend Bridge
           </span>
         }
-        subtitle="Where this device reaches the AllHaven backend. On mobile, localhost is the phone — point this at your desktop over Tailscale."
+        subtitle="Optional desktop bridge for n8n, system/files, and desktop-local services. Login, Supabase data, and cloud AI work without it."
       />
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -188,7 +189,7 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
       <div className="mt-4 space-y-3">
         <Input
           id="backend_bridge_url"
-          label="Backend URL"
+          label="Desktop Bridge URL"
           inputMode="url"
           autoCapitalize="none"
           autoCorrect="off"
@@ -196,7 +197,7 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
           placeholder="http://100.x.y.z:8000  or  https://desktop.tailnet.ts.net"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          hint="Use a Tailscale Serve URL when the raw 100.x IP is unreachable. We add /api/v1 for you. Plain http://localhost only works on the desktop itself."
+          hint="Use LAN, Tailscale IP, or Tailscale Serve when you need desktop-only services. We add /api/v1 for you. Plain http://localhost only works on the desktop itself."
         />
 
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -247,16 +248,16 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
           <Globe size={13} className="text-primary" /> Connect from mobile
         </p>
         <ol className="mt-1.5 list-decimal space-y-0.5 pl-5">
-          <li>Install Tailscale on the desktop and this phone (same tailnet).</li>
+          <li>Install Tailscale on the desktop and this phone (same tailnet) if LAN is not enough.</li>
           <li>
             On the desktop, run the backend with <span className="font-mono text-content">--host 0.0.0.0 --port 8000</span>.
           </li>
-          <li>Prefer the desktop&apos;s Tailscale Serve URL (https://name.ts.net). Use the 100.x IP only if Android can reach it.</li>
+          <li>Prefer the desktop&apos;s Tailscale Serve URL (https://name.ts.net). Use LAN/Tailscale IP only if Android can reach it.</li>
         </ol>
         <p className="mt-2 flex items-start gap-1.5 text-[11.5px] text-content-subtle">
           <ShieldAlert size={13} className="mt-0.5 shrink-0 text-warning" />
-          The URL is stored locally on this device (no secrets). Prefer Tailscale Serve (HTTPS) so traffic is
-          encrypted; never expose the backend with public Funnel by default.
+          The URL is stored locally on this device (no secrets). Prefer Tailscale Serve (HTTPS) for bridge traffic;
+          never expose the backend with public Funnel by default.
         </p>
       </div>
     </Card>

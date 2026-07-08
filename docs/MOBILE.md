@@ -3,7 +3,8 @@
 The mobile app is the **existing Next.js frontend** wrapped in a native Android
 shell with [Capacitor](https://capacitorjs.com/). There is **no UI rewrite** — the
 same React app is exported as a static bundle, packaged into an `.apk`, and it
-talks to the AllHaven backend over the network.
+uses Supabase directly for core mobile data. The Desktop Bridge is optional and
+only needed for desktop-local services such as n8n, system/files, and local AI.
 
 Design spec: [`docs/superpowers/specs/2026-06-17-mobile-apk-design.md`](superpowers/specs/2026-06-17-mobile-apk-design.md).
 
@@ -14,28 +15,31 @@ Design spec: [`docs/superpowers/specs/2026-06-17-mobile-apk-design.md`](superpow
 ```
 [ APK on the phone ]
    └─ Android WebView (Capacitor) → static Next.js bundle (frontend/out)
-        └─ fetch() → https://<api-host>/api/v1   (FastAPI backend)
+        ├─ Supabase Auth + tables → login, tasks, notes, finance, routines, approvals, memory
+        ├─ Cloud AI APIs → GPT/Claude/Gemini/DeepSeek/Qwen/Grok/OpenRouter (keys stored on-device)
+        └─ optional Desktop Bridge → n8n/system/files/local desktop helpers
 ```
 
 - **Static export.** `BUILD_TARGET=mobile` switches `next.config.js` to
   `output: "export"`, producing `frontend/out/` (plain HTML/JS, no Node server).
-- **Auth = bearer token.** The WebView's origin (`https://localhost`) differs from
-  the API host, so cross-origin cookies are unreliable. The mobile build instead
-  uses the bearer token the backend already issues on login. This is enabled by
-  `NEXT_PUBLIC_AUTH_MODE=bearer`, which the `build:mobile` script **sets for you**.
-  The token is stored natively via `@capacitor/preferences`
-  (see `frontend/lib/mobileAuth.ts`). **No backend code change is required.**
-- **API URL has a build-time default _and_ a runtime override.** The build bakes
-  `NEXT_PUBLIC_API_BASE_URL` as the default, but the installed app can be repointed
-  at runtime in **Settings → Backend Bridge** (see below) — essential because
-  inside the WebView `localhost` is the phone, not your desktop.
+- **Auth/data = Supabase-direct.** `NEXT_PUBLIC_DATA_MODE=supabase` makes login,
+  profile/workspace bootstrap, and core data screens use Supabase from the APK.
+  Supabase sessions are stored via `@capacitor/preferences` and auto-refresh.
+- **Cloud AI = device-direct.** AI provider keys are stored on the device; chat
+  history is saved to Supabase. This keeps AI Chat and AI Providers usable with no
+  Desktop Bridge.
+- **Desktop Bridge has a build-time default _and_ a runtime override.** The build
+  can bake `NEXT_PUBLIC_API_BASE_URL`, but the installed app can also be repointed
+  at runtime in **Settings → Connected Tools → Backend Bridge**. In the default
+  standalone APK this URL is blank until the user needs desktop-local services.
 
 ---
 
-## Backend Bridge — point the installed app at your desktop (no rebuild)
+## Desktop Bridge — optional desktop-local services (no rebuild)
 
-The backend URL is resolved **per request** by `frontend/lib/backendUrl.ts`, in
-priority order:
+The bridge URL is resolved **per request** by `frontend/lib/backendUrl.ts`, in
+priority order. It is used by backend-only/desktop-local features, not by core
+Supabase data or cloud AI:
 
 1. **Runtime override** — a non-secret URL saved on the device in `localStorage`
    (key `allhaven.backend_base_url`) via **Settings → Backend Bridge**.
@@ -43,15 +47,15 @@ priority order:
 3. **Derived** — same host as the page on `:8000` (desktop dev / LAN browser).
 4. **Fallback** — `http://localhost:8000/api/v1` (desktop only).
 
-Because the override wins, a user can install the APK and **fix the connection
-from inside the app** — no CI rebuild. The Backend Bridge card is reachable even
+Because the override wins, a user can install the APK and **configure desktop
+services from inside the app** — no CI rebuild. The Backend Bridge card is reachable even
 when the backend is unreachable: it appears on the **login screen** ("Configure
 backend connection"), on the **session-check error screen**, and in **Settings →
 Connected Tools**. It runs a real **Test Connection** against `GET /api/v1/health`
 and only shows **Online** when that truly responds — never inferred from a
 non-empty URL. A failed test keeps your previous working URL.
 
-**Set it on the phone:**
+**Set it on the phone only when you need desktop-local services:**
 1. Open AllHaven → if it can't connect, tap **Configure backend connection**
    (or go to **Settings → Connected Tools → Backend Bridge**).
 2. Enter your desktop's address — a Tailscale IP (`http://100.x.y.z:8000`), a
@@ -60,7 +64,7 @@ non-empty URL. A failed test keeps your previous working URL.
    automatically.
 3. Tap **Test Connection** → **Save & Use**.
 
-**Run the desktop backend so the phone can reach it** (bind all interfaces):
+**Run the desktop backend so the phone can reach desktop-local services** (bind all interfaces):
 ```bash
 cd backend && source .venv/bin/activate
 uvicorn app.main:app --host 0.0.0.0 --port 8000     # NOT 127.0.0.1
@@ -100,10 +104,11 @@ actual `.apk` needs the Android toolchain on **your** machine:
 
 ---
 
-## Phase 1 — build and install on your own phone (LAN)
+## Phase 1 — build and install on your own phone (standalone + optional LAN)
 
-The backend isn't on the cloud yet, so the phone talks to the dev backend running
-on your PC over Wi-Fi. **Phone and PC must be on the same Wi-Fi network.**
+The default APK does not need the desktop backend for login/data/cloud AI. Phone
+and PC only need to be on the same Wi-Fi/Tailscale network if you want desktop
+services such as n8n or local Ollama.
 
 1. **Start the backend** on your PC (it listens on `:8000`). In local mode the API
    already accepts requests from any LAN origin (`BACKEND_CORS_ALLOW_ALL` is auto-on).
@@ -114,15 +119,13 @@ on your PC over Wi-Fi. **Phone and PC must be on the same Wi-Fi network.**
    # or: ipconfig (Windows) / ipconfig getifaddr en0 (macOS)
    ```
 
-3. **Build + sync + open Android Studio** in one command (from `frontend/`),
-   pointing at that IP:
+3. **Build + sync + open Android Studio** in one command (from `frontend/`):
    ```bash
-   NEXT_PUBLIC_API_BASE_URL=http://<PC-IP>:8000/api/v1 npm run cap:open
+   npm run cap:open
    ```
-   `cap:open` runs the mobile build (which sets `NEXT_PUBLIC_AUTH_MODE=bearer`),
-   syncs the web assets into the Android project, then opens Android Studio. You
-   only supply the API URL. *(Tip: instead of prepending the var every time, set
-   `NEXT_PUBLIC_API_BASE_URL` in `frontend/.env.local`.)*
+   `cap:open` runs the mobile build (bearer auth + Supabase data mode), syncs
+   the web assets into the Android project, then opens Android Studio. If you
+   want a bridge default baked in, set `NEXT_PUBLIC_API_BASE_URL` before running it.
 
 4. **Build the debug APK** in Android Studio: **Run ▶** on your device, or
    **Build → Build Bundle(s) / APK(s) → Build APK(s)**. CLI alternative:
@@ -137,8 +140,8 @@ on your PC over Wi-Fi. **Phone and PC must be on the same Wi-Fi network.**
    adb install app-debug.apk
    ```
 
-6. **Use it:** open AllHaven, register/log in. The token is stored on the device,
-   so you stay logged in across app restarts (until it expires — see Limitations).
+6. **Use it:** open AllHaven, register/log in. Supabase session storage keeps you
+   logged in across app restarts.
 
 > **HTTP on the LAN:** phase 1 uses plain `http://` to your PC. That's fine for
 > local testing on your own network; do not use it over the public internet.
@@ -192,7 +195,7 @@ When you deploy the backend to a domain (see `docker-compose.prod.yml` + Caddy):
 | `frontend/next.config.js` | Conditional `output: "export"` when `BUILD_TARGET=mobile` (desktop still `standalone`). |
 | `frontend/capacitor.config.ts` | Capacitor config (appId, appName, `webDir: out`). |
 | `frontend/lib/mobileAuth.ts` | Bearer-token store (native `@capacitor/preferences`), mobile-only. |
-| `frontend/lib/api.ts` | Shared `authFetchInit()` helper: bearer `Authorization` + `credentials:"omit"` in mobile mode, CSRF + cookie on web. Applied to `request()` **and** the multipart upload helpers (`driveApi.upload`, `knowledgeApi.uploadDocument`); `driveApi.downloadUrl` replaced by an auth-aware `driveApi.download()`. |
+| `frontend/lib/api.ts` / `frontend/lib/apiSupabase.ts` | Mobile Supabase-direct API surface for auth/data plus device-direct cloud AI providers; backend-only groups still use the optional Desktop Bridge. |
 | `frontend/components/layout/AppShell.tsx` | Hydrates the token before the first API call. |
 | `frontend/app/dashboard/drive/page.tsx` | Uses `driveApi.download()` so file downloads carry auth on mobile. |
 | `frontend/package.json` | Capacitor deps + `build:mobile` (bakes `NEXT_PUBLIC_AUTH_MODE=bearer`) / `cap:sync` / `cap:open` (syncs first) scripts. |
@@ -205,7 +208,6 @@ the bearer paths are inert and the app uses the cookie+CSRF flow exactly as befo
 
 ## Limitations (v1)
 
-- **Token lifetime 24h, no auto-refresh** → you log in again about once a day.
 - **Google OAuth** (redirect-based) is not wired for the in-app WebView yet.
 - **No push notifications / biometric unlock** yet.
 - **Android only** (no iOS project).
