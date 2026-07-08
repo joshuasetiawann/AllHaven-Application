@@ -11,6 +11,9 @@ import type { AiTool } from "@/types";
 
 // Known module display order; anything new from the backend registry is appended after.
 const MODULE_ORDER = ["time", "tasks", "calendar", "notes", "finance", "files", "weather", "automation", "system"];
+const MODULE_LABELS: Record<string, string> = {
+  calendar: "routine",
+};
 
 // Map a tool's risk level to a Badge tone.
 const RISK_TONE: Record<AiTool["risk"], "neutral" | "warning" | "danger"> = {
@@ -95,7 +98,7 @@ export function AiToolsPanel() {
         <div className="space-y-5">
           {modules.map((module) => (
             <section key={module}>
-              <p className="label-mono">{module}</p>
+              <p className="label-mono">{MODULE_LABELS[module] ?? module}</p>
               <ul className="mt-1 divide-y divide-border">
                 {tools
                   .filter((t) => t.module === module)
