@@ -1,0 +1,91 @@
+name: Build Android APK
+
+# Builds the AllHaven mobile app into an installable .apk on GitHub's runners —
+# no Android Studio or SDK needed on your machine. The .apk is attached to every
+# run as a downloadable artifact, and (when a real API URL is given) published to
+# the "mobile-latest" pre-release for a permanent download link.
+#
+# Run it: Actions tab → "Build Android APK" → Run workflow, and enter your API
+# base URL (e.g. https://yourdomain.com/api/v1). Or set the repo variable
+# MOBILE_API_BASE_URL once (Settings → Secrets and variables → Actions → Variables)
+# and just press Run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: "Backend API base URL the APK points at (e.g. https://yourdomain.com/api/v1)"
+        required: false
+        default: ""
+  push:
+    branches: [feat/mobile-apk]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/android-apk.yml"
+
+permissions:
+  contents: write # needed to publish the apk to a Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      # Priority: manual input → repo variable → harmless placeholder (so a smoke
+      # build still succeeds; the Release step below is skipped for the placeholder).
+      API_URL: ${{ github.event.inputs.api_base_url || vars.MOBILE_API_BASE_URL || 'https://PLACEHOLDER.invalid/api/v1' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22" # Capacitor 8 CLI requires Node >= 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21" # Capacitor 8 / AGP compiles with source release 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build static export + sync Capacitor
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ env.API_URL }}
+          # build:mobile already sets NEXT_PUBLIC_AUTH_MODE=bearer
+        run: |
+          echo "Building APK pointed at: $NEXT_PUBLIC_API_BASE_URL"
+          npm run build:mobile
+          npx cap sync android
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: allhaven-debug-apk
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Publish to "mobile-latest" release (download link)
+        if: ${{ env.API_URL != 'https://PLACEHOLDER.invalid/api/v1' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mobile-latest
+          name: AllHaven Mobile (latest debug build)
+          prerelease: true
+          files: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          body: |
+            Debug APK of the AllHaven mobile app, built by CI.
+            Points at: `${{ env.API_URL }}`
+            Download `app-debug.apk` below → install on Android (enable "Install unknown apps").
