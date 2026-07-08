@@ -53,6 +53,16 @@ def err(msg: str) -> None:
     say("  " + _c("✗ " + msg, "err"))
 
 
+def _node_install_hint(osname: str) -> str:
+    if osname == "macos":
+        return "Install Node 18+ from https://nodejs.org or run: brew install node"
+    if osname == "linux":
+        return "Install Node 18+ from https://nodejs.org or your package manager, then re-run ./install.sh"
+    if osname == "windows":
+        return "Install Node 18+ from https://nodejs.org, then re-run START_HAVEN_WINDOWS.bat"
+    return "Install Node 18+ from https://nodejs.org, then run the installer again."
+
+
 def run_live(argv: list[str], cwd=None) -> int:
     """Run a command with output inherited to this terminal (live progress)."""
     say(_c("  $ " + " ".join(argv), "dim"))
@@ -113,6 +123,9 @@ def main() -> int:
         warn(f"Docker not found — install: {hc.docker_install_url(osname)} (or run a local PostgreSQL on :5432)")
     if not py_ok:
         err("Python 3 is required. Install it and run this again.")
+        return 1
+    if not node_ok:
+        err(_node_install_hint(osname))
         return 1
 
     # 2) Environment
