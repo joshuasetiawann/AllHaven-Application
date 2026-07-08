@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, BookOpenCheck, Bot, Brain, Crown, Cpu, Eye, Handshake, ImageOff, ImagePlus, Layers, Loader2, PanelLeft, SendHorizonal, Sparkles, Swords, User, Wrench, X } from "lucide-react";
+import { AlertTriangle, BookOpenCheck, Bot, Brain, Crown, Cpu, Eye, FileText, Handshake, ImageOff, ImagePlus, Layers, Loader2, Mic, Paperclip, PanelLeft, SendHorizonal, Sparkles, Square, Swords, User, Wrench, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -15,7 +15,7 @@ import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { PendingActionsPanel } from "@/components/ai/PendingActionsPanel";
 import { MemoryIndicator } from "@/components/ai/MemoryIndicator";
 import { SectionMemoryBar } from "@/components/ai/SectionMemoryBar";
-import { aiApi, ApiException } from "@/lib/api";
+import { aiApi, ApiException, knowledgeApi } from "@/lib/api";
 import { cn } from "@/lib/format";
 import { aiPrefsExist, loadAiPrefs, resolveSelection, saveAiPrefs, type ChatModePref } from "@/lib/aiPrefs";
 import { loadPrefs } from "@/lib/prefs";
@@ -77,6 +77,15 @@ const TOOL_CHIP: Record<string, { cls: string; label: string }> = {
 };
 
 const MAX_IMAGES = 4;
+const MAX_KNOWLEDGE_ATTACHMENTS = 5;
+
+type KnowledgeAttachment = {
+  id: string;
+  title: string;
+  filename: string;
+  status: string;
+  chunk_count: number;
+};
 
 type ThreadItem =
   | { kind: "user"; key: string; message: ChatMessage }
@@ -142,6 +151,9 @@ export default function AiChatPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const [knowledgeAttachments, setKnowledgeAttachments] = useState<KnowledgeAttachment[]>([]);
+  const [uploadingKnowledge, setUploadingKnowledge] = useState(false);
+  const [listening, setListening] = useState(false);
   const [chatSettings, setChatSettings] = useState<AiChatSettings | null>(null);
   const [proposalRefresh, setProposalRefresh] = useState(0);
   const [memoryRefreshKey, setMemoryRefreshKey] = useState(0);
@@ -150,6 +162,9 @@ export default function AiChatPage() {
   const [availabilityWarn, setAvailabilityWarn] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const knowledgeFileRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<{ stop?: () => void; abort?: () => void } | null>(null);
+  const voiceBaseRef = useRef("");
   // Sessions+sections we've already seeded with section memory (inject once per thread).
   const prefacedRef = useRef<Set<string>>(new Set());
 
@@ -379,7 +394,7 @@ export default function AiChatPage() {
     img.onerror = () => res(dataUrl);
     img.src = dataUrl;
   });
-  const addImages = async (files: FileList | null) => {
+  const addImages = async (files: FileList | File[] | null) => {
     if (!files) return;
     setError(null);
     const room = MAX_IMAGES - images.length;
@@ -398,27 +413,121 @@ export default function AiChatPage() {
   };
   const removeImage = (idx: number) => setImages((cur) => cur.filter((_, i) => i !== idx));
 
+  const addKnowledgeFiles = async (files: FileList | File[] | null) => {
+    if (!files) return;
+    const room = MAX_KNOWLEDGE_ATTACHMENTS - knowledgeAttachments.length;
+    if (room <= 0) {
+      setError(`You can attach up to ${MAX_KNOWLEDGE_ATTACHMENTS} knowledge files per message.`);
+      return;
+    }
+    const picks = Array.from(files).filter((f) => !f.type.startsWith("image/")).slice(0, room);
+    if (!picks.length) return;
+    setUploadingKnowledge(true);
+    setError(null);
+    const uploaded: KnowledgeAttachment[] = [];
+    for (const file of picks) {
+      try {
+        const doc = await knowledgeApi.uploadDocument(file);
+        uploaded.push({
+          id: doc.id,
+          title: doc.title,
+          filename: doc.filename,
+          status: doc.status,
+          chunk_count: doc.chunk_count,
+        });
+      } catch (err) {
+        setError(err instanceof ApiException ? err.message : `Could not upload ${file.name}.`);
+      }
+    }
+    if (uploaded.length) setKnowledgeAttachments((cur) => [...cur, ...uploaded]);
+    setUploadingKnowledge(false);
+    if (knowledgeFileRef.current) knowledgeFileRef.current.value = "";
+  };
+  const removeKnowledgeAttachment = (idx: number) => setKnowledgeAttachments((cur) => cur.filter((_, i) => i !== idx));
+
+  const toggleVoiceNote = () => {
+    if (listening) {
+      recognitionRef.current?.stop?.();
+      recognitionRef.current = null;
+      setListening(false);
+      return;
+    }
+    const w = window as typeof window & {
+      SpeechRecognition?: new () => any;
+      webkitSpeechRecognition?: new () => any;
+    };
+    const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setError("Voice note belum didukung di browser ini. Coba Chrome/Edge, atau ketik manual.");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    voiceBaseRef.current = input.trim();
+    const lang = loadPrefs().language;
+    recognition.lang = lang === "en" ? "en-US" : lang === "zh-Hant" ? "zh-TW" : "id-ID";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.onresult = (event: any) => {
+      let transcript = "";
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        transcript += event.results[i][0]?.transcript ?? "";
+      }
+      const base = voiceBaseRef.current;
+      setInput([base, transcript.trim()].filter(Boolean).join(" ").trimStart());
+    };
+    recognition.onerror = () => {
+      setError("Voice note gagal diproses. Cek izin microphone lalu coba lagi.");
+      setListening(false);
+    };
+    recognition.onend = () => {
+      setListening(false);
+      recognitionRef.current = null;
+    };
+    try {
+      recognition.start();
+      setListening(true);
+      setError(null);
+    } catch {
+      setError("Voice note belum bisa dimulai. Coba izinkan microphone lalu ulangi.");
+      setListening(false);
+    }
+  };
+
   // --- send ---
   const send = async (event: React.FormEvent) => {
     event.preventDefault();
     const text = input.trim();
     const imgs = images;
-    if ((!text && imgs.length === 0) || sending) return;
+    const docs = knowledgeAttachments;
+    if ((!text && imgs.length === 0 && docs.length === 0) || sending || uploadingKnowledge) return;
     if (selected.length === 0) { setError("Select at least one AI agent."); return; }
-    const msg = text || "Describe the attached image(s).";
+    const msg = text || (docs.length ? "Baca dan gunakan file yang saya lampirkan." : "Describe the attached image(s).");
     setError(null);
     setSending(true);
     setPendingUser(msg);
     setPendingImages(imgs);
     setInput("");
     setImages([]);
+    setKnowledgeAttachments([]);
     // Section memory (Part 3): seed the active section's saved context into the
     // thread once, so answers stay relevant without repeating it every turn.
     const memoryKey = `${activeId ?? "new"}:${section}`;
     const preface = prefacedRef.current.has(memoryKey)
       ? null
       : buildContextPreface(section, resolveSection(section, groups).label);
-    const sendText = preface ? `${preface}\n\nUser message:\n${msg}` : msg;
+    const knowledgeNote = docs.length
+      ? [
+          "[Attached AI Knowledge files this turn]",
+          ...docs.map((doc) => `- ${doc.title} (${doc.filename}) status=${doc.status}, chunks=${doc.chunk_count}`),
+          "Use AI Knowledge retrieval/search tools before answering questions about these files.",
+        ].join("\n")
+      : null;
+    const sendText = [
+      preface,
+      knowledgeNote,
+      preface || knowledgeNote ? `User message:\n${msg}` : msg,
+    ].filter(Boolean).join("\n\n");
     const responseLanguage = loadPrefs().language;
     try {
       const run = mode === "debate"
@@ -771,7 +880,12 @@ export default function AiChatPage() {
           <div
             className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5"
             onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); void addImages(e.dataTransfer.files); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const files = Array.from(e.dataTransfer.files);
+              void addImages(files);
+              void addKnowledgeFiles(files);
+            }}
           >
             {messages.length === 0 && !pendingUser ? (
               <div className="flex h-full animate-fade-in flex-col items-center justify-center text-center">
@@ -932,6 +1046,28 @@ export default function AiChatPage() {
                 ))}
               </div>
             ) : null}
+            {knowledgeAttachments.length ? (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {knowledgeAttachments.map((doc, i) => (
+                  <span
+                    key={doc.id}
+                    className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-surface-input px-2.5 py-1.5 text-[12px] text-content-muted"
+                  >
+                    <FileText size={13} className={doc.status === "indexed" ? "text-success" : "text-warning"} />
+                    <span className="min-w-0 truncate">{doc.filename}</span>
+                    <span className="shrink-0 text-content-subtle">{doc.status}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeKnowledgeAttachment(i)}
+                      aria-label="Remove knowledge file"
+                      className="shrink-0 rounded p-0.5 text-content-subtle hover:text-danger"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
             <form onSubmit={send} className="flex items-center gap-1.5 sm:gap-2">
               <input
                 ref={fileRef}
@@ -940,6 +1076,14 @@ export default function AiChatPage() {
                 multiple
                 className="hidden"
                 onChange={(e) => addImages(e.target.files)}
+              />
+              <input
+                ref={knowledgeFileRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.txt,.md,.markdown,.csv,.json,.jsonl,.yaml,.yml,.xml,.html,.css,.js,.jsx,.ts,.tsx,.py,.sql,.log,text/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                multiple
+                className="hidden"
+                onChange={(e) => addKnowledgeFiles(e.target.files)}
               />
               <button
                 type="button"
@@ -950,13 +1094,43 @@ export default function AiChatPage() {
               >
                 <ImagePlus size={17} />
               </button>
+              <button
+                type="button"
+                onClick={() => knowledgeFileRef.current?.click()}
+                aria-label="Attach knowledge file"
+                title="Attach PDF, DOC, DOCX, or text file"
+                disabled={uploadingKnowledge}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-content-muted transition-colors hover:border-primary/50 hover:text-content disabled:opacity-60"
+              >
+                {uploadingKnowledge ? <Loader2 size={17} className="animate-spin" /> : <Paperclip size={17} />}
+              </button>
+              <button
+                type="button"
+                onClick={toggleVoiceNote}
+                aria-label={listening ? "Stop voice note" : "Start voice note"}
+                title={listening ? "Stop voice note" : "Voice note"}
+                className={cn(
+                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors",
+                  listening
+                    ? "border-danger/40 bg-danger/10 text-danger"
+                    : "border-border bg-surface-input text-content-muted hover:border-primary/50 hover:text-content",
+                )}
+              >
+                {listening ? <Square size={15} /> : <Mic size={17} />}
+              </button>
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Type a message, or attach an image…"
+                placeholder={listening ? "Listening..." : "Type, speak, or attach a file..."}
                 className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-surface-input px-3.5 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
-              <Button type="submit" size="lg" loading={sending} disabled={(!input.trim() && images.length === 0) || selected.length === 0} className="shrink-0 px-3 sm:px-4">
+              <Button
+                type="submit"
+                size="lg"
+                loading={sending}
+                disabled={(!input.trim() && images.length === 0 && knowledgeAttachments.length === 0) || selected.length === 0 || uploadingKnowledge}
+                className="shrink-0 px-3 sm:px-4"
+              >
                 {!sending ? <SendHorizonal size={16} /> : null}
               </Button>
             </form>

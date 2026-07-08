@@ -14,6 +14,7 @@ from app.core.principal import Principal
 from app.core.responses import success_response
 from app.schemas.notes import NoteCreate, NoteOut, NoteUpdate
 from app.services import note_service
+from app.services.local_first_sync import sync_after_write
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
@@ -38,6 +39,7 @@ def create_note(
     db: Session = Depends(get_db),
 ) -> dict:
     note = note_service.create_note(db, principal, payload)
+    sync_after_write(db, principal)
     return success_response(NoteOut.model_validate(note), "Note created")
 
 
@@ -59,6 +61,7 @@ def update_note(
     db: Session = Depends(get_db),
 ) -> dict:
     note = note_service.update_note(db, principal, note_id, payload)
+    sync_after_write(db, principal)
     return success_response(NoteOut.model_validate(note), "Note updated")
 
 
@@ -69,4 +72,5 @@ def delete_note(
     db: Session = Depends(get_db),
 ) -> dict:
     note_service.delete_note(db, principal, note_id)
+    sync_after_write(db, principal)
     return success_response({"id": str(note_id)}, "Note deleted")

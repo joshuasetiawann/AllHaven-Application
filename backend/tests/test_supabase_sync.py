@@ -476,13 +476,13 @@ def test_do_sync_posts_to_correct_tables(auth_client, db_session):
 
 
 def test_do_sync_skips_empty_tables(auth_client, db_session):
-    """_do_sync must NOT send a request for tables that have no rows."""
+    """_do_sync must NOT send requests for empty product tables."""
     principal = _make_principal(auth_client)
 
-    posted_urls: list[str] = []
+    posted_tables: list[str] = []
 
     def fake_urlopen(req, timeout=None):
-        posted_urls.append(req.get_full_url())
+        posted_tables.append(req.get_full_url().split("/rest/v1/")[1])
         fake_resp = MagicMock()
         fake_resp.__enter__ = lambda s: s
         fake_resp.__exit__ = MagicMock(return_value=False)
@@ -496,7 +496,9 @@ def test_do_sync_skips_empty_tables(auth_client, db_session):
             str(principal.workspace_id),
         )
 
-    assert posted_urls == [], f"Expected no requests but got: {posted_urls}"
+    baseline_tables = {"workspaces", "workspace_members", "profiles", "audit_logs"}
+    unexpected = set(posted_tables) - baseline_tables
+    assert unexpected == set(), f"Expected only baseline workspace tables but got: {posted_tables}"
 
 
 def test_do_sync_body_is_valid_json_list(auth_client, db_session):

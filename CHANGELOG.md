@@ -11,6 +11,32 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [3.4.0] - 2026-06-13 — AllHaven 3.4 voice, documents, Routine agenda, and local-first sync
+
+Detailed notes: [`docs/releases/v3.4.0.md`](docs/releases/v3.4.0.md)
+
+AllHaven 3.4 focuses on making the workspace feel more natural to use: voice
+dictation in chat, PDF/DOC/DOCX knowledge intake, a lighter Routine agenda, and
+broader local-first Supabase mirroring for the main app data.
+
+### Added
+- **Voice note input.** AI Chat now has a microphone control that uses browser speech recognition to turn voice into a chat prompt when supported.
+- **Document attachments from chat.** Chat can upload PDF, DOC, DOCX, text, and code files directly into AI Knowledge before sending a message.
+- **PDF/DOC/DOCX knowledge extraction.** AI Knowledge now extracts searchable text from DOCX, simple/standard PDFs, and best-effort legacy DOC files, with honest metadata-only fallback.
+- **Workspace-wide Supabase mirror.** Optional Supabase sync now mirrors tasks, checklist items, notes, finance, routines, weather locations, drive metadata, automations, provider/integration config rows, chat, memory, AI Knowledge, proposals, tool logs, and audit rows after local writes.
+
+### Changed
+- **Routine agenda redesign.** Routine is now a lighter agenda/timeline instead of large box-heavy cards, with Pagi, Siang, and Malam sections kept clear.
+- **Add Routine simplification.** The modal now focuses on name, repeat, days, time, all-day, place, and notes. Icon and color controls are removed from the user flow.
+- **AI Routine tools.** Routine tool schemas no longer ask models for icon/color payloads.
+
+### Fixed
+- **AI module coverage tests.** Added registry tests that lock in tool access for tasks, routines, finance, notes, files, AI Knowledge, and memory.
+- **Supabase sync resilience.** A missing Supabase table no longer stops the rest of the mirror; local data remains the source of truth.
+
+### Security
+- **Hardened DOCX parsing.** The new OOXML parser now uses `defusedxml`, so a malicious uploaded DOCX cannot trigger XXE or billion-laughs entity expansion; such files are refused and stored metadata-only.
+
 ## [3.3.1] - 2026-06-13 — AllHaven 3.3.1 local Routine UX polish
 
 Detailed notes: [`docs/releases/v3.3.1.md`](docs/releases/v3.3.1.md)
