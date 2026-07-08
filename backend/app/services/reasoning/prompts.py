@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from app.services.memory_context_builder import as_prefix
+
 SYSTEM_PROMPT_CORE = (
     "You are a precise reasoning assistant. First understand the user's request. "
     "Use only the user's provided facts unless clearly labeled as an assumption. "
@@ -66,8 +68,8 @@ def _guardrails(task_type: str) -> str:
     return f"\n\n{BUSINESS_GUARDRAILS}" if task_type in ("business", "finance", "analysis", "planning") else ""
 
 
-def analyst_message(user_text: str, facts: dict, task_type: str, extra_context: str | None = None) -> str:
-    prefix = f"{extra_context}\n\n" if extra_context else ""
+def analyst_message(user_text: str, facts: dict, task_type: str, extra_context: Optional[str] = None) -> str:
+    prefix = as_prefix(extra_context)
     return (
         f"{prefix}{SYSTEM_PROMPT_CORE}\n\n{ANALYST_PROMPT}\n\n"
         f"{_facts_block(facts)}{_guardrails(task_type)}\n\n"

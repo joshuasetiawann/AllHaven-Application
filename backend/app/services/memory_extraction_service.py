@@ -328,3 +328,27 @@ def schedule_extraction(
         except Exception:  # noqa: BLE001
             pass
         return 0
+
+
+def extract_and_commit(
+    db: Session,
+    principal: Principal,
+    *,
+    user_msg: str,
+    assistant_msg: str,
+    session_id: Optional[uuid.UUID],
+) -> None:
+    """Run ``schedule_extraction`` for a finished turn and commit its memories.
+
+    Shared post-response hook for every chat service (single, multi, debate,
+    reasoning). Extraction must never break the main chat response.
+
+    NOTE: ``schedule_extraction`` itself never raises (it swallows errors and
+    rolls back internally); the try/except here exists to protect the follow-up
+    ``db.commit()`` — do not "simplify" it away.
+    """
+    try:
+        schedule_extraction(db, principal, user_msg, assistant_msg, session_id)
+        db.commit()  # commit any memories created synchronously
+    except Exception:  # noqa: BLE001
+        db.rollback()

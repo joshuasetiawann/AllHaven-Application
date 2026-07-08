@@ -182,13 +182,9 @@ def reasoning_chat(
         db.refresh(run)
         for r in responses:
             db.refresh(r)
-        try:
-            memory_extraction_service.schedule_extraction(
-                db, principal, message, "", session.id
-            )
-            db.commit()
-        except Exception:  # noqa: BLE001
-            db.rollback()
+        memory_extraction_service.extract_and_commit(
+            db, principal, user_msg=message, assistant_msg="", session_id=session.id
+        )
         return {"run": run, "session_id": session.id, "responses": responses}
 
     roles = roles_for(mode)
@@ -285,13 +281,13 @@ def reasoning_chat(
     for r in responses:
         db.refresh(r)
 
-    # Trigger hybrid memory extraction using the synthesis content as the assistant reply.
-    try:
-        memory_extraction_service.schedule_extraction(
-            db, principal, message, final_answer or "", session.id
-        )
-        db.commit()
-    except Exception:  # noqa: BLE001
-        db.rollback()
+    # Trigger hybrid memory extraction using the final answer as the assistant
+    # reply (fast mode reuses the analyst output as the final answer).
+    memory_extraction_service.extract_and_commit(
+        db, principal,
+        user_msg=message,
+        assistant_msg=final_answer or "",
+        session_id=session.id,
+    )
 
     return {"run": run, "session_id": session.id, "responses": responses}

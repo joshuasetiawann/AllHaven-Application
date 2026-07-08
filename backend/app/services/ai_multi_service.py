@@ -110,8 +110,6 @@ def multi_chat(
 ) -> dict:
     from app.services import memory_context_builder, memory_extraction_service
 
-    extra_context = memory_context_builder.build(db, principal, message, section_key)
-
     ids = _dedup(provider_ids)
     if not ids:
         raise ValidationAppError("Select at least one AI agent.")
@@ -171,11 +169,26 @@ def multi_chat(
         default_name, default_task = DEFAULT_AGENT_ROLES[index % len(DEFAULT_AGENT_ROLES)]
         plan_role = (plans[pid].slot_role or "").strip()
         roles[pid] = (plan_role or default_name, default_task)
+    params = thinking_params(thinking_mode)
+    has_images = bool(images)
+
+    # Execute only runnable plans; when an image is attached, skip non-vision
+    # providers — they are reported as 'unsupported' below instead of running.
+    runnable = {pid: p for pid, p in plans.items() if p.runnable and not (has_images and not p.supports_image)}
+
+    # Build memory context only when at least one agent will actually run:
+    # build() marks memories as used, and that side effect must not fire when
+    # no model sees the context.
+    extra_context = (
+        memory_context_builder.build(db, principal, message, section_key)
+        if runnable
+        else None
+    )
     base_user = {"role": "user", "content": message, "images": images or []}
 
     def _messages_for(pid: str) -> list[dict]:
         role_name, role_task = roles[pid]
-        mem_prefix = f"{extra_context}\n\n" if extra_context else ""
+        mem_prefix = memory_context_builder.as_prefix(extra_context)
         if len(ids) == 1:
             # Single agent: no role framing, but still inject memory context via system msg.
             if mem_prefix:
@@ -191,12 +204,6 @@ def multi_chat(
             base_user,
         ]
 
-    params = thinking_params(thinking_mode)
-    has_images = bool(images)
-
-    # Execute only runnable plans; when an image is attached, skip non-vision
-    # providers — they are reported as 'unsupported' below instead of running.
-    runnable = {pid: p for pid, p in plans.items() if p.runnable and not (has_images and not p.supports_image)}
     outcomes: dict[str, dict] = {}
     if runnable:
         with ThreadPoolExecutor(max_workers=len(runnable)) as pool:
@@ -281,13 +288,12 @@ def multi_chat(
         (r.content for r in responses if r.status == "completed" and r.content),
         "",
     )
-    try:
-        memory_extraction_service.schedule_extraction(
-            db, principal, message, first_response or "", session.id
-        )
-        db.commit()
-    except Exception:  # noqa: BLE001
-        db.rollback()
+    memory_extraction_service.extract_and_commit(
+        db, principal,
+        user_msg=message,
+        assistant_msg=first_response,
+        session_id=session.id,
+    )
 
     return {"run": run, "session_id": session.id, "responses": responses}
 
