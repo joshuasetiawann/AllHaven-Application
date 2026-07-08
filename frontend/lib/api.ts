@@ -3,6 +3,12 @@
 // state-changing requests), and unwraps the standard success/error envelope.
 
 import { clearAuth } from "@/lib/auth";
+import {
+  BEARER_MODE,
+  clearBearerToken,
+  getBearerToken,
+  setBearerToken,
+} from "@/lib/mobileAuth";
 import type {
   AiChatSettings,
   AiMemory,
@@ -92,20 +98,46 @@ function getCsrfToken(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string> | undefined),
-  };
-  const method = (options.method || "GET").toUpperCase();
-  if (method !== "GET" && method !== "HEAD") {
+// Auth fragment shared by request() AND the hand-rolled multipart/raw fetches,
+// so every authenticated call carries the right credential in both build
+// targets: a bearer token (mobile — no cookies/CSRF) or the CSRF header + the
+// HttpOnly session cookie (web). Multipart callers pass no Content-Type so the
+// browser can set the multipart boundary itself.
+function authFetchInit(
+  method: string,
+  extra?: Record<string, string>,
+): { headers: Record<string, string>; credentials: RequestCredentials } {
+  const headers: Record<string, string> = { ...(extra || {}) };
+  if (BEARER_MODE) {
+    const token = getBearerToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return { headers, credentials: "omit" };
+  }
+  const m = method.toUpperCase();
+  if (m !== "GET" && m !== "HEAD") {
     const csrf = getCsrfToken();
     if (csrf) headers["X-CSRF-Token"] = csrf;
   }
+  return { headers, credentials: "include" };
+}
+
+// Drop cached auth after an unauthorized response (both build targets).
+function handleUnauthorized(status: number): void {
+  if (status !== 401) return;
+  clearAuth();
+  if (BEARER_MODE) void clearBearerToken();
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const method = (options.method || "GET").toUpperCase();
+  const { headers, credentials } = authFetchInit(method, {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string> | undefined),
+  });
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers, credentials: "include" });
+    res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers, credentials });
   } catch {
     throw new ApiException(
       "Cannot reach the AllHaven API. Is the backend running?",
@@ -122,7 +154,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   if (!res.ok || body?.status === "error") {
-    if (res.status === 401) clearAuth();
+    handleUnauthorized(res.status);
     throw new ApiException(
       body?.message || `Request failed (${res.status})`,
       body?.error_code || "HTTP_ERROR",
@@ -138,15 +170,31 @@ const json = (payload: unknown) => JSON.stringify(payload);
 
 // --- Auth ---
 export const authApi = {
-  register: (email: string, password: string, full_name?: string) =>
-    request<AuthToken>("/auth/register", {
+  register: async (email: string, password: string, full_name?: string) => {
+    const data = await request<AuthToken>("/auth/register", {
       method: "POST",
       body: json({ email, password, full_name: full_name || null }),
-    }),
-  login: (email: string, password: string) =>
-    request<AuthToken>("/auth/login", { method: "POST", body: json({ email, password }) }),
-  // Revokes the server-side session and clears the auth cookies.
-  logout: () => request<{ logged_out: boolean }>("/auth/logout", { method: "POST" }),
+    });
+    // Mobile: persist the issued bearer token (web ignores it, uses the cookie).
+    if (BEARER_MODE && data?.access_token) await setBearerToken(data.access_token);
+    return data;
+  },
+  login: async (email: string, password: string) => {
+    const data = await request<AuthToken>("/auth/login", {
+      method: "POST",
+      body: json({ email, password }),
+    });
+    if (BEARER_MODE && data?.access_token) await setBearerToken(data.access_token);
+    return data;
+  },
+  // Revokes the server-side session (web) and clears the local bearer token (mobile).
+  logout: async () => {
+    try {
+      return await request<{ logged_out: boolean }>("/auth/logout", { method: "POST" });
+    } finally {
+      if (BEARER_MODE) await clearBearerToken();
+    }
+  },
   me: () => request<Me>("/auth/me"),
   updateMe: (payload: { full_name?: string; workspace_name?: string }) =>
     request<Me>("/auth/me", { method: "PATCH", body: json(payload) }),
@@ -455,26 +503,42 @@ export const driveApi = {
   upload: async (file: File): Promise<DriveFile> => {
     const form = new FormData();
     form.append("file", file);
-    const csrf = getCsrfToken();
+    const { headers, credentials } = authFetchInit("POST");
     let res: Response;
     try {
       res = await fetch(`${API_BASE_URL}/drive/files`, {
         method: "POST",
-        headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
+        headers,
         body: form,
-        credentials: "include",
+        credentials,
       });
     } catch {
       throw new ApiException("Cannot reach the AllHaven API. Is the backend running?", "NETWORK_ERROR", 0);
     }
     const body = (await res.json().catch(() => null)) as ApiEnvelope<DriveFile> | null;
     if (!res.ok || body?.status === "error") {
-      if (res.status === 401) clearAuth();
+      handleUnauthorized(res.status);
       throw new ApiException(body?.message || `Upload failed (${res.status})`, body?.error_code || "HTTP_ERROR", res.status);
     }
     return body?.data as DriveFile;
   },
-  downloadUrl: (id: string) => `${API_BASE_URL}/drive/files/${id}/download`,
+  // Fetches the file as a Blob with auth applied (bearer/cookie). A bare URL in
+  // an <a href> cannot carry the Authorization header, so callers must go
+  // through this instead of building the download URL themselves.
+  download: async (id: string): Promise<Blob> => {
+    const { headers, credentials } = authFetchInit("GET");
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE_URL}/drive/files/${id}/download`, { headers, credentials });
+    } catch {
+      throw new ApiException("Cannot reach the AllHaven API. Is the backend running?", "NETWORK_ERROR", 0);
+    }
+    if (!res.ok) {
+      handleUnauthorized(res.status);
+      throw new ApiException(`Download failed (${res.status})`, "HTTP_ERROR", res.status);
+    }
+    return res.blob();
+  },
   remove: (id: string) => request<{ id: string }>(`/drive/files/${id}`, { method: "DELETE" }),
 };
 
@@ -485,22 +549,22 @@ export const knowledgeApi = {
   uploadDocument: async (file: File, title?: string): Promise<KnowledgeDocument> => {
     const form = new FormData();
     form.append("file", file);
-    const csrf = getCsrfToken();
+    const { headers, credentials } = authFetchInit("POST");
     const qs = title?.trim() ? `?title=${encodeURIComponent(title.trim())}` : "";
     let res: Response;
     try {
       res = await fetch(`${API_BASE_URL}/ai/knowledge/documents${qs}`, {
         method: "POST",
-        headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
+        headers,
         body: form,
-        credentials: "include",
+        credentials,
       });
     } catch {
       throw new ApiException("Cannot reach the AllHaven API. Is the backend running?", "NETWORK_ERROR", 0);
     }
     const body = (await res.json().catch(() => null)) as ApiEnvelope<KnowledgeDocument> | null;
     if (!res.ok || body?.status === "error") {
-      if (res.status === 401) clearAuth();
+      handleUnauthorized(res.status);
       throw new ApiException(body?.message || `Upload failed (${res.status})`, body?.error_code || "HTTP_ERROR", res.status);
     }
     return body?.data as KnowledgeDocument;
