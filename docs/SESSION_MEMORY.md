@@ -9,8 +9,8 @@
 ## 0. Konteks lingkungan & aturan
 
 - **Lokasi kerja:** repo di-clone di `/home/user/CORE-OS-APPLICATION-` (cloud container).
-  Path lock di brief (`/home/thunity/Desktop/Project Joshua/CORE-OS-APPLICATION`)
-  **tidak ada** di container ini — bekerja di clone asli; membuat path `/home/thunity`
+  Path lock di brief (`~/CORE-OS-APPLICATION`)
+  **tidak ada** di container ini — bekerja di clone asli; membuat path lokal tersebut
   justru akan melanggar aturan "do not create a duplicate repo elsewhere".
 - **Git:** semua commit di branch `claude/funny-ride-jtb9g`, author `Claude
   <noreply@anthropic.com>`. **Tidak push, tidak buat PR, tidak pakai GitHub MCP**
