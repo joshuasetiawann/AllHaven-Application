@@ -34,17 +34,22 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         setAiStatus(s === "online" ? "online" : ollama?.configured ? "configured" : "not_configured");
       })
       .catch(() => active && setAiStatus("not_configured"));
+    let interval: number | undefined;
     const loadProposals = () => {
       aiApi
         .listProposals()
         .then((p) => active && setProposals(p))
-        .catch(() => {});
+        .catch(() => {
+          // Backend unreachable (e.g. mobile off Tailscale): stop re-polling a
+          // dead endpoint every 30s instead of hammering it forever.
+          if (interval !== undefined) window.clearInterval(interval);
+        });
     };
     loadProposals();
-    const interval = window.setInterval(loadProposals, 30000);
+    interval = window.setInterval(loadProposals, 30000);
     return () => {
       active = false;
-      window.clearInterval(interval);
+      if (interval !== undefined) window.clearInterval(interval);
     };
   }, []);
 
