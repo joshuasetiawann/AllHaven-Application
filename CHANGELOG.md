@@ -11,6 +11,26 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [3.3.1] - 2026-06-13 — AllHaven 3.3.1 local Routine UX polish
+
+Detailed notes: [`docs/releases/v3.3.1.md`](docs/releases/v3.3.1.md)
+
+AllHaven 3.3.1 makes Routine more comfortable and clearly local-first: no
+Google Calendar requirement, lighter habit-style creation, and better empty
+states for planning Pagi, Siang, and Malam.
+
+### Added
+- **Routine habit-style builder.** Routine creation now supports icon, color, repeat rule, repeat days, and Pagi/Siang/Malam time slots.
+- **Routine local metadata.** Local schedule records now store routine preferences in the database via migration `0009_routine_preferences`.
+
+### Changed
+- **Routine board UX.** Pagi, Siang, and Malam lanes stay visible even when empty, giving users direct add targets instead of a blocking empty state.
+- **Routine form simplification.** Removed the routine goal field so the create/edit flow focuses on schedule, repeat, visual identity, and notes.
+
+### Fixed
+- **Routine loading fallback.** The frontend falls back to the compatible local `/calendar/events` endpoint if `/routines/events` is unavailable after a frontend update but before a backend restart.
+- **Local-first copy.** Routine now clearly states that schedules are stored in the AllHaven backend database and do not require Google Calendar.
+
 ## [3.3.0] - 2026-06-13 — AllHaven 3.3 Routine planner and sidebar flow
 
 Detailed notes: [`docs/releases/v3.3.0.md`](docs/releases/v3.3.0.md)
