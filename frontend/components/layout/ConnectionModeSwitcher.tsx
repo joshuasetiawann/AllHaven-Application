@@ -184,7 +184,7 @@ export function ConnectionModeSwitcher() {
 
           {desktopNotUsingSelectedTailscale && hasSavedSelectedUrl ? (
             <div className="mx-1 mt-1 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[11.5px] leading-relaxed text-warning">
-              This desktop browser is using the same-site backend above. Your saved Tailscale URL is kept for the mobile APK, but it is ignored here to avoid cookie login loops.
+              This web browser is using the same-site backend above. Your saved Tailscale URL is kept for the mobile APK, but it is ignored here to avoid cookie login loops.
             </div>
           ) : null}
 

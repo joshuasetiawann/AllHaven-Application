@@ -27,12 +27,13 @@ import { BACKEND_CHANGED_EVENT, getConnectionMode, setConnectionMode } from "@/l
 // Honest status model (see CLAUDE.md status_truth_model). "online" is set ONLY by
 // a real /health success — never inferred from a non-empty URL. Saving a URL makes
 // it "configured" (active), and the immediate follow-up test reflects reality.
-type Status = "unknown" | "configured" | "online" | "ignored" | "error" | "unavailable" | "not_configured";
+type Status = "unknown" | "configured" | "online" | "auth_failed" | "ignored" | "error" | "unavailable" | "not_configured";
 
 const STATUS_BADGE: Record<Status, { tone: "neutral" | "primary" | "success" | "warning" | "danger"; label: string }> = {
   unknown: { tone: "neutral", label: "Not tested" },
   configured: { tone: "primary", label: "Configured" },
   online: { tone: "success", label: "Online" },
+  auth_failed: { tone: "warning", label: "Auth needed" },
   ignored: { tone: "warning", label: "Saved, not active here" },
   error: { tone: "danger", label: "Error" },
   unavailable: { tone: "warning", label: "Unreachable" },
@@ -167,7 +168,7 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
 
       {hasOverride && source !== "override" ? (
         <div className="mt-3 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[12.5px] leading-relaxed text-warning">
-          The saved Tailscale URL is not the active backend in this desktop browser. Desktop web uses a same-site backend for cookie login; the mobile APK will use the saved URL.
+          The saved Tailscale URL is not the active backend in this web browser. Browser login uses a same-site backend to avoid cookie loops; the mobile APK will use the saved URL.
         </div>
       ) : null}
 

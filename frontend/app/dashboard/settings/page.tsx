@@ -44,7 +44,7 @@ import { AiToolsPanel } from "@/components/settings/AiToolsPanel";
 import { AiChatBehaviorPanel } from "@/components/settings/AiChatBehaviorPanel";
 import { GoogleOAuthCard } from "@/components/settings/GoogleOAuthCard";
 import SystemControl from "@/components/settings/SystemControl";
-import { aiApi, authApi, settingsApi } from "@/lib/api";
+import { aiApi, authApi, settingsApi, ApiException } from "@/lib/api";
 import { backendReachable } from "@/lib/connection";
 import { BACKEND_CHANGED_EVENT } from "@/lib/connectionMode";
 import { BEARER_MODE } from "@/lib/mobileAuth";
@@ -89,11 +89,14 @@ const AI_ICONS: Record<string, LucideIcon> = {
   openrouter_6: Network,
 };
 
+type BackendIssue = "unreachable" | "auth" | null;
+
 export default function SettingsPage() {
   const user = getStoredUser();
   const [me, setMe] = useState<Me | null>(null);
   const [integrations, setIntegrations] = useState<Integration[] | null>(null);
   const [providers, setProviders] = useState<AiProvider[] | null>(null);
+  const [backendIssue, setBackendIssue] = useState<BackendIssue>(null);
   const [error, setError] = useState<string | null>(null);
   // First load attempt finished (success OR degraded). The page renders its tabs once
   // this is true; backend-dependent tabs show a per-tab connect-state if their data is
@@ -164,6 +167,7 @@ export default function SettingsPage() {
 
   const load = useCallback(async () => {
     setError(null);
+    setBackendIssue(null);
     // On mobile, Settings must be usable even while Supabase/profile refresh is
     // slow and even when the optional Desktop Bridge is offline. Mark the shell
     // loaded immediately so backend-only tabs show their connect-state instead
@@ -175,15 +179,29 @@ export default function SettingsPage() {
       // unreachable desktop backend degrades the page in ~2-3s instead of three doomed
       // requests stacking up (that was the "settings loading forever" on the phone).
       const meRes = await authApi.me().catch(() => null);
-      let integrationsRes = null;
-      let providersRes = null;
-      let policyRes = null;
-      if (!BEARER_MODE || (await backendReachable())) {
-        [integrationsRes, providersRes, policyRes] = await Promise.all([
-          settingsApi.integrations().catch(() => null),
-          aiApi.listProviders().catch(() => null),
-          aiApi.getPolicy().catch(() => null),
+      let integrationsRes: Awaited<ReturnType<typeof settingsApi.integrations>> | null = null;
+      let providersRes: Awaited<ReturnType<typeof aiApi.listProviders>> | null = null;
+      let policyRes: Awaited<ReturnType<typeof aiApi.getPolicy>> | null = null;
+      const bridgeReachable = !BEARER_MODE || (await backendReachable());
+      if (bridgeReachable) {
+        const [integrationsSettled, providersSettled, policySettled] = await Promise.allSettled([
+          settingsApi.integrations(),
+          aiApi.listProviders(),
+          aiApi.getPolicy(),
         ]);
+        const rejected = [integrationsSettled, providersSettled, policySettled].filter(
+          (r): r is PromiseRejectedResult => r.status === "rejected",
+        );
+        if (rejected.some((r) => r.reason instanceof ApiException && (r.reason.statusCode === 401 || r.reason.statusCode === 403))) {
+          setBackendIssue("auth");
+        } else if (rejected.length && BEARER_MODE) {
+          setBackendIssue("unreachable");
+        }
+        if (integrationsSettled.status === "fulfilled") integrationsRes = integrationsSettled.value;
+        if (providersSettled.status === "fulfilled") providersRes = providersSettled.value;
+        if (policySettled.status === "fulfilled") policyRes = policySettled.value;
+      } else {
+        setBackendIssue("unreachable");
       }
       if (policyRes) {
         setAllowExternal(policyRes.allow_external);
@@ -247,7 +265,11 @@ export default function SettingsPage() {
   // backend / no Tailscale.
   const backendTabFallback = (feature: string, _reason: string) =>
     loaded ? (
-      <NotConnectedNotice what={`${feature} loads live data from your backend.`} onRetry={load} />
+      <NotConnectedNotice
+        kind={backendIssue === "auth" ? "auth" : "unreachable"}
+        what={`${feature} loads live data from your backend.`}
+        onRetry={load}
+      />
     ) : (
       <Loading />
     );

@@ -6,7 +6,7 @@
 
 import { ApiException, getApiBaseUrl } from "@/lib/api";
 import { normalizeBackendUrl } from "@/lib/backendUrl";
-import { BEARER_MODE } from "@/lib/mobileAuth";
+import { BEARER_MODE, ensureBearerHydrated, getBearerToken } from "@/lib/mobileAuth";
 
 /** True when an error means the backend/bridge is unreachable (vs a real app error). */
 export function isBackendUnreachable(err: unknown): boolean {
@@ -91,7 +91,7 @@ export async function backendReachable(timeoutMs = 2500): Promise<boolean> {
 export interface BackendTestResult {
   ok: boolean;
   /** "online" only when /health truly responded ok; otherwise a non-online status. */
-  status: "online" | "error" | "unavailable" | "not_configured";
+  status: "online" | "auth_failed" | "error" | "unavailable" | "not_configured";
   message: string;
   /** HTTP status code from /health, when we got a response. */
   httpStatus?: number;
@@ -130,6 +130,40 @@ export async function testBackendConnection(
       body = null;
     }
     if (res.ok && body?.status === "success") {
+      if (BEARER_MODE) {
+        await ensureBearerHydrated();
+        const token = getBearerToken();
+        if (!token) {
+          return {
+            ok: false,
+            status: "auth_failed",
+            message: "Backend is online, but this app has no mobile login token. Sign in again, then retry.",
+            httpStatus: 401,
+            latencyMs,
+            appVersion: body?.data?.app_version,
+            deploymentProfile: body?.data?.deployment_profile,
+            testedUrl: base,
+          };
+        }
+        const authRes = await fetch(`${base}/auth/me`, {
+          signal: ctrl.signal,
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!authRes.ok) {
+          return {
+            ok: false,
+            status: "auth_failed",
+            message: authRes.status === 401 || authRes.status === 403
+              ? "Backend is online, but it does not trust this mobile login yet. Link Supabase on desktop or sign in on desktop once with the same account, then retry."
+              : `Backend is online, but /auth/me returned HTTP ${authRes.status}.`,
+            httpStatus: authRes.status,
+            latencyMs,
+            appVersion: body?.data?.app_version,
+            deploymentProfile: body?.data?.deployment_profile,
+            testedUrl: base,
+          };
+        }
+      }
       return {
         ok: true,
         status: "online",
