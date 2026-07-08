@@ -752,8 +752,6 @@ _EVENT_FIELDS = {
         "type": "array",
         "items": {"type": "string", "enum": ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]},
     },
-    "icon": _str_prop("Optional routine icon key"),
-    "color": _str_prop("Optional routine color key"),
 }
 _TXN_FIELDS = {
     "type": {"type": "string", "enum": ["INCOME", "EXPENSE"]},

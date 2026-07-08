@@ -24,6 +24,7 @@ from app.schemas.finance import (
     TransactionUpdate,
 )
 from app.services import finance_service
+from app.services.local_first_sync import sync_after_write
 
 router = APIRouter(prefix="/finance", tags=["finance"])
 
@@ -48,6 +49,7 @@ def create_category(
     db: Session = Depends(get_db),
 ) -> dict:
     category = finance_service.create_category(db, principal, payload)
+    sync_after_write(db, principal)
     return success_response(CategoryOut.model_validate(category), "Category created")
 
 
@@ -59,6 +61,7 @@ def update_category(
     db: Session = Depends(get_db),
 ) -> dict:
     category = finance_service.update_category(db, principal, category_id, payload)
+    sync_after_write(db, principal)
     return success_response(CategoryOut.model_validate(category), "Category updated")
 
 
@@ -69,6 +72,7 @@ def delete_category(
     db: Session = Depends(get_db),
 ) -> dict:
     finance_service.delete_category(db, principal, category_id)
+    sync_after_write(db, principal)
     return success_response({"id": str(category_id)}, "Category deleted")
 
 
@@ -112,6 +116,7 @@ def create_transaction(
     db: Session = Depends(get_db),
 ) -> dict:
     transaction = finance_service.create_transaction(db, principal, payload)
+    sync_after_write(db, principal)
     return success_response(TransactionOut.model_validate(transaction), "Transaction created")
 
 
@@ -133,6 +138,7 @@ def update_transaction(
     db: Session = Depends(get_db),
 ) -> dict:
     transaction = finance_service.update_transaction(db, principal, transaction_id, payload)
+    sync_after_write(db, principal)
     return success_response(TransactionOut.model_validate(transaction), "Transaction updated")
 
 
@@ -143,6 +149,7 @@ def delete_transaction(
     db: Session = Depends(get_db),
 ) -> dict:
     finance_service.delete_transaction(db, principal, transaction_id)
+    sync_after_write(db, principal)
     return success_response({"id": str(transaction_id)}, "Transaction deleted")
 
 

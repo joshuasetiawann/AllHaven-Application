@@ -15,6 +15,7 @@ from app.core.principal import Principal
 from app.core.responses import success_response
 from app.schemas.integrations import IntegrationUpdateRequest
 from app.services import integration_config_service as svc
+from app.services.local_first_sync import sync_after_write
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -48,6 +49,7 @@ def update_integration(
     view = svc.upsert_integration(
         db, principal, provider_id, public=payload.public_config, secrets=payload.secrets
     )
+    sync_after_write(db, principal)
     return success_response(view, "Integration saved")
 
 
@@ -57,7 +59,9 @@ def test_integration(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    return success_response(svc.test_integration(db, principal, provider_id), "Connection tested")
+    view = svc.test_integration(db, principal, provider_id)
+    sync_after_write(db, principal)
+    return success_response(view, "Connection tested")
 
 
 @router.post("/integrations/{provider_id}/enable")
@@ -66,7 +70,9 @@ def enable_integration(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    return success_response(svc.set_enabled(db, principal, provider_id, True), "Integration enabled")
+    view = svc.set_enabled(db, principal, provider_id, True)
+    sync_after_write(db, principal)
+    return success_response(view, "Integration enabled")
 
 
 @router.post("/integrations/{provider_id}/disable")
@@ -75,7 +81,9 @@ def disable_integration(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    return success_response(svc.set_enabled(db, principal, provider_id, False), "Integration disabled")
+    view = svc.set_enabled(db, principal, provider_id, False)
+    sync_after_write(db, principal)
+    return success_response(view, "Integration disabled")
 
 
 @router.delete("/integrations/{provider_id}")
@@ -84,4 +92,6 @@ def clear_integration(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    return success_response(svc.clear_integration(db, principal, provider_id), "Integration cleared")
+    view = svc.clear_integration(db, principal, provider_id)
+    sync_after_write(db, principal)
+    return success_response(view, "Integration cleared")
