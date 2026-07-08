@@ -11,6 +11,26 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [3.3.0] - 2026-06-13 — AllHaven 3.3 Routine planner and sidebar flow
+
+Detailed notes: [`docs/releases/v3.3.0.md`](docs/releases/v3.3.0.md)
+
+AllHaven 3.3 replaces the old Calendar surface with a clearer Routine planner
+and reorganizes the main sidebar around the user's daily workflow.
+
+### Added
+- **Routine planner.** New `/dashboard/routines` page with a seven-day calendar strip, Today/Upcoming/Selected/All views, routine stats, next-routine summary, jump-to-date control, and a full date/time create/edit modal.
+- **Routine API alias.** New `/api/v1/routines/events` endpoints backed by the existing local event storage so old schedule data stays intact.
+- **Calendar redirect.** `/dashboard/calendar` now redirects to `/dashboard/routines` for old bookmarks.
+
+### Changed
+- **Sidebar order.** Primary navigation now reads: Dashboard, AI Chat, Routine, Task, Finance, Notes, Approval.
+- **Dashboard polish.** Routine is now surfaced as a quick action and the dashboard intro copy reflects routines as a first-class workspace area.
+- **AI schedule context.** The `routines` section prioritizes schedule/event tools, and user-facing AI tool labels/copy refer to Routine instead of Calendar.
+
+### Compatibility
+- Existing `calendar_events` records and `/api/v1/calendar/events` remain available.
+
 ## [3.2.0] - 2026-06-13 — AllHaven 3.2 repository hygiene and render skeletons
 
 Detailed notes: [`docs/releases/v3.2.0.md`](docs/releases/v3.2.0.md)
