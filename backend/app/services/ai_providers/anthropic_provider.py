@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from app.services.ai_providers.base import AIProvider, ChatResult, safe_request
+from app.services.ai_providers.base import AIProvider, ChatResult, VerifyResult, interpret_http, safe_request
 
 API_BASE = "https://api.anthropic.com/v1"
 ANTHROPIC_VERSION = "2023-06-01"
@@ -15,7 +15,7 @@ class AnthropicProvider(AIProvider):
     name = "Claude Agent"
     external = True
     requires_api_key = True
-    default_model = "claude-sonnet-4-6"
+    default_model = "claude-sonnet-4-5"
 
     def _headers(self, key: str) -> dict:
         return {"x-api-key": key, "anthropic-version": ANTHROPIC_VERSION}
@@ -23,16 +23,13 @@ class AnthropicProvider(AIProvider):
     def is_configured(self, public: dict, secrets: dict) -> bool:
         return bool(secrets.get("api_key"))
 
-    def test_connection(self, public: dict, secrets: dict) -> tuple[bool, str]:
+    def test_connection(self, public: dict, secrets: dict) -> VerifyResult:
         key = secrets.get("api_key")
         if not key:
-            return False, "API key not set"
+            return VerifyResult("not_configured", "API key not set")
+        # /models requires the x-api-key header; an invalid key returns 401.
         code, _, err = safe_request("GET", f"{API_BASE}/models", headers=self._headers(key))
-        if err:
-            return False, err
-        if code == 200:
-            return True, ""
-        return False, f"Verification failed (HTTP {code})"
+        return interpret_http(code, err)
 
     def chat(self, public: dict, secrets: dict, messages: list[dict], model: Optional[str] = None) -> ChatResult:
         key = secrets.get("api_key")
