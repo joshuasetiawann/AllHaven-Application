@@ -36,8 +36,8 @@ Design spec: [`docs/superpowers/specs/2026-06-17-mobile-apk-design.md`](superpow
 This repo can build the static web bundle anywhere Node runs, but assembling the
 actual `.apk` needs the Android toolchain on **your** machine:
 
-- **Node 18+** and npm (already used for the frontend).
-- **JDK 17** (Temurin/OpenJDK 17).
+- **Node 22+** and npm (the Capacitor 8 CLI requires Node ≥ 22).
+- **JDK 21** (Temurin/OpenJDK 21 — Capacitor 8 / AGP compiles with source release 21).
 - **Android Studio** (includes the Android SDK, platform-tools, and Gradle). On
   first launch it installs the SDK; accept the SDK licenses.
 
