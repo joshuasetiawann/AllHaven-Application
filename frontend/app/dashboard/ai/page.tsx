@@ -435,7 +435,7 @@ export default function AiChatPage() {
         )}>
           {isUser ? <User size={14} /> : <Bot size={14} />}
         </span>
-        <div className="min-w-0 max-w-[78%] sm:max-w-[44rem]">
+        <div className="min-w-0 max-w-[86%] sm:max-w-[44rem]">
           {provider && !isUser ? (
             <p className="mb-0.5 flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-content-subtle">
               {provider}
@@ -599,7 +599,7 @@ export default function AiChatPage() {
 
   return (
     <AppShell>
-      <div className="flex h-[calc(100vh-7.5rem)] min-h-[520px] overflow-hidden rounded-2xl border border-border bg-surface/30">
+      <div className="flex h-[calc(100svh-5.75rem)] min-h-[500px] overflow-hidden rounded-xl border border-border bg-surface/30 sm:h-[calc(100vh-7.5rem)] sm:min-h-[520px] sm:rounded-2xl">
         {/* Conversation sidebar (desktop) */}
         <div className="hidden w-72 shrink-0 border-r border-border lg:block">
           <ConversationSidebar {...sidebarProps} />
@@ -619,7 +619,7 @@ export default function AiChatPage() {
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Header */}
           <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:px-5">
-            <div className="flex items-center gap-2.5">
+            <div className="flex min-w-0 flex-wrap items-center gap-2.5">
               <button onClick={() => setDrawerOpen(true)} className="rounded-md p-1.5 text-content-muted transition-colors hover:bg-surface-raised hover:text-content lg:hidden" aria-label="Open conversations">
                 <PanelLeft size={17} />
               </button>
@@ -630,18 +630,21 @@ export default function AiChatPage() {
                 <p className="truncate text-sm font-semibold text-content">{activeSession?.title || "New Chat"}</p>
                 <p className="label-mono">AllHaven Multi-Agent · honest status</p>
               </div>
-              <SectionMemoryBar
-                sectionKey={section}
-                groups={groups}
-                onSectionChange={changeSection}
-                onMemoryChange={() => {
-                  // Memory edited — allow it to re-seed the active thread on next send.
-                  prefacedRef.current.delete(`${activeId ?? "new"}:${section}`);
-                }}
-              />
-              <MemoryIndicator refreshKey={memoryRefreshKey} />
+              <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:flex-none">
+                <SectionMemoryBar
+                  sectionKey={section}
+                  groups={groups}
+                  onSectionChange={changeSection}
+                  onMemoryChange={() => {
+                    // Memory edited — allow it to re-seed the active thread on next send.
+                    prefacedRef.current.delete(`${activeId ?? "new"}:${section}`);
+                  }}
+                />
+                <MemoryIndicator refreshKey={memoryRefreshKey} />
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            <div className="custom-scrollbar -mx-1 flex overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+              <div className="flex min-w-max items-center gap-x-2 gap-y-1.5 sm:min-w-0 sm:flex-wrap">
               {/* Mode toggle: parallel fan-out vs multi-round debate. */}
               <div className="inline-flex shrink-0 items-center rounded-lg border border-border bg-surface-input p-0.5 text-[12.5px]">
                 <button
@@ -719,6 +722,7 @@ export default function AiChatPage() {
               ) : null}
               {anyLocal ? <Badge tone="success"><Cpu size={11} className="mr-1 inline" /> Local AI</Badge> : null}
               {anyExternal ? <Badge tone="warning"><AlertTriangle size={11} className="mr-1 inline" /> External AI</Badge> : null}
+              </div>
             </div>
             <MultiAgentSelector
               providers={providers}
@@ -732,7 +736,7 @@ export default function AiChatPage() {
 
           {/* Messages */}
           <div
-            className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6"
+            className="custom-scrollbar flex-1 space-y-4 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5"
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => { e.preventDefault(); void addImages(e.dataTransfer.files); }}
           >
@@ -801,7 +805,7 @@ export default function AiChatPage() {
                 {pendingUser ? (
                   <div className="flex animate-fade-in flex-row-reverse gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-high text-content"><User size={15} /></span>
-                    <div className="max-w-[82%] rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2.5 text-sm text-content">
+                    <div className="max-w-[86%] rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2.5 text-sm text-content sm:max-w-[82%]">
                       {pendingImages.length ? (
                         <div className="mb-2 flex flex-wrap gap-2">
                           {pendingImages.map((src, i) => (
@@ -856,7 +860,7 @@ export default function AiChatPage() {
             </p>
           ) : null}
           {error ? <p className="px-5 pb-1 text-[12px] text-danger">{error}</p> : null}
-          <div className="border-t border-border p-3">
+          <div className="border-t border-border p-2.5 sm:p-3">
             {/* Thinking Mode (reasoning depth + sampling) — applies to every chat mode. */}
             <div className="mb-2 flex items-center gap-2">
               <span className="shrink-0 text-[10.5px] font-medium uppercase tracking-wide text-content-subtle">Thinking</span>
@@ -895,7 +899,7 @@ export default function AiChatPage() {
                 ))}
               </div>
             ) : null}
-            <form onSubmit={send} className="flex items-center gap-2">
+            <form onSubmit={send} className="flex items-center gap-1.5 sm:gap-2">
               <input
                 ref={fileRef}
                 type="file"
@@ -919,7 +923,7 @@ export default function AiChatPage() {
                 placeholder="Type a message, or attach an image…"
                 className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-surface-input px-3.5 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
-              <Button type="submit" size="lg" loading={sending} disabled={(!input.trim() && images.length === 0) || selected.length === 0} className="px-4">
+              <Button type="submit" size="lg" loading={sending} disabled={(!input.trim() && images.length === 0) || selected.length === 0} className="shrink-0 px-3 sm:px-4">
                 {!sending ? <SendHorizonal size={16} /> : null}
               </Button>
             </form>

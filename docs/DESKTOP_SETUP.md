@@ -14,14 +14,14 @@ This guide is for non-technical users. You only need to **clone the repo** and
 | **Linux** | `./START_HAVEN_LINUX.sh` | If double-click doesn't run it, run it from a terminal. |
 | **Any terminal** | `./install.sh` or `npm run setup` | Same result — installs in the terminal. |
 
-> Only **Python 3** is required to bootstrap. If it's missing, the launcher tells you
-> where to get it (<https://www.python.org/downloads/>) — on Windows tick **"Add
-> Python to PATH"**.
+> **Python 3** and **Node.js 18+** are required. If either is missing, the launcher
+> stops early and tells you where to get it. On Windows, tick **"Add Python to PATH"**
+> when installing Python.
 
-**Everything runs in the terminal.** The launcher checks Python, then installs and
-starts Haven with **live progress** — tool checks, `.env` (with backup), the Docker
-image pull, `pip`/`npm` installs, migrations, services, and finally opening the app in
-your browser. There is no separate website to configure.
+**Everything runs in the terminal.** The launcher checks Python and Node, then installs
+and starts Haven with **live progress** — tool checks, `.env` (with backup), the Docker
+image pull when Docker is available, `pip`/`npm` installs, migrations, services, and
+finally opening the app in your browser. There is no separate website to configure.
 
 > **After setup**, the **Haven desktop shortcut** (or running the launcher again) skips
 > the install and just starts services + opens the app. Re-run the installer anytime
@@ -35,7 +35,7 @@ your browser. There is no separate website to configure.
 The default terminal installer runs these automatically with live output. The optional
 browser wizard (`HAVEN_SETUP_WEB=1`) presents the same steps as clickable screens:
 
-1. **Welcome** — what Haven will do. Docker is required.
+1. **Welcome** — what Haven will do. Docker is recommended for PostgreSQL.
 2. **Choose OS** — auto-detected; change it only to see the right Docker guidance.
 3. **System Check** — Docker installed/running, Docker Compose, `.env`,
    `docker-compose.yml`, and project folders. Green = good.
@@ -122,9 +122,10 @@ if the Postgres port changes, the database URL is updated automatically.
 
 ## How it works (for the curious)
 
-- **Launchers** (`START_HAVEN_*`) only need Python 3. First run → setup wizard
-  (`installer/haven_setup.py`); later runs → `installer/haven_launch.py` (ensure
-  services + open).
+- **Launchers** (`START_HAVEN_*`) check Python 3 and Node.js. First run → terminal
+  installer (`installer/haven_cli.py`); optional web wizard →
+  `installer/haven_setup.py`; later runs → `installer/haven_launch.py` (ensure services
+  + open).
 - The **Haven Agent** (`installer/haven_agent.py`) is a tiny **localhost-only**,
   **token-gated** control service. It is the *only* place that starts/stops
   processes or runs Docker — always via fixed argument lists (no shell), against a

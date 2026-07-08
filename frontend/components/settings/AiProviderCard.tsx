@@ -124,12 +124,12 @@ export function AiProviderCard({
           {provider.default_model ? <span className="font-mono">· {provider.default_model}</span> : null}
         </div>
 
-        <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
+        <div className="mt-4 flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Toggle checked={provider.enabled} onChange={toggle} disabled={busy === "toggle"} label="Enabled" />
             <span className="text-[12px] text-content-muted">{provider.enabled ? "Enabled" : "Disabled"}</span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
             {provider.configured ? (
               <Button variant="ghost" size="sm" onClick={test} loading={busy === "test"}>
                 <Wifi size={14} /> Test
@@ -148,7 +148,7 @@ export function AiProviderCard({
         title={`Configure ${provider.name}`}
         description={provider.purpose}
         footer={
-          <div className="flex w-full items-center justify-between gap-2">
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             {keyField && provider.secrets?.[keyField.key]?.configured ? (
               <Button variant="danger" size="sm" onClick={() => save(true)} loading={busy === "save"}>
                 Clear key
@@ -156,11 +156,11 @@ export function AiProviderCard({
             ) : (
               <span />
             )}
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={test} loading={busy === "test"}>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button variant="ghost" onClick={test} loading={busy === "test"} className="w-full sm:w-auto">
                 <Wifi size={15} /> Test
               </Button>
-              <Button onClick={() => save(false)} loading={busy === "save"}>
+              <Button onClick={() => save(false)} loading={busy === "save"} className="w-full sm:w-auto">
                 Save
               </Button>
             </div>
@@ -277,7 +277,7 @@ function ModelSlotsSection({
 
   return (
     <div className="mt-5 border-t border-border pt-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h4 className="text-[13px] font-semibold text-content">Model slots</h4>
           <p className="mt-0.5 text-[12px] text-content-muted">
@@ -291,7 +291,7 @@ function ModelSlotsSection({
 
       <div className="mt-3 space-y-3">
         <div className="rounded-lg border border-border bg-surface-input px-3 py-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="label-mono">Slot 1</span>
             <span className="font-mono text-[11px] text-content-subtle">
               {slot1.model || provider.default_model || "no model set"}
@@ -313,7 +313,7 @@ function ModelSlotsSection({
 
         {slot2 ? (
           <div className="rounded-lg border border-border bg-surface-input px-3 py-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <span className="label-mono">Slot 2</span>
                 <Badge tone={slot2.configured ? "success" : "neutral"}>
