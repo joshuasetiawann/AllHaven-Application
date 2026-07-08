@@ -213,6 +213,17 @@ export default function SettingsPage() {
   const directAiProviders = providers?.filter((p) => !p.id.startsWith("openrouter_")) ?? [];
   const openRouterProviders = providers?.filter((p) => p.id.startsWith("openrouter_")) ?? [];
 
+  // For a backend-only tab whose data is null: a small inline spinner WHILE the first
+  // load is still running, then an honest connect-state. Never a full-page block — so
+  // Settings (and Appearance, which is device-local) open instantly even with no
+  // backend / no Tailscale.
+  const backendTabFallback = (feature: string, reason: string) =>
+    loaded ? (
+      <SetupRequiredState feature={feature} needs="backend" reason={reason} onRetry={load} />
+    ) : (
+      <Loading />
+    );
+
   return (
     <AppShell>
       <PageHeader
@@ -265,10 +276,7 @@ export default function SettingsPage() {
         </div>
       ) : null}
 
-      {!loaded ? (
-        <Loading />
-      ) : (
-        <div key={tab} className="animate-fade-in">
+      <div key={tab} className="animate-fade-in">
           {tab === "tools" ? (
             <>
               <BackendBridgeCard onConnected={load} />
@@ -289,12 +297,10 @@ export default function SettingsPage() {
                   ))}
                 </div>
               ) : (
-                <SetupRequiredState
-                  feature="Connected Tools"
-                  needs="backend"
-                  reason="Integrations live on the backend (secrets stay server-side). Connect via the Backend Bridge above to configure them — Appearance settings work without it."
-                  onRetry={load}
-                />
+                backendTabFallback(
+                  "Connected Tools",
+                  "Integrations live on the backend (secrets stay server-side). Connect via the Backend Bridge above to configure them — Appearance settings work without it.",
+                )
               )}
             </>
           ) : null}
@@ -416,12 +422,10 @@ export default function SettingsPage() {
             ) : (
               <>
                 <BackendBridgeCard onConnected={load} />
-                <SetupRequiredState
-                  feature="AI Providers"
-                  needs="backend"
-                  reason="AI-provider configuration lives on the backend. Connect via the Backend Bridge to manage providers — Appearance settings work without it."
-                  onRetry={load}
-                />
+                {backendTabFallback(
+                  "AI Providers",
+                  "AI-provider configuration lives on the backend. Connect via the Backend Bridge to manage providers — Appearance settings work without it.",
+                )}
               </>
             )
           ) : null}
@@ -600,8 +604,7 @@ export default function SettingsPage() {
           ) : null}
 
           {tab === "system" ? <SystemControl /> : null}
-        </div>
-      )}
+      </div>
 
       <IntegrationConfigModal
         integration={configuring}
