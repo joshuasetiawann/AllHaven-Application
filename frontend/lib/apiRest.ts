@@ -57,6 +57,7 @@ import type { AiProviderUpdatePayload, GoogleScopes } from "@/types/api";
 // WebView origin is always https://localhost (the phone), so a runtime override
 // is the only way to reach the desktop backend.
 import { getApiBaseUrl } from "@/lib/backendUrl";
+import { nativeJsonRequest } from "@/lib/nativeHttp";
 
 export { getApiBaseUrl } from "@/lib/backendUrl";
 
@@ -154,7 +155,9 @@ async function request<T>(path: string, options: RequestInit = {}, timeoutMs: nu
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    let res: Response;
+    let status = 0;
+    let ok = false;
+    let body: ApiEnvelope<T> | null = null;
     try {
       const base = getApiBaseUrl();
       if (BEARER_MODE && !base) {
@@ -164,12 +167,29 @@ async function request<T>(path: string, options: RequestInit = {}, timeoutMs: nu
           503,
         );
       }
-      res = await fetch(`${base}${path}`, {
+      const native = await nativeJsonRequest<ApiEnvelope<T>>(`${base}${path}`, {
         ...options,
         headers,
-        credentials,
-        signal: controller.signal,
-      });
+      }, timeoutMs);
+      if (native) {
+        status = native.status;
+        ok = native.status >= 200 && native.status < 300;
+        body = native.data;
+      } else {
+        const res = await fetch(`${base}${path}`, {
+          ...options,
+          headers,
+          credentials,
+          signal: controller.signal,
+        });
+        status = res.status;
+        ok = res.ok;
+        try {
+          body = (await res.json()) as ApiEnvelope<T>;
+        } catch {
+          body = null;
+        }
+      }
     } catch (err) {
       if (err instanceof ApiException) throw err;
       const timedOut = err instanceof DOMException && err.name === "AbortError";
@@ -182,19 +202,12 @@ async function request<T>(path: string, options: RequestInit = {}, timeoutMs: nu
       );
     }
 
-    let body: ApiEnvelope<T> | null = null;
-    try {
-      body = (await res.json()) as ApiEnvelope<T>;
-    } catch {
-      body = null;
-    }
-
-    if (!res.ok || body?.status === "error") {
-      handleUnauthorized(res.status);
+    if (!ok || body?.status === "error") {
+      handleUnauthorized(status);
       throw new ApiException(
-        body?.message || `Request failed (${res.status})`,
+        body?.message || `Request failed (${status})`,
         body?.error_code || "HTTP_ERROR",
-        res.status,
+        status,
         body?.details,
       );
     }

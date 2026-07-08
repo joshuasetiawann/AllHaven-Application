@@ -7,6 +7,7 @@
 import { ApiException, getApiBaseUrl } from "@/lib/api";
 import { normalizeBackendUrl } from "@/lib/backendUrl";
 import { BEARER_MODE, ensureBearerHydrated, getBearerToken } from "@/lib/mobileAuth";
+import { nativeJsonRequest } from "@/lib/nativeHttp";
 
 /** True when an error means the backend/bridge is unreachable (vs a real app error). */
 export function isBackendUnreachable(err: unknown): boolean {
@@ -42,6 +43,8 @@ export async function pingBackend(timeoutMs = 4000): Promise<boolean> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
+    const native = await nativeJsonRequest(`${base}/health`, { method: "GET" }, timeoutMs);
+    if (native) return native.status >= 200 && native.status < 300;
     const res = await fetch(`${base}/health`, { signal: ctrl.signal });
     return res.ok;
   } catch {
@@ -122,13 +125,24 @@ export async function testBackendConnection(
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   const startedAt = typeof performance !== "undefined" ? performance.now() : 0;
   try {
-    const res = await fetch(`${base}/health`, { signal: ctrl.signal });
+    const nativeHealth = await nativeJsonRequest<{ status?: string; data?: { status?: string; app_version?: string; deployment_profile?: string } }>(
+      `${base}/health`,
+      { method: "GET" },
+      timeoutMs,
+    );
+    const res = nativeHealth
+      ? { ok: nativeHealth.status >= 200 && nativeHealth.status < 300, status: nativeHealth.status }
+      : await fetch(`${base}/health`, { signal: ctrl.signal });
     const latencyMs = Math.max(0, Math.round((typeof performance !== "undefined" ? performance.now() : 0) - startedAt));
     let body: { status?: string; data?: { status?: string; app_version?: string; deployment_profile?: string } } | null = null;
-    try {
-      body = await res.json();
-    } catch {
-      body = null;
+    if (nativeHealth) {
+      body = nativeHealth.data;
+    } else {
+      try {
+        body = await (res as Response).json();
+      } catch {
+        body = null;
+      }
     }
     if (res.ok && body?.status === "success") {
       if (BEARER_MODE) {
@@ -146,10 +160,17 @@ export async function testBackendConnection(
             testedUrl: base,
           };
         }
-        const authRes = await fetch(`${base}/auth/me`, {
-          signal: ctrl.signal,
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const nativeAuth = await nativeJsonRequest(
+          `${base}/auth/me`,
+          { method: "GET", headers: { Authorization: `Bearer ${token}` } },
+          timeoutMs,
+        );
+        const authRes = nativeAuth
+          ? { ok: nativeAuth.status >= 200 && nativeAuth.status < 300, status: nativeAuth.status }
+          : await fetch(`${base}/auth/me`, {
+              signal: ctrl.signal,
+              headers: { Authorization: `Bearer ${token}` },
+            });
         if (!authRes.ok) {
           return {
             ok: false,
