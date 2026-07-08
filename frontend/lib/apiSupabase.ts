@@ -418,6 +418,12 @@ type TxQuery = {
   offset?: number;
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function txnType(value: unknown): "INCOME" | "EXPENSE" {
+  return String(value || "EXPENSE").toUpperCase() === "INCOME" ? "INCOME" : "EXPENSE";
+}
+
 const financeCrud = {
   listCategories: async (): Promise<FinanceCategory[]> => {
     const sb = await getSupabase();
@@ -491,19 +497,33 @@ const financeCrud = {
   },
   createTransaction: async (payload: Record<string, unknown>): Promise<Transaction> => {
     const sb = await getSupabase();
+    const txType = txnType(payload.type);
+    const nextPayload: Record<string, unknown> = { ...payload, type: txType };
+    const rawCategory = String(payload.category_id ?? "").trim();
+    let categoryId = UUID_RE.test(rawCategory) ? rawCategory : "";
+    if (rawCategory && !categoryId) {
+      const cats = await financeCrud.listCategories();
+      let category = cats.find((c) => c.type === txType && c.name.trim().toLowerCase() === rawCategory.toLowerCase());
+      if (!category) {
+        category = await financeCrud.createCategory({ name: rawCategory.slice(0, 255), type: txType });
+      }
+      categoryId = category.id;
+    }
+    if (categoryId) nextPayload.category_id = categoryId;
+    else delete nextPayload.category_id;
     // currency defaults to "IDR" on the backend (DEFAULT_CURRENCY); stamp it so the
     // NOT-NULL constraint is satisfied when the caller omits it.
     // Normalize to uppercase and trim to 3 chars to match backend `.upper()[:3]`.
     // type, amount, transaction_date are required caller-supplied fields.
-    const currency = ((payload.currency as string | undefined) ?? "IDR").toUpperCase().slice(0, 3);
+    const currency = ((nextPayload.currency as string | undefined) ?? "IDR").toUpperCase().slice(0, 3);
     // Resolve category_name_snapshot at write time so the label survives category deletion.
     let category_name_snapshot: string | null = null;
-    if (payload.category_id != null) {
+    if (nextPayload.category_id != null) {
       const cats = await financeCrud.listCategories();
-      category_name_snapshot = cats.find((c) => c.id === payload.category_id)?.name ?? null;
+      category_name_snapshot = cats.find((c) => c.id === nextPayload.category_id)?.name ?? null;
     }
     const { data, error } = await insertTolerant("transactions", {
-      ...payload,
+      ...nextPayload,
       currency,
       category_name_snapshot,
       ...newRow(),

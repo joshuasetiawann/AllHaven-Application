@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { NotConnectedNotice } from "@/components/settings/NotConnectedNotice";
 import { aiApi, ApiException } from "@/lib/api";
 import { backendReachable, needsBackendConnection } from "@/lib/connection";
+import { BACKEND_CHANGED_EVENT } from "@/lib/connectionMode";
 import { BEARER_MODE } from "@/lib/mobileAuth";
 import type { AiTool } from "@/types";
 
@@ -30,6 +31,7 @@ export function AiToolsPanel() {
   const [loadError, setLoadError] = useState<string | null>(null);
   // Backend unreachable → render an honest connect-state instead of an endless spinner.
   const [needsBackend, setNeedsBackend] = useState(false);
+  const [backendIssue, setBackendIssue] = useState<"unreachable" | "auth">("unreachable");
   const [error, setError] = useState<string | null>(null);
   // Name of the tool whose toggle is being saved.
   const [busyTool, setBusyTool] = useState<string | null>(null);
@@ -37,10 +39,12 @@ export function AiToolsPanel() {
   const load = useCallback(async () => {
     setLoadError(null);
     setNeedsBackend(false);
+    setBackendIssue("unreachable");
     // Mobile (bearer build): if the desktop backend isn't reachable right now, show the
     // connect-state in ~2-3s (one shared, cached ping) instead of firing a doomed request
     // that spins for the full timeout. Desktop/web (local backend up) passes through.
     if (BEARER_MODE && !(await backendReachable())) {
+      setBackendIssue("unreachable");
       setNeedsBackend(true);
       return;
     }
@@ -48,6 +52,7 @@ export function AiToolsPanel() {
       setTools(await aiApi.listTools());
     } catch (err) {
       if (needsBackendConnection(err)) {
+        setBackendIssue(err instanceof ApiException && (err.statusCode === 401 || err.statusCode === 403) ? "auth" : "unreachable");
         setNeedsBackend(true);
         return;
       }
@@ -57,6 +62,9 @@ export function AiToolsPanel() {
 
   useEffect(() => {
     void load();
+    const onBackendChanged = () => void load();
+    window.addEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
+    return () => window.removeEventListener(BACKEND_CHANGED_EVENT, onBackendChanged);
   }, [load]);
 
   // Optimistic toggle: flip immediately, sync with the response, revert on failure.
@@ -89,7 +97,7 @@ export function AiToolsPanel() {
     <div className="space-y-4">
       {/* Stay OPEN with or without the backend — show the registry + a slim notice. */}
       {needsBackend ? (
-        <NotConnectedNotice what="The AI tool registry loads from your backend." onRetry={load} />
+        <NotConnectedNotice kind={backendIssue} what="The AI tool registry loads from your backend." onRetry={load} />
       ) : null}
 
       <Card padding="md" className="border-primary/15">
