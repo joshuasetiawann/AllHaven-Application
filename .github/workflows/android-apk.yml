@@ -1,12 +1,16 @@
 name: Build Android APK
 
-# Builds the AllHaven mobile app into an installable .apk on GitHub's runners —
+# Builds the real AllHaven frontend into an installable .apk on GitHub's runners —
 # no Android Studio or SDK needed on your machine. The .apk is attached to every
 # run as a downloadable artifact and published to the "mobile-latest" pre-release.
 #
 # Run it: Actions tab → "Build Android APK" → Run workflow. The default APK uses
 # Supabase directly for login/data. Enter an API base URL only for the optional
 # Desktop Bridge used by Ollama/n8n/backend-only tools.
+#
+# Important: this is NOT a separate mobile rewrite. Capacitor packages the
+# existing Next.js/React UI from frontend/out, so the APK keeps the same AllHaven
+# layout and visual design as the web app.
 
 on:
   workflow_dispatch:
@@ -101,11 +105,17 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
+      - name: Collect APK
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/allhaven-mobile-debug.apk
+          ls -lh dist/allhaven-mobile-debug.apk
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: allhaven-debug-apk
-          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          path: frontend/dist/allhaven-mobile-debug.apk
           if-no-files-found: error
 
       - name: Publish to "mobile-latest" release (download link)
@@ -114,9 +124,12 @@ jobs:
           tag_name: mobile-latest
           name: AllHaven Mobile (latest debug build)
           prerelease: true
-          files: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          files: frontend/dist/allhaven-mobile-debug.apk
           body: |
-            Debug APK of the AllHaven mobile app, built by CI.
+            Debug APK of the real AllHaven app, built by CI.
+
+            This APK is the existing Next.js/React frontend wrapped with Capacitor. It keeps the same AllHaven UI, layout, and UX as the web app; it is not a separate Flutter/native rewrite.
+
             Mobile data mode: `${{ env.DATA_MODE }}` (`supabase` = direct login/data; `rest` = Desktop Bridge backend).
             Desktop Bridge default for backend-only tools: `${{ env.API_URL }}`
-            Download `app-debug.apk` below → install on Android (enable "Install unknown apps").
+            Download `allhaven-mobile-debug.apk` below → install on Android (enable "Install unknown apps").
