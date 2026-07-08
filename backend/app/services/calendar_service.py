@@ -97,11 +97,18 @@ def _normalize_data(data: dict, *, start_at: datetime | None = None) -> dict:
     return normalized
 
 
-def create_event(db: Session, principal: Principal, data: dict) -> CalendarEvent:
+def _build_event(principal: Principal, data: dict) -> CalendarEvent:
+    """Validate + normalize one event and return an UNSAVED CalendarEvent.
+
+    Raises ``ValidationAppError`` on bad input before any DB write, which lets
+    callers build a whole batch first and only persist once every item is valid.
+    """
     data = _normalize_data(data, start_at=data.get("start_at"))
+    if not str(data.get("title") or "").strip():
+        raise ValidationAppError("Routine title is required.")
     if data.get("end_at") and data.get("start_at") and data["end_at"] < data["start_at"]:
         raise ValidationAppError("Event end must be after its start.")
-    event = CalendarEvent(
+    return CalendarEvent(
         workspace_id=principal.workspace_id,
         created_by=principal.user_id,
         title=data["title"],
@@ -116,10 +123,33 @@ def create_event(db: Session, principal: Principal, data: dict) -> CalendarEvent
         icon=data.get("icon") or "star",
         color=data.get("color") or "cyan",
     )
+
+
+def create_event(db: Session, principal: Principal, data: dict) -> CalendarEvent:
+    event = _build_event(principal, data)
     db.add(event)
     db.commit()
     db.refresh(event)
     return event
+
+
+def create_events_batch(db: Session, principal: Principal, items: list[dict]) -> List[CalendarEvent]:
+    """Atomically create many routines: validate ALL first, then insert once.
+
+    If any item is invalid, nothing is saved (the build step raises before any
+    ``db.add``), so the caller never ends up with a partially-applied batch.
+    """
+    if not items:
+        raise ValidationAppError("No routines to save.")
+    if len(items) > 50:
+        raise ValidationAppError("Cannot save more than 50 routines at once.")
+    # Build (and validate) every event before touching the session — atomicity.
+    events = [_build_event(principal, dict(item)) for item in items]
+    db.add_all(events)
+    db.commit()
+    for event in events:
+        db.refresh(event)
+    return events
 
 
 def update_event(db: Session, principal: Principal, event_id: uuid.UUID, data: dict) -> CalendarEvent:
