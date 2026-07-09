@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "build:mobile": "cross-env BUILD_TARGET=mobile NEXT_PUBLIC_AUTH_MODE=bearer next build",
+    "build:mobile": "cross-env BUILD_TARGET=mobile NEXT_PUBLIC_AUTH_MODE=bearer NEXT_PUBLIC_DATA_MODE=supabase next build",
     "cap:add:android": "cap add android",
     "cap:sync": "npm run build:mobile && cap sync android",
     "cap:open": "npm run cap:sync && cap open android"
