@@ -67,7 +67,9 @@ export function GoogleOAuthCard({
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div>
-          <p className="label-mono mb-2">Requested scopes</p>
+          <p className="mb-2 font-mono text-[11px] uppercase tracking-wide text-content-subtle">
+            Requested scopes
+          </p>
           <ul className="space-y-2">
             {(scopes?.catalog ?? []).map((group) => {
               const isDefault = group.default;
@@ -96,9 +98,9 @@ export function GoogleOAuthCard({
         </div>
 
         <div className="space-y-3">
-          <div className="glass-tile p-3.5">
-            <p className="flex items-center gap-2 text-[13px] font-medium text-content">
-              <ShieldCheck size={15} className="text-primary-bright" /> Minimal by default
+          <div className="rounded-lg border border-border bg-surface-input p-3">
+            <p className="flex items-center gap-2 text-[13px] text-content">
+              <ShieldCheck size={15} className="text-primary" /> Minimal by default
             </p>
             <p className="mt-1 text-[12px] text-content-muted">
               Default scopes: {(scopes?.default_scopes ?? ["openid", "email", "profile"]).join(", ")}. Gmail is

@@ -72,7 +72,7 @@ export function AiProviderCard({
         privacy_mode: privacy,
       });
       onChange(updated);
-      if (clearKey) setApiKey("");
+      setApiKey(""); // never keep the key in component state after saving
     } catch (err) {
       setError(err instanceof ApiException ? err.message : "Save failed.");
     } finally {
@@ -214,7 +214,12 @@ export function AiProviderCard({
           </Select>
         </div>
 
-        {error ? <p className="mt-4 text-[12.5px] text-danger">{error}</p> : null}
+        <p className="mt-4 text-[11.5px] leading-relaxed text-content-subtle">
+          Keys are encrypted server-side and never returned. <strong className="font-medium text-content-muted">Online status
+          requires a successful Test Connection</strong> — a random or unverified key stays Configured or
+          becomes Error, never Online.
+        </p>
+        {error ? <p className="mt-2 text-[12.5px] text-danger">{error}</p> : null}
       </Modal>
     </>
   );

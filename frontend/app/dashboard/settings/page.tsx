@@ -21,19 +21,25 @@ import { Toggle } from "@/components/ui/Toggle";
 import { Button } from "@/components/ui/Button";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { Loading, ErrorState } from "@/components/ui/States";
-import { authApi, settingsApi } from "@/lib/api";
+import { IntegrationCard } from "@/components/settings/IntegrationCard";
+import { IntegrationConfigModal } from "@/components/settings/IntegrationConfigModal";
+import { AiProviderCard } from "@/components/settings/AiProviderCard";
+import { GoogleOAuthCard } from "@/components/settings/GoogleOAuthCard";
+import { aiApi, authApi, settingsApi } from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
 import { initials } from "@/lib/format";
 import { DEFAULT_PREFS, loadPrefs, savePrefs, type Prefs } from "@/lib/prefs";
 import type { Integration, Me } from "@/types";
 
-const TOOL_META: Record<string, { icon: LucideIcon; desc: string; envHint: string }> = {
-  postgresql: { icon: Database, desc: "Primary relational database", envHint: "DATABASE_URL" },
-  ollama: { icon: Bot, desc: "Local LLM orchestration & inference", envHint: "OLLAMA_BASE_URL" },
-  n8n: { icon: Workflow, desc: "Workflow automation & webhooks", envHint: "N8N_BASE_URL" },
-  supabase: { icon: Cloud, desc: "Authentication & real-time sync", envHint: "SUPABASE_URL" },
-  google_calendar: { icon: Calendar, desc: "Task & event synchronization", envHint: "GOOGLE_CALENDAR_CLIENT_ID" },
-  weather: { icon: CloudSun, desc: "Local weather data feed", envHint: "WEATHER_API_KEY" },
+const INTEGRATION_ICONS: Record<string, LucideIcon> = {
+  postgresql: Database,
+  ollama: Cpu,
+  n8n: Workflow,
+  supabase: Cloud,
+  google_calendar: Calendar,
+  weather_api: CloudSun,
+  drive_storage: HardDrive,
+  google: Globe,
 };
 
 function toolBadge(integration: Integration) {
@@ -168,23 +174,21 @@ export default function SettingsPage() {
                     </span>
                     {toolBadge(integration)}
                   </div>
-                  <h3 className="mt-3 text-sm font-semibold text-content">{integration.name}</h3>
-                  <p className="mt-0.5 text-[12.5px] text-content-muted">{meta.desc}</p>
-                  <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
-                    <span className="flex items-center gap-2 text-[12px] text-content-subtle">
-                      <StatusDot status={integration.status} pulse /> {integration.detail}
-                    </span>
-                    {!integration.configured && meta.envHint ? (
-                      <code className="rounded bg-surface-input px-1.5 py-0.5 font-mono text-[11px] text-content-muted">
-                        {meta.envHint}
-                      </code>
-                    ) : null}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+                </div>
+              </Card>
+
+              <GoogleOAuthCard
+                google={integrations.find((i) => i.key === "google")}
+                onConfigure={() => {
+                  const g = integrations.find((i) => i.key === "google");
+                  if (g) setConfiguring(g);
+                }}
+                onChange={updateIntegration}
+              />
+            </div>
+          ) : null}
+        </>
+      )}
 
         <p className="mt-4 text-[12px] text-content-subtle">
           Integrations are configured via backend environment variables (see <code className="font-mono">.env.example</code>).
