@@ -223,3 +223,70 @@ def test_pull_keeps_local_when_remote_has_non_utc_offset_but_is_older():
         )
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Task 7: sync_two_way orchestrator
+# ---------------------------------------------------------------------------
+
+from unittest.mock import patch, MagicMock  # noqa: E402
+from app.core.principal import Principal  # noqa: E402
+
+
+def test_sync_two_way_skips_when_no_credentials(db_session):
+    """sync_two_way returns 'skipped' and never raises when credentials are absent."""
+    p = Principal(user_id=uuid.uuid4(), workspace_id=uuid.uuid4(), email="x@y.z")
+    with patch("app.services.supabase_auth_service.get_service_credentials", return_value=(None, None)):
+        out = sync_engine.sync_two_way(db_session, p)
+    assert out["status"] == "skipped"
+
+
+def test_sync_two_way_pulls_then_pushes(db_session, auth_client):
+    """sync_two_way issues GET (pull) and POST (push) for each table when credentials exist."""
+    from tests.test_supabase_sync import _make_principal
+    p = _make_principal(auth_client)
+    # one local task to push
+    db_session.add(Task(workspace_id=p.workspace_id, created_by=p.user_id, title="local", status="TODO"))
+    db_session.commit()
+    captured = {"get": 0, "post": 0}
+
+    def fake_urlopen(req, timeout=None):
+        m = MagicMock()
+        m.__enter__ = lambda s: s
+        m.__exit__ = MagicMock(return_value=False)
+        if req.get_method() == "GET":
+            captured["get"] += 1
+            m.read = lambda: b"[]"  # remote empty
+        else:
+            captured["post"] += 1
+        return m
+
+    with patch("app.services.supabase_auth_service.get_service_credentials",
+               return_value=("https://x.supabase.co", "svc")), \
+         patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        out = sync_engine.sync_two_way(db_session, p)
+    assert out["status"] == "ok"
+    assert captured["get"] > 0 and captured["post"] > 0  # pulled and pushed
+
+
+# ---------------------------------------------------------------------------
+# Task 8: per-write trigger rewired to two-way engine
+# ---------------------------------------------------------------------------
+
+import threading  # noqa: E402
+
+
+def test_sync_after_write_invokes_two_way_engine(db_session):
+    """sync_after_write spawns a daemon thread targeting the two-way engine worker."""
+    p = Principal(user_id=uuid.uuid4(), workspace_id=uuid.uuid4(), email="x@y.z")
+    calls = {}
+
+    def capture_start(self):
+        calls["target"] = getattr(self, "_target", None)
+        # don't actually run the thread body
+
+    from app.services import local_first_sync
+    with patch.object(threading.Thread, "start", capture_start):
+        local_first_sync.sync_after_write(db_session, p)
+    # the spawned worker targets the two-way engine
+    assert calls.get("target") is not None

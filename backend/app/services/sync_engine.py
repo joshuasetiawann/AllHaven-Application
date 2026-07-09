@@ -12,7 +12,10 @@ Global constraints (mirrors supabase_sync_service semantics):
 """
 from __future__ import annotations
 
+import json
 import logging
+import urllib.parse
+import urllib.request
 import uuid
 from datetime import datetime, timezone
 from typing import Callable, Optional
@@ -21,7 +24,8 @@ from sqlalchemy.orm import Session
 
 from app.domain.sync_state import SyncState
 from app.services import supabase_sync_service as mirror
-from app.services.sync_registry import SyncSpec
+from app.services import supabase_auth_service
+from app.services.sync_registry import SyncSpec, SYNCED_TABLES
 
 log = logging.getLogger(__name__)
 
@@ -223,3 +227,70 @@ def pull_table(
 
     db.commit()
     return applied
+
+
+# ---------------------------------------------------------------------------
+# Task 7: HTTP adapters + sync_two_way orchestrator
+# ---------------------------------------------------------------------------
+
+def _http_upsert(url: str, key: str) -> Callable[[str, list[dict]], None]:
+    """Return a upsert callable that POSTs via supabase_sync_service._upsert (DRY reuse)."""
+    def upsert(table: str, rows: list[dict]) -> None:
+        mirror._upsert(url, key, table, rows)
+    return upsert
+
+
+def _http_fetch(url: str, key: str) -> Callable[[str, str, Optional[datetime]], list[dict]]:
+    """Return a fetch callable that GETs rows from Supabase newer than ``since``."""
+    def fetch(table: str, col: str, since: Optional[datetime]) -> list[dict]:
+        params = ["select=*", f"order={col}.asc", "limit=1000"]
+        if since is not None:
+            params.append(f"{col}=gt.{urllib.parse.quote(since.isoformat())}")
+        full = f"{url.rstrip('/')}/rest/v1/{table}?{'&'.join(params)}"
+        req = urllib.request.Request(
+            full,
+            headers={
+                "apikey": key,
+                "Authorization": f"Bearer {key}",
+            },
+            method="GET",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode() or "[]")
+    return fetch
+
+
+def _member_ids(db: Session, ws: uuid.UUID) -> list[uuid.UUID]:
+    """Return user_ids of all workspace members (for user-scoped tables like profiles)."""
+    from app.domain.workspaces import WorkspaceMember
+    return [m.user_id for m in db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == ws).all()]
+
+
+def sync_two_way(db: Session, principal) -> dict:
+    """Incremental two-way sync: pull remote→local then push local→remote for all synced tables.
+
+    Best-effort: never raises; per-table failures are logged at DEBUG and skipped.
+    Uses service-role key (RLS blocks anon key).
+
+    Returns:
+        dict with keys: status ("ok"|"skipped"|"error"), pulled, pushed, tables.
+    """
+    try:
+        url, key = supabase_auth_service.get_service_credentials(db, principal.workspace_id)
+        if not url or not key:
+            return {"status": "skipped", "reason": "no_credentials"}
+        ws = principal.workspace_id
+        members = _member_ids(db, ws)
+        upsert = _http_upsert(url, key)
+        fetch = _http_fetch(url, key)
+        pulled = pushed = 0
+        for spec in SYNCED_TABLES:
+            try:
+                pulled += pull_table(db, url, key, ws, members, spec, fetch=fetch)
+                pushed += push_table(db, url, key, ws, members, spec, upsert=upsert)
+            except Exception as exc:  # per-table isolation; keep going
+                log.debug("sync skipped for %s: %s", spec.table_name, exc)
+        return {"status": "ok", "pulled": pulled, "pushed": pushed, "tables": len(SYNCED_TABLES)}
+    except Exception as exc:
+        log.debug("sync_two_way failed: %s", exc)
+        return {"status": "error", "reason": str(exc)}
