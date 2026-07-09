@@ -10,15 +10,14 @@ AllHaven Command Center uses [Semantic Versioning](https://semver.org/): **`MAJO
 | **MINOR** (`0.3.0` → `0.4.0`) | A new feature or noticeable capability, backward-compatible | a new module, a new chat mode |
 | **MAJOR** (`0.x` → `1.0.0`) | Big or breaking change, or the first "stable" release | rewrite, breaking API change |
 
-Earlier experimental releases used the `0.x` range. Starting with **AllHaven
-3.0**, version metadata follows the user-facing release line directly.
+While the app is pre-`1.0`, we stay in the `0.x` range: it is still evolving and
+minor versions may include larger changes.
 
 ## Single source of truth
 
 The current version is stored in **`/VERSION`**. These must always match it:
 
 - `/VERSION`
-- `/package.json` → `"version"`
 - `frontend/package.json` → `"version"`
 - `backend/pyproject.toml` → `version`
 - `frontend/components/layout/nav.ts` → `APP_VERSION` (shown in the sidebar, prefixed with `v`)
@@ -36,17 +35,6 @@ The current version is stored in **`/VERSION`**. These must always match it:
 
 | Version | Date | Title |
 |---------|------|-------|
-| [v3.8.0](releases/v3.8.0.md) | 2026-06-19 | AllHaven 3.8 mobile full release, unified accounts, perf & weather removal |
-| [v3.7.0](releases/v3.7.0.md) | 2026-06-19 | AllHaven 3.7 two-way Supabase sync + mobile-on-Supabase |
-| [v3.6.0](releases/v3.6.0.md) | 2026-06-17 | AllHaven 3.6 privacy cleanup |
-| [v3.5.0](releases/v3.5.0.md) | 2026-06-14 | AllHaven 3.5 AI routine generation and atomic save |
-| [v3.4.0](releases/v3.4.0.md) | 2026-06-13 | AllHaven 3.4 voice, documents, Routine agenda, and local-first sync |
-| [v3.3.1](releases/v3.3.1.md) | 2026-06-13 | AllHaven 3.3.1 local Routine UX polish |
-| [v3.3.0](releases/v3.3.0.md) | 2026-06-13 | AllHaven 3.3 Routine planner and sidebar flow |
-| [v3.2.0](releases/v3.2.0.md) | 2026-06-13 | AllHaven 3.2 repository hygiene and render skeletons |
-| [v3.1.0](releases/v3.1.0.md) | 2026-06-13 | AllHaven 3.1 expanded AI agents and settings UX |
-| [v3.0.0](releases/v3.0.0.md) | 2026-06-13 | AllHaven 3.0 launch-ready AI workspace |
-| [v0.17.0](releases/v0.17.0.md) | 2026-06-13 | AI Workspace, Knowledge, finance reports & direct memory |
 | [v0.1.0](releases/v0.1.0.md) | 2026-06-09 | Initial AllHaven Command Center |
 | [v0.2.0](releases/v0.2.0.md) | 2026-06-09 | Multi-agent Debate |
 | [v0.3.0](releases/v0.3.0.md) | 2026-06-09 | Reasoning Quality Layer |
