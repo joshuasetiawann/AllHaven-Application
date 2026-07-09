@@ -37,16 +37,33 @@ async function loadMe(): Promise<Me> {
   const sb = await getSupabase();
   const { data: auth, error: ae } = await sb.auth.getUser();
   if (ae || !auth?.user) throw toApiException(ae ?? { status: 401, message: "Not authenticated" }, 401);
-  // RLS returns only this user's profile (profiles.id = app_user_id()).
-  const { data: profile, error: pe } = await sb.from("profiles").select("*").single();
+  // RLS returns only this user's profile (profiles.id = app_user_id()). Use
+  // maybeSingle: if the account isn't linked yet (profiles.supabase_user_id null)
+  // RLS returns 0 rows, and .single() would throw an opaque PGRST116 that breaks
+  // login entirely. Surface a clear, actionable error instead.
+  const { data: profile, error: pe } = await sb.from("profiles").select("*").maybeSingle();
   if (pe) throw toApiException(pe);
+  if (!profile) {
+    throw new ApiException(
+      'Your account isn’t linked to Supabase yet. Open the AllHaven desktop app → Settings → Supabase → "Connect to Supabase", then sign in here.',
+      "PROFILE_NOT_INITIALIZED",
+      409,
+    );
+  }
   setAppUserId(profile.id);
   // Resolve the user's OWNED workspace (matches backend auth_service.get_default_workspace).
   // RLS policy p_owner restricts workspaces to rows where owner_id = app_user_id().
   const { data: ws, error: we } = await sb
     .from("workspaces").select("*")
-    .order("created_at", { ascending: true }).limit(1).single();
+    .order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (we) throw toApiException(we);
+  if (!ws) {
+    throw new ApiException(
+      "No workspace found for your account. Create one in the AllHaven desktop app, then sign in here.",
+      "WORKSPACE_NOT_INITIALIZED",
+      409,
+    );
+  }
   setWorkspaceId((ws as { id: string }).id);
   const user: User = {
     id: profile.id,
