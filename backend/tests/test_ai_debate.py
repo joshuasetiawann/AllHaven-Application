@@ -16,7 +16,7 @@ from app.services.ai_providers.base import ChatResult
 
 
 def _plan(pid: str, name: str, *, ok: bool = True, external: bool = False) -> ChatPlan:
-    def _runner(messages):
+    def _runner(messages, params=None):
         # Echo a tag + the prompt so we can assert the debate actually fed each
         # agent the question / the other agents' answers.
         prompt = messages[-1]["content"] if messages else ""

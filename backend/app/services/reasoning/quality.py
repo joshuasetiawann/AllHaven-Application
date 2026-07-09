@@ -169,22 +169,6 @@ def check_acquisition_direction(user_text: str, answer_text: str) -> List[str]:
     return []
 
 
-# --- no-op replies ---------------------------------------------------------
-
-# A reply that only acknowledges ("completed", "done", "selesai") carries no
-# information — after tool activity it must be replaced with a real summary.
-_NOOP_REPLY_RE = re.compile(
-    r"^\s*(?:task\s+)?(?:completed?|done|finish(?:ed)?|selesai|sukses|success|"
-    r"berhasil|ok(?:e|ay)?|sip)[\s!.]*$",
-    re.IGNORECASE,
-)
-
-
-def is_noop_reply(text: str) -> bool:
-    """True when a reply is a bare acknowledgement with no actual content."""
-    return bool(_NOOP_REPLY_RE.match(text or ""))
-
-
 # --- relevance / grounding / scoring -------------------------------------
 
 _WORD = re.compile(r"[a-zA-Z]{4,}")

@@ -32,16 +32,10 @@ def _patch(monkeypatch, plans):
     monkeypatch.setattr(router_mod, "plan_chat", lambda db, principal, pid: plans[pid])
 
 
-def test_reason_rejects_more_than_ten_agents(auth_client):
+def test_reason_rejects_more_than_three_agents(auth_client):
     resp = auth_client.post(
         f"{API}/ai/chat/reason",
-        json={
-            "message": "hi",
-            "provider_ids": [
-                "openai", "anthropic", "gemini", "grok", "blackbox", "cursor",
-                "deepseek", "qwen", "openrouter_1", "openrouter_2", "openrouter_3",
-            ],
-        },
+        json={"message": "hi", "provider_ids": ["openai", "anthropic", "gemini", "grok"]},
     )
     assert resp.status_code == 422, resp.text
 
@@ -55,7 +49,7 @@ def test_reason_deep_runs_three_roles(auth_client, monkeypatch):
     resp = auth_client.post(
         f"{API}/ai/chat/reason",
         json={"message": "Revenue is 10,000,000 with 15% EBITDA margin. What is EBITDA?",
-              "provider_ids": ["openai", "grok", "gemini"], "thinking_mode": "deep"},
+              "provider_ids": ["openai", "grok", "gemini"], "mode": "deep"},
     )
     assert resp.status_code == 200, resp.text
     data = resp.json()["data"]
@@ -79,7 +73,7 @@ def test_reason_rejects_irrelevant_porter_critique(auth_client, monkeypatch):
     resp = auth_client.post(
         f"{API}/ai/chat/reason",
         json={"message": "Give a Porter's Five Forces analysis of our market.",
-              "provider_ids": ["openai", "grok", "gemini"], "thinking_mode": "deep"},
+              "provider_ids": ["openai", "grok", "gemini"], "mode": "deep"},
     )
     data = resp.json()["data"]
     critic = next(r for r in data["agent_responses"] if r["meta"]["phase"] == "critic")
@@ -99,7 +93,7 @@ def test_reason_low_quality_triggers_retry(auth_client, monkeypatch):
     })
     resp = auth_client.post(
         f"{API}/ai/chat/reason",
-        json={"message": "Give a Porter's Five Forces analysis.", "provider_ids": ["openai"], "thinking_mode": "balance"},
+        json={"message": "Give a Porter's Five Forces analysis.", "provider_ids": ["openai"], "mode": "balanced"},
     )
     data = resp.json()["data"]
     final = next(r for r in data["agent_responses"] if r["meta"]["phase"] == "synthesis")
@@ -111,7 +105,7 @@ def test_reason_fast_is_single_pass(auth_client, monkeypatch):
     _patch(monkeypatch, {"openai": _plan("openai", "GPT", content="Direct grounded answer.")})
     resp = auth_client.post(
         f"{API}/ai/chat/reason",
-        json={"message": "Summarize the key risks.", "provider_ids": ["openai"], "thinking_mode": "fast"},
+        json={"message": "Summarize the key risks.", "provider_ids": ["openai"], "mode": "fast"},
     )
     data = resp.json()["data"]
     phases = [r["meta"]["phase"] for r in data["agent_responses"]]
@@ -135,7 +129,7 @@ def test_reason_never_returns_raw_secret(auth_client, monkeypatch):
     )
     resp = auth_client.post(
         f"{API}/ai/chat/reason",
-        json={"message": "What is EBITDA?", "provider_ids": ["openai"], "thinking_mode": "balance"},
+        json={"message": "What is EBITDA?", "provider_ids": ["openai"], "mode": "balanced"},
     )
     assert resp.status_code == 200, resp.text
     assert secret not in json.dumps(resp.json())
