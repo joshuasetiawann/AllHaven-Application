@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #050608; -webkit-font-smoothing: antialiased; }
+  svg.lucide { display: block; }
+  @keyframes auroraDrift { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(3%,2%) scale(1.06); } 100% { transform: translate(0,0) scale(1); } }
+  @keyframes pulseGlow { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+  @keyframes floatY { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+</style>
+</helmet>
+<div style="min-height:100vh;width:2912px;max-width:none;padding:56px 64px 110px;font-family:'Geist','Inter',system-ui,sans-serif;background:radial-gradient(1200px 700px at 10% -8%, rgba(24,224,214,0.05), transparent 55%), radial-gradient(1000px 700px at 100% 0%, rgba(139,92,246,0.05), transparent 55%), #050608;">
+
+  <div style="width:2784px;max-width:none;margin:0 auto 46px;">
+    <div style="display:flex;align-items:center;gap:11px;margin-bottom:16px;">
+      <span style="display:flex;height:34px;width:34px;align-items:center;justify-content:center;border-radius:10px;background:#18E0D6;color:#04201F;"><i data-lucide="shield-check" width="18" height="18"></i></span>
+      <span style="font-family:'Geist Mono',monospace;font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#8B96A7;">AllHaven · Dashboard redesign</span>
+    </div>
+    <h1 style="margin:0;font-size:42px;font-weight:600;letter-spacing:-0.02em;color:#E6EAF1;">Rebuild + three bold directions</h1>
+    <p style="margin:12px 0 0;max-width:760px;font-size:15px;line-height:1.65;color:#8B96A7;">Top-left is a faithful rebuild of the current v4.1 dashboard. The other three are fresh explorations — all dark, each with its own accent, type, density and depth. Pan &amp; zoom to compare, then tell me which direction to roll out across every screen.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:24px;">
+      <a href="#cur" style="display:inline-flex;align-items:center;gap:8px;border-radius:9999px;padding:8px 15px;font-size:13px;font-weight:500;text-decoration:none;border:1px solid #1F2730;background:rgba(139,150,167,0.06);color:#8B96A7;"><span style="height:7px;width:7px;border-radius:9999px;background:#8B96A7;"></span>Current · v4.1</a>
+      <a href="#1a" style="display:inline-flex;align-items:center;gap:8px;border-radius:9999px;padding:8px 15px;font-size:13px;font-weight:500;text-decoration:none;border:1px solid rgba(45,225,225,0.3);background:rgba(45,225,225,0.08);color:#7FF7F2;"><span style="height:7px;width:7px;border-radius:9999px;background:linear-gradient(135deg,#7FF7F2,#A78BFA);"></span>1a · Aurora Glass</a>
+      <a href="#1b" style="display:inline-flex;align-items:center;gap:8px;border-radius:9999px;padding:8px 15px;font-size:13px;font-weight:500;text-decoration:none;border:1px solid rgba(63,224,138,0.3);background:rgba(63,224,138,0.08);color:#3FE08A;font-family:'Geist Mono',monospace;"><span style="height:7px;width:7px;border-radius:9999px;background:#3FE08A;"></span>1b · Precision HUD</a>
+      <a href="#1c" style="display:inline-flex;align-items:center;gap:8px;border-radius:9999px;padding:8px 15px;font-size:13px;font-weight:500;text-decoration:none;border:1px solid rgba(224,164,88,0.3);background:rgba(224,164,88,0.08);color:#E0A458;"><span style="height:7px;width:7px;border-radius:9999px;background:#E0A458;"></span>1c · Editorial Calm</a>
+    </div>
+  </div>
+
+  <section id="turn-1" style="width:2784px;max-width:none;margin:0 auto;display:flex;flex-wrap:wrap;gap:80px 64px;align-items:flex-start;">
+
+    <div id="cur" style="width:1360px;max-width:none;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+        <span style="font-family:'Geist Mono',monospace;font-size:13px;font-weight:600;letter-spacing:0.14em;color:#8B96A7;background:rgba(139,150,167,0.08);border:1px solid #1F2730;border-radius:8px;padding:6px 12px;">CURRENT</span>
+        <span style="font-size:14px;color:#5C6877;">v4.1 · faithful rebuild of what ships today</span>
+      </div>
+
+      <div style="border-radius:20px;border:1px solid #1F2730;overflow:hidden;box-shadow:0 40px 90px -40px rgba(0,0,0,0.9);display:flex;background:#0A0C10;">
+
+        <aside style="width:280px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid #1F2730;background:rgba(7,8,9,0.96);">
+          <div style="display:flex;align-items:center;gap:12px;padding:20px;">
+            <div style="height:40px;width:40px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#18E0D6;color:#04201F;box-shadow:0 0 24px rgba(24,224,214,0.35);"><i data-lucide="shield-check" width="18" height="18"></i></div>
+            <div style="line-height:1.1;">
+              <p style="margin:0;font-size:15px;font-weight:600;letter-spacing:-0.01em;color:#E6EAF1;">All<span style="color:#18E0D6;">Haven</span></p>
+              <p style="margin:3px 0 0;font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#5C6877;">v4.1.0</p>
+            </div>
+          </div>
+          <div style="padding:0 16px 12px;">
+            <button style="display:flex;height:44px;width:100%;align-items:center;justify-content:center;gap:8px;border:none;border-radius:12px;background:#18E0D6;font-size:13px;font-weight:600;color:#04201F;box-shadow:0 16px 32px -24px rgba(24,224,214,0.95);cursor:pointer;font-family:inherit;"><i data-lucide="plus" width="16" height="16"></i>New Command</button>
+          </div>
+          <nav style="flex:1;padding:8px 12px;display:flex;flex-direction:column;gap:4px;">
+            <p style="margin:0;padding:0 12px 4px;font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#5C6877;">Workspace</p>
+            <a style="position:relative;display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid rgba(24,224,214,0.25);background:rgba(24,224,214,0.10);text-decoration:none;">
+              <span style="position:absolute;left:0;top:50%;height:24px;width:2px;transform:translateY(-50%);border-radius:9999px;background:#18E0D6;"></span>
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(24,224,214,0.25);background:rgba(24,224,214,0.12);color:#18E0D6;"><i data-lucide="layout-dashboard" width="17" height="17"></i></span>
+              <span style="font-size:14px;font-weight:500;color:#E6EAF1;">Dashboard</span>
+            </a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="bot" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;">AI Chat</span>
+            </a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="calendar-days" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;">Routine</span>
+            </a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="list-todo" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;">Task</span>
+            </a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="wallet" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;">Finance</span>
+            </a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="sticky-note" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;">Notes</span>
+            </a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="clipboard-check" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;">Approval</span>
+            </a>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 12px 4px;">
+              <span style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#5C6877;">Modules</span>
+            </div>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="calculator" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;">Calculator</span>
+            </a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="clock" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;">Clock</span>
+            </a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="hard-drive" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;flex:1;">Drive</span>
+              <span style="border-radius:9999px;border:1px solid #1F2730;background:#0B0F15;padding:2px 6px;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:#5C6877;">MVP</span>
+            </a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="workflow" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;flex:1;">Automations</span>
+              <span style="border-radius:9999px;border:1px solid #1F2730;background:#0B0F15;padding:2px 6px;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:#5C6877;">MVP</span>
+            </a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="book-open-check" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;flex:1;">AI Knowledge</span>
+              <span style="border-radius:9999px;border:1px solid rgba(24,224,214,0.3);background:rgba(24,224,214,0.1);padding:2px 6px;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:#18E0D6;">NEW</span>
+            </a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="brain" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;flex:1;">AI Memory</span>
+              <span style="border-radius:9999px;border:1px solid rgba(24,224,214,0.3);background:rgba(24,224,214,0.1);padding:2px 6px;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:#18E0D6;">NEW</span>
+            </a>
+            <div style="margin:8px 12px;height:1px;background:#1F2730;"></div>
+            <a style="display:flex;align-items:center;gap:12px;min-height:42px;padding:0 10px;border-radius:12px;border:1px solid transparent;text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(31,39,48,0.5);background:rgba(11,15,21,0.5);color:#5C6877;"><i data-lucide="settings" width="17" height="17"></i></span>
+              <span style="font-size:14px;color:#8B96A7;">Settings</span>
+            </a>
+          </nav>
+          <div style="border-top:1px solid #1F2730;background:rgba(7,8,9,0.8);padding:12px;display:flex;flex-direction:column;gap:4px;">
+            <div style="display:flex;align-items:center;gap:10px;border-radius:12px;border:1px solid rgba(31,39,48,0.7);background:rgba(11,15,21,0.45);padding:8px 10px;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:9999px;border:1px solid rgba(24,224,214,0.3);background:rgba(24,224,214,0.1);font-size:12px;font-weight:600;color:#18E0D6;">JS</span>
+              <div style="line-height:1.2;min-width:0;">
+                <p style="margin:0;font-size:13px;font-weight:500;color:#E6EAF1;">Joshua Setiawan</p>
+                <p style="margin:2px 0 0;font-size:11px;color:#5C6877;">joshua@allhaven.app</p>
+              </div>
+            </div>
+            <a style="display:flex;align-items:center;gap:12px;border-radius:12px;padding:8px 12px;font-size:14px;color:#8B96A7;text-decoration:none;"><i data-lucide="life-buoy" width="18" height="18"></i>Support</a>
+            <a style="display:flex;align-items:center;gap:12px;border-radius:12px;padding:8px 12px;font-size:14px;color:#8B96A7;text-decoration:none;"><i data-lucide="log-out" width="18" height="18"></i>Sign Out</a>
+          </div>
+        </aside>
+
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:radial-gradient(1100px 600px at 8% -10%, rgba(24,224,214,0.06), transparent 55%), radial-gradient(900px 600px at 100% -5%, rgba(139,92,246,0.05), transparent 50%), #0A0C10;">
+          <header style="display:flex;height:64px;align-items:center;gap:12px;border-bottom:1px solid rgba(31,39,48,0.8);background:rgba(10,12,16,0.8);padding:0 24px;">
+            <button style="display:flex;height:40px;flex:1;max-width:560px;align-items:center;gap:8px;border-radius:12px;border:1px solid #1F2730;background:rgba(11,15,21,0.7);padding:0 12px;color:#5C6877;font-size:13px;cursor:text;font-family:inherit;">
+              <i data-lucide="search" width="15" height="15"></i>
+              <span style="flex:1;text-align:left;">Search tasks, notes, pages…</span>
+              <kbd style="border-radius:4px;border:1px solid #1F2730;padding:2px 6px;font-size:10px;font-family:'Geist Mono',monospace;">⌘K</kbd>
+            </button>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+              <span style="display:inline-flex;align-items:center;gap:8px;border-radius:9999px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);padding:6px 12px;font-size:12px;font-weight:500;color:#34D399;"><span style="height:6px;width:6px;border-radius:9999px;background:#34D399;"></span>Local AI · Online</span>
+              <span style="position:relative;display:flex;height:40px;width:40px;align-items:center;justify-content:center;border-radius:10px;border:1px solid #1F2730;background:rgba(11,15,21,0.6);color:#8B96A7;"><i data-lucide="bell" width="17" height="17"></i><span style="position:absolute;right:-2px;top:-2px;display:flex;height:16px;min-width:16px;align-items:center;justify-content:center;border-radius:9999px;background:#18E0D6;padding:0 4px;font-size:9px;font-weight:600;color:#04201F;">3</span></span>
+              <span style="display:flex;height:40px;width:40px;align-items:center;justify-content:center;border-radius:10px;border:1px solid #1F2730;background:rgba(11,15,21,0.6);color:#8B96A7;"><i data-lucide="settings" width="17" height="17"></i></span>
+              <span style="display:flex;height:36px;width:36px;align-items:center;justify-content:center;border-radius:9999px;border:1px solid rgba(24,224,214,0.3);background:rgba(24,224,214,0.1);font-size:12px;font-weight:600;color:#18E0D6;">JS</span>
+            </div>
+          </header>
+
+          <div style="flex:1;padding:24px;">
+            <div style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid rgba(31,39,48,0.7);display:flex;align-items:flex-end;justify-content:space-between;gap:16px;">
+              <div>
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                  <span style="display:inline-flex;align-items:center;gap:6px;border-radius:9999px;border:1px solid rgba(24,224,214,0.3);background:rgba(24,224,214,0.1);padding:3px 10px;font-size:11px;font-weight:500;color:#18E0D6;"><span style="height:5px;width:5px;border-radius:9999px;background:#18E0D6;"></span>v4.1.0</span>
+                  <span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid #1F2730;background:#0B0F15;padding:3px 10px;font-size:11px;font-weight:500;color:#8B96A7;">Local-first</span>
+                </div>
+                <h1 style="margin:0;font-size:30px;font-weight:600;letter-spacing:-0.02em;color:#E6EAF1;">Good morning, Joshua</h1>
+                <p style="margin:8px 0 0;max-width:540px;font-size:13.5px;line-height:1.5;color:#8B96A7;">Your command center is ready: routines, tasks, finance, notes, approvals, and AI context in one focused workspace.</p>
+              </div>
+              <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button style="display:inline-flex;height:40px;align-items:center;gap:8px;border-radius:10px;border:1px solid #1F2730;background:rgba(11,15,21,0.55);padding:0 14px;font-size:13px;font-weight:500;color:#E6EAF1;cursor:pointer;font-family:inherit;"><i data-lucide="calendar-days" width="15" height="15"></i>Routine</button>
+                <button style="display:inline-flex;height:40px;align-items:center;gap:8px;border-radius:10px;border:1px solid #1F2730;background:rgba(11,15,21,0.55);padding:0 14px;font-size:13px;font-weight:500;color:#E6EAF1;cursor:pointer;font-family:inherit;"><i data-lucide="clipboard-check" width="15" height="15"></i>Approvals</button>
+                <button style="display:inline-flex;height:40px;align-items:center;gap:8px;border-radius:10px;border:none;background:#18E0D6;padding:0 14px;font-size:13px;font-weight:600;color:#04201F;cursor:pointer;font-family:inherit;"><i data-lucide="bot" width="15" height="15"></i>AI Chat</button>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+              <div style="display:flex;flex-direction:column;gap:20px;">
+
+                <div style="border-radius:14px;border:1px solid #1F2730;background:linear-gradient(180deg, rgba(24,224,214,0.05), rgba(16,21,28,0) 38%), rgba(16,21,28,0.72);box-shadow:0 12px 40px -12px rgba(0,0,0,0.6);padding:24px;">
+                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+                    <span style="display:flex;height:40px;width:40px;align-items:center;justify-content:center;border-radius:12px;border:1px solid rgba(24,224,214,0.2);background:rgba(24,224,214,0.12);color:#18E0D6;"><i data-lucide="sparkles" width="18" height="18"></i></span>
+                    <div><h2 style="margin:0;font-size:15px;font-weight:600;color:#E6EAF1;">Workspace Snapshot</h2><p style="margin:3px 0 0;font-size:12.5px;color:#8B96A7;">A live snapshot of your workspace.</p></div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                    <div style="border-radius:14px;border:1px solid #1F2730;background:rgba(11,15,21,0.65);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);">
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:#5C6877;"><span style="display:flex;height:24px;width:24px;align-items:center;justify-content:center;border-radius:8px;border:1px solid #1F2730;background:#1B2330;color:#18E0D6;"><i data-lucide="list-todo" width="13" height="13"></i></span><span style="font-size:10.5px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;">Open tasks</span></div>
+                      <p style="margin:0;font-size:22px;font-weight:600;letter-spacing:-0.01em;color:#E6EAF1;">7</p>
+                    </div>
+                    <div style="border-radius:14px;border:1px solid #1F2730;background:rgba(11,15,21,0.65);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);">
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:#5C6877;"><span style="display:flex;height:24px;width:24px;align-items:center;justify-content:center;border-radius:8px;border:1px solid #1F2730;background:#1B2330;color:#18E0D6;"><i data-lucide="sticky-note" width="13" height="13"></i></span><span style="font-size:10.5px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;">Notes</span></div>
+                      <p style="margin:0;font-size:22px;font-weight:600;letter-spacing:-0.01em;color:#E6EAF1;">12</p>
+                    </div>
+                    <div style="border-radius:14px;border:1px solid #1F2730;background:rgba(11,15,21,0.65);padding:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);">
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;color:#5C6877;"><span style="display:flex;height:24px;width:24px;align-items:center;justify-content:center;border-radius:8px;border:1px solid #1F2730;background:#1B2330;color:#18E0D6;"><i data-lucide="wallet" width="13" height="13"></i></span><span style="font-size:10.5px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;">Txns / month</span></div>
+                      <p style="margin:0;font-size:22px;font-weight:600;letter-spacing:-0.01em;color:#E6EAF1;">34</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="border-radius:14px;border:1px solid #1F2730;background:rgba(16,21,28,0.72);box-shadow:0 12px 40px -12px rgba(0,0,0,0.6);padding:20px;">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;"><span style="display:flex;height:36px;width:36px;align-items:center;justify-content:center;border-radius:10px;border:1px solid #1F2730;background:#1B2330;color:#18E0D6;"><i data-lucide="wallet" width="18" height="18"></i></span><h2 style="margin:0;font-size:15px;font-weight:600;color:#E6EAF1;">Monthly cashflow</h2></div>
+                  <p style="margin:0;font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#5C6877;">Current balance</p>
+                  <p style="margin:5px 0 0;font-size:30px;font-weight:600;letter-spacing:-0.02em;color:#E6EAF1;">Rp 24.850.000</p>
+                  <div style="margin-top:20px;display:flex;align-items:flex-end;gap:16px;height:140px;">
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end;"><div style="width:100%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#54EEE6,#18E0D6);height:63%;box-shadow:0 0 16px rgba(24,224,214,0.22);"></div><span style="font-family:'Geist Mono',monospace;font-size:10px;color:#5C6877;">W1</span></div>
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end;"><div style="width:100%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#54EEE6,#18E0D6);height:100%;box-shadow:0 0 16px rgba(24,224,214,0.22);"></div><span style="font-family:'Geist Mono',monospace;font-size:10px;color:#5C6877;">W2</span></div>
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end;"><div style="width:100%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#54EEE6,#18E0D6);height:55%;box-shadow:0 0 16px rgba(24,224,214,0.22);"></div><span style="font-family:'Geist Mono',monospace;font-size:10px;color:#5C6877;">W3</span></div>
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end;"><div style="width:100%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#54EEE6,#18E0D6);height:78%;box-shadow:0 0 16px rgba(24,224,214,0.22);"></div><span style="font-family:'Geist Mono',monospace;font-size:10px;color:#5C6877;">W4</span></div>
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end;"><div style="width:100%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,#54EEE6,#18E0D6);height:25%;box-shadow:0 0 16px rgba(24,224,214,0.22);"></div><span style="font-family:'Geist Mono',monospace;font-size:10px;color:#5C6877;">W5</span></div>
+                  </div>
+                  <div style="margin-top:16px;border-top:1px solid #1F2730;padding-top:12px;display:flex;flex-wrap:wrap;gap:6px 24px;align-items:center;font-size:13px;">
+                    <span style="color:#8B96A7;">Income <span style="font-weight:500;color:#34D399;">Rp 41.200.000</span></span>
+                    <span style="color:#8B96A7;">Expense <span style="font-weight:500;color:#F87171;">Rp 16.350.000</span></span>
+                    <span style="margin-left:auto;font-size:12px;color:#5C6877;">Tracks cashflow. Not financial advice.</span>
+                  </div>
+                </div>
+
+                <div style="border-radius:14px;border:1px solid rgba(24,224,214,0.2);background:rgba(16,21,28,0.72);box-shadow:0 12px 40px -12px rgba(0,0,0,0.6);padding:20px;display:flex;gap:12px;align-items:flex-start;">
+                  <span style="flex-shrink:0;display:flex;height:40px;width:40px;align-items:center;justify-content:center;border-radius:10px;background:rgba(24,224,214,0.1);color:#18E0D6;"><i data-lucide="shield-check" width="20" height="20"></i></span>
+                  <div>
+                    <p style="margin:0;font-size:14px;font-weight:600;color:#E6EAF1;">Human-in-the-loop where it matters</p>
+                    <p style="margin:5px 0 0;font-size:13px;line-height:1.5;color:#8B96A7;">Reads and low-risk memory updates run quickly. Risky writes stay pending until you approve, edit, or reject them.</p>
+                    <a style="margin-top:10px;display:inline-flex;align-items:center;gap:4px;font-size:13px;color:#18E0D6;text-decoration:none;">Open AI Chat <i data-lucide="arrow-up-right" width="14" height="14"></i></a>
+                  </div>
+                </div>
+
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:20px;">
+
+                <div style="border-radius:14px;border:1px solid #1F2730;background:rgba(16,21,28,0.72);box-shadow:0 12px 40px -12px rgba(0,0,0,0.6);padding:20px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;">
+                    <div style="display:flex;align-items:center;gap:10px;"><span style="display:flex;height:36px;width:36px;align-items:center;justify-content:center;border-radius:10px;border:1px solid #1F2730;background:#1B2330;color:#18E0D6;"><i data-lucide="list-todo" width="18" height="18"></i></span><h2 style="margin:0;font-size:15px;font-weight:600;color:#E6EAF1;">Pending tasks</h2></div>
+                    <a style="display:inline-flex;align-items:center;gap:4px;font-size:13px;color:#18E0D6;text-decoration:none;">View all <i data-lucide="arrow-up-right" width="14" height="14"></i></a>
+                  </div>
+                  <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;">
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:12px;border:1px solid #1F2730;background:rgba(11,15,21,0.5);padding:10px 12px;"><span style="min-width:0;"><span style="display:block;font-size:13px;color:#E6EAF1;">Finalize Q3 finance report</span><span style="font-family:'Geist Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;color:#5C6877;">checklist 2/4</span></span><span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid rgba(248,113,113,0.3);background:rgba(248,113,113,0.1);color:#F87171;padding:3px 9px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">High</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:12px;border:1px solid #1F2730;background:rgba(11,15,21,0.5);padding:10px 12px;"><span style="min-width:0;"><span style="display:block;font-size:13px;color:#E6EAF1;">Review AI memory facts</span></span><span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid rgba(251,191,36,0.3);background:rgba(251,191,36,0.1);color:#FBBF24;padding:3px 9px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Medium</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:12px;border:1px solid #1F2730;background:rgba(11,15,21,0.5);padding:10px 12px;"><span style="min-width:0;"><span style="display:block;font-size:13px;color:#E6EAF1;">Draft routine for next week</span><span style="font-family:'Geist Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;color:#5C6877;">checklist 1/3</span></span><span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid #1F2730;background:#0B0F15;color:#8B96A7;padding:3px 9px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Low</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:12px;border:1px solid #1F2730;background:rgba(11,15,21,0.5);padding:10px 12px;"><span style="min-width:0;"><span style="display:block;font-size:13px;color:#E6EAF1;">Reconcile bank transactions</span></span><span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid rgba(248,113,113,0.3);background:rgba(248,113,113,0.1);color:#F87171;padding:3px 9px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">High</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:12px;border:1px solid #1F2730;background:rgba(11,15,21,0.5);padding:10px 12px;"><span style="min-width:0;"><span style="display:block;font-size:13px;color:#E6EAF1;">Update integration keys</span></span><span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid rgba(251,191,36,0.3);background:rgba(251,191,36,0.1);color:#FBBF24;padding:3px 9px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Medium</span></li>
+                  </ul>
+                </div>
+
+                <div style="border-radius:14px;border:1px solid #1F2730;background:rgba(16,21,28,0.72);box-shadow:0 12px 40px -12px rgba(0,0,0,0.6);padding:20px;">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;"><span style="display:flex;height:36px;width:36px;align-items:center;justify-content:center;border-radius:10px;border:1px solid #1F2730;background:#1B2330;color:#18E0D6;"><i data-lucide="bot" width="18" height="18"></i></span><h2 style="margin:0;font-size:15px;font-weight:600;color:#E6EAF1;">Integration status</h2></div>
+                  <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px;">
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:10px;font-size:13px;color:#E6EAF1;"><span style="height:8px;width:8px;border-radius:9999px;background:#34D399;box-shadow:0 0 8px rgba(52,211,153,0.6);"></span>Ollama</span><span style="border-radius:9999px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);color:#34D399;padding:3px 9px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;">Online</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:10px;font-size:13px;color:#E6EAF1;"><span style="height:8px;width:8px;border-radius:9999px;background:#34D399;box-shadow:0 0 8px rgba(52,211,153,0.6);"></span>Supabase</span><span style="border-radius:9999px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);color:#34D399;padding:3px 9px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;">Online</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:10px;font-size:13px;color:#E6EAF1;"><span style="height:8px;width:8px;border-radius:9999px;background:#18E0D6;box-shadow:0 0 8px rgba(24,224,214,0.6);"></span>OpenAI / GPT</span><span style="border-radius:9999px;border:1px solid rgba(24,224,214,0.3);background:rgba(24,224,214,0.1);color:#18E0D6;padding:3px 9px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;">Configured</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:10px;font-size:13px;color:#E6EAF1;"><span style="height:8px;width:8px;border-radius:9999px;background:#18E0D6;box-shadow:0 0 8px rgba(24,224,214,0.6);"></span>Claude</span><span style="border-radius:9999px;border:1px solid rgba(24,224,214,0.3);background:rgba(24,224,214,0.1);color:#18E0D6;padding:3px 9px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;">Configured</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:10px;font-size:13px;color:#E6EAF1;"><span style="height:8px;width:8px;border-radius:9999px;background:#34D399;box-shadow:0 0 8px rgba(52,211,153,0.6);"></span>Tailscale Bridge</span><span style="border-radius:9999px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);color:#34D399;padding:3px 9px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;">Online</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:10px;font-size:13px;color:#E6EAF1;"><span style="height:8px;width:8px;border-radius:9999px;background:#5C6877;"></span>n8n</span><span style="border-radius:9999px;border:1px solid #1F2730;background:#0B0F15;color:#5C6877;padding:3px 9px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;">Not configured</span></li>
+                  </ul>
+                  <a style="margin-top:16px;display:inline-flex;align-items:center;gap:4px;font-size:13px;color:#18E0D6;text-decoration:none;">Manage integrations <i data-lucide="arrow-up-right" width="14" height="14"></i></a>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1a" style="width:1360px;max-width:none;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+        <span style="display:inline-flex;align-items:center;font-family:'Geist Mono',monospace;font-size:13px;font-weight:700;letter-spacing:0.06em;color:#04201F;background:linear-gradient(90deg,#7FF7F2,#54EEE6);border-radius:8px;padding:6px 12px;box-shadow:0 0 22px rgba(45,225,225,0.45);">1a</span>
+        <span style="font-size:16px;font-weight:600;color:#EAF2FF;">Aurora Glass</span>
+        <span style="font-size:14px;color:#5D6788;">— luminous, frosted, futuristic</span>
+      </div>
+
+      <div style="border-radius:24px;border:1px solid rgba(255,255,255,0.09);overflow:hidden;box-shadow:0 50px 110px -40px rgba(45,225,225,0.18), 0 40px 90px -40px rgba(0,0,0,0.9);display:flex;background:#06070E;">
+
+        <aside style="width:280px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,0.07);background:linear-gradient(180deg, rgba(14,16,30,0.72), rgba(8,9,16,0.72));backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);">
+          <div style="display:flex;align-items:center;gap:12px;padding:22px 20px;">
+            <div style="height:42px;width:42px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:14px;background:linear-gradient(135deg,#7FF7F2,#A78BFA);color:#0A1512;box-shadow:0 0 28px rgba(45,225,225,0.5);"><i data-lucide="shield-check" width="19" height="19"></i></div>
+            <div style="line-height:1.1;">
+              <p style="margin:0;font-size:16px;font-weight:600;letter-spacing:-0.01em;color:#EAF2FF;">All<span style="background:linear-gradient(90deg,#7FF7F2,#A78BFA);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;">Haven</span></p>
+              <p style="margin:3px 0 0;font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#5D6788;">v4.1.0</p>
+            </div>
+          </div>
+          <div style="padding:0 16px 14px;">
+            <button style="display:flex;height:46px;width:100%;align-items:center;justify-content:center;gap:8px;border:none;border-radius:14px;background:linear-gradient(135deg,#6BF5F0,#A78BFA);font-size:13px;font-weight:600;color:#0A1512;box-shadow:0 14px 34px -14px rgba(45,225,225,0.9), inset 0 1px 0 rgba(255,255,255,0.3);cursor:pointer;font-family:inherit;" style-hover="filter:brightness(1.08);"><i data-lucide="plus" width="16" height="16"></i>New Command</button>
+          </div>
+          <nav style="flex:1;padding:8px 12px;display:flex;flex-direction:column;gap:5px;">
+            <p style="margin:0;padding:0 12px 5px;font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#5D6788;">Workspace</p>
+            <a style="position:relative;display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid rgba(45,225,225,0.32);background:linear-gradient(90deg, rgba(45,225,225,0.18), rgba(167,139,250,0.10));box-shadow:0 0 26px rgba(45,225,225,0.22), inset 0 1px 0 rgba(255,255,255,0.1);text-decoration:none;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;background:linear-gradient(135deg,#7FF7F2,#A78BFA);color:#0A1512;box-shadow:0 0 16px rgba(45,225,225,0.5);"><i data-lucide="layout-dashboard" width="17" height="17"></i></span>
+              <span style="font-size:14px;font-weight:600;background:linear-gradient(90deg,#EAF2FF,#BFE9FF);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;">Dashboard</span>
+            </a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="bot" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;">AI Chat</span></a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="calendar-days" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;">Routine</span></a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="list-todo" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;">Task</span></a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="wallet" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;">Finance</span></a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="sticky-note" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;">Notes</span></a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="clipboard-check" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;">Approval</span></a>
+            <p style="margin:0;padding:20px 12px 5px;font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#5D6788;">Modules</p>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="calculator" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;">Calculator</span></a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="clock" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;">Clock</span></a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="hard-drive" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;flex:1;">Drive</span><span style="border-radius:9999px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);padding:2px 7px;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:#7C86A4;">MVP</span></a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="workflow" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;flex:1;">Automations</span><span style="border-radius:9999px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);padding:2px 7px;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:#7C86A4;">MVP</span></a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="book-open-check" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;flex:1;">AI Knowledge</span><span style="border-radius:9999px;border:1px solid rgba(45,225,225,0.35);background:rgba(45,225,225,0.12);padding:2px 7px;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:#7FF7F2;box-shadow:0 0 12px rgba(45,225,225,0.3);">NEW</span></a>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="brain" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;flex:1;">AI Memory</span><span style="border-radius:9999px;border:1px solid rgba(45,225,225,0.35);background:rgba(45,225,225,0.12);padding:2px 7px;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:#7FF7F2;box-shadow:0 0 12px rgba(45,225,225,0.3);">NEW</span></a>
+            <div style="margin:10px 12px;height:1px;background:rgba(255,255,255,0.07);"></div>
+            <a style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:14px;border:1px solid transparent;text-decoration:none;"><span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.035);color:#9AA6C4;"><i data-lucide="settings" width="17" height="17"></i></span><span style="font-size:14px;color:#9AA6C4;">Settings</span></a>
+          </nav>
+          <div style="border-top:1px solid rgba(255,255,255,0.07);padding:12px;display:flex;flex-direction:column;gap:4px;">
+            <div style="display:flex;align-items:center;gap:10px;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:9px 10px;">
+              <span style="display:flex;height:34px;width:34px;align-items:center;justify-content:center;border-radius:9999px;background:linear-gradient(135deg,#7FF7F2,#A78BFA);font-size:12px;font-weight:700;color:#0A1512;box-shadow:0 0 16px rgba(45,225,225,0.4);">JS</span>
+              <div style="line-height:1.2;min-width:0;"><p style="margin:0;font-size:13px;font-weight:500;color:#EAF2FF;">Joshua Setiawan</p><p style="margin:2px 0 0;font-size:11px;color:#5D6788;">joshua@allhaven.app</p></div>
+            </div>
+            <a style="display:flex;align-items:center;gap:12px;border-radius:14px;padding:9px 12px;font-size:14px;color:#9AA6C4;text-decoration:none;"><i data-lucide="life-buoy" width="18" height="18"></i>Support</a>
+            <a style="display:flex;align-items:center;gap:12px;border-radius:14px;padding:9px 12px;font-size:14px;color:#9AA6C4;text-decoration:none;"><i data-lucide="log-out" width="18" height="18"></i>Sign Out</a>
+          </div>
+        </aside>
+
+        <div style="flex:1;position:relative;display:flex;flex-direction:column;min-width:0;background:#06070E;overflow:hidden;">
+          <div style="position:absolute;inset:0;overflow:hidden;pointer-events:none;">
+            <div style="position:absolute;top:-16%;left:-4%;width:560px;height:440px;border-radius:9999px;background:radial-gradient(circle, rgba(45,225,225,0.28), transparent 65%);filter:blur(46px);animation:auroraDrift 18s ease-in-out infinite;"></div>
+            <div style="position:absolute;top:-12%;right:-8%;width:520px;height:440px;border-radius:9999px;background:radial-gradient(circle, rgba(167,139,250,0.24), transparent 65%);filter:blur(50px);animation:auroraDrift 24s ease-in-out infinite reverse;"></div>
+            <div style="position:absolute;bottom:-24%;left:34%;width:560px;height:460px;border-radius:9999px;background:radial-gradient(circle, rgba(226,77,184,0.14), transparent 65%);filter:blur(56px);animation:floatY 16s ease-in-out infinite;"></div>
+          </div>
+          <div style="position:relative;z-index:1;display:flex;flex-direction:column;flex:1;min-width:0;">
+            <header style="display:flex;height:66px;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,0.07);background:rgba(6,7,14,0.55);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding:0 24px;">
+              <button style="display:flex;height:42px;flex:1;max-width:560px;align-items:center;gap:9px;border-radius:9999px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);padding:0 16px;color:#7C86A4;font-size:13px;cursor:text;font-family:inherit;"><i data-lucide="search" width="15" height="15"></i><span style="flex:1;text-align:left;">Search tasks, notes, pages…</span><kbd style="border-radius:6px;border:1px solid rgba(255,255,255,0.12);padding:2px 7px;font-size:10px;font-family:'Geist Mono',monospace;">⌘K</kbd></button>
+              <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+                <span style="display:inline-flex;align-items:center;gap:8px;border-radius:9999px;border:1px solid rgba(52,211,153,0.35);background:rgba(52,211,153,0.12);padding:7px 13px;font-size:12px;font-weight:500;color:#5EEBB0;box-shadow:0 0 18px rgba(52,211,153,0.2);"><span style="height:6px;width:6px;border-radius:9999px;background:#34D399;box-shadow:0 0 10px #34D399;animation:pulseGlow 2s ease-in-out infinite;"></span>Local AI · Online</span>
+                <span style="position:relative;display:flex;height:42px;width:42px;align-items:center;justify-content:center;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#9AA6C4;"><i data-lucide="bell" width="17" height="17"></i><span style="position:absolute;right:-2px;top:-2px;display:flex;height:16px;min-width:16px;align-items:center;justify-content:center;border-radius:9999px;background:linear-gradient(135deg,#7FF7F2,#A78BFA);padding:0 4px;font-size:9px;font-weight:700;color:#0A1512;box-shadow:0 0 12px rgba(45,225,225,0.5);">3</span></span>
+                <span style="display:flex;height:42px;width:42px;align-items:center;justify-content:center;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#9AA6C4;"><i data-lucide="settings" width="17" height="17"></i></span>
+                <span style="display:flex;height:38px;width:38px;align-items:center;justify-content:center;border-radius:9999px;background:linear-gradient(135deg,#7FF7F2,#A78BFA);font-size:12px;font-weight:700;color:#0A1512;box-shadow:0 0 16px rgba(45,225,225,0.4);">JS</span>
+              </div>
+            </header>
+
+            <div style="flex:1;padding:26px;">
+              <div style="margin-bottom:24px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;">
+                <div>
+                  <div style="display:flex;gap:8px;margin-bottom:14px;">
+                    <span style="display:inline-flex;align-items:center;gap:6px;border-radius:9999px;border:1px solid rgba(45,225,225,0.35);background:rgba(45,225,225,0.1);padding:4px 11px;font-size:11px;font-weight:500;color:#7FF7F2;box-shadow:0 0 16px rgba(45,225,225,0.2);"><span style="height:5px;width:5px;border-radius:9999px;background:#7FF7F2;box-shadow:0 0 8px #7FF7F2;"></span>v4.1.0</span>
+                    <span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);padding:4px 11px;font-size:11px;font-weight:500;color:#9AA6C4;">Local-first</span>
+                  </div>
+                  <h1 style="margin:0;font-size:34px;font-weight:600;letter-spacing:-0.02em;color:#EAF2FF;">Good morning, <span style="background:linear-gradient(90deg,#7FF7F2,#A78BFA);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;">Joshua</span></h1>
+                  <p style="margin:9px 0 0;max-width:560px;font-size:14px;line-height:1.55;color:#9AA6C4;">Your command center is ready: routines, tasks, finance, notes, approvals, and AI context in one focused workspace.</p>
+                </div>
+                <div style="display:flex;gap:9px;flex-shrink:0;">
+                  <button style="display:inline-flex;height:42px;align-items:center;gap:8px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);padding:0 15px;font-size:13px;font-weight:500;color:#EAF2FF;cursor:pointer;font-family:inherit;"><i data-lucide="calendar-days" width="15" height="15"></i>Routine</button>
+                  <button style="display:inline-flex;height:42px;align-items:center;gap:8px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);padding:0 15px;font-size:13px;font-weight:500;color:#EAF2FF;cursor:pointer;font-family:inherit;"><i data-lucide="clipboard-check" width="15" height="15"></i>Approvals</button>
+                  <button style="display:inline-flex;height:42px;align-items:center;gap:8px;border-radius:12px;border:none;background:linear-gradient(135deg,#6BF5F0,#A78BFA);padding:0 16px;font-size:13px;font-weight:600;color:#0A1512;cursor:pointer;font-family:inherit;box-shadow:0 14px 30px -12px rgba(45,225,225,0.8), inset 0 1px 0 rgba(255,255,255,0.3);"><i data-lucide="bot" width="15" height="15"></i>AI Chat</button>
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+                <div style="display:flex;flex-direction:column;gap:20px;">
+
+                  <div style="position:relative;border-radius:20px;border:1px solid rgba(255,255,255,0.09);background:linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018));box-shadow:0 24px 60px -24px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.09);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:24px;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+                      <span style="display:flex;height:42px;width:42px;align-items:center;justify-content:center;border-radius:13px;background:linear-gradient(135deg, rgba(127,247,242,0.9), rgba(167,139,250,0.9));color:#0A1512;box-shadow:0 0 20px rgba(45,225,225,0.4);"><i data-lucide="sparkles" width="18" height="18"></i></span>
+                      <div><h2 style="margin:0;font-size:15px;font-weight:600;color:#EAF2FF;">Workspace Snapshot</h2><p style="margin:3px 0 0;font-size:12.5px;color:#9AA6C4;">A live snapshot of your workspace.</p></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+                      <div style="border-radius:16px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:16px;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="display:flex;height:26px;width:26px;align-items:center;justify-content:center;border-radius:9px;background:rgba(45,225,225,0.14);color:#7FF7F2;"><i data-lucide="list-todo" width="14" height="14"></i></span><span style="font-size:10.5px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:#7C86A4;">Open tasks</span></div>
+                        <p style="margin:0;font-size:28px;font-weight:600;letter-spacing:-0.02em;color:#EAF2FF;">7</p>
+                      </div>
+                      <div style="border-radius:16px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:16px;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="display:flex;height:26px;width:26px;align-items:center;justify-content:center;border-radius:9px;background:rgba(167,139,250,0.16);color:#C4B5FD;"><i data-lucide="sticky-note" width="14" height="14"></i></span><span style="font-size:10.5px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:#7C86A4;">Notes</span></div>
+                        <p style="margin:0;font-size:28px;font-weight:600;letter-spacing:-0.02em;color:#EAF2FF;">12</p>
+                      </div>
+                      <div style="border-radius:16px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:16px;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="display:flex;height:26px;width:26px;align-items:center;justify-content:center;border-radius:9px;background:rgba(45,225,225,0.14);color:#7FF7F2;"><i data-lucide="wallet" width="14" height="14"></i></span><span style="font-size:10.5px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:#7C86A4;">Txns / month</span></div>
+                        <p style="margin:0;font-size:28px;font-weight:600;letter-spacing:-0.02em;color:#EAF2FF;">34</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="position:relative;border-radius:20px;border:1px solid rgba(255,255,255,0.09);background:linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018));box-shadow:0 24px 60px -24px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.09);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:24px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;">
+                      <div style="display:flex;align-items:center;gap:10px;"><span style="display:flex;height:38px;width:38px;align-items:center;justify-content:center;border-radius:11px;background:rgba(45,225,225,0.12);color:#7FF7F2;"><i data-lucide="wallet" width="18" height="18"></i></span><h2 style="margin:0;font-size:15px;font-weight:600;color:#EAF2FF;">Monthly cashflow</h2></div>
+                      <span style="display:inline-flex;align-items:center;gap:5px;border-radius:9999px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);padding:4px 10px;font-size:11px;font-weight:500;color:#5EEBB0;"><i data-lucide="trending-up" width="12" height="12"></i>+18%</span>
+                    </div>
+                    <p style="margin:0;font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#7C86A4;">Current balance</p>
+                    <p style="margin:6px 0 0;font-size:36px;font-weight:600;letter-spacing:-0.025em;color:#EAF2FF;text-shadow:0 0 30px rgba(45,225,225,0.25);">Rp 24.850.000</p>
+                    <div style="position:relative;margin-top:22px;height:150px;">
+                      <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;"><div style="height:1px;background:rgba(255,255,255,0.05);"></div><div style="height:1px;background:rgba(255,255,255,0.05);"></div><div style="height:1px;background:rgba(255,255,255,0.05);"></div><div style="height:1px;background:rgba(255,255,255,0.05);"></div></div>
+                      <div style="position:absolute;inset:0;display:flex;align-items:flex-end;gap:20px;">
+                        <div style="flex:1;height:63%;border-radius:9px 9px 3px 3px;background:linear-gradient(180deg,#9FFAF6,#2DE1E1 65%, rgba(45,225,225,0.15));box-shadow:0 0 20px rgba(45,225,225,0.3);"></div>
+                        <div style="flex:1;height:100%;border-radius:9px 9px 3px 3px;background:linear-gradient(180deg,#C4B5FD,#8B5CF6 65%, rgba(139,92,246,0.15));box-shadow:0 0 22px rgba(139,92,246,0.35);"></div>
+                        <div style="flex:1;height:55%;border-radius:9px 9px 3px 3px;background:linear-gradient(180deg,#9FFAF6,#2DE1E1 65%, rgba(45,225,225,0.15));box-shadow:0 0 20px rgba(45,225,225,0.3);"></div>
+                        <div style="flex:1;height:78%;border-radius:9px 9px 3px 3px;background:linear-gradient(180deg,#9FFAF6,#2DE1E1 65%, rgba(45,225,225,0.15));box-shadow:0 0 20px rgba(45,225,225,0.3);"></div>
+                        <div style="flex:1;height:30%;border-radius:9px 9px 3px 3px;background:linear-gradient(180deg,#9FFAF6,#2DE1E1 65%, rgba(45,225,225,0.15));box-shadow:0 0 20px rgba(45,225,225,0.3);"></div>
+                      </div>
+                    </div>
+                    <div style="margin-top:12px;display:flex;gap:20px;">
+                      <span style="font-family:'Geist Mono',monospace;font-size:10px;color:#5D6788;flex:1;text-align:center;">W1</span><span style="font-family:'Geist Mono',monospace;font-size:10px;color:#5D6788;flex:1;text-align:center;">W2</span><span style="font-family:'Geist Mono',monospace;font-size:10px;color:#5D6788;flex:1;text-align:center;">W3</span><span style="font-family:'Geist Mono',monospace;font-size:10px;color:#5D6788;flex:1;text-align:center;">W4</span><span style="font-family:'Geist Mono',monospace;font-size:10px;color:#5D6788;flex:1;text-align:center;">W5</span>
+                    </div>
+                    <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.07);padding-top:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                      <span style="display:inline-flex;align-items:center;gap:7px;border-radius:10px;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);padding:6px 11px;font-size:12.5px;color:#9AA6C4;">Income <span style="font-weight:600;color:#5EEBB0;">Rp 41.200.000</span></span>
+                      <span style="display:inline-flex;align-items:center;gap:7px;border-radius:10px;background:rgba(248,113,113,0.09);border:1px solid rgba(248,113,113,0.22);padding:6px 11px;font-size:12.5px;color:#9AA6C4;">Expense <span style="font-weight:600;color:#FF9494;">Rp 16.350.000</span></span>
+                      <span style="margin-left:auto;font-size:11.5px;color:#5D6788;">Tracks cashflow. Not advice.</span>
+                    </div>
+                  </div>
+
+                  <div style="position:relative;border-radius:20px;border:1px solid rgba(45,225,225,0.22);background:linear-gradient(120deg, rgba(45,225,225,0.08), rgba(167,139,250,0.05));box-shadow:0 24px 60px -24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.08);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:22px;display:flex;gap:14px;align-items:flex-start;">
+                    <span style="flex-shrink:0;display:flex;height:44px;width:44px;align-items:center;justify-content:center;border-radius:12px;background:linear-gradient(135deg, rgba(127,247,242,0.9), rgba(167,139,250,0.9));color:#0A1512;box-shadow:0 0 22px rgba(45,225,225,0.4);"><i data-lucide="shield-check" width="21" height="21"></i></span>
+                    <div>
+                      <p style="margin:0;font-size:14px;font-weight:600;color:#EAF2FF;">Human-in-the-loop where it matters</p>
+                      <p style="margin:5px 0 0;font-size:13px;line-height:1.55;color:#9AA6C4;">Reads and low-risk memory updates run quickly. Risky writes stay pending until you approve, edit, or reject them.</p>
+                      <a style="margin-top:11px;display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:500;color:#7FF7F2;text-decoration:none;">Open AI Chat <i data-lucide="arrow-up-right" width="14" height="14"></i></a>
+                    </div>
+                  </div>
+
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:20px;">
+
+                  <div style="position:relative;border-radius:20px;border:1px solid rgba(255,255,255,0.09);background:linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018));box-shadow:0 24px 60px -24px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.09);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:22px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;">
+                      <div style="display:flex;align-items:center;gap:10px;"><span style="display:flex;height:38px;width:38px;align-items:center;justify-content:center;border-radius:11px;background:rgba(45,225,225,0.12);color:#7FF7F2;"><i data-lucide="list-todo" width="18" height="18"></i></span><h2 style="margin:0;font-size:15px;font-weight:600;color:#EAF2FF;">Pending tasks</h2></div>
+                      <a style="display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:500;color:#7FF7F2;text-decoration:none;">View all <i data-lucide="arrow-up-right" width="14" height="14"></i></a>
+                    </div>
+                    <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;">
+                      <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:14px;border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.025);padding:11px 13px;"><span style="min-width:0;"><span style="display:block;font-size:13px;color:#EAF2FF;">Finalize Q3 finance report</span><span style="font-family:'Geist Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#7C86A4;">checklist 2/4</span></span><span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid rgba(248,113,113,0.35);background:rgba(248,113,113,0.12);color:#FF9494;padding:3px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;box-shadow:0 0 14px rgba(248,113,113,0.2);">High</span></li>
+                      <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:14px;border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.025);padding:11px 13px;"><span style="min-width:0;"><span style="display:block;font-size:13px;color:#EAF2FF;">Review AI memory facts</span></span><span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid rgba(251,191,36,0.35);background:rgba(251,191,36,0.12);color:#FCD34D;padding:3px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Medium</span></li>
+                      <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:14px;border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.025);padding:11px 13px;"><span style="min-width:0;"><span style="display:block;font-size:13px;color:#EAF2FF;">Draft routine for next week</span><span style="font-family:'Geist Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#7C86A4;">checklist 1/3</span></span><span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#9AA6C4;padding:3px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Low</span></li>
+                      <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:14px;border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.025);padding:11px 13px;"><span style="min-width:0;"><span style="display:block;font-size:13px;color:#EAF2FF;">Reconcile bank transactions</span></span><span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid rgba(248,113,113,0.35);background:rgba(248,113,113,0.12);color:#FF9494;padding:3px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;box-shadow:0 0 14px rgba(248,113,113,0.2);">High</span></li>
+                      <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:14px;border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.025);padding:11px 13px;"><span style="min-width:0;"><span style="display:block;font-size:13px;color:#EAF2FF;">Update integration keys</span></span><span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid rgba(251,191,36,0.35);background:rgba(251,191,36,0.12);color:#FCD34D;padding:3px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Medium</span></li>
+                    </ul>
+                  </div>
+
+                  <div style="position:relative;border-radius:20px;border:1px solid rgba(255,255,255,0.09);background:linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018));box-shadow:0 24px 60px -24px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.09);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:22px;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;"><span style="display:flex;height:38px;width:38px;align-items:center;justify-content:center;border-radius:11px;background:rgba(167,139,250,0.14);color:#C4B5FD;"><i data-lucide="bot" width="18" height="18"></i></span><h2 style="margin:0;font-size:15px;font-weight:600;color:#EAF2FF;">Integration status</h2></div>
+                    <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:15px;">
+                      <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:11px;font-size:13px;color:#EAF2FF;"><span style="height:8px;width:8px;border-radius:9999px;background:#34D399;box-shadow:0 0 12px #34D399;"></span>Ollama</span><span style="border-radius:9999px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);color:#5EEBB0;padding:3px 10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;">Online</span></li>
+                      <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:11px;font-size:13px;color:#EAF2FF;"><span style="height:8px;width:8px;border-radius:9999px;background:#34D399;box-shadow:0 0 12px #34D399;"></span>Supabase</span><span style="border-radius:9999px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);color:#5EEBB0;padding:3px 10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;">Online</span></li>
+                      <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:11px;font-size:13px;color:#EAF2FF;"><span style="height:8px;width:8px;border-radius:9999px;background:#7FF7F2;box-shadow:0 0 12px #45E0E0;"></span>OpenAI / GPT</span><span style="border-radius:9999px;border:1px solid rgba(45,225,225,0.3);background:rgba(45,225,225,0.1);color:#7FF7F2;padding:3px 10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;">Configured</span></li>
+                      <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:11px;font-size:13px;color:#EAF2FF;"><span style="height:8px;width:8px;border-radius:9999px;background:#7FF7F2;box-shadow:0 0 12px #45E0E0;"></span>Claude</span><span style="border-radius:9999px;border:1px solid rgba(45,225,225,0.3);background:rgba(45,225,225,0.1);color:#7FF7F2;padding:3px 10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;">Configured</span></li>
+                      <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:11px;font-size:13px;color:#EAF2FF;"><span style="height:8px;width:8px;border-radius:9999px;background:#34D399;box-shadow:0 0 12px #34D399;"></span>Tailscale Bridge</span><span style="border-radius:9999px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);color:#5EEBB0;padding:3px 10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;">Online</span></li>
+                      <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:11px;font-size:13px;color:#EAF2FF;"><span style="height:8px;width:8px;border-radius:9999px;background:#5D6788;"></span>n8n</span><span style="border-radius:9999px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#7C86A4;padding:3px 10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;">Not configured</span></li>
+                    </ul>
+                    <a style="margin-top:18px;display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:500;color:#7FF7F2;text-decoration:none;">Manage integrations <i data-lucide="arrow-up-right" width="14" height="14"></i></a>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1b" style="width:1360px;max-width:none;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+        <span style="display:inline-flex;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:0.06em;color:#04140B;background:#3FE08A;border-radius:5px;padding:6px 12px;box-shadow:0 0 22px rgba(63,224,138,0.4);">1b</span>
+        <span style="font-size:16px;font-weight:600;color:#D2E0D6;">Precision HUD</span>
+        <span style="font-size:14px;color:#4E5B53;">— dense, technical, mission-control</span>
+      </div>
+
+      <div style="border-radius:8px;border:1px solid #1B241E;overflow:hidden;box-shadow:0 40px 90px -40px rgba(0,0,0,0.92);display:flex;background:#060807;font-family:'IBM Plex Sans',sans-serif;">
+
+        <aside style="width:280px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid #1B241E;background:#080B09;">
+          <div style="display:flex;align-items:center;gap:11px;padding:18px 16px;border-bottom:1px solid #1B241E;">
+            <div style="height:38px;width:38px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:6px;background:#3FE08A;color:#04140B;box-shadow:0 0 20px rgba(63,224,138,0.4);"><i data-lucide="shield-check" width="18" height="18"></i></div>
+            <div style="line-height:1.15;">
+              <p style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;letter-spacing:0.02em;color:#D2E0D6;">All<span style="color:#3FE08A;">Haven</span></p>
+              <p style="margin:2px 0 0;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#4E5B53;">v4.1.0 · CORE</p>
+            </div>
+          </div>
+          <div style="padding:14px 14px 12px;">
+            <button style="display:flex;height:42px;width:100%;align-items:center;justify-content:center;gap:8px;border:1px solid #3FE08A;border-radius:5px;background:rgba(63,224,138,0.1);font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#3FE08A;cursor:pointer;"><i data-lucide="plus" width="15" height="15"></i>New Command</button>
+          </div>
+          <nav style="flex:1;padding:4px 12px;display:flex;flex-direction:column;gap:2px;">
+            <p style="margin:0;padding:8px 8px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#4E5B53;">// Workspace</p>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid #3FE08A;background:rgba(63,224,138,0.08);text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#3FE08A;width:16px;">01</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid rgba(63,224,138,0.35);background:rgba(63,224,138,0.12);color:#3FE08A;"><i data-lucide="layout-dashboard" width="15" height="15"></i></span><span style="font-size:13px;font-weight:600;color:#D2E0D6;">Dashboard</span></a>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">02</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="bot" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;">AI Chat</span></a>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">03</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="calendar-days" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;">Routine</span></a>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">04</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="list-todo" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;">Task</span></a>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">05</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="wallet" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;">Finance</span></a>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">06</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="sticky-note" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;">Notes</span></a>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">07</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="clipboard-check" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;">Approval</span></a>
+            <p style="margin:0;padding:16px 8px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#4E5B53;">// Modules</p>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">08</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="calculator" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;">Calculator</span></a>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">09</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="clock" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;">Clock</span></a>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">10</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="hard-drive" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;flex:1;">Drive</span><span style="font-family:'IBM Plex Mono',monospace;border-radius:3px;border:1px solid #2C3A30;padding:1px 5px;font-size:9px;letter-spacing:0.04em;color:#7E8E84;">MVP</span></a>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">11</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="workflow" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;flex:1;">Automations</span><span style="font-family:'IBM Plex Mono',monospace;border-radius:3px;border:1px solid #2C3A30;padding:1px 5px;font-size:9px;letter-spacing:0.04em;color:#7E8E84;">MVP</span></a>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">12</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="book-open-check" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;flex:1;">AI Knowledge</span><span style="font-family:'IBM Plex Mono',monospace;border-radius:3px;border:1px solid rgba(63,224,138,0.4);background:rgba(63,224,138,0.1);padding:1px 5px;font-size:9px;letter-spacing:0.04em;color:#3FE08A;">NEW</span></a>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">13</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="brain" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;flex:1;">AI Memory</span><span style="font-family:'IBM Plex Mono',monospace;border-radius:3px;border:1px solid rgba(63,224,138,0.4);background:rgba(63,224,138,0.1);padding:1px 5px;font-size:9px;letter-spacing:0.04em;color:#3FE08A;">NEW</span></a>
+            <div style="margin:8px 8px;height:1px;background:#1B241E;"></div>
+            <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;border-left:2px solid transparent;text-decoration:none;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;width:16px;">14</span><span style="display:flex;height:28px;width:28px;align-items:center;justify-content:center;border-radius:4px;border:1px solid #1B241E;background:#0A0E0C;color:#7E8E84;"><i data-lucide="settings" width="15" height="15"></i></span><span style="font-size:13px;color:#9DA99F;">Settings</span></a>
+          </nav>
+          <div style="border-top:1px solid #1B241E;padding:12px;display:flex;flex-direction:column;gap:3px;">
+            <div style="display:flex;align-items:center;gap:10px;border:1px solid #1B241E;border-radius:5px;background:#0A0E0C;padding:9px 10px;">
+              <span style="display:flex;height:32px;width:32px;align-items:center;justify-content:center;border-radius:5px;border:1px solid rgba(63,224,138,0.35);background:rgba(63,224,138,0.1);font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:#3FE08A;">JS</span>
+              <div style="line-height:1.2;min-width:0;"><p style="margin:0;font-size:13px;font-weight:500;color:#D2E0D6;">Joshua Setiawan</p><p style="margin:2px 0 0;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;">joshua@allhaven.app</p></div>
+            </div>
+            <a style="display:flex;align-items:center;gap:11px;border-radius:4px;padding:8px 10px;font-size:13px;color:#9DA99F;text-decoration:none;"><i data-lucide="life-buoy" width="17" height="17"></i>Support</a>
+            <a style="display:flex;align-items:center;gap:11px;border-radius:4px;padding:8px 10px;font-size:13px;color:#9DA99F;text-decoration:none;"><i data-lucide="log-out" width="17" height="17"></i>Sign Out</a>
+          </div>
+        </aside>
+
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;background-color:#060807;background-image:linear-gradient(rgba(63,224,138,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(63,224,138,0.035) 1px, transparent 1px);background-size:44px 44px;">
+          <header style="display:flex;height:60px;align-items:center;gap:12px;border-bottom:1px solid #1B241E;background:rgba(6,8,7,0.9);padding:0 20px;">
+            <button style="display:flex;height:38px;flex:1;max-width:560px;align-items:center;gap:9px;border-radius:5px;border:1px solid #1B241E;background:#0A0E0C;padding:0 13px;color:#7E8E84;font-family:'IBM Plex Mono',monospace;font-size:12px;cursor:text;"><i data-lucide="search" width="15" height="15"></i><span style="flex:1;text-align:left;">grep — tasks · notes · pages</span><kbd style="border-radius:3px;border:1px solid #2C3A30;padding:2px 6px;font-size:10px;">⌘K</kbd></button>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+              <span style="display:inline-flex;align-items:center;gap:8px;border-radius:5px;border:1px solid rgba(63,224,138,0.3);background:rgba(63,224,138,0.08);padding:6px 11px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;color:#3FE08A;"><span style="height:6px;width:6px;border-radius:9999px;background:#3FE08A;box-shadow:0 0 8px #3FE08A;animation:pulseGlow 1.6s ease-in-out infinite;"></span>SYS OK · 8ms</span>
+              <span style="position:relative;display:flex;height:38px;width:38px;align-items:center;justify-content:center;border-radius:5px;border:1px solid #1B241E;background:#0A0E0C;color:#9DA99F;"><i data-lucide="bell" width="17" height="17"></i><span style="position:absolute;right:-3px;top:-3px;display:flex;height:16px;min-width:16px;align-items:center;justify-content:center;border-radius:4px;background:#3FE08A;padding:0 4px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;color:#04140B;">3</span></span>
+              <span style="display:flex;height:38px;width:38px;align-items:center;justify-content:center;border-radius:5px;border:1px solid #1B241E;background:#0A0E0C;color:#9DA99F;"><i data-lucide="settings" width="17" height="17"></i></span>
+              <span style="display:flex;height:36px;width:36px;align-items:center;justify-content:center;border-radius:5px;border:1px solid rgba(63,224,138,0.35);background:rgba(63,224,138,0.1);font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:#3FE08A;">JS</span>
+            </div>
+          </header>
+
+          <div style="flex:1;padding:22px;">
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;padding:9px 14px;border:1px solid #1B241E;border-radius:5px;background:#0A0E0C;font-family:'IBM Plex Mono',monospace;font-size:11px;">
+              <span style="display:inline-flex;align-items:center;gap:7px;color:#3FE08A;"><span style="height:6px;width:6px;border-radius:9999px;background:#3FE08A;box-shadow:0 0 8px #3FE08A;"></span>SYSTEM NOMINAL</span>
+              <span style="color:#2C3A30;">│</span>
+              <span style="color:#7E8E84;">UPTIME <span style="color:#D2E0D6;">14d 06:22</span></span>
+              <span style="color:#7E8E84;">SYNC <span style="color:#D2E0D6;">12s ago</span></span>
+              <span style="color:#7E8E84;">QUEUE <span style="color:#F5B544;">3 pending</span></span>
+              <span style="margin-left:auto;color:#7E8E84;">2026·07·01 09:12 WIB</span>
+            </div>
+
+            <div style="margin-bottom:20px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;">
+              <div>
+                <p style="margin:0 0 8px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#3FE08A;">OPERATOR // JOSHUA</p>
+                <h1 style="margin:0;font-size:28px;font-weight:700;letter-spacing:-0.01em;color:#D2E0D6;">Good morning, Joshua</h1>
+                <p style="margin:8px 0 0;max-width:560px;font-size:13px;line-height:1.5;color:#7E8E84;">Command center online. Routines, tasks, finance, notes, approvals and AI context — one operational surface.</p>
+              </div>
+              <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button style="display:inline-flex;height:38px;align-items:center;gap:7px;border-radius:5px;border:1px solid #1B241E;background:#0A0E0C;padding:0 13px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#D2E0D6;cursor:pointer;"><i data-lucide="calendar-days" width="14" height="14"></i>ROUTINE</button>
+                <button style="display:inline-flex;height:38px;align-items:center;gap:7px;border-radius:5px;border:1px solid #1B241E;background:#0A0E0C;padding:0 13px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#D2E0D6;cursor:pointer;"><i data-lucide="clipboard-check" width="14" height="14"></i>APPROVALS</button>
+                <button style="display:inline-flex;height:38px;align-items:center;gap:7px;border-radius:5px;border:1px solid #3FE08A;background:rgba(63,224,138,0.12);padding:0 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:#3FE08A;cursor:pointer;"><i data-lucide="bot" width="14" height="14"></i>AI CHAT</button>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+              <div style="display:flex;flex-direction:column;gap:16px;">
+
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+                  <div style="border:1px solid #1B241E;border-radius:5px;background:#0A0E0C;padding:15px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#7E8E84;">Open tasks</span><i data-lucide="list-todo" width="14" height="14" style="color:#3FE08A;"></i></div>
+                    <p style="margin:0 0 10px;font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:600;color:#D2E0D6;line-height:1;">07</p>
+                    <div style="display:flex;align-items:flex-end;gap:2px;height:20px;"><div style="width:5px;height:40%;background:#22B86A;"></div><div style="width:5px;height:55%;background:#22B86A;"></div><div style="width:5px;height:35%;background:#22B86A;"></div><div style="width:5px;height:70%;background:#2CC978;"></div><div style="width:5px;height:60%;background:#2CC978;"></div><div style="width:5px;height:85%;background:#3FE08A;"></div><div style="width:5px;height:100%;background:#3FE08A;"></div></div>
+                  </div>
+                  <div style="border:1px solid #1B241E;border-radius:5px;background:#0A0E0C;padding:15px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#7E8E84;">Notes</span><i data-lucide="sticky-note" width="14" height="14" style="color:#3FE08A;"></i></div>
+                    <p style="margin:0 0 10px;font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:600;color:#D2E0D6;line-height:1;">12</p>
+                    <div style="display:flex;align-items:flex-end;gap:2px;height:20px;"><div style="width:5px;height:50%;background:#22B86A;"></div><div style="width:5px;height:40%;background:#22B86A;"></div><div style="width:5px;height:65%;background:#2CC978;"></div><div style="width:5px;height:55%;background:#2CC978;"></div><div style="width:5px;height:80%;background:#3FE08A;"></div><div style="width:5px;height:70%;background:#3FE08A;"></div><div style="width:5px;height:90%;background:#3FE08A;"></div></div>
+                  </div>
+                  <div style="border:1px solid #1B241E;border-radius:5px;background:#0A0E0C;padding:15px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#7E8E84;">Txns / mo</span><i data-lucide="wallet" width="14" height="14" style="color:#3FE08A;"></i></div>
+                    <p style="margin:0 0 10px;font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:600;color:#D2E0D6;line-height:1;">34</p>
+                    <div style="display:flex;align-items:flex-end;gap:2px;height:20px;"><div style="width:5px;height:30%;background:#22B86A;"></div><div style="width:5px;height:60%;background:#2CC978;"></div><div style="width:5px;height:45%;background:#22B86A;"></div><div style="width:5px;height:75%;background:#2CC978;"></div><div style="width:5px;height:55%;background:#2CC978;"></div><div style="width:5px;height:95%;background:#3FE08A;"></div><div style="width:5px;height:80%;background:#3FE08A;"></div></div>
+                  </div>
+                </div>
+
+                <div style="position:relative;border:1px solid #1B241E;border-radius:5px;background:#0A0E0C;padding:18px;">
+                  <span style="position:absolute;top:-1px;left:-1px;width:9px;height:9px;border-top:1px solid #3FE08A;border-left:1px solid #3FE08A;"></span>
+                  <span style="position:absolute;top:-1px;right:-1px;width:9px;height:9px;border-top:1px solid #3FE08A;border-right:1px solid #3FE08A;"></span>
+                  <span style="position:absolute;bottom:-1px;left:-1px;width:9px;height:9px;border-bottom:1px solid #3FE08A;border-left:1px solid #3FE08A;"></span>
+                  <span style="position:absolute;bottom:-1px;right:-1px;width:9px;height:9px;border-bottom:1px solid #3FE08A;border-right:1px solid #3FE08A;"></span>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#D2E0D6;"><span style="color:#3FE08A;">▍</span> Cashflow · JUL 2026</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7E8E84;">MTD · IDR</span>
+                  </div>
+                  <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:16px;">
+                    <div><p style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#7E8E84;">Current balance</p><p style="margin:4px 0 0;font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:600;letter-spacing:-0.01em;color:#3FE08A;">Rp 24.850.000</p></div>
+                    <span style="margin-bottom:5px;display:inline-flex;align-items:center;gap:4px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#3FE08A;"><i data-lucide="trending-up" width="13" height="13"></i>+18.2%</span>
+                  </div>
+                  <div style="display:flex;gap:12px;">
+                    <div style="display:flex;flex-direction:column;justify-content:space-between;height:150px;padding-bottom:20px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4E5B53;text-align:right;"><span>6M</span><span>4M</span><span>2M</span><span>0</span></div>
+                    <div style="flex:1;">
+                      <div style="position:relative;height:150px;">
+                        <div style="position:absolute;inset:0;bottom:20px;display:flex;flex-direction:column;justify-content:space-between;"><div style="height:1px;background:#141C17;"></div><div style="height:1px;background:#141C17;"></div><div style="height:1px;background:#141C17;"></div><div style="height:1px;background:#1B241E;"></div></div>
+                        <div style="position:absolute;left:0;right:0;bottom:20px;top:0;display:flex;align-items:flex-end;gap:22px;">
+                          <div style="flex:1;height:60%;background:linear-gradient(180deg,#3FE08A,#22B86A);border-radius:2px 2px 0 0;"></div>
+                          <div style="flex:1;height:96%;background:linear-gradient(180deg,#3FE08A,#22B86A);border-radius:2px 2px 0 0;"></div>
+                          <div style="flex:1;height:52%;background:linear-gradient(180deg,#3FE08A,#22B86A);border-radius:2px 2px 0 0;"></div>
+                          <div style="flex:1;height:75%;background:linear-gradient(180deg,#3FE08A,#22B86A);border-radius:2px 2px 0 0;"></div>
+                          <div style="flex:1;height:28%;background:linear-gradient(180deg,#2CC978,#1E9E5C);border-radius:2px 2px 0 0;"></div>
+                        </div>
+                        <div style="position:absolute;left:0;right:0;bottom:0;height:20px;display:flex;gap:22px;align-items:center;"><span style="flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4E5B53;">W1</span><span style="flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4E5B53;">W2</span><span style="flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4E5B53;">W3</span><span style="flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4E5B53;">W4</span><span style="flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4E5B53;">W5</span></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="margin-top:14px;border-top:1px solid #1B241E;padding-top:12px;display:flex;gap:24px;font-family:'IBM Plex Mono',monospace;font-size:12px;">
+                    <span style="color:#7E8E84;">INCOME <span style="color:#3FE08A;">+Rp 41.200.000</span></span>
+                    <span style="color:#7E8E84;">EXPENSE <span style="color:#FF6B6B;">−Rp 16.350.000</span></span>
+                    <span style="margin-left:auto;color:#4E5B53;">Not financial advice.</span>
+                  </div>
+                </div>
+
+                <div style="border:1px solid #1B241E;border-radius:5px;background:#0A0E0C;padding:16px;display:flex;gap:13px;align-items:flex-start;">
+                  <span style="flex-shrink:0;display:flex;height:38px;width:38px;align-items:center;justify-content:center;border-radius:5px;border:1px solid rgba(63,224,138,0.3);background:rgba(63,224,138,0.1);color:#3FE08A;"><i data-lucide="shield-check" width="19" height="19"></i></span>
+                  <div>
+                    <p style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:#3FE08A;">▍ Approval Policy</p>
+                    <p style="margin:6px 0 0;font-size:13px;line-height:1.5;color:#9DA99F;">Reads and low-risk memory updates execute immediately. Risky writes are held in queue until you approve, edit, or reject.</p>
+                    <a style="margin-top:10px;display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3FE08A;text-decoration:none;">OPEN AI CHAT <i data-lucide="arrow-right" width="13" height="13"></i></a>
+                  </div>
+                </div>
+
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:16px;">
+
+                <div style="border:1px solid #1B241E;border-radius:5px;background:#0A0E0C;padding:16px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#D2E0D6;"><span style="color:#3FE08A;">▍</span> Task Queue</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7E8E84;">07 OPEN</span></div>
+                  <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0;">
+                    <li style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #141C17;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:#FF6B6B;border:1px solid rgba(255,107,107,0.35);border-radius:3px;padding:1px 5px;">P1</span><span style="flex:1;min-width:0;"><span style="display:block;font-size:12.5px;color:#D2E0D6;">Finalize Q3 finance report</span></span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7E8E84;">2/4</span></li>
+                    <li style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #141C17;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:#F5B544;border:1px solid rgba(245,181,68,0.35);border-radius:3px;padding:1px 5px;">P2</span><span style="flex:1;min-width:0;"><span style="display:block;font-size:12.5px;color:#D2E0D6;">Review AI memory facts</span></span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;">—</span></li>
+                    <li style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #141C17;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:#7E8E84;border:1px solid #2C3A30;border-radius:3px;padding:1px 5px;">P3</span><span style="flex:1;min-width:0;"><span style="display:block;font-size:12.5px;color:#D2E0D6;">Draft routine for next week</span></span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7E8E84;">1/3</span></li>
+                    <li style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #141C17;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:#FF6B6B;border:1px solid rgba(255,107,107,0.35);border-radius:3px;padding:1px 5px;">P1</span><span style="flex:1;min-width:0;"><span style="display:block;font-size:12.5px;color:#D2E0D6;">Reconcile bank transactions</span></span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;">—</span></li>
+                    <li style="display:flex;align-items:center;gap:10px;padding:11px 0;"><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:#F5B544;border:1px solid rgba(245,181,68,0.35);border-radius:3px;padding:1px 5px;">P2</span><span style="flex:1;min-width:0;"><span style="display:block;font-size:12.5px;color:#D2E0D6;">Update integration keys</span></span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4E5B53;">—</span></li>
+                  </ul>
+                  <a style="margin-top:12px;display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3FE08A;text-decoration:none;">VIEW ALL <i data-lucide="arrow-right" width="13" height="13"></i></a>
+                </div>
+
+                <div style="border:1px solid #1B241E;border-radius:5px;background:#0A0E0C;padding:16px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#D2E0D6;"><span style="color:#3FE08A;">▍</span> Integrations</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#7E8E84;">4 UP · 1 OFF</span></div>
+                  <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0;">
+                    <li style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #141C17;"><span style="height:7px;width:7px;border-radius:9999px;background:#3FE08A;box-shadow:0 0 8px #3FE08A;"></span><span style="flex:1;font-size:13px;color:#D2E0D6;">Ollama</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#4E5B53;">8ms</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;color:#3FE08A;letter-spacing:0.04em;">ONLINE</span></li>
+                    <li style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #141C17;"><span style="height:7px;width:7px;border-radius:9999px;background:#3FE08A;box-shadow:0 0 8px #3FE08A;"></span><span style="flex:1;font-size:13px;color:#D2E0D6;">Supabase</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#4E5B53;">42ms</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;color:#3FE08A;letter-spacing:0.04em;">ONLINE</span></li>
+                    <li style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #141C17;"><span style="height:7px;width:7px;border-radius:9999px;background:#46C7E8;box-shadow:0 0 8px #46C7E8;"></span><span style="flex:1;font-size:13px;color:#D2E0D6;">OpenAI / GPT</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#4E5B53;">—</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;color:#46C7E8;letter-spacing:0.04em;">CONFIG</span></li>
+                    <li style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #141C17;"><span style="height:7px;width:7px;border-radius:9999px;background:#46C7E8;box-shadow:0 0 8px #46C7E8;"></span><span style="flex:1;font-size:13px;color:#D2E0D6;">Claude</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#4E5B53;">—</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;color:#46C7E8;letter-spacing:0.04em;">CONFIG</span></li>
+                    <li style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #141C17;"><span style="height:7px;width:7px;border-radius:9999px;background:#3FE08A;box-shadow:0 0 8px #3FE08A;"></span><span style="flex:1;font-size:13px;color:#D2E0D6;">Tailscale Bridge</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#4E5B53;">18ms</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;color:#3FE08A;letter-spacing:0.04em;">ONLINE</span></li>
+                    <li style="display:flex;align-items:center;gap:10px;padding:9px 0;"><span style="height:7px;width:7px;border-radius:9999px;background:#4E5B53;"></span><span style="flex:1;font-size:13px;color:#9DA99F;">n8n</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#4E5B53;">—</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;color:#7E8E84;letter-spacing:0.04em;">OFFLINE</span></li>
+                  </ul>
+                  <a style="margin-top:12px;display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#3FE08A;text-decoration:none;">MANAGE <i data-lucide="arrow-right" width="13" height="13"></i></a>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1c" style="width:1360px;max-width:none;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+        <span style="display:inline-flex;align-items:center;font-family:'Geist Mono',monospace;font-size:13px;font-weight:600;letter-spacing:0.06em;color:#201403;background:#E0A458;border-radius:9px;padding:6px 12px;">1c</span>
+        <span style="font-size:16px;font-weight:600;color:#F0EBE3;">Editorial Calm</span>
+        <span style="font-size:14px;color:#726A5D;">— warm, spacious, serif, human</span>
+      </div>
+
+      <div style="border-radius:22px;border:1px solid #2A2621;overflow:hidden;box-shadow:0 40px 90px -40px rgba(0,0,0,0.85);display:flex;background:#12100E;font-family:'Geist',sans-serif;">
+
+        <aside style="width:280px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid #221F1A;background:#0F0D0B;">
+          <div style="display:flex;align-items:center;gap:12px;padding:26px 22px 22px;">
+            <div style="height:40px;width:40px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#E0A458;color:#201403;"><i data-lucide="shield-check" width="19" height="19"></i></div>
+            <div style="line-height:1.05;">
+              <p style="margin:0;font-family:'Instrument Serif',serif;font-size:23px;color:#F0EBE3;">All<span style="color:#E0A458;">Haven</span></p>
+              <p style="margin:1px 0 0;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#726A5D;">Command Center</p>
+            </div>
+          </div>
+          <div style="padding:0 18px 16px;">
+            <button style="display:flex;height:46px;width:100%;align-items:center;justify-content:center;gap:8px;border:none;border-radius:14px;background:#E0A458;font-size:13.5px;font-weight:600;color:#201403;cursor:pointer;font-family:inherit;box-shadow:0 14px 30px -16px rgba(224,164,88,0.9);"><i data-lucide="plus" width="16" height="16"></i>New Command</button>
+          </div>
+          <nav style="flex:1;padding:6px 14px;display:flex;flex-direction:column;gap:3px;">
+            <p style="margin:0;padding:10px 12px 8px;font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:#726A5D;">Workspace</p>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;background:rgba(224,164,88,0.13);text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;background:rgba(224,164,88,0.18);color:#E0A458;"><i data-lucide="layout-dashboard" width="17" height="17"></i></span><span style="font-size:14px;font-weight:600;color:#F0EBE3;">Dashboard</span></a>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="bot" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;">AI Chat</span></a>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="calendar-days" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;">Routine</span></a>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="list-todo" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;">Task</span></a>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="wallet" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;">Finance</span></a>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="sticky-note" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;">Notes</span></a>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="clipboard-check" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;">Approval</span></a>
+            <p style="margin:0;padding:20px 12px 8px;font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:#726A5D;">Modules</p>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="calculator" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;">Calculator</span></a>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="clock" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;">Clock</span></a>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="hard-drive" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;flex:1;">Drive</span><span style="border-radius:9999px;border:1px solid #2A2621;padding:2px 8px;font-size:9px;letter-spacing:0.05em;text-transform:uppercase;color:#8C8375;">MVP</span></a>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="workflow" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;flex:1;">Automations</span><span style="border-radius:9999px;border:1px solid #2A2621;padding:2px 8px;font-size:9px;letter-spacing:0.05em;text-transform:uppercase;color:#8C8375;">MVP</span></a>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="book-open-check" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;flex:1;">AI Knowledge</span><span style="border-radius:9999px;border:1px solid rgba(224,164,88,0.4);background:rgba(224,164,88,0.12);padding:2px 8px;font-size:9px;letter-spacing:0.05em;text-transform:uppercase;color:#E0A458;">New</span></a>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="brain" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;flex:1;">AI Memory</span><span style="border-radius:9999px;border:1px solid rgba(224,164,88,0.4);background:rgba(224,164,88,0.12);padding:2px 8px;font-size:9px;letter-spacing:0.05em;text-transform:uppercase;color:#E0A458;">New</span></a>
+            <div style="margin:10px 12px;height:1px;background:#221F1A;"></div>
+            <a style="display:flex;align-items:center;gap:13px;padding:11px 13px;border-radius:13px;text-decoration:none;"><span style="display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:9px;color:#8C8375;"><i data-lucide="settings" width="17" height="17"></i></span><span style="font-size:14px;color:#A79E90;">Settings</span></a>
+          </nav>
+          <div style="border-top:1px solid #221F1A;padding:14px;display:flex;flex-direction:column;gap:3px;">
+            <div style="display:flex;align-items:center;gap:11px;border-radius:14px;background:#1A1815;padding:10px 12px;">
+              <span style="display:flex;height:34px;width:34px;align-items:center;justify-content:center;border-radius:9999px;background:rgba(224,164,88,0.15);font-size:12px;font-weight:600;color:#E0A458;">JS</span>
+              <div style="line-height:1.2;min-width:0;"><p style="margin:0;font-size:13px;font-weight:500;color:#F0EBE3;">Joshua Setiawan</p><p style="margin:2px 0 0;font-size:11px;color:#726A5D;">joshua@allhaven.app</p></div>
+            </div>
+            <a style="display:flex;align-items:center;gap:13px;border-radius:12px;padding:9px 13px;font-size:14px;color:#A79E90;text-decoration:none;"><i data-lucide="life-buoy" width="18" height="18"></i>Support</a>
+            <a style="display:flex;align-items:center;gap:13px;border-radius:12px;padding:9px 13px;font-size:14px;color:#A79E90;text-decoration:none;"><i data-lucide="log-out" width="18" height="18"></i>Sign Out</a>
+          </div>
+        </aside>
+
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;background:radial-gradient(1000px 600px at 90% -10%, rgba(224,164,88,0.05), transparent 55%), #12100E;">
+          <header style="display:flex;height:68px;align-items:center;gap:14px;border-bottom:1px solid #221F1A;background:rgba(18,16,14,0.7);padding:0 28px;">
+            <button style="display:flex;height:42px;flex:1;max-width:540px;align-items:center;gap:10px;border-radius:9999px;border:1px solid #2A2621;background:#1A1815;padding:0 16px;color:#8C8375;font-size:13.5px;cursor:text;font-family:inherit;"><i data-lucide="search" width="16" height="16"></i><span style="flex:1;text-align:left;">Search your workspace…</span><kbd style="border-radius:6px;border:1px solid #2A2621;padding:2px 7px;font-size:10px;font-family:'Geist Mono',monospace;">⌘K</kbd></button>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+              <span style="display:inline-flex;align-items:center;gap:8px;border-radius:9999px;border:1px solid rgba(143,169,138,0.3);background:rgba(143,169,138,0.1);padding:7px 14px;font-size:12px;font-weight:500;color:#A6C29F;"><span style="height:6px;width:6px;border-radius:9999px;background:#8FA98A;"></span>Local AI · Online</span>
+              <span style="position:relative;display:flex;height:40px;width:40px;align-items:center;justify-content:center;border-radius:12px;border:1px solid #2A2621;background:#1A1815;color:#A79E90;"><i data-lucide="bell" width="18" height="18"></i><span style="position:absolute;right:-2px;top:-2px;display:flex;height:16px;min-width:16px;align-items:center;justify-content:center;border-radius:9999px;background:#E0A458;padding:0 4px;font-size:9px;font-weight:700;color:#201403;">3</span></span>
+              <span style="display:flex;height:38px;width:38px;align-items:center;justify-content:center;border-radius:9999px;background:rgba(224,164,88,0.15);font-size:12px;font-weight:600;color:#E0A458;">JS</span>
+            </div>
+          </header>
+
+          <div style="flex:1;padding:30px;">
+            <div style="margin-bottom:28px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;">
+              <div>
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px;">
+                  <span style="display:inline-flex;align-items:center;gap:7px;border-radius:9999px;border:1px solid rgba(224,164,88,0.35);background:rgba(224,164,88,0.1);padding:4px 12px;font-size:11px;font-weight:500;color:#E0A458;"><span style="height:5px;width:5px;border-radius:9999px;background:#E0A458;"></span>v4.1.0</span>
+                  <span style="font-size:11.5px;color:#726A5D;">Tuesday, 1 July</span>
+                </div>
+                <h1 style="margin:0;font-family:'Instrument Serif',serif;font-size:46px;line-height:1.02;letter-spacing:-0.01em;color:#F0EBE3;">Good morning, Joshua</h1>
+                <p style="margin:12px 0 0;max-width:540px;font-size:14.5px;line-height:1.6;color:#A79E90;">Your command center is ready — routines, tasks, finance, notes, approvals, and AI context, in one calm and focused workspace.</p>
+              </div>
+              <div style="display:flex;gap:10px;flex-shrink:0;">
+                <button style="display:inline-flex;height:44px;align-items:center;gap:8px;border-radius:12px;border:1px solid #2A2621;background:#1A1815;padding:0 16px;font-size:13.5px;font-weight:500;color:#F0EBE3;cursor:pointer;font-family:inherit;"><i data-lucide="calendar-days" width="16" height="16"></i>Routine</button>
+                <button style="display:inline-flex;height:44px;align-items:center;gap:8px;border-radius:12px;border:none;background:#E0A458;padding:0 18px;font-size:13.5px;font-weight:600;color:#201403;cursor:pointer;font-family:inherit;"><i data-lucide="bot" width="16" height="16"></i>AI Chat</button>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:22px;">
+              <div style="display:flex;flex-direction:column;gap:22px;">
+
+                <div style="border-radius:18px;border:1px solid #221F1A;background:#1A1815;box-shadow:0 20px 50px -30px rgba(0,0,0,0.7);padding:28px;">
+                  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px;">
+                    <div>
+                      <p style="margin:0;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:#726A5D;">Current balance</p>
+                      <p style="margin:8px 0 0;font-family:'Instrument Serif',serif;font-size:52px;line-height:0.95;letter-spacing:-0.01em;color:#F0EBE3;">Rp 24.850.000</p>
+                    </div>
+                    <span style="display:inline-flex;align-items:center;gap:6px;border-radius:9999px;background:rgba(143,169,138,0.12);padding:6px 12px;font-size:12.5px;font-weight:500;color:#A6C29F;"><i data-lucide="trending-up" width="14" height="14"></i>+18% this month</span>
+                  </div>
+                  <div style="position:relative;height:120px;margin-top:6px;">
+                    <div style="position:absolute;inset:0;background:linear-gradient(180deg, rgba(224,164,88,0.26), rgba(224,164,88,0) 86%);clip-path:polygon(0% 70%, 25% 54%, 50% 62%, 75% 36%, 100% 46%, 100% 100%, 0% 100%);"></div>
+                    <div style="position:absolute;left:0;right:0;bottom:0;height:1px;background:#2A2621;"></div>
+                    <span style="position:absolute;left:0%;top:70%;width:7px;height:7px;border-radius:9999px;background:#E0A458;transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(224,164,88,0.14);"></span>
+                    <span style="position:absolute;left:25%;top:54%;width:7px;height:7px;border-radius:9999px;background:#E0A458;transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(224,164,88,0.14);"></span>
+                    <span style="position:absolute;left:50%;top:62%;width:7px;height:7px;border-radius:9999px;background:#E0A458;transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(224,164,88,0.14);"></span>
+                    <span style="position:absolute;left:75%;top:36%;width:7px;height:7px;border-radius:9999px;background:#E0A458;transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(224,164,88,0.14);"></span>
+                    <span style="position:absolute;left:100%;top:46%;width:9px;height:9px;border-radius:9999px;background:#F0C07E;transform:translate(-50%,-50%);box-shadow:0 0 0 4px rgba(224,164,88,0.2);"></span>
+                  </div>
+                  <div style="display:flex;gap:20px;margin-top:10px;">
+                    <span style="flex:1;text-align:center;font-size:11px;color:#726A5D;">Wk 1</span><span style="flex:1;text-align:center;font-size:11px;color:#726A5D;">Wk 2</span><span style="flex:1;text-align:center;font-size:11px;color:#726A5D;">Wk 3</span><span style="flex:1;text-align:center;font-size:11px;color:#726A5D;">Wk 4</span><span style="flex:1;text-align:center;font-size:11px;color:#726A5D;">Wk 5</span>
+                  </div>
+                  <div style="margin-top:20px;border-top:1px solid #221F1A;padding-top:18px;display:flex;gap:32px;">
+                    <div><p style="margin:0;font-size:12px;color:#726A5D;">Income</p><p style="margin:5px 0 0;font-size:17px;font-weight:600;color:#A6C29F;">Rp 41.200.000</p></div>
+                    <div><p style="margin:0;font-size:12px;color:#726A5D;">Expense</p><p style="margin:5px 0 0;font-size:17px;font-weight:600;color:#C97B63;">Rp 16.350.000</p></div>
+                    <div style="margin-left:auto;align-self:flex-end;"><p style="margin:0;font-size:11.5px;color:#726A5D;max-width:180px;text-align:right;">Tracks cashflow. Not financial advice.</p></div>
+                  </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+                  <div style="border-radius:18px;border:1px solid #221F1A;background:#1A1815;padding:22px;">
+                    <span style="display:flex;height:34px;width:34px;align-items:center;justify-content:center;border-radius:10px;background:rgba(224,164,88,0.13);color:#E0A458;margin-bottom:16px;"><i data-lucide="list-todo" width="17" height="17"></i></span>
+                    <p style="margin:0;font-family:'Instrument Serif',serif;font-size:34px;line-height:1;color:#F0EBE3;">7</p>
+                    <p style="margin:6px 0 0;font-size:12.5px;color:#A79E90;">Open tasks</p>
+                  </div>
+                  <div style="border-radius:18px;border:1px solid #221F1A;background:#1A1815;padding:22px;">
+                    <span style="display:flex;height:34px;width:34px;align-items:center;justify-content:center;border-radius:10px;background:rgba(224,164,88,0.13);color:#E0A458;margin-bottom:16px;"><i data-lucide="sticky-note" width="17" height="17"></i></span>
+                    <p style="margin:0;font-family:'Instrument Serif',serif;font-size:34px;line-height:1;color:#F0EBE3;">12</p>
+                    <p style="margin:6px 0 0;font-size:12.5px;color:#A79E90;">Notes</p>
+                  </div>
+                  <div style="border-radius:18px;border:1px solid #221F1A;background:#1A1815;padding:22px;">
+                    <span style="display:flex;height:34px;width:34px;align-items:center;justify-content:center;border-radius:10px;background:rgba(224,164,88,0.13);color:#E0A458;margin-bottom:16px;"><i data-lucide="wallet" width="17" height="17"></i></span>
+                    <p style="margin:0;font-family:'Instrument Serif',serif;font-size:34px;line-height:1;color:#F0EBE3;">34</p>
+                    <p style="margin:6px 0 0;font-size:12.5px;color:#A79E90;">Txns / month</p>
+                  </div>
+                </div>
+
+                <div style="border-radius:18px;border:1px solid rgba(224,164,88,0.22);background:linear-gradient(120deg, rgba(224,164,88,0.06), #1A1815 60%);padding:24px;display:flex;gap:16px;align-items:flex-start;">
+                  <span style="flex-shrink:0;display:flex;height:44px;width:44px;align-items:center;justify-content:center;border-radius:12px;background:rgba(224,164,88,0.14);color:#E0A458;"><i data-lucide="shield-check" width="21" height="21"></i></span>
+                  <div>
+                    <p style="margin:0;font-family:'Instrument Serif',serif;font-size:22px;line-height:1.1;color:#F0EBE3;">Human-in-the-loop, where it matters</p>
+                    <p style="margin:8px 0 0;font-size:13.5px;line-height:1.6;color:#A79E90;">Reads and low-risk memory updates run quickly. Risky writes stay pending until you approve, edit, or reject them.</p>
+                    <a style="margin-top:12px;display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:500;color:#E0A458;text-decoration:none;">Open AI Chat <i data-lucide="arrow-up-right" width="15" height="15"></i></a>
+                  </div>
+                </div>
+
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:22px;">
+
+                <div style="border-radius:18px;border:1px solid #221F1A;background:#1A1815;box-shadow:0 20px 50px -30px rgba(0,0,0,0.7);padding:24px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px;">
+                    <h2 style="margin:0;font-family:'Instrument Serif',serif;font-size:22px;color:#F0EBE3;">Pending tasks</h2>
+                    <a style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:#E0A458;text-decoration:none;">View all <i data-lucide="arrow-up-right" width="14" height="14"></i></a>
+                  </div>
+                  <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;">
+                    <li style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #211E19;"><span style="height:8px;width:8px;border-radius:9999px;background:#C97B63;flex-shrink:0;"></span><span style="flex:1;min-width:0;"><span style="display:block;font-size:13.5px;color:#F0EBE3;">Finalize Q3 finance report</span><span style="font-size:11.5px;color:#726A5D;">Checklist · 2 of 4</span></span><span style="font-size:11px;color:#C97B63;font-weight:500;">High</span></li>
+                    <li style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #211E19;"><span style="height:8px;width:8px;border-radius:9999px;background:#E0A458;flex-shrink:0;"></span><span style="flex:1;min-width:0;"><span style="display:block;font-size:13.5px;color:#F0EBE3;">Review AI memory facts</span></span><span style="font-size:11px;color:#C4863A;font-weight:500;">Medium</span></li>
+                    <li style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #211E19;"><span style="height:8px;width:8px;border-radius:9999px;background:#8C8375;flex-shrink:0;"></span><span style="flex:1;min-width:0;"><span style="display:block;font-size:13.5px;color:#F0EBE3;">Draft routine for next week</span><span style="font-size:11.5px;color:#726A5D;">Checklist · 1 of 3</span></span><span style="font-size:11px;color:#8C8375;font-weight:500;">Low</span></li>
+                    <li style="display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #211E19;"><span style="height:8px;width:8px;border-radius:9999px;background:#C97B63;flex-shrink:0;"></span><span style="flex:1;min-width:0;"><span style="display:block;font-size:13.5px;color:#F0EBE3;">Reconcile bank transactions</span></span><span style="font-size:11px;color:#C97B63;font-weight:500;">High</span></li>
+                    <li style="display:flex;align-items:center;gap:12px;padding:13px 0;"><span style="height:8px;width:8px;border-radius:9999px;background:#E0A458;flex-shrink:0;"></span><span style="flex:1;min-width:0;"><span style="display:block;font-size:13.5px;color:#F0EBE3;">Update integration keys</span></span><span style="font-size:11px;color:#C4863A;font-weight:500;">Medium</span></li>
+                  </ul>
+                </div>
+
+                <div style="border-radius:18px;border:1px solid #221F1A;background:#1A1815;box-shadow:0 20px 50px -30px rgba(0,0,0,0.7);padding:24px;">
+                  <h2 style="margin:0 0 18px;font-family:'Instrument Serif',serif;font-size:22px;color:#F0EBE3;">Integrations</h2>
+                  <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:16px;">
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:11px;font-size:13.5px;color:#F0EBE3;"><span style="height:8px;width:8px;border-radius:9999px;background:#8FA98A;"></span>Ollama</span><span style="font-size:12px;color:#A6C29F;">Online</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:11px;font-size:13.5px;color:#F0EBE3;"><span style="height:8px;width:8px;border-radius:9999px;background:#8FA98A;"></span>Supabase</span><span style="font-size:12px;color:#A6C29F;">Online</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:11px;font-size:13.5px;color:#F0EBE3;"><span style="height:8px;width:8px;border-radius:9999px;background:#E0A458;"></span>OpenAI / GPT</span><span style="font-size:12px;color:#C4863A;">Configured</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:11px;font-size:13.5px;color:#F0EBE3;"><span style="height:8px;width:8px;border-radius:9999px;background:#E0A458;"></span>Claude</span><span style="font-size:12px;color:#C4863A;">Configured</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:11px;font-size:13.5px;color:#F0EBE3;"><span style="height:8px;width:8px;border-radius:9999px;background:#8FA98A;"></span>Tailscale Bridge</span><span style="font-size:12px;color:#A6C29F;">Online</span></li>
+                    <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="display:flex;align-items:center;gap:11px;font-size:13.5px;color:#A79E90;"><span style="height:8px;width:8px;border-radius:9999px;background:#726A5D;"></span>n8n</span><span style="font-size:12px;color:#726A5D;">Not set up</span></li>
+                  </ul>
+                  <a style="margin-top:20px;display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:500;color:#E0A458;text-decoration:none;">Manage integrations <i data-lucide="arrow-up-right" width="15" height="15"></i></a>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() {
+    const run = () => {
+      if (window.lucide && window.lucide.createIcons) { window.lucide.createIcons(); return true; }
+      return false;
+    };
+    if (!run()) {
+      let n = 0;
+      const t = setInterval(() => { if (run() || ++n > 60) clearInterval(t); }, 80);
+    }
+  }
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
