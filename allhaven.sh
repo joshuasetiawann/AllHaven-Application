@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # =============================================================================
-# CoreOS Command Center — one-command setup & run helper
+# AllHaven Command Center — one-command setup & run helper
 #
 # Usage (run from the repo root, i.e. the CORE-OS-APPLICATION folder):
-#   ./coreos.sh setup      # one-time: env + secrets + deps + DB migration
-#   ./coreos.sh run        # start PostgreSQL + backend + frontend (dev)
-#   ./coreos.sh ollama [model]
+#   ./allhaven.sh setup      # one-time: env + secrets + deps + DB migration
+#   ./allhaven.sh run        # start PostgreSQL + backend + frontend (dev)
+#   ./allhaven.sh ollama [model]
 #                          # check local Ollama; optionally pull a model
-#   ./coreos.sh stop       # stop background servers started by this script
+#   ./allhaven.sh stop       # stop background servers started by this script
 #
-# Quick start:  ./coreos.sh run   (it runs setup automatically if needed)
+# Quick start:  ./allhaven.sh run   (it runs setup automatically if needed)
 # Then open:    http://localhost:3000   (use localhost, not 127.0.0.1)
 #
 # Safe by design: never prints/commits secrets, never deletes Docker volumes,
@@ -24,7 +24,7 @@ cd "$ROOT"
 
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
-PID_DIR="$ROOT/.coreos-pids"
+PID_DIR="$ROOT/.allhaven-pids"
 
 c_green() { printf '\033[0;32m%s\033[0m\n' "$1"; }
 c_blue()  { printf '\033[0;36m%s\033[0m\n' "$1"; }
@@ -85,7 +85,7 @@ ensure_postgres() {
     docker compose up -d postgres
     # Wait until it accepts connections.
     for _ in $(seq 1 30); do
-      if docker compose exec -T postgres pg_isready -U coreos -d coreos >/dev/null 2>&1; then
+      if docker compose exec -T postgres pg_isready -U allhaven -d allhaven >/dev/null 2>&1; then
         c_green "PostgreSQL is ready."; return 0
       fi
       sleep 1
@@ -93,7 +93,7 @@ ensure_postgres() {
     c_warn "PostgreSQL did not report ready in time; continuing anyway."
   else
     c_warn "Docker not found. Assuming a local PostgreSQL is running on :5432"
-    c_warn "with user/pass/db = coreos/coreos/coreos (see .env to change)."
+    c_warn "with user/pass/db = allhaven/allhaven/allhaven (see .env to change)."
   fi
 }
 
@@ -132,7 +132,7 @@ cmd_setup() {
   ensure_postgres
   setup_backend
   setup_frontend
-  c_green "Setup complete. Run:  ./coreos.sh run"
+  c_green "Setup complete. Run:  ./allhaven.sh run"
 }
 
 # -----------------------------------------------------------------------------
@@ -187,7 +187,7 @@ cmd_ollama() {
   local model="${1:-}"
   if ! need ollama; then
     c_err "Ollama is not installed."
-    echo "Install it from https://ollama.com/download then re-run:  ./coreos.sh ollama llama3.2"
+    echo "Install it from https://ollama.com/download then re-run:  ./allhaven.sh ollama llama3.2"
     exit 1
   fi
   # Ensure the server is up.
@@ -210,10 +210,10 @@ cmd_ollama() {
     echo "Installed models:"
     ollama list || true
     c_warn "No model name given — nothing was pulled."
-    echo "To download one, e.g.:  ./coreos.sh ollama llama3.2"
+    echo "To download one, e.g.:  ./allhaven.sh ollama llama3.2"
   fi
   echo
-  c_blue "Next, in CoreOS → Settings → AI Providers → Ollama Local Agent → Configure:"
+  c_blue "Next, in AllHaven → Settings → AI Providers → Ollama Local Agent → Configure:"
   echo "  Base URL:      http://localhost:11434"
   echo "  Default model: ${model:-<the model you pulled>}"
   echo "  Save → Test (should become Online) → pick it in AI Chat."
@@ -221,12 +221,12 @@ cmd_ollama() {
 
 usage() {
   cat <<EOF
-CoreOS helper
+AllHaven helper
 
-  ./coreos.sh setup           One-time setup (.env, deps, DB migration)
-  ./coreos.sh run             Start PostgreSQL + backend + frontend
-  ./coreos.sh stop            Stop the background backend
-  ./coreos.sh ollama [model]  Check Ollama; optionally pull a model
+  ./allhaven.sh setup           One-time setup (.env, deps, DB migration)
+  ./allhaven.sh run             Start PostgreSQL + backend + frontend
+  ./allhaven.sh stop            Stop the background backend
+  ./allhaven.sh ollama [model]  Check Ollama; optionally pull a model
 
 Open http://localhost:${FRONTEND_PORT} after 'run'.
 EOF

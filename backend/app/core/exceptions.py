@@ -16,7 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.responses import error_response
 
-logger = logging.getLogger("coreos")
+logger = logging.getLogger("allhaven")
 
 
 class AppException(Exception):

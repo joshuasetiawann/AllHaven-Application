@@ -1,4 +1,4 @@
-# Session Memory — CoreOS Command Center "Release-Ready Repair"
+# Session Memory — AllHaven Command Center "Release-Ready Repair"
 
 > Catatan memori lengkap untuk sesi pengerjaan ini. Disimpan agar permanen
 > (container bersifat ephemeral; hanya yang di-commit yang bertahan).
@@ -27,7 +27,7 @@
 
 ## 1. Tugas utama sesi ini
 
-Brief besar "Release-Ready Repair" untuk app **CoreOS Command Center** (FastAPI +
+Brief besar "Release-Ready Repair" untuk app **AllHaven Command Center** (FastAPI +
 PostgreSQL backend, Next.js + TS + Tailwind frontend; **bukan OS sungguhan**).
 Memperbaiki app yang sudah ada (bukan bikin dari nol) sampai layak rilis:
 
@@ -128,7 +128,7 @@ Memperbaiki app yang sudah ada (bukan bikin dari nol) sampai layak rilis:
   sandbox (Ollama asli tak bisa diinstall di sini). Hasil: Test → **ONLINE**
   (`last_verified` terisi); chat single → balasan asli; multi-agent → `completed` (25 ms).
   Di mesin user, Ollama asli berperilaku identik lewat konektor yang sama.
-- **Cara Ollama gratis di mesin user:** install dari ollama.com → `./coreos.sh ollama
+- **Cara Ollama gratis di mesin user:** install dari ollama.com → `./allhaven.sh ollama
   llama3.2` (atau `ollama serve` + `ollama pull llama3.2`) → Settings → AI Providers →
   Ollama: base_url `http://localhost:11434`, model `llama3.2` → Save → Test → Online.
 
