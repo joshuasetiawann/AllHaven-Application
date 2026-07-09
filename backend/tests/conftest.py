@@ -17,11 +17,6 @@ os.environ["SETTINGS_ENCRYPTION_KEY"] = "test-encryption-key"
 os.environ["BACKEND_CORS_ORIGINS"] = "http://localhost:3000"
 os.environ["AI_ALLOW_EXTERNAL_PROVIDERS"] = "false"
 os.environ["AI_DEFAULT_PROVIDER"] = "ollama"
-# Redirect the .env mirror and Drive storage to temp dirs so tests never touch
-# the real repo .env or pollute the working tree.
-_TMP = tempfile.mkdtemp(prefix="coreos-test-")
-os.environ["ENV_SYNC_PATH"] = os.path.join(_TMP, ".env")
-os.environ["DRIVE_STORAGE_DIR"] = os.path.join(_TMP, "drive")
 # Force these empty so a local .env file can never make tests non-deterministic
 # (real env vars take priority over any .env file).
 for _placeholder in (
@@ -40,15 +35,6 @@ for _placeholder in (
     "GROK_API_KEY",
     "BLACKBOX_API_KEY",
     "OPENROUTER_API_KEY",
-    "OPENROUTER_1_API_KEY",
-    "OPENROUTER_1_DEFAULT_MODEL",
-    "OPENROUTER_2_API_KEY",
-    "OPENROUTER_2_DEFAULT_MODEL",
-    "OPENROUTER_3_API_KEY",
-    "OPENROUTER_3_DEFAULT_MODEL",
-    "N8N_API_KEY",
-    "GOOGLE_CALENDAR_CLIENT_SECRET",
-    "WEATHER_PROVIDER",
 ):
     os.environ[_placeholder] = ""
 
