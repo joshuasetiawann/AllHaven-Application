@@ -13,8 +13,9 @@ from app.api.dependencies import get_current_principal
 from app.core.database import get_db
 from app.core.principal import Principal
 from app.core.responses import success_response
-from app.schemas.integrations import IntegrationUpdateRequest
+from app.schemas.integrations import IntegrationUpdateRequest, SupabaseConnectRequest
 from app.services import integration_config_service as svc
+from app.services import supabase_auth_service
 from app.services.local_first_sync import sync_after_write
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -95,3 +96,13 @@ def clear_integration(
     view = svc.clear_integration(db, principal, provider_id)
     sync_after_write(db, principal)
     return success_response(view, "Integration cleared")
+
+
+@router.post("/supabase/connect")
+def connect_supabase(
+    payload: SupabaseConnectRequest,
+    principal: Principal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> dict:
+    result = supabase_auth_service.connect(db, principal, payload.password)
+    return success_response(result, "Supabase Auth connected")
