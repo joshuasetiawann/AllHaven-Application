@@ -38,27 +38,20 @@ from app.domain.ai import (
     ChatSession,
 )
 from app.services import ai_provider_router
-from app.services.ai_multi_service import (
-    AGENT_TIMEOUT_SECONDS,
-    UNSUPPORTED_IMAGE_MSG,
-    _dedup,
-    _run_one,
-    _user_meta,
-)
+from app.services.ai_multi_service import AGENT_TIMEOUT_SECONDS, _dedup, _run_one
 from app.services.ai_provider_router import ChatPlan
 from app.services.ai_service import _auto_title
 from app.services.reasoning import prompts
 from app.services.reasoning import quality as q
-from app.services.reasoning.modes import params_for, roles_for
-from app.services.thinking import reasoning_depth, thinking_params
+from app.services.reasoning.modes import normalize_mode, params_for, roles_for
 
 ROLE_LABELS = {"analyst": "Analyst", "critic": "Critic", "synthesizer": "Synthesizer"}
 
 
-def _call(plan: ChatPlan, prompt: str, params: dict, images: Optional[List[str]] = None) -> dict:
+def _call(plan: ChatPlan, prompt: str, params: dict) -> dict:
     """Run one role's provider call with a hard timeout (network in a worker)."""
     with ThreadPoolExecutor(max_workers=1) as pool:
-        fut = pool.submit(_run_one, plan, [{"role": "user", "content": prompt, "images": images or []}], params, bool(images))
+        fut = pool.submit(_run_one, plan, [{"role": "user", "content": prompt}], params)
         try:
             return fut.result(timeout=AGENT_TIMEOUT_SECONDS)
         except FutureTimeout:
@@ -78,26 +71,14 @@ def reasoning_chat(
     message: str,
     provider_ids: List[str],
     session_id: Optional[uuid.UUID] = None,
-    thinking_mode: str = "balance",
-    images: Optional[List[str]] = None,
-    section_key: Optional[str] = "general",
-    response_language: Optional[str] = None,
+    mode: str = "balanced",
 ) -> dict:
-    from app.services import (
-        ai_context_builder,
-        ai_intent_router,
-        ai_orchestrator,
-        memory_extraction_service,
-        schedule_parser,
-    )
-
     ids = _dedup(provider_ids)
     if not ids:
         raise ValidationAppError("Select at least one AI agent.")
     if len(ids) > MAX_AGENTS_PER_RUN:
         raise ValidationAppError(f"Maximum {MAX_AGENTS_PER_RUN} agents per run.")
-    # Thinking Mode drives both reasoning depth and sampling.
-    mode = reasoning_depth(thinking_mode)
+    mode = normalize_mode(mode)
 
     # Session + user message.
     if session_id is not None:
@@ -110,16 +91,14 @@ def reasoning_chat(
             raise NotFoundError("Chat session not found.")
     else:
         session = ChatSession(workspace_id=principal.workspace_id, created_by=principal.user_id,
-                              title=_auto_title(message), section_key=section_key or "general")
+                              title=_auto_title(message))
         db.add(session)
         db.flush()
     if not (session.title or "").strip():
         session.title = _auto_title(message)
-    session.section_key = section_key or "general"
 
     user_message = ChatMessage(workspace_id=principal.workspace_id, session_id=session.id,
-                               role="user", content=message, section_key=section_key or "general",
-                               meta=_user_meta("reasoning", thinking_mode, images, section_key or "general"))
+                               role="user", content=message)
     db.add(user_message)
     db.flush()
 
@@ -132,16 +111,10 @@ def reasoning_chat(
 
     plans = {pid: ai_provider_router.plan_chat(db, principal, pid) for pid in ids}
     runnable = {pid: p for pid, p in plans.items() if p.runnable}
-    # With an image attached, only vision-capable agents can reason over it.
-    has_images = bool(images)
-    if has_images:
-        runnable = {pid: p for pid, p in runnable.items() if p.supports_image}
     responses: List[AiAgentResponse] = []
-    context_meta = {"section_key": section_key or "general", "thinking_mode": thinking_mode}
 
     def _record(provider_id, provider_name, status, content, error, latency, external, *, phase, extra=None):
         meta = {"external": external, "phase": phase, "reasoning": True}
-        meta.update(context_meta)
         if extra:
             meta.update(extra)
         row = AiAgentResponse(
@@ -155,14 +128,12 @@ def reasoning_chat(
             "provider_id": provider_id, "provider_name": provider_name, "status": status,
             "run_id": str(run.id), "latency_ms": latency, "external": external,
             "reasoning": True, "phase": phase,
-            **context_meta,
         }
         if extra:
             msg_meta.update(extra)
         db.add(ChatMessage(
             workspace_id=principal.workspace_id, session_id=session.id, role="assistant",
-            content=content if status == "completed" and content else (error or status),
-            section_key=section_key or "general", meta=msg_meta,
+            content=content if status == "completed" and content else (error or status), meta=msg_meta,
         ))
 
     # Honest record for agents that can't run.
@@ -170,17 +141,12 @@ def reasoning_chat(
         if pid in runnable:
             continue
         plan = plans[pid]
-        if has_images and plan.runnable and not plan.supports_image:
-            status, msg = "unsupported", UNSUPPORTED_IMAGE_MSG
-        else:
-            status = plan.status if plan.status in ("blocked", "not_configured", "disabled") else "error"
-            msg = plan.message
-        _record(pid, plan.provider_name, status, None, msg, None, plan.external, phase="analyst")
+        status = plan.status if plan.status in ("blocked", "not_configured", "disabled") else "error"
+        _record(pid, plan.provider_name, status, None, plan.message, None, plan.external, phase="analyst")
 
     task_type = q.detect_task_type(message)
     facts = q.extract_facts(message)
     gen_params = params_for(task_type, mode)
-    gen_params.update(thinking_params(thinking_mode))
 
     if not runnable:
         run.status = "error"
@@ -188,89 +154,22 @@ def reasoning_chat(
             workspace_id=principal.workspace_id, session_id=session.id, role="assistant",
             content=("No selected agent could run, so reasoning could not start. Configure and enable "
                      "at least one AI agent in Settings -> AI Providers."),
-            section_key=section_key or "general",
             meta={"provider_name": "Reasoning", "status": "error", "run_id": str(run.id),
-                  "reasoning": True, "reasoning_final": True, "mode": mode, "task_type": task_type, **context_meta},
+                  "reasoning": True, "reasoning_final": True, "mode": mode, "task_type": task_type},
         ))
         db.commit()
         db.refresh(run)
         for r in responses:
             db.refresh(r)
-        memory_extraction_service.extract_and_commit(
-            db, principal, user_msg=message, assistant_msg="", session_id=session.id
-        )
-        return {"run": run, "session_id": session.id, "responses": responses}
-
-    # 4.0: money, schedule, and smalltalk turns never need the reasoning council —
-    # ONE deterministic proposal / one warm reply is the honest result (same rule
-    # as the parallel and debate paths). Turns with images still take the council.
-    is_finance = ai_intent_router.classify(message).is_finance
-    is_schedule = schedule_parser.parse_schedule(message) is not None
-    is_simple = not has_images and ai_intent_router.is_simple_message(message)
-    if is_finance or is_schedule or is_simple:
-        pid = next(p for p in ids if p in runnable)
-        # Context only matters for the smalltalk reply (a compact style packet);
-        # finance/schedule return deterministically before any model sees context.
-        context_packet = (
-            ai_context_builder.build(
-                db, principal, message=message, session_id=session.id,
-                section_key=section_key or "general", thinking_mode=thinking_mode,
-                response_language=response_language,
-            )
-            if is_simple
-            else {"context": None, "meta": context_meta}
-        )
-        context_meta = context_packet.get("meta", context_meta)
-        orchestrated = ai_orchestrator.run_with_tools(
-            db, principal, message=message, session_id=session.id, provider_id=pid,
-            extra_context=context_packet.get("context"), section_key=section_key or "general",
-            thinking_mode=thinking_mode, user_message_id=user_message.id,
-            response_language=response_language,
-        )
-        status = "completed" if orchestrated.get("ok") else "error"
-        content = orchestrated.get("content")
-        error = orchestrated.get("error") or None
-        tool_calls = orchestrated.get("tool_calls") or []
-        proposal_ids = orchestrated.get("proposal_ids") or []
-        final_extra = {
-            "reasoning_final": True, "mode": mode, "task_type": task_type,
-            "retried": False, "rejected_critique": False, "reasoning_summary": "",
-            **({"tool_calls": tool_calls} if tool_calls else {}),
-            **({"proposal_ids": proposal_ids} if proposal_ids else {}),
-            **({"quality": orchestrated["quality"]} if orchestrated.get("quality") else {}),
-        }
-        _record(pid, plans[pid].provider_name, status, content, error, None,
-                plans[pid].external, phase="synthesis", extra=final_extra)
-        run.status = "completed" if status == "completed" else "error"
-        db.flush()
-        db.commit()
-        db.refresh(run)
-        for r in responses:
-            db.refresh(r)
-        memory_extraction_service.extract_and_commit(
-            db, principal, user_msg=message,
-            assistant_msg=content if status == "completed" else "",
-            session_id=session.id,
-        )
         return {"run": run, "session_id": session.id, "responses": responses}
 
     roles = roles_for(mode)
     runnable_ids = [pid for pid in ids if pid in runnable]
     role_provider = _assign_roles(roles, runnable_ids)
 
-    # Build context packet only after confirming runnable agents exist, so
-    # memory mark_used side effects are not triggered on dead-end paths.
-    context_packet = ai_context_builder.build(
-        db, principal, message=message, session_id=session.id,
-        section_key=section_key or "general", thinking_mode=thinking_mode,
-        response_language=response_language,
-    )
-    context_meta = context_packet.get("meta", context_meta)
-    extra_context = context_packet.get("context")
-
     # 1) Analyst.
     analyst_pid = role_provider["analyst"]
-    analyst_oc = _call(plans[analyst_pid], prompts.analyst_message(message, facts, task_type, extra_context), gen_params, images)
+    analyst_oc = _call(plans[analyst_pid], prompts.analyst_message(message, facts, task_type), gen_params)
     analyst_answer = analyst_oc["content"] or ""
     _record(analyst_pid, plans[analyst_pid].provider_name, analyst_oc["status"], analyst_oc["content"],
             analyst_oc["error"], analyst_oc["latency_ms"], plans[analyst_pid].external, phase="analyst")
@@ -296,7 +195,7 @@ def reasoning_chat(
     # 3) Synthesizer (Balanced/Deep) or Analyst-as-final (Fast).
     if "synthesizer" in roles and analyst_answer:
         synth_pid = role_provider["synthesizer"]
-        synth_prompt = prompts.synthesizer_message(message, analyst_answer, effective_critic, issues, extra_context)
+        synth_prompt = prompts.synthesizer_message(message, analyst_answer, effective_critic, issues)
         final_oc = _call(plans[synth_pid], synth_prompt, gen_params)
     else:
         synth_pid = analyst_pid
@@ -329,17 +228,16 @@ def reasoning_chat(
         workspace_id=principal.workspace_id, run_id=run.id, provider_id=synth_pid,
         provider_name=synth_name, status=final_oc["status"], content=final_oc["content"],
         error_message=final_oc["error"], latency_ms=final_oc["latency_ms"],
-        meta={"external": plans[synth_pid].external, "phase": "synthesis", **context_meta, **final_extra},
+        meta={"external": plans[synth_pid].external, "phase": "synthesis", **final_extra},
     )
     db.add(synth_row)
     responses.append(synth_row)
     db.add(ChatMessage(
         workspace_id=principal.workspace_id, session_id=session.id, role="assistant",
         content=final_answer if final_oc["status"] == "completed" and final_answer else (final_oc["error"] or final_oc["status"]),
-        section_key=section_key or "general",
         meta={"provider_id": synth_pid, "provider_name": synth_name, "status": final_oc["status"],
               "run_id": str(run.id), "latency_ms": final_oc["latency_ms"],
-              "external": plans[synth_pid].external, "reasoning": True, **context_meta, **final_extra},
+              "external": plans[synth_pid].external, "reasoning": True, **final_extra},
     ))
 
     if final_oc["status"] != "completed":
@@ -354,14 +252,4 @@ def reasoning_chat(
     db.refresh(run)
     for r in responses:
         db.refresh(r)
-
-    # Trigger hybrid memory extraction using the final answer as the assistant
-    # reply (fast mode reuses the analyst output as the final answer).
-    memory_extraction_service.extract_and_commit(
-        db, principal,
-        user_msg=message,
-        assistant_msg=final_answer or "",
-        session_id=session.id,
-    )
-
     return {"run": run, "session_id": session.id, "responses": responses}
