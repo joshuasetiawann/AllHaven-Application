@@ -82,6 +82,7 @@ class MultiChatRequest(BaseModel):
     provider_ids: List[str] = Field(min_length=1, max_length=7)
     images: ImageList = Field(default=None, max_length=4)
     thinking_mode: ThinkingMode = "balance"
+    section_key: Optional[str] = Field(default="general", max_length=50)
 
 
 class DebateChatRequest(BaseModel):
@@ -94,6 +95,7 @@ class DebateChatRequest(BaseModel):
     rounds: int = Field(default=2, ge=1, le=4)
     images: ImageList = Field(default=None, max_length=4)
     thinking_mode: ThinkingMode = "balance"
+    section_key: Optional[str] = Field(default="general", max_length=50)
 
 
 class ReasoningChatRequest(BaseModel):
@@ -105,6 +107,7 @@ class ReasoningChatRequest(BaseModel):
     images: ImageList = Field(default=None, max_length=4)
     # Depth + sampling: fast (1 pass), balance (analyst+synth), thinking/deep (+critic).
     thinking_mode: ThinkingMode = "balance"
+    section_key: Optional[str] = Field(default="general", max_length=50)
 
 
 class AgentResponseOut(ORMModel):
