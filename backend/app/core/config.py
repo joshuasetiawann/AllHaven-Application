@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     GOOGLE_CALENDAR_CLIENT_ID: str = ""
     WEATHER_API_KEY: str = ""
 
+    # --- Google OAuth foundation (login + scoped API access) ---
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:3000/oauth/google/callback"
+
     # --- Secret storage (encryption at rest for web-configured credentials) ---
     # MVP scheme; document as replaceable by a KMS/Fernet in production.
     SETTINGS_ENCRYPTION_KEY: str = "change-me-32-byte-development-key"
