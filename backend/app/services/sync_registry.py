@@ -81,7 +81,8 @@ SYNCED_TABLES: list[SyncSpec] = [
     _spec(ChatGroup),
     _spec(ChatSession),
     _spec(ChatMessage, watermark="created_at", append_only=True),
-    _spec(AiToolProposal, watermark="created_at", append_only=True),
+    # Two-way LWW on updated_at so approve/reject/edit converges across desktop + mobile.
+    _spec(AiToolProposal),
     _spec(AiToolCall, watermark="created_at", append_only=True),
     _spec(AiMultiAgentRun),
     _spec(AiAgentResponse, watermark="created_at", append_only=True),

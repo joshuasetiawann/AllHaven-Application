@@ -131,3 +131,21 @@ def test_finance_chat_creates_pending_proposal(auth_client, db_session):
     assert p.tool_payload["type"] == "INCOME"
     assert p.tool_payload["amount"] == 500_000
     assert p.tool_payload.get("category_id") is None  # null, never ""
+
+
+def test_failed_proposal_stays_visible(auth_client, db_session):
+    """A NEEDS_EDIT/FAILED proposal must NOT disappear from the pending list (3.9)."""
+    from app.services import ai_service
+
+    principal = _principal(auth_client)
+    p = AiToolProposal(
+        workspace_id=principal.workspace_id, created_by=principal.user_id,
+        tool_name="create_transaction",
+        tool_payload={"type": "INCOME", "amount": 1000, "currency": "IDR"},
+        status="NEEDS_EDIT", error_message="boom", risk_level="MEDIUM",
+    )
+    db_session.add(p)
+    db_session.commit()
+    listed = ai_service.list_proposals(db_session, principal)
+    assert any(x.id == p.id for x in listed)
+
