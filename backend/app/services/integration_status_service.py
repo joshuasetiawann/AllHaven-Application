@@ -121,16 +121,4 @@ def get_integration_status(db: Session) -> list[dict]:
         }
     )
 
-    # Weather API.
-    weather = is_configured_value(settings.WEATHER_API_KEY)
-    integrations.append(
-        {
-            "key": "weather",
-            "name": "Weather API",
-            "status": _status(weather),
-            "configured": weather,
-            "detail": "Configured" if weather else "Not configured",
-        }
-    )
-
     return integrations
