@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -138,29 +139,32 @@ export default function TasksPage() {
       />
 
       {aiBanner ? (
-        <Card className="mb-5 border-primary/20" padding="md">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
+        <Card gradient padding="none" className="mb-[18px] px-[18px] py-[15px]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-1 items-center gap-[13px]">
+              <span className="grad-primary flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-md text-primary-fg shadow-glow-primary">
                 <Sparkles size={18} />
               </span>
-              <div>
-                <p className="text-sm font-semibold text-content">Command checklists</p>
-                <p className="mt-0.5 text-[13px] text-content-muted">
+              <div className="min-w-0">
+                <p className="text-[13.5px] font-semibold text-content">Command checklists</p>
+                <p className="mt-0.5 text-[12.5px] text-content-muted">
                   Break a command into up to {MAX_ITEMS} checklist steps, track progress, and mark it
                   done. AI suggestions require approval — nothing runs automatically.
                 </p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setAiBanner(false)}>
+            <button
+              onClick={() => setAiBanner(false)}
+              className="self-start text-[12.5px] text-content-subtle transition-colors hover:text-content sm:self-center"
+            >
               Dismiss
-            </Button>
+            </button>
           </div>
         </Card>
       ) : null}
 
       <Tabs
-        className="mb-4"
+        className="mb-[18px]"
         value={tab}
         onChange={setTab}
         items={[
@@ -189,40 +193,54 @@ export default function TasksPage() {
           }
         />
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-3">
           {filtered.map((task) => {
             const items = task.checklist_items ?? [];
             const done = items.filter((i) => i.is_done).length;
             const isOpen = expanded[task.id];
             const isDone = task.status === "DONE";
             return (
-              <Card key={task.id} className="p-4" hover>
+              <Card
+                key={task.id}
+                padding="none"
+                className={cn("px-[18px] py-4", isDone && "opacity-70")}
+                hover={!isDone}
+              >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex min-w-0 items-start gap-[13px]">
                     <button
                       onClick={() => toggleDone(task)}
                       className={cn(
-                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors",
-                        isDone ? "border-success bg-success text-bg" : "border-border-strong hover:border-primary",
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[7px] border-[1.5px] transition-colors",
+                        isDone
+                          ? "border-success bg-success text-bg"
+                          : "border-border-strong hover:border-primary hover:shadow-[0_0_10px_rgb(var(--color-primary)/0.3)]",
                       )}
                       aria-label={isDone ? "Reopen task" : "Mark task done"}
                     >
-                      {isDone ? <CheckCircle2 size={14} /> : null}
+                      {isDone ? <Check size={13} strokeWidth={3} /> : null}
                     </button>
                     <div className="min-w-0">
                       <p className={cn("text-sm font-medium", isDone ? "text-content-subtle line-through" : "text-content")}>
                         {task.title}
                       </p>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                        <span className="hidden sm:inline-flex">
-                          <PriorityBadge priority={task.priority} />
-                        </span>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {!isDone ? (
+                          <span className="hidden sm:inline-flex">
+                            <PriorityBadge priority={task.priority} />
+                          </span>
+                        ) : null}
                         <TaskStatusLabel status={task.status} />
-                        {task.due_at ? <span className="text-[12px] text-content-subtle">· {formatDate(task.due_at)}</span> : null}
+                        {task.due_at ? (
+                          <span className={cn("text-[12px]", isDone ? "text-content-faint" : "text-content-subtle")}>
+                            · {isDone ? "" : "Due "}
+                            {formatDate(task.due_at)}
+                          </span>
+                        ) : null}
                         {items.length > 0 ? (
                           <button
                             onClick={() => setExpanded((e) => ({ ...e, [task.id]: !e[task.id] }))}
-                            className="inline-flex items-center gap-1 text-[12px] text-primary hover:underline"
+                            className="inline-flex items-center gap-1 text-[12px] text-primary-bright transition-colors hover:text-primary"
                           >
                             {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                             Checklist {done}/{items.length}
@@ -230,7 +248,7 @@ export default function TasksPage() {
                         ) : (
                           <button
                             onClick={() => setExpanded((e) => ({ ...e, [task.id]: !e[task.id] }))}
-                            className="inline-flex items-center gap-1 text-[12px] text-content-subtle hover:text-primary"
+                            className="inline-flex items-center gap-1 text-[12px] text-content-subtle transition-colors hover:text-primary-bright"
                           >
                             <Plus size={12} /> Add checklist
                           </button>
@@ -238,7 +256,7 @@ export default function TasksPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                     <Button variant="ghost" size="sm" onClick={() => toggleDone(task)} className="flex-1 sm:flex-none">
                       {isDone ? (
                         <>
@@ -252,7 +270,7 @@ export default function TasksPage() {
                     </Button>
                     <button
                       onClick={() => remove(task)}
-                      className="rounded-md p-2 text-content-subtle transition-colors hover:text-danger"
+                      className="flex h-8 w-8 items-center justify-center rounded-sm text-content-subtle transition-colors hover:bg-danger/10 hover:text-danger"
                       aria-label="Delete task"
                     >
                       <Trash2 size={15} />
@@ -268,18 +286,18 @@ export default function TasksPage() {
 
       {tasks && tasks.length > 0 ? (
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          <Card padding="sm">
+          <div className="glass-tile p-[18px]">
             <p className="label-mono">Total</p>
-            <p className="mt-1 text-2xl font-semibold text-content">{counts.ALL}</p>
-          </Card>
-          <Card padding="sm">
+            <p className="mt-2 text-[26px] font-semibold leading-none text-content">{counts.ALL}</p>
+          </div>
+          <div className="glass-tile p-[18px]">
             <p className="label-mono">In progress</p>
-            <p className="mt-1 text-2xl font-semibold text-info">{counts.IN_PROGRESS}</p>
-          </Card>
-          <Card padding="sm">
+            <p className="mt-2 text-[26px] font-semibold leading-none text-primary-bright">{counts.IN_PROGRESS}</p>
+          </div>
+          <div className="glass-tile p-[18px]">
             <p className="label-mono">Completed</p>
-            <p className="mt-1 text-2xl font-semibold text-success">{counts.DONE}</p>
-          </Card>
+            <p className="mt-2 text-[26px] font-semibold leading-none text-success-soft">{counts.DONE}</p>
+          </div>
         </div>
       ) : null}
 
@@ -349,7 +367,7 @@ export default function TasksPage() {
             <div className="space-y-2">
               {form.checklist.map((value, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <span className="flex h-4 w-4 shrink-0 rounded border border-border-strong" />
+                  <span className="flex h-4 w-4 shrink-0 rounded-[5px] border-[1.5px] border-border-strong" />
                   <input
                     value={value}
                     onChange={(e) => setChecklistField(idx, e.target.value)}

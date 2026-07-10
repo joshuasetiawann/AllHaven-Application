@@ -25,7 +25,7 @@ export function SecretInput({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <label htmlFor={id} className="block text-[12px] font-medium uppercase tracking-wide text-content-muted">
+        <label htmlFor={id} className="block text-[11px] font-medium uppercase tracking-[0.08em] text-content-subtle">
           {label}
         </label>
         {isSaved ? (
@@ -42,7 +42,7 @@ export function SecretInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={isSaved ? "Leave blank to keep current key" : placeholder || "Paste secret…"}
-          className="h-10 w-full rounded-md border border-border bg-surface-input pl-3 pr-10 font-mono text-sm text-content placeholder:font-sans placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
+          className="h-10 w-full rounded-md border border-border bg-surface-input/80 pl-3 pr-10 font-mono text-sm text-content placeholder:font-sans placeholder:text-content-faint focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
         />
         <button
           type="button"

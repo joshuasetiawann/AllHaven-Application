@@ -118,7 +118,12 @@ export function AiProviderCard({
     <>
       <Card hover className="flex h-full flex-col">
         <div className="flex items-start justify-between">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-surface-input text-primary">
+          <span
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-[9px]",
+              provider.external ? "bg-secondary/12 text-secondary-soft" : "bg-primary/12 text-primary-bright",
+            )}
+          >
             {icon}
           </span>
           <ConfigStatusBadge status={provider.status} />
@@ -331,7 +336,7 @@ function ModelSlotsSection({
       </div>
 
       <div className="mt-3 space-y-3">
-        <div className="rounded-lg border border-border bg-surface-input px-3 py-3">
+        <div className="glass-tile px-3.5 py-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <span className="label-mono">{slotName(provider, slot1)}</span>
@@ -358,7 +363,7 @@ function ModelSlotsSection({
         </div>
 
         {slot2 ? (
-          <div className="rounded-lg border border-border bg-surface-input px-3 py-3">
+          <div className="glass-tile px-3.5 py-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <span className="label-mono">{slotName(provider, slot2)}</span>
