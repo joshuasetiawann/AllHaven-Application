@@ -82,8 +82,22 @@ export default function ApprovalsPage() {
     }
   }, []);
 
+  // Poll every 12s + refetch when the tab regains focus, so an approval made on
+  // another device (or by the AI mid-session) appears/clears here without a manual
+  // refresh — and a proposal approved elsewhere converges within ~12s (3.9 cross-device).
   useEffect(() => {
     void load();
+    const interval = window.setInterval(() => void load(), 12000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
   }, [load]);
 
   const totals = useMemo(() => ({
