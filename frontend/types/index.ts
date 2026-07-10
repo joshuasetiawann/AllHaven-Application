@@ -281,31 +281,6 @@ export interface Automation {
   updated_at: string;
 }
 
-export interface WeatherLocation {
-  id: string;
-  name: string;
-  is_default: boolean;
-  created_at: string;
-}
-
-export interface WeatherCurrent {
-  status:
-    | "ok"
-    | "setup_required"
-    | "no_location"
-    | "unsupported_provider"
-    | "unavailable"
-    | "error";
-  detail?: string;
-  location: string | null;
-  temp_c?: number;
-  feels_like_c?: number;
-  humidity?: number;
-  description?: string;
-  icon?: string;
-  wind_speed?: number;
-}
-
 export interface ToolProposal {
   id: string;
   tool_name: string;

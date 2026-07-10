@@ -48,8 +48,6 @@ import type {
   Task,
   ToolProposal,
   Transaction,
-  WeatherCurrent,
-  WeatherLocation,
 } from "@/types";
 import type { AiProviderUpdatePayload, GoogleScopes } from "@/types/api";
 
@@ -634,18 +632,4 @@ export const systemApi = {
   getPorts: () => request<SystemPorts>("/system/ports"),
   savePorts: (ports: Record<string, number>, restart: boolean) =>
     request<PortsApplyResult>(`/system/ports?restart=${restart}`, { method: "POST", body: json(ports) }),
-};
-
-// --- Weather ---
-export const weatherApi = {
-  listLocations: () => request<WeatherLocation[]>("/weather/locations"),
-  addLocation: (name: string, isDefault = false) =>
-    request<WeatherLocation>("/weather/locations", {
-      method: "POST",
-      body: json({ name, is_default: isDefault }),
-    }),
-  removeLocation: (id: string) =>
-    request<{ id: string }>(`/weather/locations/${id}`, { method: "DELETE" }),
-  current: (location?: string) =>
-    request<WeatherCurrent>(`/weather/current${location ? `?location=${encodeURIComponent(location)}` : ""}`),
 };
