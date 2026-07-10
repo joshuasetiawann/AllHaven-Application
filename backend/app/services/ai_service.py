@@ -296,11 +296,14 @@ def chat(
 
 
 def list_proposals(db: Session, principal: Principal) -> List[AiToolProposal]:
+    # Open = PENDING/NEEDS_EDIT/FAILED — failed/needs-edit approvals must not vanish.
+    from app.domain.ai import PROPOSAL_OPEN_STATUSES
+
     stmt = (
         select(AiToolProposal)
         .where(
             AiToolProposal.workspace_id == principal.workspace_id,
-            AiToolProposal.status == "PENDING",
+            AiToolProposal.status.in_(PROPOSAL_OPEN_STATUSES),
         )
         .order_by(AiToolProposal.created_at.desc())
     )
