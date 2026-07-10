@@ -645,23 +645,26 @@ export default function AiChatPage() {
     return (
       <div className={cn("flex gap-2.5", isUser ? "flex-row-reverse" : "flex-row")}>
         <span className={cn(
-          "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
-          isUser ? "border-border bg-surface-high text-content" : "border-primary/30 bg-primary/10 text-primary",
+          "flex h-7 w-7 shrink-0 items-center justify-center rounded",
+          isUser
+            ? "border border-border-strong bg-white/[0.06] text-content"
+            : "grad-primary text-primary-fg shadow-[0_0_14px_rgb(var(--color-primary)/0.4)]",
         )}>
           {isUser ? <User size={14} /> : <Bot size={14} />}
         </span>
         <div className="min-w-0 max-w-[86%] sm:max-w-[44rem]">
           {provider && !isUser ? (
-            <p className="mb-0.5 flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-content-subtle">
+            <p className="mb-1 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-content-subtle">
               {provider}
-              {agentRole ? <Badge tone="neutral" className="normal-case tracking-normal">{agentRole}</Badge> : null}
+              {agentRole ? <Badge tone="neutral" className="font-sans normal-case tracking-normal">{agentRole}</Badge> : null}
             </p>
           ) : null}
           <div className={cn(
-            "rounded-xl border px-3.5 py-2.5 text-sm leading-relaxed",
-            isUser ? "border-primary/30 bg-primary/10 text-content"
-              : isError ? "border-warning/30 bg-warning/10 text-warning"
-              : "border-border bg-surface-input text-content",
+            "border px-3.5 py-2.5 text-sm leading-relaxed",
+            isUser
+              ? "rounded-[16px_16px_4px_16px] border-primary/30 bg-[linear-gradient(135deg,rgb(var(--color-primary)/0.16),rgb(var(--color-secondary)/0.1))] text-content"
+              : isError ? "rounded-[4px_16px_16px_16px] border-warning/30 bg-warning/10 text-warning"
+              : "rounded-[4px_16px_16px_16px] border-border bg-white/[0.035] text-content",
           )}>
             {imgs.length ? (
               <div className={cn("flex flex-wrap gap-2", m.content ? "mb-2" : "")}>
@@ -680,22 +683,22 @@ export default function AiChatPage() {
           {usedMemory || usedKnowledge || activeTools.length ? (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {usedMemory ? (
-                <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10.5px] font-medium text-primary">
+                <span className="inline-flex items-center gap-1 rounded-sm border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10.5px] font-medium text-primary-bright">
                   <Brain size={10} /> used memory
                 </span>
               ) : null}
               {usedKnowledge ? (
-                <span className="inline-flex items-center gap-1 rounded-md border border-success/30 bg-success/10 px-2 py-0.5 text-[10.5px] font-medium text-success">
+                <span className="inline-flex items-center gap-1 rounded-sm border border-success/30 bg-success/10 px-2 py-0.5 text-[10.5px] font-medium text-success-soft">
                   <BookOpenCheck size={10} /> used knowledge
                 </span>
               ) : null}
               {visibleActiveTools.map((name) => (
-                <span key={name} className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-high px-2 py-0.5 text-[10.5px] font-medium text-content-subtle">
+                <span key={name} className="inline-flex items-center gap-1 rounded-sm border border-border bg-surface-high px-2 py-0.5 text-[10.5px] font-medium text-content-subtle">
                   <Wrench size={10} /> {name.replace(/_/g, " ")}
                 </span>
               ))}
               {hiddenActiveToolCount ? (
-                <span className="inline-flex items-center rounded-md border border-border bg-surface-high px-2 py-0.5 text-[10.5px] font-medium text-content-subtle">
+                <span className="inline-flex items-center rounded-sm border border-border bg-surface-high px-2 py-0.5 text-[10.5px] font-medium text-content-subtle">
                   +{hiddenActiveToolCount} tools
                 </span>
               ) : null}
@@ -709,14 +712,14 @@ export default function AiChatPage() {
                   <span
                     key={i}
                     title={tc.summary || undefined}
-                    className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10.5px] font-medium", chip.cls)}
+                    className={cn("inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-[10.5px] font-medium", chip.cls)}
                   >
                     <Wrench size={10} /> {tc.tool.replace(/_/g, " ")} · {chip.label}
                   </span>
                 );
               })}
               {hiddenToolCallCount ? (
-                <span className="inline-flex items-center rounded-md border border-border bg-surface-high px-2 py-0.5 text-[10.5px] font-medium text-content-subtle">
+                <span className="inline-flex items-center rounded-sm border border-border bg-surface-high px-2 py-0.5 text-[10.5px] font-medium text-content-subtle">
                   +{hiddenToolCallCount} more
                 </span>
               ) : null}
@@ -759,9 +762,14 @@ export default function AiChatPage() {
     const nRounds = (meta.rounds as number) || null;
     const nAgents = (meta.n_agents as number) || null;
     return (
-      <div className={cn("rounded-xl border px-4 py-3", ok ? "border-primary/40 bg-primary/5" : "border-warning/40 bg-warning/10")}>
+      <div className={cn(
+        "rounded-xl border px-4 py-3",
+        ok
+          ? "border-primary/40 bg-[linear-gradient(135deg,rgb(var(--color-primary)/0.09),rgb(var(--color-secondary)/0.06))] shadow-[0_0_30px_rgb(var(--color-primary)/0.12)]"
+          : "border-warning/40 bg-warning/10",
+      )}>
         <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary"><Crown size={13} /></span>
+          <span className="grad-primary flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-primary-fg"><Crown size={13} /></span>
           <span className="text-[13px] font-semibold text-content">Final answer</span>
           <span className="text-[11px] text-content-subtle">· by {name}</span>
           {isReasoning && debug && conf != null ? (
@@ -814,9 +822,9 @@ export default function AiChatPage() {
 
   return (
     <AppShell>
-      <div className="flex h-[calc(100svh-5.75rem)] min-h-[500px] overflow-hidden rounded-xl border border-border bg-surface/30 sm:h-[calc(100vh-7.5rem)] sm:min-h-[520px] sm:rounded-2xl">
+      <div className="panel flex h-[calc(100svh-5.75rem)] min-h-[500px] overflow-hidden rounded-xl sm:h-[calc(100vh-7.5rem)] sm:min-h-[520px] sm:rounded-2xl">
         {/* Conversation sidebar (desktop) */}
-        <div className="hidden w-72 shrink-0 border-r border-border lg:block">
+        <div className="hidden w-[264px] shrink-0 border-r border-border bg-white/[0.015] lg:block">
           <ConversationSidebar {...sidebarProps} />
         </div>
 
@@ -824,7 +832,7 @@ export default function AiChatPage() {
         {drawerOpen ? (
           <div className="fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDrawerOpen(false)} />
-            <div className="absolute inset-y-0 left-0 w-[82%] max-w-xs border-r border-border bg-surface">
+            <div className="absolute inset-y-0 left-0 w-[82%] max-w-xs border-r border-border bg-bg-deep">
               <ConversationSidebar {...sidebarProps} onCloseMobile={() => setDrawerOpen(false)} />
             </div>
           </div>
@@ -838,7 +846,7 @@ export default function AiChatPage() {
               <button onClick={() => setDrawerOpen(true)} className="rounded-md p-1.5 text-content-muted transition-colors hover:bg-surface-raised hover:text-content lg:hidden" aria-label="Open conversations">
                 <PanelLeft size={17} />
               </button>
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <span className="grad-primary flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-md text-primary-fg shadow-glow-primary">
                 <Sparkles size={16} />
               </span>
               <div className="min-w-0 flex-1 leading-tight">
@@ -861,13 +869,15 @@ export default function AiChatPage() {
             <div className="custom-scrollbar -mx-1 flex overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
               <div className="flex min-w-max items-center gap-x-2 gap-y-1.5 sm:min-w-0 sm:flex-wrap">
               {/* Mode toggle: parallel fan-out vs multi-round debate. */}
-              <div className="inline-flex shrink-0 items-center rounded-lg border border-border bg-surface-input p-0.5 text-[12.5px]">
+              <div className="inline-flex shrink-0 items-center rounded-md border border-border bg-surface-input/60 p-[3px] text-[12px]">
                 <button
                   type="button"
                   onClick={() => changeMode("parallel")}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors",
-                    mode === "parallel" ? "bg-surface-high text-content" : "text-content-muted hover:text-content",
+                    "flex items-center gap-1.5 rounded-sm border px-2.5 py-1 transition-colors",
+                    mode === "parallel"
+                      ? "border-primary/30 bg-[linear-gradient(90deg,rgb(var(--color-primary)/0.2),rgb(var(--color-secondary)/0.12))] font-semibold text-content"
+                      : "border-transparent text-content-muted hover:text-content",
                   )}
                 >
                   <Layers size={13} /> Parallel
@@ -876,8 +886,10 @@ export default function AiChatPage() {
                   type="button"
                   onClick={() => changeMode("debate")}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors",
-                    mode === "debate" ? "bg-surface-high text-primary" : "text-content-muted hover:text-content",
+                    "flex items-center gap-1.5 rounded-sm border px-2.5 py-1 transition-colors",
+                    mode === "debate"
+                      ? "border-primary/30 bg-[linear-gradient(90deg,rgb(var(--color-primary)/0.2),rgb(var(--color-secondary)/0.12))] font-semibold text-content"
+                      : "border-transparent text-content-muted hover:text-content",
                   )}
                 >
                   <Swords size={13} /> Debate
@@ -886,8 +898,10 @@ export default function AiChatPage() {
                   type="button"
                   onClick={() => changeMode("reason")}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors",
-                    mode === "reason" ? "bg-surface-high text-primary" : "text-content-muted hover:text-content",
+                    "flex items-center gap-1.5 rounded-sm border px-2.5 py-1 transition-colors",
+                    mode === "reason"
+                      ? "border-primary/30 bg-[linear-gradient(90deg,rgb(var(--color-primary)/0.2),rgb(var(--color-secondary)/0.12))] font-semibold text-content"
+                      : "border-transparent text-content-muted hover:text-content",
                   )}
                 >
                   <Brain size={13} /> Reasoning
@@ -896,15 +910,17 @@ export default function AiChatPage() {
               {mode === "debate" ? (
                 <div className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-content-muted">
                   <span>Rounds</span>
-                  <div className="inline-flex rounded-lg border border-border bg-surface-input p-0.5">
+                  <div className="inline-flex rounded-md border border-border bg-surface-input/60 p-[3px]">
                     {[2, 3].map((r) => (
                       <button
                         key={r}
                         type="button"
                         onClick={() => changeRounds(r)}
                         className={cn(
-                          "min-w-[28px] rounded-md px-2 py-1 transition-colors",
-                          rounds === r ? "bg-surface-high text-content" : "text-content-muted hover:text-content",
+                          "min-w-[28px] rounded-sm border px-2 py-1 transition-colors",
+                          rounds === r
+                            ? "border-primary/30 bg-[linear-gradient(90deg,rgb(var(--color-primary)/0.2),rgb(var(--color-secondary)/0.12))] font-semibold text-content"
+                            : "border-transparent text-content-muted hover:text-content",
                         )}
                       >
                         {r}
@@ -918,8 +934,10 @@ export default function AiChatPage() {
                   type="button"
                   onClick={() => setDebug((v) => !v)}
                   className={cn(
-                    "shrink-0 rounded-md border px-2 py-1 text-[12px] transition-colors",
-                    debug ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-content-muted hover:text-content",
+                    "shrink-0 rounded-full border px-2.5 py-1 text-[12px] transition-colors",
+                    debug
+                      ? "border-primary/40 bg-primary/10 text-primary-bright shadow-[0_0_14px_rgb(var(--color-primary)/0.18)]"
+                      : "border-border text-content-muted hover:text-content",
                   )}
                 >
                   Debug
@@ -962,7 +980,7 @@ export default function AiChatPage() {
           >
             {messages.length === 0 && !pendingUser ? (
               <div className="flex h-full animate-fade-in flex-col items-center justify-center text-center">
-                <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <span className="grad-primary mb-3 flex h-12 w-12 items-center justify-center rounded-xl text-primary-fg shadow-glow-primary">
                   <Bot size={22} />
                 </span>
                 <p className="text-[15px] font-semibold text-content">Start a conversation</p>
@@ -980,7 +998,7 @@ export default function AiChatPage() {
                     if (!showDebateFlow) return null;
                     return (
                       <div key={item.key} className="space-y-2">
-                        <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-content-subtle">
+                        <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-content-subtle">
                           <Swords size={12} className="text-primary" />
                           Round {item.round} · {item.phase === "opening" ? "Opening" : "Rebuttal"}
                         </div>
@@ -997,7 +1015,7 @@ export default function AiChatPage() {
                     const label = ROLE_LABEL[String(rmeta.phase || "")] || "Agent";
                     return (
                       <div key={item.key} className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-content-subtle">
+                        <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-content-subtle">
                           <Brain size={12} className="text-primary" /> {label}
                         </div>
                         <AgentResponseCard data={toCard(item.message)} />
@@ -1024,8 +1042,8 @@ export default function AiChatPage() {
 
                 {pendingUser ? (
                   <div className="flex animate-fade-in flex-row-reverse gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-high text-content"><User size={15} /></span>
-                    <div className="max-w-[86%] rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2.5 text-sm text-content sm:max-w-[82%]">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border-strong bg-white/[0.06] text-content"><User size={15} /></span>
+                    <div className="max-w-[86%] rounded-[16px_16px_4px_16px] border border-primary/30 bg-[linear-gradient(135deg,rgb(var(--color-primary)/0.16),rgb(var(--color-secondary)/0.1))] px-3.5 py-2.5 text-sm text-content sm:max-w-[82%]">
                       {pendingImages.length ? (
                         <div className="mb-2 flex flex-wrap gap-2">
                           {pendingImages.map((src, i) => (
@@ -1040,8 +1058,8 @@ export default function AiChatPage() {
                 ) : null}
                 {sending ? (
                   <div className="flex animate-fade-in gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary"><Bot size={15} /></span>
-                    <div className="rounded-xl border border-border bg-surface-input px-3.5 py-2.5 text-sm text-content-subtle">
+                    <span className="grad-primary flex h-8 w-8 shrink-0 items-center justify-center rounded text-primary-fg shadow-[0_0_14px_rgb(var(--color-primary)/0.4)]"><Bot size={15} /></span>
+                    <div className="rounded-[4px_16px_16px_16px] border border-border bg-white/[0.035] px-3.5 py-2.5 text-sm text-content-subtle">
                       <Loader2 size={14} className="mr-1.5 inline animate-spin" /> {mode === "reason" ? "Reasoning…" : mode === "debate" ? `${selected.length} agents debating across ${rounds} rounds…` : selected.length > 1 ? `${selected.length} agents thinking…` : "Thinking…"}
                     </div>
                   </div>
@@ -1083,8 +1101,8 @@ export default function AiChatPage() {
           <div className="border-t border-border p-2.5 sm:p-3">
             {/* Thinking Mode (reasoning depth + sampling) — applies to every chat mode. */}
             <div className="mb-2 flex items-center gap-2">
-              <span className="shrink-0 text-[10.5px] font-medium uppercase tracking-wide text-content-subtle">Thinking</span>
-              <div className="flex min-w-0 flex-1 overflow-x-auto rounded-lg border border-border bg-surface-input p-0.5 text-[12px] sm:flex-none">
+              <span className="label-mono shrink-0">Thinking</span>
+              <div className="flex min-w-0 flex-1 overflow-x-auto rounded-md border border-border bg-surface-input/60 p-[3px] text-[12px] sm:flex-none">
                 {THINKING_MODES.map((tm) => (
                   <button
                     key={tm}
@@ -1092,8 +1110,10 @@ export default function AiChatPage() {
                     onClick={() => changeThinking(tm)}
                     title={tm === "fast" ? "Quick, lighter reasoning" : tm === "balance" ? "Good quality + speed (default)" : tm === "thinking" ? "More careful, checks assumptions" : "Maximum reasoning depth"}
                     className={cn(
-                      "flex-1 rounded-md px-2.5 py-1 capitalize transition-colors sm:flex-none",
-                      thinking === tm ? "bg-surface-high text-content" : "text-content-muted hover:text-content",
+                      "flex-1 rounded-sm border px-2.5 py-1 capitalize transition-colors sm:flex-none",
+                      thinking === tm
+                        ? "border-primary/30 bg-[linear-gradient(90deg,rgb(var(--color-primary)/0.2),rgb(var(--color-secondary)/0.12))] font-semibold text-content"
+                        : "border-transparent text-content-muted hover:text-content",
                     )}
                   >
                     {tm}
@@ -1141,7 +1161,7 @@ export default function AiChatPage() {
                 ))}
               </div>
             ) : null}
-            <form onSubmit={send} className="flex items-center gap-1.5 sm:gap-2">
+            <form onSubmit={send} className="flex items-center gap-0.5 rounded-xl border border-border-strong bg-white/[0.035] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:gap-1 sm:p-2">
               <input
                 ref={fileRef}
                 type="file"
@@ -1163,7 +1183,7 @@ export default function AiChatPage() {
                 onClick={() => fileRef.current?.click()}
                 aria-label="Attach image"
                 title="Attach image"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-content-muted transition-colors hover:border-primary/50 hover:text-content"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded text-content-muted transition-colors hover:bg-white/[0.05] hover:text-content"
               >
                 <ImagePlus size={17} />
               </button>
@@ -1173,10 +1193,16 @@ export default function AiChatPage() {
                 aria-label="Attach knowledge file"
                 title="Attach PDF, DOC, DOCX, or text file"
                 disabled={uploadingKnowledge}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-input text-content-muted transition-colors hover:border-primary/50 hover:text-content disabled:opacity-60"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded text-content-muted transition-colors hover:bg-white/[0.05] hover:text-content disabled:opacity-60"
               >
                 {uploadingKnowledge ? <Loader2 size={17} className="animate-spin" /> : <Paperclip size={17} />}
               </button>
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={listening ? "Listening..." : voiceChecking ? "Checking microphone..." : "Message your agents…"}
+                className="h-9 min-w-0 flex-1 bg-transparent px-2 text-[13.5px] text-content placeholder:text-content-subtle focus:outline-none"
+              />
               <button
                 type="button"
                 onClick={() => void toggleVoiceNote()}
@@ -1184,32 +1210,30 @@ export default function AiChatPage() {
                 title={listening ? "Stop voice note" : voiceChecking ? "Checking microphone" : "Voice note"}
                 disabled={voiceChecking}
                 className={cn(
-                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors",
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded transition-colors",
                   listening
-                    ? "border-danger/40 bg-danger/10 text-danger"
+                    ? "bg-danger/10 text-danger"
                     : voiceChecking
-                      ? "border-primary/40 bg-primary/10 text-primary"
-                      : "border-border bg-surface-input text-content-muted hover:border-primary/50 hover:text-content",
+                      ? "bg-primary/10 text-primary"
+                      : "text-content-muted hover:bg-white/[0.05] hover:text-content",
                 )}
               >
                 {listening ? <Square size={15} /> : voiceChecking ? <Loader2 size={17} className="animate-spin" /> : <Mic size={17} />}
               </button>
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={listening ? "Listening..." : voiceChecking ? "Checking microphone..." : "Type, speak, or attach a file..."}
-                className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-surface-input px-3.5 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
-              />
               <Button
                 type="submit"
-                size="lg"
+                size="icon"
                 loading={sending}
                 disabled={(!input.trim() && images.length === 0 && knowledgeAttachments.length === 0) || selected.length === 0 || uploadingKnowledge}
-                className="shrink-0 px-3 sm:px-4"
+                aria-label="Send message"
+                className="h-[38px] w-[38px] shrink-0 rounded-md"
               >
                 {!sending ? <SendHorizonal size={16} /> : null}
               </Button>
             </form>
+            <p className="mt-2 text-center text-[11px] text-content-faint">
+              AllHaven never fabricates AI output · risky writes require approval
+            </p>
             {voiceMessage ? (
               <p
                 className={cn(

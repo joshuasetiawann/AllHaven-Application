@@ -134,25 +134,24 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
   return (
     <Card className="mb-5" padding="lg">
       <CardHeader
-        title={
-          <span className="flex items-center gap-2">
-            <Server size={16} className="text-primary" /> Backend Bridge
-          </span>
-        }
+        icon={<Server size={16} />}
+        title="Backend Bridge"
         subtitle="Where this device reaches the AllHaven backend. On mobile, localhost is the phone — point this at your desktop over Tailscale."
+        action={
+          <Badge tone={badge.tone} dot>
+            {badge.label}
+          </Badge>
+        }
       />
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Badge tone={badge.tone} dot>
-          {badge.label}
-        </Badge>
         <span className="text-[12px] text-content-subtle">{SOURCE_LABEL[source]}</span>
         {lastCheckedAt ? (
           <span className="text-[12px] text-content-subtle">· checked {lastCheckedAt}</span>
         ) : null}
       </div>
 
-      <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-border bg-surface-input/50 px-3 py-2 text-[12.5px]">
+      <div className="glass-tile mt-2 flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12.5px]">
         <Link2 size={13} className="shrink-0 text-content-subtle" />
         <span className="truncate font-mono text-content-muted" title={activeUrl}>
           {activeUrl || "—"}
@@ -216,9 +215,9 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
         ) : null}
       </div>
 
-      <div className="mt-4 rounded-xl border border-border bg-surface-input/40 p-3 text-[12px] text-content-muted">
+      <div className="glass-tile mt-4 p-3.5 text-[12px] text-content-muted">
         <p className="flex items-center gap-1.5 font-medium text-content">
-          <Globe size={13} className="text-primary" /> Connect from mobile
+          <Globe size={13} className="text-primary-bright" /> Connect from mobile
         </p>
         <ol className="mt-1.5 list-decimal space-y-0.5 pl-5">
           <li>Install Tailscale on the desktop and this phone (same tailnet).</li>

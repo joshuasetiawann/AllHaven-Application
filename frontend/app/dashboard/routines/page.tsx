@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Sparkles } from "lucide-react";
+import { CalendarClock, Check, Plus, Repeat2, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/Button";
+import { Card, CardHeader } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/States";
 import { useAppDialog } from "@/components/ui/AppDialog";
+import { cn } from "@/lib/format";
 import { ApiException, routinesApi } from "@/lib/api";
 import type { RoutineEvent, RoutineSyncInfo } from "@/types";
 import { DateStrip } from "@/components/routines/DateStrip";
@@ -25,12 +27,94 @@ import {
   baseOf,
   countOn,
   dateKey,
+  eventStatus,
   expandForDay,
   isUpcoming,
   formatLongDay,
   periodFromRoutine,
+  repeatLabel,
   startOfLocalDay,
 } from "@/components/routines/shared";
+
+/** Conic-gradient progress dial — "N% · x/y blocks" from real completion data. */
+function ProgressCard({ label, done, total }: { label: string; done: number; total: number }) {
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  return (
+    <Card padding="none" className="p-[22px] text-center">
+      <p className="label-mono mb-4">{label}</p>
+      <div
+        className="mx-auto flex h-32 w-32 items-center justify-center rounded-full shadow-[0_0_34px_rgb(var(--color-primary)/0.22)]"
+        role="img"
+        aria-label={`${pct}% of blocks completed — ${done} of ${total}`}
+        style={{
+          background: `conic-gradient(rgb(var(--color-primary)) 0% ${pct}%, rgba(255,255,255,0.06) ${pct}% 100%)`,
+        }}
+      >
+        <div className="flex h-[98px] w-[98px] flex-col items-center justify-center rounded-full bg-bg-deep">
+          <span className="text-[26px] font-semibold leading-tight text-content">{pct}%</span>
+          <span className="text-[11px] text-content-faint">
+            {done} / {total} blocks
+          </span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Habit-style list of the repeating blocks in view: green check tiles, pending unchecked. */
+function HabitsCard({ habits }: { habits: RoutineEvent[] }) {
+  return (
+    <Card padding="none" className="p-[22px]">
+      <h2 className="text-[15px] font-semibold text-content">Habits</h2>
+      <p className="mb-4 mt-0.5 text-[12px] text-content-subtle">Repeating blocks in this view.</p>
+      {habits.length ? (
+        <div className="flex flex-col gap-3.5">
+          {habits.map((habit) => {
+            const status = eventStatus(habit);
+            return (
+              <div key={habit.id} className="flex items-center justify-between gap-2">
+                <span
+                  className={cn(
+                    "flex min-w-0 items-center gap-2.5 text-[13px]",
+                    status === "upcoming" ? "text-content-muted" : "text-content",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-sm",
+                      status === "past" && "bg-success/[0.13] text-success-soft",
+                      status === "now" && "bg-primary/[0.14] text-primary-bright",
+                      status === "upcoming" && "border-[1.5px] border-border-strong",
+                    )}
+                  >
+                    {status !== "upcoming" ? <Check size={15} /> : null}
+                  </span>
+                  <span className="truncate">{habit.title}</span>
+                </span>
+                {status === "upcoming" ? (
+                  <span className="shrink-0 text-[12px] text-content-faint">Pending</span>
+                ) : (
+                  <span
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-1.5 text-[12px]",
+                      status === "now" ? "text-primary-bright" : "text-success-soft",
+                    )}
+                  >
+                    <Repeat2 size={13} /> {repeatLabel(habit)}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="rounded-md border border-dashed border-border bg-surface-input/25 px-3 py-4 text-center text-[12.5px] text-content-muted">
+          No repeating blocks in this view yet.
+        </p>
+      )}
+    </Card>
+  );
+}
 
 export default function RoutinesPage() {
   const dialog = useAppDialog();
@@ -106,6 +190,10 @@ export default function RoutinesPage() {
     [sorted],
   );
 
+  // Presentational derivations for the right column (dial + habits).
+  const doneBlocks = filtered.filter((routine) => eventStatus(routine) === "past").length;
+  const habitBlocks = filtered.filter((routine) => (routine.repeat_rule ?? "once") !== "once");
+
   const openCreate = (period: TimePeriod = "morning") => {
     setEditing(null);
     setFormPeriod(period);
@@ -159,14 +247,14 @@ export default function RoutinesPage() {
     <AppShell>
       <PageHeader
         title="Routine"
-        subtitle="A calm local planner for your habits, daily schedule, and recurring plans."
+        subtitle={`${formatLongDay(todayKey)} · your day at a glance`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={() => openGenerate("morning")}>
               <Sparkles size={16} /> Generate with AI
             </Button>
             <Button onClick={() => openCreate("morning")}>
-              <Plus size={16} /> Add routine
+              <Plus size={16} /> Add block
             </Button>
           </div>
         }
@@ -181,7 +269,7 @@ export default function RoutinesPage() {
       {!routines ? (
         <RoutineSkeleton />
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <SummaryCards today={todayCount} upcoming={upcomingCount} repeating={repeatCount} sync={sync} />
 
           <RoutineToolbar
@@ -203,36 +291,52 @@ export default function RoutinesPage() {
             onShift={shiftSelectedDate}
           />
 
-          <div key={`${view}-${selectedDate}`} className="animate-fade-in space-y-6">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight text-content">
-                {view === "selected" ? formatLongDay(selectedDate) : view === "upcoming" ? "Upcoming routines" : "All routines"}
-              </h2>
-              <p className="mt-0.5 text-[13px] text-content-muted">
-                {filtered.length} {filtered.length === 1 ? "routine" : "routines"} in this view.
-              </p>
-            </div>
-
+          <div
+            key={`${view}-${selectedDate}`}
+            className="grid animate-fade-in items-start gap-5 lg:grid-cols-[2fr_1fr]"
+          >
             {filtered.length === 0 ? (
               <RoutineEmptyState
                 onAdd={() => openCreate("morning")}
                 onGenerate={() => openGenerate("morning")}
               />
             ) : (
-              <div className="space-y-6">
-                {PERIODS.map((period) => (
-                  <PeriodSection
-                    key={period.key}
-                    period={period}
-                    routines={routinesByPeriod[period.key]}
-                    onAdd={() => openCreate(period.key)}
-                    onGenerate={() => openGenerate(period.key)}
-                    onEdit={openEdit}
-                    onDelete={remove}
-                  />
-                ))}
-              </div>
+              <Card padding="lg">
+                <CardHeader
+                  icon={<CalendarClock size={16} />}
+                  title={
+                    view === "selected"
+                      ? formatLongDay(selectedDate)
+                      : view === "upcoming"
+                        ? "Upcoming routines"
+                        : "All routines"
+                  }
+                  subtitle={`${filtered.length} ${filtered.length === 1 ? "block" : "blocks"} in this view`}
+                />
+                <div className="space-y-6">
+                  {PERIODS.map((period) => (
+                    <PeriodSection
+                      key={period.key}
+                      period={period}
+                      routines={routinesByPeriod[period.key]}
+                      onAdd={() => openCreate(period.key)}
+                      onGenerate={() => openGenerate(period.key)}
+                      onEdit={openEdit}
+                      onDelete={remove}
+                    />
+                  ))}
+                </div>
+              </Card>
             )}
+
+            <div className="flex flex-col gap-5">
+              <ProgressCard
+                label={view === "selected" ? "Today's progress" : "Completed blocks"}
+                done={doneBlocks}
+                total={filtered.length}
+              />
+              <HabitsCard habits={habitBlocks} />
+            </div>
           </div>
         </div>
       )}

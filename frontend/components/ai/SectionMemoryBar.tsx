@@ -112,15 +112,15 @@ export function SectionMemoryBar({
           <button
             type="button"
             onClick={() => setMenuOpen((o) => !o)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-input px-2.5 py-1.5 text-[12.5px] text-content transition-colors hover:border-border-strong focus-ring"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-content transition-colors hover:border-border-strong focus-ring"
             title="Active section — each keeps its own local memory"
           >
-            <SectionIcon size={13} className="text-primary" />
+            <SectionIcon size={13} className="text-primary-bright" />
             <span className="max-w-[120px] truncate">{section.label}</span>
             <ChevronDown size={13} className="text-content-subtle" />
           </button>
           {menuOpen ? (
-            <div className="absolute left-0 top-10 z-40 max-h-80 w-60 origin-top animate-pop overflow-y-auto rounded-xl border border-border bg-surface p-1.5 shadow-glow">
+            <div className="absolute left-0 top-10 z-40 max-h-80 w-60 origin-top animate-pop overflow-y-auto rounded-xl border border-border bg-bg-deep/95 p-1.5 shadow-panel backdrop-blur-md">
               <p className="px-2 py-1.5 label-mono">Chat section</p>
               {SECTIONS.map((s) => {
                 const Icon = s.icon;
@@ -188,10 +188,10 @@ export function SectionMemoryBar({
           type="button"
           onClick={openEditor}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12.5px] transition-colors focus-ring",
+            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[12px] transition-colors focus-ring",
             present
-              ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
-              : "border-border bg-surface-input text-content-muted hover:border-border-strong hover:text-content",
+              ? "border-secondary/30 bg-secondary/10 text-secondary-soft hover:bg-secondary/15"
+              : "border-border bg-white/[0.03] text-content-muted hover:border-border-strong hover:text-content",
           )}
           title="View or edit this section's memory"
           data-version={version}
