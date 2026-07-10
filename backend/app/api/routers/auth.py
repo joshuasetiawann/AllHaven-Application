@@ -70,6 +70,14 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
         # Generic message: never reveal whether the email or password was wrong.
         raise UnauthorizedError("Invalid email or password.", error_code="INVALID_CREDENTIALS")
     profile = db.get(Profile, user.id)
+    # One identity across desktop + mobile: keep the Supabase Auth password in
+    # lock-step with the desktop password (background, best-effort) so mobile login
+    # always works with the same credentials — no separate "Connect" step.
+    from app.services import supabase_auth_service
+
+    supabase_auth_service.sync_password_async(
+        user.id, user.email, profile.full_name if profile else None, payload.password
+    )
     return _login_response(db, response, user, profile, "Logged in successfully")
 
 
