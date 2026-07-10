@@ -1,8 +1,10 @@
 """AI models: chat sessions, chat messages, and tool proposals.
 
 Tool proposals are the heart of the human-in-the-loop policy: the AI may only
-*propose* an action (stored as PENDING). The MVP exposes listing and rejection;
-it never auto-executes proposals (see AI_TOOL_POLICY.md).
+*propose* a write action (stored as PENDING via the Tool Registry). A human then
+approves (executed through the registry → service layer, status EXECUTED), edits,
+or rejects it. Proposals are never executed in the model's turn
+(see AI_TOOL_POLICY.md).
 """
 
 from __future__ import annotations
