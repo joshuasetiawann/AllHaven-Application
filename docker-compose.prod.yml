@@ -35,7 +35,9 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY}
       # Same-origin via Caddy, so list your domain explicitly (no wildcard in prod).
-      BACKEND_CORS_ORIGINS: https://${DOMAIN}
+      # The extra localhost origins let the Capacitor Android app (WebView origin
+      # https://localhost) call this API; the web app is same-origin and unaffected.
+      BACKEND_CORS_ORIGINS: https://${DOMAIN},https://localhost,capacitor://localhost
       # Optional provider/integration defaults (the web UI can also set these):
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
     volumes:
