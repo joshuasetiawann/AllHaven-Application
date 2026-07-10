@@ -78,9 +78,12 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] sm:inline">⌘K</kbd>
         </button>
 
+        {/* Status pill + actions are pinned to the right edge (ml-auto) so the
+            header fills the full width instead of clustering after the search. */}
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
         <span
           className={cn(
-            "hidden max-w-[200px] items-center gap-2 truncate rounded-full border px-3 py-1.5 text-[12px] font-medium md:inline-flex",
+            "hidden max-w-[220px] items-center gap-2 truncate rounded-full border px-3 py-1.5 text-[12px] font-medium md:inline-flex",
             aiConfigured
               ? "border-primary/30 bg-primary/10 text-primary"
               : "border-border bg-surface-high text-content-muted",
@@ -144,6 +147,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
             </IconButton>
           </Link>
           <Avatar initials={initials(user?.full_name || user?.email)} />
+        </div>
         </div>
       </header>
 
