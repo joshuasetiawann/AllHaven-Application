@@ -24,7 +24,7 @@ export {
 
 import type { AuthToken, Me, User, Workspace } from "@/types";
 import { ApiException } from "@/lib/apiRest";
-import { getSupabase, getWorkspaceId, setWorkspaceId } from "@/lib/supabaseClient";
+import { getSupabase, getWorkspaceId, setWorkspaceId, getAppUserId, setAppUserId } from "@/lib/supabaseClient";
 import { toApiException } from "@/lib/supabaseError";
 
 async function loadMe(): Promise<Me> {
@@ -34,37 +34,29 @@ async function loadMe(): Promise<Me> {
   // RLS returns only this user's profile (profiles.id = app_user_id()).
   const { data: profile, error: pe } = await sb.from("profiles").select("*").single();
   if (pe) throw toApiException(pe);
-  // RLS returns only this user's membership; join the workspace row.
-  const { data: member, error: me } = await sb
-    .from("workspace_members").select("workspace_id, workspaces(*)").limit(1).single();
-  if (me) throw toApiException(me);
-  const ws = (member as any).workspaces as Workspace;
-  setWorkspaceId(ws.id);
+  setAppUserId(profile.id);
+  // Resolve the user's OWNED workspace (matches backend auth_service.get_default_workspace).
+  // RLS policy p_owner restricts workspaces to rows where owner_id = app_user_id().
+  const { data: ws, error: we } = await sb
+    .from("workspaces").select("*")
+    .order("created_at", { ascending: true }).limit(1).single();
+  if (we) throw toApiException(we);
+  setWorkspaceId((ws as { id: string }).id);
   const user: User = {
     id: profile.id,
     email: auth.user.email ?? (profile as any).email ?? "",
     full_name: profile.full_name ?? null,
     created_at: profile.created_at,
   };
-  return { user, workspace: ws };
+  return { user, workspace: ws as Workspace };
 }
 
 export const authApi = {
-  register: async (email: string, password: string, full_name?: string): Promise<AuthToken> => {
-    const sb = await getSupabase();
-    const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name } } });
-    if (error) throw toApiException(error);
-    const meResult = await loadMe().catch(() => null);
-    return {
-      access_token: data.session?.access_token ?? "",
-      token_type: "bearer",
-      user: meResult?.user ?? {
-        id: data.user?.id ?? "",
-        email,
-        full_name: full_name ?? null,
-        created_at: new Date().toISOString(),
-      },
-    };
+  register: async (): Promise<AuthToken> => {
+    throw new ApiException(
+      "Create your account on the AllHaven desktop app, then sign in here.",
+      "REGISTER_ON_DESKTOP", 501, null,
+    );
   },
   login: async (email: string, password: string): Promise<AuthToken> => {
     const sb = await getSupabase();
@@ -81,18 +73,20 @@ export const authApi = {
     const sb = await getSupabase();
     await sb.auth.signOut();
     setWorkspaceId(null);
+    setAppUserId(null);
     return { logged_out: true };
   },
   me: (): Promise<Me> => loadMe(),
   updateMe: async (payload: { full_name?: string; workspace_name?: string }): Promise<Me> => {
     const sb = await getSupabase();
-    const meResult = await loadMe();
+    // Populate cache if me() hasn't been called yet.
+    if (!getAppUserId() || !getWorkspaceId()) await loadMe();
     if (payload.full_name !== undefined) {
-      const { error } = await sb.from("profiles").update({ full_name: payload.full_name }).eq("id", meResult.user.id);
+      const { error } = await sb.from("profiles").update({ full_name: payload.full_name }).eq("id", getAppUserId()!);
       if (error) throw toApiException(error);
     }
     if (payload.workspace_name !== undefined) {
-      const { error } = await sb.from("workspaces").update({ name: payload.workspace_name }).eq("id", meResult.workspace.id);
+      const { error } = await sb.from("workspaces").update({ name: payload.workspace_name }).eq("id", getWorkspaceId()!);
       if (error) throw toApiException(error);
     }
     return loadMe();
@@ -141,7 +135,7 @@ export const tasksApi = {
     const sb = await getSupabase();
     const { data, error } = await sb
       .from("tasks")
-      .insert({ ...payload, workspace_id: getWorkspaceId() })
+      .insert({ status: "TODO", priority: "NORMAL", ...payload, workspace_id: getWorkspaceId(), created_by: getAppUserId() })
       .select("id")
       .single();
     if (error) throw toApiException(error);
@@ -181,7 +175,7 @@ export const tasksApi = {
     const sb = await getSupabase();
     const { error } = await sb
       .from("task_checklist_items")
-      .insert({ task_id: id, title, workspace_id: getWorkspaceId() });
+      .insert({ task_id: id, title, workspace_id: getWorkspaceId(), created_by: getAppUserId() });
     if (error) throw toApiException(error);
     return fetchTask(id);
   },
