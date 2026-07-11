@@ -65,14 +65,16 @@ export default function DashboardOverview() {
     setError(null);
     setData(null);
     setFailures([]);
-    const [tasksR, notesR, summaryR, txR, integR] = await Promise.allSettled([
+    // Core data is Supabase-backed on mobile (fast). `settingsApi.integrations()`
+    // is a REST call that may point at an unreachable backend, so it must NOT
+    // block the dashboard — it's fetched separately below and fills in later.
+    const [tasksR, notesR, summaryR, txR] = await Promise.allSettled([
       tasksApi.list(),
       notesApi.list(),
       financeApi.summary(year, month),
       financeApi.listTransactions({ year, month }),
-      settingsApi.integrations(),
     ]);
-    const all = [tasksR, notesR, summaryR, txR, integR];
+    const all = [tasksR, notesR, summaryR, txR];
     // Everything failed → almost certainly a connectivity problem; show one
     // clear, retryable error rather than an empty dashboard.
     if (all.every((r) => r.status === "rejected")) {
@@ -85,15 +87,20 @@ export default function DashboardOverview() {
     if (notesR.status === "rejected") failed.push("notes");
     if (summaryR.status === "rejected") failed.push("cashflow");
     if (txR.status === "rejected") failed.push("transactions");
-    if (integR.status === "rejected") failed.push("integrations");
     setData({
       tasks: tasksR.status === "fulfilled" ? tasksR.value : [],
       notes: notesR.status === "fulfilled" ? notesR.value : [],
       summary: summaryR.status === "fulfilled" ? summaryR.value : null,
       transactions: txR.status === "fulfilled" ? txR.value : [],
-      integrations: integR.status === "fulfilled" ? integR.value.integrations : [],
+      integrations: [],
     });
     setFailures(failed);
+    // Non-blocking: the integrations panel fills in if/when this resolves; a slow
+    // or unreachable backend no longer holds up the whole dashboard.
+    settingsApi
+      .integrations()
+      .then((res) => setData((cur) => (cur ? { ...cur, integrations: res.integrations } : cur)))
+      .catch(() => setFailures((cur) => (cur.includes("integrations") ? cur : [...cur, "integrations"])));
   };
 
   useEffect(() => {
