@@ -80,7 +80,7 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
   useEffect(() => {
     void loadProposals();
     const retry = window.setTimeout(() => void loadProposals(), 1200);
-    const interval = window.setInterval(() => void loadProposals(), 7000);
+    const interval = window.setInterval(() => void loadProposals(), 12000); // 3.9 cross-device cadence
     return () => {
       window.clearTimeout(retry);
       window.clearInterval(interval);
