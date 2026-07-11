@@ -7,7 +7,6 @@ import {
   Boxes,
   Calendar,
   Cloud,
-  CloudSun,
   Cpu,
   Database,
   Globe,
@@ -61,7 +60,6 @@ const INTEGRATION_ICONS: Record<string, LucideIcon> = {
   n8n: Workflow,
   supabase: Cloud,
   google_calendar: Calendar,
-  weather_api: CloudSun,
   drive_storage: HardDrive,
   google: Globe,
 };

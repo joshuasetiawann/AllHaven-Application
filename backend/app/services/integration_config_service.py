@@ -33,7 +33,6 @@ GROUP_BY_TYPE = {
     "automation": "automation",
     "auth_storage": "auth_storage",
     "calendar": "calendar",
-    "weather": "weather",
     "storage": "storage",
     "auth_provider": "auth_provider",
 }
@@ -49,14 +48,12 @@ def _env_public(spec: ProviderSpec) -> dict:
         "supabase": {"url": settings.SUPABASE_URL, "anon_key": settings.SUPABASE_ANON_KEY},
         "google_calendar": {"client_id": settings.GOOGLE_CALENDAR_CLIENT_ID},
         "google": {"client_id": settings.GOOGLE_CLIENT_ID, "redirect_uri": settings.GOOGLE_REDIRECT_URI},
-        "weather_api": {"provider": "openweathermap"},
     }
     return {k: v for k, v in mapping.get(spec.id, {}).items() if is_configured_value(v)}
 
 
 def _env_secret_present(spec: ProviderSpec) -> dict:
     mapping = {
-        "weather_api": {"api_key": settings.WEATHER_API_KEY},
         "google": {"client_secret": settings.GOOGLE_CLIENT_SECRET},
         "supabase": {"service_role_key": settings.SUPABASE_SERVICE_ROLE_KEY},
     }
@@ -247,22 +244,6 @@ def _verify(db: Session, spec: ProviderSpec, public: dict, secrets: dict) -> tup
         if provider == "local":
             return "configured", "Local storage selected; file upload wiring not enabled yet"
         return "configured", "Configured; verification not implemented for this provider"
-
-    if pid == "weather_api":
-        key = secrets.get("api_key") or ""
-        if not key:
-            return "not_configured", "API key not set"
-        provider = (public.get("provider") or "openweathermap").lower()
-        if provider == "openweathermap":
-            loc = public.get("default_location") or "Jakarta"
-            code, _, err = safe_request(
-                "GET",
-                "https://api.openweathermap.org/data/2.5/weather",
-                params={"q": loc, "appid": key},
-            )
-            result = interpret_http(code, err)  # 401 (bad key) -> error
-            return result.status, result.message
-        return "configured", "Verification not implemented for this provider"
 
     return "configured", ""
 

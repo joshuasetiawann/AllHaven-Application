@@ -1,4 +1,4 @@
-"""Tests for the unlocked MVP modules: calendar, drive, weather, automations."""
+"""Tests for the unlocked MVP modules: calendar, drive, automations."""
 
 import io
 
@@ -92,20 +92,6 @@ def test_drive_path_traversal_blocked(auth_client):
     assert up.status_code == 200, up.text
     assert "/" not in up.json()["data"]["filename"]
     assert ".." not in up.json()["data"]["filename"]
-
-
-# --- Weather --------------------------------------------------------------
-
-def test_weather_setup_required_when_unconfigured(auth_client):
-    resp = auth_client.get(f"{API}/weather/current?location=Jakarta")
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["data"]["status"] == "setup_required"
-
-
-def test_weather_location_persists(auth_client):
-    auth_client.post(f"{API}/weather/locations", json={"name": "Jakarta", "is_default": True})
-    rows = auth_client.get(f"{API}/weather/locations").json()["data"]
-    assert any(r["name"] == "Jakarta" and r["is_default"] for r in rows)
 
 
 # --- Automations ----------------------------------------------------------
