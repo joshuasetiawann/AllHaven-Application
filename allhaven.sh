@@ -269,7 +269,10 @@ _start_bg() {  # _start_bg <name> <port> <command...>
 }
 
 _stop_one() {  # _stop_one <name>
-  local name="$1" f="$PID_DIR/$name.pid" pid
+  # NB: declare on separate lines — `local a=$1 b=$a` expands $a (here $name)
+  # BEFORE local assigns it, which trips `set -u` with "name: unbound variable".
+  local name="$1" f pid
+  f="$PID_DIR/$name.pid"
   if [ ! -f "$f" ]; then return 0; fi
   pid="$(cat "$f" 2>/dev/null || true)"
   # Only signal a numeric pid that is still alive — guards against a corrupt pid
@@ -295,7 +298,9 @@ start_agent_bg() {  # local control agent for the in-app System Control panel (1
   _start_bg agent "$AGENT_PORT" "$VENV_PY" "$ROOT/installer/haven_agent.py"
 }
 
-_lan_ip() { hostname -I 2>/dev/null | awk '{print $1}'; }
+# Best-effort LAN IP. The trailing `|| true` keeps a failed `hostname` from
+# tripping `set -e`/`pipefail` (which would otherwise abort start/run).
+_lan_ip() { { hostname -I 2>/dev/null || true; } | awk '{print $1}' || true; }
 
 # -----------------------------------------------------------------------------
 # run — foreground (backend + agent in background, frontend in foreground)
