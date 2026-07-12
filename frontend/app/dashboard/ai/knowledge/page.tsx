@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
+import { SetupRequiredState } from "@/components/SetupRequiredState";
+import { isBackendUnreachable } from "@/lib/connection";
 import { useToast } from "@/components/ui/Toast";
 import { useAppDialog } from "@/components/ui/AppDialog";
 import { knowledgeApi, ApiException } from "@/lib/api";
@@ -40,14 +42,17 @@ export default function AiKnowledgePage() {
   const [dragging, setDragging] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [setupNeeded, setSetupNeeded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     setError(null);
+    setSetupNeeded(false);
     try {
       setDocuments(await knowledgeApi.listDocuments());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load knowledge documents.");
+      if (isBackendUnreachable(err)) setSetupNeeded(true);
+      else setError(err instanceof Error ? err.message : "Failed to load knowledge documents.");
     }
   };
 
@@ -246,7 +251,9 @@ export default function AiKnowledgePage() {
         </Card>
       </div>
 
-      {!documents ? (
+      {setupNeeded ? (
+        <SetupRequiredState feature="AI Knowledge" needs="backend" onRetry={load} />
+      ) : !documents ? (
         <Loading />
       ) : documents.length === 0 ? (
         <EmptyState
