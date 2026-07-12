@@ -237,7 +237,7 @@ AllHaven-Application/
 > **Fastest for a fresh clone:** `./install.sh` (Linux/macOS) or `python installer\haven_cli.py`
 > (Windows) installs dependencies, runs migrations, starts backend + frontend, and opens the
 > app. Once installed, use `./allhaven.sh` (`run` | `start` | `restart` | `stop`).
-> `./scripts/healthcheck.sh` verifies running services. Full guide:
+> `./scripts/doctor.sh` diagnoses setup (read-only); `./scripts/healthcheck.sh` verifies running services. Full guide:
 > [`docs/LOCAL_SETUP.md`](./docs/LOCAL_SETUP.md). Deploy: [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
 > Release status: [`docs/RELEASE_CHECKLIST.md`](./docs/RELEASE_CHECKLIST.md).
 
@@ -297,6 +297,57 @@ npm run dev                        # http://localhost:3000
 ```
 
 Open <http://localhost:3000>, register an account, and you're in.
+
+---
+
+## Troubleshooting local setup
+
+Run **`./scripts/doctor.sh`** first — it's read-only and reports tools, ports, Docker,
+`.env`, the backend venv, frontend deps, and live health in one shot. `./install.sh`
+is **idempotent**: re-running it is safe and repairs most of the below automatically.
+
+**Port 5432 already in use** (`failed to bind host port 0.0.0.0:5432`)
+A PostgreSQL (or another container) already holds the port. The installer now
+**detects an existing PostgreSQL and uses it** — your data is untouched and no
+second database is started. If that server is a *different* app's PostgreSQL and you
+want AllHaven on its own database, pick a free host port:
+
+```bash
+# See what holds the port (no changes made):
+ss -ltnp | grep 5432           # or: lsof -iTCP:5432 -sTCP:LISTEN
+# Then run AllHaven's Postgres on another host port (container stays 5432 inside):
+POSTGRES_HOST_PORT=5433 docker compose up -d postgres
+# ...and point the backend at it (set both so DATABASE_URL matches):
+#   .env →  POSTGRES_PORT=5433   (DATABASE_URL is regenerated from it if left default)
+```
+
+No data volume is ever deleted (`docker compose down -v` is intentionally never run).
+
+**Broken `backend/.venv`** (`No module named pytest`, import/ABI errors after a Python upgrade)
+A venv whose interpreter no longer runs (e.g. its base Python was upgraded/removed)
+can't be fixed by `pip install`. The installer/launcher now **moves it aside to
+`backend/.venv.broken.<timestamp>`** (never deletes it) and rebuilds. To do it manually:
+
+```bash
+cd backend
+mv .venv ".venv.broken.$(date +%s)"   # keep it, don't delete
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+**Alembic: `No module named alembic.__main__`**
+Migrations must run **through the venv's `alembic` console script**, not
+`python -m alembic` (and never a system Python). The installer does this for you;
+manually:
+
+```bash
+cd backend
+.venv/bin/alembic upgrade head        # Windows: .venv\Scripts\alembic upgrade head
+```
+
+If it reports the database is unreachable, start PostgreSQL first (see step 2) — the
+message is intentionally explicit rather than hidden.
 
 ---
 
