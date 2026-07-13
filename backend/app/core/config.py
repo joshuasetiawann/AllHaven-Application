@@ -48,11 +48,32 @@ class Settings(BaseSettings):
 
     # --- Optional integrations (never enabled by faking; see integration status) ---
     OLLAMA_BASE_URL: str = ""
+    OLLAMA_DEFAULT_MODEL: str = ""
     N8N_BASE_URL: str = ""
     SUPABASE_URL: str = ""
     SUPABASE_ANON_KEY: str = ""
     GOOGLE_CALENDAR_CLIENT_ID: str = ""
     WEATHER_API_KEY: str = ""
+
+    # --- Secret storage (encryption at rest for web-configured credentials) ---
+    # MVP scheme; document as replaceable by a KMS/Fernet in production.
+    SETTINGS_ENCRYPTION_KEY: str = "change-me-32-byte-development-key"
+
+    # --- Multi-provider AI system ---
+    AI_DEFAULT_PROVIDER: str = "ollama"
+    AI_ALLOW_EXTERNAL_PROVIDERS: bool = False
+    AI_DEFAULT_PRIVACY_MODE: str = "local_private"
+    # Optional env-level provider defaults (DB config takes precedence).
+    OPENAI_API_KEY: str = ""
+    OPENAI_DEFAULT_MODEL: str = ""
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_DEFAULT_MODEL: str = ""
+    GEMINI_API_KEY: str = ""
+    GEMINI_DEFAULT_MODEL: str = ""
+    GROK_API_KEY: str = ""
+    GROK_DEFAULT_MODEL: str = ""
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_DEFAULT_MODEL: str = ""
 
     @property
     def cors_origins(self) -> List[str]:

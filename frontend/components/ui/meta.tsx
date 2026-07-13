@@ -1,7 +1,25 @@
 import { CheckCircle2, Circle, CircleDot } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/format";
-import type { TaskPriority, TaskStatus } from "@/types";
+import type { IntegrationStatusValue, TaskPriority, TaskStatus } from "@/types";
+
+const CONFIG_STATUS: Record<string, { label: string; tone: "success" | "primary" | "neutral" | "danger" }> = {
+  online: { label: "Online", tone: "success" },
+  connected: { label: "Connected", tone: "success" },
+  configured: { label: "Configured", tone: "primary" },
+  not_configured: { label: "Not configured", tone: "neutral" },
+  error: { label: "Error", tone: "danger" },
+  disabled: { label: "Disabled", tone: "neutral" },
+};
+
+export function ConfigStatusBadge({ status }: { status: IntegrationStatusValue | string }) {
+  const meta = CONFIG_STATUS[status] ?? CONFIG_STATUS.not_configured;
+  return (
+    <Badge tone={meta.tone} dot>
+      {meta.label}
+    </Badge>
+  );
+}
 
 const priorityTone: Record<TaskPriority, "danger" | "warning" | "info" | "neutral"> = {
   URGENT: "danger",
