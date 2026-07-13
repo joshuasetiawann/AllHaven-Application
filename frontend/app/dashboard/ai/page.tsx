@@ -87,6 +87,19 @@ type KnowledgeAttachment = {
   chunk_count: number;
 };
 
+type VoiceStatus = "idle" | "checking" | "listening" | "error";
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: any) => void) | null;
+  onerror: ((event: any) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+
 type ThreadItem =
   | { kind: "user"; key: string; message: ChatMessage }
   | { kind: "agent"; key: string; message: ChatMessage }
@@ -153,7 +166,8 @@ export default function AiChatPage() {
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [knowledgeAttachments, setKnowledgeAttachments] = useState<KnowledgeAttachment[]>([]);
   const [uploadingKnowledge, setUploadingKnowledge] = useState(false);
-  const [listening, setListening] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>("idle");
+  const [voiceMessage, setVoiceMessage] = useState<string | null>(null);
   const [chatSettings, setChatSettings] = useState<AiChatSettings | null>(null);
   const [proposalRefresh, setProposalRefresh] = useState(0);
   const [memoryRefreshKey, setMemoryRefreshKey] = useState(0);
@@ -163,7 +177,7 @@ export default function AiChatPage() {
   const endRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const knowledgeFileRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<{ stop?: () => void; abort?: () => void } | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const voiceBaseRef = useRef("");
   // Sessions+sections we've already seeded with section memory (inject once per thread).
   const prefacedRef = useRef<Set<string>>(new Set());
@@ -196,6 +210,8 @@ export default function AiChatPage() {
   const providerOfRef = (ref: string) => providerById[ref.split("#")[0]];
   const anyExternal = selected.some((ref) => providerOfRef(ref)?.external);
   const anyLocal = selected.some((ref) => { const p = providerOfRef(ref); return p && !p.external; });
+  const listening = voiceStatus === "listening";
+  const voiceChecking = voiceStatus === "checking";
   // Image attached but one or more selected models can't read images (vision).
   const visionMissing = images.length > 0 && selected.some((ref) => { const p = providerOfRef(ref); return p && !p.capabilities?.image; });
   const visionOk = images.length > 0 && !visionMissing;
@@ -274,6 +290,17 @@ export default function AiChatPage() {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, pendingUser, sending]);
+
+  useEffect(() => {
+    return () => {
+      try {
+        recognitionRef.current?.abort();
+      } catch {
+        /* ignore cleanup */
+      }
+      recognitionRef.current = null;
+    };
+  }, []);
 
   // --- conversation actions ---
   const selectSession = (id: string) => { setActiveId(id); setError(null); setDrawerOpen(false); };
@@ -445,23 +472,58 @@ export default function AiChatPage() {
   };
   const removeKnowledgeAttachment = (idx: number) => setKnowledgeAttachments((cur) => cur.filter((_, i) => i !== idx));
 
-  const toggleVoiceNote = () => {
+  const getSpeechRecognitionCtor = () => {
+    const w = window as typeof window & {
+      SpeechRecognition?: new () => SpeechRecognitionLike;
+      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+    };
+    return w.SpeechRecognition || w.webkitSpeechRecognition || null;
+  };
+
+  const ensureMicrophonePermission = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setVoiceMessage("Browser belum memberi akses microphone ke halaman ini. Pakai Chrome/Edge di localhost atau HTTPS.");
+      return false;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      return true;
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : "";
+      const denied = name === "NotAllowedError" || name === "SecurityError";
+      setVoiceMessage(
+        denied
+          ? "Microphone ditolak. Klik ikon izin di address bar, allow microphone, lalu coba lagi."
+          : "Microphone belum bisa dipakai. Pastikan device mic aktif dan tidak sedang dipakai aplikasi lain.",
+      );
+      return false;
+    }
+  };
+
+  const toggleVoiceNote = async () => {
     if (listening) {
       recognitionRef.current?.stop?.();
       recognitionRef.current = null;
-      setListening(false);
+      setVoiceStatus("idle");
+      setVoiceMessage("Voice note stopped.");
       return;
     }
-    const w = window as typeof window & {
-      SpeechRecognition?: new () => any;
-      webkitSpeechRecognition?: new () => any;
-    };
-    const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition;
+    const SpeechRecognition = getSpeechRecognitionCtor();
     if (!SpeechRecognition) {
-      setError("Voice note belum didukung di browser ini. Coba Chrome/Edge, atau ketik manual.");
+      setVoiceStatus("error");
+      setVoiceMessage("Voice note belum didukung di browser ini. Coba Chrome/Edge, atau ketik manual.");
+      return;
+    }
+    setVoiceStatus("checking");
+    setVoiceMessage("Checking microphone permission...");
+    setError(null);
+    if (!(await ensureMicrophonePermission())) {
+      setVoiceStatus("error");
       return;
     }
     const recognition = new SpeechRecognition();
+    let voiceErrored = false;
     recognitionRef.current = recognition;
     voiceBaseRef.current = input.trim();
     const lang = loadPrefs().language;
@@ -476,21 +538,32 @@ export default function AiChatPage() {
       const base = voiceBaseRef.current;
       setInput([base, transcript.trim()].filter(Boolean).join(" ").trimStart());
     };
-    recognition.onerror = () => {
-      setError("Voice note gagal diproses. Cek izin microphone lalu coba lagi.");
-      setListening(false);
+    recognition.onerror = (event: any) => {
+      const code = String(event?.error ?? "");
+      voiceErrored = true;
+      setVoiceStatus("error");
+      setVoiceMessage(
+        code === "not-allowed" || code === "service-not-allowed"
+          ? "Microphone ditolak. Allow microphone di browser lalu coba lagi."
+          : code === "no-speech"
+            ? "Tidak ada suara yang tertangkap. Coba bicara lebih dekat ke microphone."
+            : code === "audio-capture"
+              ? "Microphone tidak terdeteksi. Cek input device di sistem."
+              : "Voice note gagal diproses. Cek izin microphone lalu coba lagi.",
+      );
     };
     recognition.onend = () => {
-      setListening(false);
+      setVoiceStatus(voiceErrored ? "error" : "idle");
       recognitionRef.current = null;
     };
     try {
       recognition.start();
-      setListening(true);
+      setVoiceStatus("listening");
+      setVoiceMessage("Listening...");
       setError(null);
     } catch {
-      setError("Voice note belum bisa dimulai. Coba izinkan microphone lalu ulangi.");
-      setListening(false);
+      setVoiceStatus("error");
+      setVoiceMessage("Voice note belum bisa dimulai. Coba izinkan microphone lalu ulangi.");
     }
   };
 
@@ -1106,22 +1179,25 @@ export default function AiChatPage() {
               </button>
               <button
                 type="button"
-                onClick={toggleVoiceNote}
+                onClick={() => void toggleVoiceNote()}
                 aria-label={listening ? "Stop voice note" : "Start voice note"}
-                title={listening ? "Stop voice note" : "Voice note"}
+                title={listening ? "Stop voice note" : voiceChecking ? "Checking microphone" : "Voice note"}
+                disabled={voiceChecking}
                 className={cn(
                   "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors",
                   listening
                     ? "border-danger/40 bg-danger/10 text-danger"
-                    : "border-border bg-surface-input text-content-muted hover:border-primary/50 hover:text-content",
+                    : voiceChecking
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-border bg-surface-input text-content-muted hover:border-primary/50 hover:text-content",
                 )}
               >
-                {listening ? <Square size={15} /> : <Mic size={17} />}
+                {listening ? <Square size={15} /> : voiceChecking ? <Loader2 size={17} className="animate-spin" /> : <Mic size={17} />}
               </button>
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={listening ? "Listening..." : "Type, speak, or attach a file..."}
+                placeholder={listening ? "Listening..." : voiceChecking ? "Checking microphone..." : "Type, speak, or attach a file..."}
                 className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-surface-input px-3.5 text-sm text-content placeholder:text-content-subtle focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
               <Button
@@ -1134,6 +1210,17 @@ export default function AiChatPage() {
                 {!sending ? <SendHorizonal size={16} /> : null}
               </Button>
             </form>
+            {voiceMessage ? (
+              <p
+                className={cn(
+                  "mt-2 flex items-center gap-1.5 text-[11.5px]",
+                  voiceStatus === "error" ? "text-warning" : "text-content-subtle",
+                )}
+              >
+                {voiceStatus === "checking" ? <Loader2 size={12} className="animate-spin" /> : <Mic size={12} />}
+                {voiceMessage}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
