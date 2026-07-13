@@ -218,7 +218,10 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
         ),
     ),
     # Three independent OpenRouter agents, each with its own key + default model,
-    # so users can run several OpenRouter-backed models side by side.
+    # so users can run several OpenRouter-backed models side by side. Defaults are
+    # LIGHT models. Free models exist on OpenRouter (look for the ":free" suffix at
+    # openrouter.ai/models) — they rotate, so set the current one in the UI.
+    # Base URL is overridable for OpenRouter-compatible gateways/proxies.
     ProviderSpec(
         id="openrouter_1",
         name="OpenRouter Agent 1",
@@ -226,10 +229,11 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
         purpose="OpenRouter model marketplace (slot 1)",
         external=True,
         api_key_required=True,
-        default_model="openai/gpt-4.1-mini",
+        default_model="openai/gpt-4o-mini",
         fields=(
             FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-or-…"),
-            FieldSpec("default_model", "Default model", placeholder="openai/gpt-4.1-mini"),
+            FieldSpec("default_model", "Default model (light)", placeholder="openai/gpt-4o-mini"),
+            FieldSpec("base_url", "Base URL (optional)", placeholder="https://openrouter.ai/api/v1"),
         ),
     ),
     ProviderSpec(
@@ -239,10 +243,11 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
         purpose="OpenRouter model marketplace (slot 2)",
         external=True,
         api_key_required=True,
-        default_model="anthropic/claude-sonnet-4",
+        default_model="meta-llama/llama-3.1-8b-instruct",
         fields=(
             FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-or-…"),
-            FieldSpec("default_model", "Default model", placeholder="anthropic/claude-sonnet-4"),
+            FieldSpec("default_model", "Default model (light)", placeholder="meta-llama/llama-3.1-8b-instruct"),
+            FieldSpec("base_url", "Base URL (optional)", placeholder="https://openrouter.ai/api/v1"),
         ),
     ),
     ProviderSpec(
@@ -252,10 +257,11 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
         purpose="OpenRouter model marketplace (slot 3)",
         external=True,
         api_key_required=True,
-        default_model="google/gemini-2.0-flash",
+        default_model="google/gemini-2.0-flash-001",
         fields=(
             FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-or-…"),
-            FieldSpec("default_model", "Default model", placeholder="google/gemini-2.0-flash"),
+            FieldSpec("default_model", "Default model (light)", placeholder="google/gemini-2.0-flash-001"),
+            FieldSpec("base_url", "Base URL (optional)", placeholder="https://openrouter.ai/api/v1"),
         ),
     ),
 )
