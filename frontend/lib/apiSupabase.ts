@@ -34,6 +34,29 @@ function newId(): string {
   });
 }
 
+// supabase-js has no per-request timeout, so on a slow/flaky mobile (Tailscale/cellular)
+// link a mutation could spin forever with no feedback. Race every user-facing write
+// against a timeout that rejects with an AbortError-shaped error (→ toApiException maps
+// it to code 'TIMEOUT', statusCode 0, so the UI shows "connection slow, try again" and
+// the button returns to idle instead of freezing). A write that actually succeeded
+// server-side is reconciled by the next poll (the atomic claim keeps it idempotent).
+async function withTimeout<T>(p: PromiseLike<T>, ms = 18000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const err = new Error("The connection is slow or unreachable — please try again.");
+      (err as { name?: string; code?: string }).name = "AbortError";
+      (err as { name?: string; code?: string }).code = "TIMEOUT";
+      reject(err);
+    }, ms);
+  });
+  try {
+    return await Promise.race([p as Promise<T>, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 // Fields every new row needs: a fresh id + the workspace scope. Until the post-login
 // bootstrap (loadMe) sets the workspace + app user, an insert would send nulls and
 // fail RLS/NOT NULL — surface a clear, actionable error instead.
@@ -819,7 +842,17 @@ const _PROPOSAL_COLS =
 
 async function supaListProposals(): Promise<ToolProposal[]> {
   const sb = await getSupabase();
-  const ws = getWorkspaceId();
+  let ws = getWorkspaceId();
+  if (!ws) {
+    // Workspace not bootstrapped yet (cold start / deep-link / a raced me()). Try once
+    // so we don't silently show "no pending approvals" when there actually are some.
+    try {
+      await loadMe();
+    } catch {
+      /* surfaced by the page's own auth handling */
+    }
+    ws = getWorkspaceId();
+  }
   if (!ws) return [];
   const { data, error } = await sb
     .from("ai_tool_proposals")
@@ -829,6 +862,17 @@ async function supaListProposals(): Promise<ToolProposal[]> {
     .order("created_at", { ascending: false });
   if (error) throw toApiException(error);
   return (data ?? []) as ToolProposal[];
+}
+
+// Tools the mobile (Supabase-direct) executor knows how to run. Anything else is
+// desktop-only — we detect it BEFORE claiming the proposal so it stays PENDING and the
+// desktop app can still approve it (instead of getting stuck in a NEEDS_EDIT loop).
+const _MOBILE_EXEC_PREFIXES = ["create_transaction", "create_task", "create_note"];
+const _MOBILE_EXEC_EXACT = new Set([
+  "create_routine_schedule", "create_event", "create_routine", "create_automation",
+]);
+function _mobileCanExecute(tool: string): boolean {
+  return _MOBILE_EXEC_PREFIXES.some((p) => tool.startsWith(p)) || _MOBILE_EXEC_EXACT.has(tool);
 }
 
 function _pad2(n: number): string {
@@ -898,18 +942,34 @@ async function _executeProposal(tool: string, payload: Record<string, unknown>, 
 
 async function supaApproveProposal(id: string): Promise<{ proposal: ToolProposal; result: Record<string, unknown> }> {
   const sb = await getSupabase();
-  // ATOMIC CLAIM: move the row out of an open status in a single conditional UPDATE.
-  // Only ONE caller (device/tab) can win this — so the write below never runs twice
-  // even if two devices approve within the same sync window (no double transaction).
-  // updated_at is stamped by the DB trigger, not the client (avoids clock skew in LWW).
-  const { data: claimedRows, error: cErr } = await sb
-    .from("ai_tool_proposals")
-    .update({ status: "APPROVED" })
-    .eq("id", id).in("status", _PROPOSAL_OPEN)
-    .select(_PROPOSAL_COLS);
+
+  // Detect a desktop-only tool BEFORE claiming, so it stays PENDING (the desktop app can
+  // still approve it) instead of being flipped to NEEDS_EDIT and looping on every tap.
+  const { data: pre } = await withTimeout(
+    sb.from("ai_tool_proposals").select(_PROPOSAL_COLS).eq("id", id).maybeSingle(),
+  );
+  if (pre && !_mobileCanExecute((pre as ToolProposal).tool_name)) {
+    throw new ApiException(
+      `Aksi "${String((pre as ToolProposal).tool_name).replace(/_/g, " ")}" hanya bisa di-approve dari aplikasi desktop.`,
+      "UNSUPPORTED_ON_MOBILE",
+      501,
+    );
+  }
+
+  // ATOMIC CLAIM + executed_at guard (mirrors the desktop gate): move the row out of an
+  // open status in ONE conditional UPDATE, and only if it hasn't already executed
+  // elsewhere. Only one device/tab can win — so the write below never runs twice even
+  // if both devices approve within the same sync window (no double record).
+  const { data: claimedRows, error: cErr } = await withTimeout(
+    sb.from("ai_tool_proposals")
+      .update({ status: "APPROVED" })
+      .eq("id", id).in("status", _PROPOSAL_OPEN).is("executed_at", null)
+      .select(_PROPOSAL_COLS),
+  );
   if (cErr) throw toApiException(cErr);
   if (!claimedRows || claimedRows.length === 0) {
-    // Lost the claim (already executed/rejected elsewhere) — do NOT execute again.
+    // Lost the claim (already executed/rejected, or executed_at set by the other
+    // device) — do NOT execute again. Idempotent: return the current row.
     const { data: cur } = await sb.from("ai_tool_proposals").select(_PROPOSAL_COLS).eq("id", id).maybeSingle();
     if (!cur) throw new ApiException("Draft tidak ditemukan.", "NOT_FOUND", 404);
     return { proposal: cur as ToolProposal, result: {} };
@@ -917,14 +977,26 @@ async function supaApproveProposal(id: string): Promise<{ proposal: ToolProposal
   const row = claimedRows[0] as ToolProposal;
   let result: unknown;
   try {
-    result = await _executeProposal(row.tool_name, (row.tool_payload ?? {}) as Record<string, unknown>, row.id);
+    result = await withTimeout(
+      _executeProposal(row.tool_name, (row.tool_payload ?? {}) as Record<string, unknown>, row.id),
+    );
   } catch (err) {
-    // Mirror the backend: a failed approval becomes NEEDS_EDIT and stays visible.
+    const ex = err instanceof ApiException ? err : toApiException(err);
+    if (ex.code === "ALREADY_APPLIED") {
+      // The cross-device dedup_key UNIQUE index rejected a duplicate → the row already
+      // exists (the other device created it). That's success, not failure: mark the
+      // proposal EXECUTED so the card clears instead of looping as NEEDS_EDIT.
+      const { data: done } = await sb.from("ai_tool_proposals")
+        .update({ status: "EXECUTED", error_message: null, executed_at: new Date().toISOString() })
+        .eq("id", id).select(_PROPOSAL_COLS).single();
+      return { proposal: (done ?? row) as ToolProposal, result: {} };
+    }
+    // Genuine failure: mirror the backend — NEEDS_EDIT so it stays visible and fixable.
     await sb.from("ai_tool_proposals").update({
       status: "NEEDS_EDIT",
-      error_message: (err instanceof Error ? err.message : "Gagal menjalankan aksi.").slice(0, 500),
+      error_message: ex.message.slice(0, 500),
     }).eq("id", id);
-    throw err instanceof ApiException ? err : toApiException(err);
+    throw ex;
   }
   const { data: updated, error: uErr } = await sb
     .from("ai_tool_proposals")
@@ -936,20 +1008,29 @@ async function supaApproveProposal(id: string): Promise<{ proposal: ToolProposal
 
 async function supaRejectProposal(id: string): Promise<ToolProposal> {
   const sb = await getSupabase();
-  const { data, error } = await sb
-    .from("ai_tool_proposals")
-    .update({ status: "REJECTED" })
-    .eq("id", id).select(_PROPOSAL_COLS).single();
+  // Conditional claim like approve: only reject an OPEN row. Tolerant of an already-
+  // handled row (rejected/executed on the other device) — that's success, not a scary
+  // "item not found" 404 (the old .single() raised PGRST116 on 0 rows).
+  const { data, error } = await withTimeout(
+    sb.from("ai_tool_proposals")
+      .update({ status: "REJECTED" })
+      .eq("id", id).in("status", _PROPOSAL_OPEN)
+      .select(_PROPOSAL_COLS),
+  );
   if (error) throw toApiException(error);
-  return data as ToolProposal;
+  if (data && data.length) return data[0] as ToolProposal;
+  const { data: cur } = await sb.from("ai_tool_proposals").select(_PROPOSAL_COLS).eq("id", id).maybeSingle();
+  if (!cur) throw new ApiException("Draft tidak ditemukan.", "NOT_FOUND", 404);
+  return cur as ToolProposal;
 }
 
 async function supaEditProposal(id: string, toolPayload: Record<string, unknown>): Promise<ToolProposal> {
   const sb = await getSupabase();
-  const { data, error } = await sb
-    .from("ai_tool_proposals")
-    .update({ tool_payload: toolPayload, status: "PENDING", error_message: null })
-    .eq("id", id).select(_PROPOSAL_COLS).single();
+  const { data, error } = await withTimeout(
+    sb.from("ai_tool_proposals")
+      .update({ tool_payload: toolPayload, status: "PENDING", error_message: null })
+      .eq("id", id).select(_PROPOSAL_COLS).single(),
+  );
   if (error) throw toApiException(error);
   return data as ToolProposal;
 }
@@ -1015,8 +1096,122 @@ async function supaApproveSuggestion(id: string): Promise<AiMemory> {
   return mem as AiMemory;
 }
 
+// ─── Memory CRUD (Supabase-direct) ───────────────────────────────────────────
+// Previously these fell through to the REST backend, so on mobile the Memory page hit
+// the unreachable desktop backend and spun. Now they run against Supabase directly, and
+// delete is a soft-delete (is_deleted=true) — durable across the two-way sync — with a
+// fallback for a Supabase project not yet migrated to 0020 (column absent → hard delete).
+
+function _memColMissing(msg: string | undefined): boolean {
+  return /is_deleted|deleted_at|column .* does not exist/i.test(msg ?? "");
+}
+
+async function supaListMemories(category?: string, status = "active"): Promise<AiMemory[]> {
+  const sb = await getSupabase();
+  const ws = getWorkspaceId();
+  if (!ws) return [];
+  const build = (withDeleted: boolean) => {
+    let q = sb.from("ai_memories").select("*").eq("workspace_id", ws).eq("status", status);
+    if (withDeleted) q = q.eq("is_deleted", false);
+    if (category) q = q.eq("category", category);
+    return q.order("updated_at", { ascending: false });
+  };
+  let res = await build(true);
+  if (res.error && _memColMissing(res.error.message)) res = await build(false);
+  if (res.error) throw toApiException(res.error);
+  return (res.data ?? []) as AiMemory[];
+}
+
+async function supaSearchMemories(query: string): Promise<AiMemory[]> {
+  const sb = await getSupabase();
+  const ws = getWorkspaceId();
+  const q = (query || "").trim();
+  if (!ws || !q) return [];
+  const like = `%${q}%`;
+  const run = (withDeleted: boolean) => {
+    let b = sb.from("ai_memories").select("*").eq("workspace_id", ws).eq("status", "active");
+    if (withDeleted) b = b.eq("is_deleted", false);
+    return b.or(`title.ilike.${like},content.ilike.${like}`).order("relevance_score", { ascending: false }).limit(20);
+  };
+  let res = await run(true);
+  if (res.error && _memColMissing(res.error.message)) res = await run(false);
+  if (res.error) throw toApiException(res.error);
+  return (res.data ?? []) as AiMemory[];
+}
+
+async function supaCreateMemory(payload: { category: string; title: string; content: string; sensitivity?: string }): Promise<AiMemory> {
+  const sb = await getSupabase();
+  const { data, error } = await sb
+    .from("ai_memories")
+    .insert({
+      category: payload.category, title: payload.title, content: payload.content,
+      sensitivity: payload.sensitivity ?? "LOW", source: "manual", status: "active", enabled: true,
+      ...newRow(),
+    })
+    .select("*").single();
+  if (error) throw toApiException(error);
+  return data as AiMemory;
+}
+
+async function supaUpdateMemory(id: string, payload: { title?: string; content?: string; category?: string }): Promise<AiMemory> {
+  const sb = await getSupabase();
+  const { data, error } = await withTimeout(
+    sb.from("ai_memories").update(payload as Record<string, unknown>).eq("id", id).select("*").single(),
+  );
+  if (error) throw toApiException(error);
+  return data as AiMemory;
+}
+
+async function supaRemoveMemory(id: string): Promise<{ id: string }> {
+  const sb = await getSupabase();
+  // Soft-delete (durable across sync) when the column exists; hard-delete fallback for a
+  // Supabase project not yet migrated to 0020 so deletes still work on the phone today.
+  let res = await withTimeout(
+    sb.from("ai_memories").update({ is_deleted: true, deleted_at: new Date().toISOString(), enabled: false }).eq("id", id),
+  );
+  if (res.error && _memColMissing(res.error.message)) {
+    res = await withTimeout(sb.from("ai_memories").delete().eq("id", id));
+  }
+  if (res.error) throw toApiException(res.error);
+  return { id };
+}
+
+async function supaSetMemoryEnabled(id: string, enabled: boolean): Promise<AiMemory> {
+  const sb = await getSupabase();
+  const { data, error } = await withTimeout(
+    sb.from("ai_memories").update({ enabled }).eq("id", id).select("*").single(),
+  );
+  if (error) throw toApiException(error);
+  return data as AiMemory;
+}
+
+async function supaClearMemories(): Promise<{ deleted: number }> {
+  const sb = await getSupabase();
+  const ws = getWorkspaceId();
+  if (!ws) return { deleted: 0 };
+  // Soft-delete all active memories; hard-delete fallback pre-0020.
+  let res = await withTimeout(
+    sb.from("ai_memories")
+      .update({ is_deleted: true, deleted_at: new Date().toISOString(), enabled: false })
+      .eq("workspace_id", ws).eq("is_deleted", false).select("id"),
+  );
+  if (res.error && _memColMissing(res.error.message)) {
+    res = await withTimeout(sb.from("ai_memories").delete().eq("workspace_id", ws).select("id"));
+  }
+  if (res.error) throw toApiException(res.error);
+  return { deleted: (res.data ?? []).length };
+}
+
 export const memoryApi = {
   ...restMemoryApi,
+  list: supaListMemories,
+  search: supaSearchMemories,
+  create: supaCreateMemory,
+  update: supaUpdateMemory,
+  remove: supaRemoveMemory,
+  enable: (id: string) => supaSetMemoryEnabled(id, true),
+  disable: (id: string) => supaSetMemoryEnabled(id, false),
+  clearAll: supaClearMemories,
   listSuggestions: supaListSuggestions,
   approveSuggestion: supaApproveSuggestion,
   rejectSuggestion: supaRejectSuggestion,

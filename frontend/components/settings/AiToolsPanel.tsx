@@ -6,7 +6,11 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Toggle } from "@/components/ui/Toggle";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
+import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { aiApi, ApiException } from "@/lib/api";
+import { isBackendUnreachable } from "@/lib/connection";
+import { BEARER_MODE } from "@/lib/mobileAuth";
+import { getApiBaseUrlSource } from "@/lib/backendUrl";
 import type { AiTool } from "@/types";
 
 // Known module display order; anything new from the backend registry is appended after.
@@ -25,15 +29,30 @@ const RISK_TONE: Record<AiTool["risk"], "neutral" | "warning" | "danger"> = {
 export function AiToolsPanel() {
   const [tools, setTools] = useState<AiTool[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Backend unreachable → render an honest connect-state instead of an endless spinner.
+  const [needsBackend, setNeedsBackend] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Name of the tool whose toggle is being saved.
   const [busyTool, setBusyTool] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
+    setNeedsBackend(false);
+    // Mobile (bearer build) with no usable backend override: the REST backend is
+    // unreachable, so short-circuit to the connect-state without firing a doomed
+    // request that would spin for the full timeout. Desktop/web (cookie build,
+    // local backend) never enters here.
+    if (BEARER_MODE && getApiBaseUrlSource() === "fallback") {
+      setNeedsBackend(true);
+      return;
+    }
     try {
       setTools(await aiApi.listTools());
     } catch (err) {
+      if (isBackendUnreachable(err)) {
+        setNeedsBackend(true);
+        return;
+      }
       setLoadError(err instanceof ApiException ? err.message : "Failed to load AI tools.");
     }
   }, []);
@@ -58,6 +77,16 @@ export function AiToolsPanel() {
     }
   };
 
+  if (needsBackend) {
+    return (
+      <SetupRequiredState
+        feature="AI Tools"
+        needs="backend"
+        reason="The AI Tool registry lives on the AllHaven backend. Connect to it (locally, or over Tailscale from mobile) to manage tools — Appearance settings work without it."
+        onRetry={load}
+      />
+    );
+  }
   if (loadError) return <ErrorState message={loadError} onRetry={load} />;
   if (!tools) return <Loading label="Loading AI tools…" />;
   if (!tools.length) {

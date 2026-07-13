@@ -430,6 +430,10 @@ export default function SettingsPage() {
             )
           ) : null}
 
+          {/* These panels self-fetch and self-degrade: each renders a per-panel
+              SetupRequiredState when the backend is unreachable (and short-circuits
+              instantly on mobile), so they're rendered directly and never gated on the
+              page's global `loaded` flag — a down backend can't blank the Settings page. */}
           {tab === "ai-tools" ? <AiToolsPanel /> : null}
 
           {tab === "ai-chat" ? <AiChatBehaviorPanel /> : null}
@@ -603,6 +607,9 @@ export default function SettingsPage() {
             </div>
           ) : null}
 
+          {/* SystemControl self-fetches and self-degrades (per-panel SetupRequiredState
+              when unreachable, instant short-circuit on mobile), so it's rendered
+              directly and not gated on the page's global `loaded` flag. */}
           {tab === "system" ? <SystemControl /> : null}
       </div>
 

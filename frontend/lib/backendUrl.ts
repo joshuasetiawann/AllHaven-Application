@@ -60,6 +60,9 @@ export function setBackendOverride(raw: string): string {
     } catch {
       /* private-mode / disabled storage — fall back to env/derived resolution */
     }
+    // Broadcast so live listeners (e.g. the Topbar connection switcher) refresh
+    // without a reload.
+    window.dispatchEvent(new Event("allhaven:backend-changed"));
   }
   return normalized;
 }
@@ -72,6 +75,9 @@ export function clearBackendOverride(): void {
   } catch {
     /* ignore */
   }
+  // Broadcast so live listeners (e.g. the Topbar connection switcher) refresh
+  // without a reload.
+  window.dispatchEvent(new Event("allhaven:backend-changed"));
 }
 
 function fromEnv(): string {
