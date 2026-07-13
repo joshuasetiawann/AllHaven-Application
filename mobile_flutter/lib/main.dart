@@ -207,6 +207,9 @@ class _AllHavenErrorCover extends StatelessWidget {
 }
 
 class AllHavenAssetServer {
+  AllHavenAssetServer({Set<String>? assetKeysForTesting})
+    : _assetKeys = assetKeysForTesting;
+
   static const _assetRoot = 'assets/allhaven';
   static const _indexPath = '/index.html';
 
@@ -214,7 +217,7 @@ class AllHavenAssetServer {
   Set<String>? _assetKeys;
 
   Future<Uri> start() async {
-    _assetKeys = await _loadAssetKeys();
+    _assetKeys ??= await _loadAssetKeys();
     _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     unawaited(_serveRequests(_server!));
     return Uri.parse('http://${_server!.address.host}:${_server!.port}/');
@@ -243,7 +246,7 @@ class AllHavenAssetServer {
       return;
     }
 
-    final assetPath = _resolveAssetPath(request.uri.path);
+    final assetPath = _resolveAssetPath(request.uri);
     try {
       final data = await rootBundle.load(assetPath);
       response.headers.contentType = _contentType(assetPath);
@@ -258,11 +261,16 @@ class AllHavenAssetServer {
     }
   }
 
-  String _resolveAssetPath(String rawPath) {
-    final safePath = _normalizePath(rawPath);
+  @visibleForTesting
+  String resolveAssetPath(Uri uri) => _resolveAssetPath(uri);
+
+  String _resolveAssetPath(Uri uri) {
+    final safePath = _normalizePath(_stripRscSuffix(uri.path));
+    final wantsRsc = _isRscRequest(uri);
     final candidates = <String>[
+      if (wantsRsc) ..._routeIndexCandidates(safePath, 'txt'),
       safePath,
-      safePath.endsWith('/') ? '${safePath}index.html' : '$safePath/index.html',
+      ..._routeIndexCandidates(safePath, 'html'),
       _indexPath,
     ];
 
@@ -273,6 +281,30 @@ class AllHavenAssetServer {
       }
     }
     return '$_assetRoot$_indexPath';
+  }
+
+  bool _isRscRequest(Uri uri) {
+    return uri.queryParameters.containsKey('_rsc') || uri.path.endsWith('.rsc');
+  }
+
+  String _stripRscSuffix(String path) {
+    return path.endsWith('.rsc') ? path.substring(0, path.length - 4) : path;
+  }
+
+  List<String> _routeIndexCandidates(String safePath, String extension) {
+    if (safePath == '/' || safePath == _indexPath) {
+      return ['/index.$extension'];
+    }
+    if (safePath.endsWith('/index.html') || safePath.endsWith('/index.txt')) {
+      return [
+        '${safePath.substring(0, safePath.lastIndexOf('.') + 1)}$extension',
+      ];
+    }
+    return [
+      safePath.endsWith('/')
+          ? '${safePath}index.$extension'
+          : '$safePath/index.$extension',
+    ];
   }
 
   String _normalizePath(String rawPath) {
@@ -311,6 +343,9 @@ class AllHavenAssetServer {
     }
     if (lower.endsWith('.json') || lower.endsWith('.map')) {
       return ContentType.json;
+    }
+    if (lower.endsWith('.txt')) {
+      return ContentType('text', 'x-component', charset: 'utf-8');
     }
     if (lower.endsWith('.svg')) {
       return ContentType('image', 'svg+xml');
