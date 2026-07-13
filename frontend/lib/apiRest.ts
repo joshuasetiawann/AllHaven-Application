@@ -624,6 +624,8 @@ export const automationsApi = {
 // --- System Control (start/stop/restart & inspect Haven services) ---
 export const systemApi = {
   status: () => request<SystemStatus>("/system/status"),
+  startAgent: () =>
+    request<{ started: boolean; running: boolean; message: string }>("/system/agent/start", { method: "POST" }),
   action: (name: string, action: string) =>
     request<ServiceStatus>(`/system/services/${name}/${action}`, { method: "POST", body: json({}) }),
   logs: (name: string, lines = 300) => request<SystemLogs>(`/system/logs/${name}?lines=${lines}`),

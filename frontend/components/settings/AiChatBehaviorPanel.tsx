@@ -7,12 +7,18 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Toggle } from "@/components/ui/Toggle";
 import { ErrorState, Loading } from "@/components/ui/States";
+import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { aiApi, ApiException } from "@/lib/api";
+import { isBackendUnreachable } from "@/lib/connection";
+import { BEARER_MODE } from "@/lib/mobileAuth";
+import { getApiBaseUrlSource } from "@/lib/backendUrl";
 import type { AiChatSettings } from "@/types";
 
 export function AiChatBehaviorPanel() {
   const [settings, setSettings] = useState<AiChatSettings | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Backend unreachable → render an honest connect-state instead of an endless spinner.
+  const [needsBackend, setNeedsBackend] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Local text state so the number field saves on commit, not per keystroke.
@@ -20,11 +26,23 @@ export function AiChatBehaviorPanel() {
 
   const load = useCallback(async () => {
     setLoadError(null);
+    setNeedsBackend(false);
+    // Mobile (bearer build) with no usable backend override: the REST backend is
+    // unreachable, so short-circuit to the connect-state without firing a doomed
+    // request. Desktop/web (cookie build, local backend) never enters here.
+    if (BEARER_MODE && getApiBaseUrlSource() === "fallback") {
+      setNeedsBackend(true);
+      return;
+    }
     try {
       const data = await aiApi.getChatSettings();
       setSettings(data);
       setMaxAgents(String(data.max_active_agents));
     } catch (err) {
+      if (isBackendUnreachable(err)) {
+        setNeedsBackend(true);
+        return;
+      }
       setLoadError(err instanceof ApiException ? err.message : "Failed to load chat settings.");
     }
   }, []);
@@ -66,6 +84,16 @@ export function AiChatBehaviorPanel() {
     void save({ max_active_agents: num });
   };
 
+  if (needsBackend) {
+    return (
+      <SetupRequiredState
+        feature="AI Chat"
+        needs="backend"
+        reason="AI Chat behavior settings live on the AllHaven backend. Connect to it (locally, or over Tailscale from mobile) to manage them — Appearance settings work without it."
+        onRetry={load}
+      />
+    );
+  }
   if (loadError) return <ErrorState message={loadError} onRetry={load} />;
   if (!settings) return <Loading label="Loading chat settings…" />;
 

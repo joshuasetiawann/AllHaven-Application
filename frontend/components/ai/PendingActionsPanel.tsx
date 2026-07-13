@@ -11,6 +11,9 @@ import { aiApi, ApiException } from "@/lib/api";
 import { cn, relativeTime } from "@/lib/format";
 import type { ToolProposal } from "@/types";
 
+// Message shown on desktop-only proposals approved from mobile (Supabase-direct).
+const DESKTOP_ONLY_NOTICE = "Aksi ini hanya bisa di-approve dari aplikasi desktop.";
+
 const RISK_TONE: Record<string, "neutral" | "warning" | "danger"> = {
   LOW: "neutral",
   MEDIUM: "warning",
@@ -173,19 +176,37 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
   const [editText, setEditText] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  // Desktop-only proposals the user tried to approve from mobile — their
+  // Approve button stays disabled with a one-line inline notice (Reject stays open).
+  const [desktopOnly, setDesktopOnly] = useState<Set<string>>(new Set());
+  // Set only after a real load failure, so we can show a "Retry" affordance
+  // instead of an ambiguous empty panel. Empty-but-successful fetches clear it.
+  const [loadError, setLoadError] = useState(false);
   const timersRef = useRef<number[]>([]);
   const seenIdsRef = useRef<Set<string>>(new Set());
+  // Proposal ids resolved locally (approved/rejected) — filtered out of poll
+  // results so a just-decided card never flickers back before the server drops it.
+  const resolvedIdsRef = useRef<Set<string>>(new Set());
 
   const loadProposals = useCallback(async () => {
     try {
       const rows = await aiApi.listProposals();
-      setProposals(rows);
-      const nextIds = new Set(rows.map((p) => p.id));
-      const hasNew = rows.some((p) => !seenIdsRef.current.has(p.id));
-      if (rows.length > 0 && hasNew) setOpen(true);
-      seenIdsRef.current = nextIds;
+      // Hide rows the user just resolved locally; once the server stops returning
+      // a resolved id, drop it from the set (it's confirmed gone from the open list).
+      const fetchedIds = new Set(rows.map((p) => p.id));
+      for (const id of Array.from(resolvedIdsRef.current)) {
+        if (!fetchedIds.has(id)) resolvedIdsRef.current.delete(id);
+      }
+      const visible = rows.filter((p) => !resolvedIdsRef.current.has(p.id));
+      setProposals(visible);
+      setLoadError(false);
+      const hasNew = visible.some((p) => !seenIdsRef.current.has(p.id));
+      if (visible.length > 0 && hasNew) setOpen(true);
+      seenIdsRef.current = new Set(visible.map((p) => p.id));
     } catch {
-      /* non-blocking */
+      // A real load failure (network/backend) — show the Retry affordance instead of
+      // an ambiguous empty panel. A successful empty fetch above clears loadError.
+      setLoadError(true);
     }
   }, []);
 
@@ -216,13 +237,21 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
     setErrors((cur) => omitKey(cur, p.id));
     try {
       await aiApi.approveProposal(p.id);
+      resolvedIdsRef.current.add(p.id);
       setProposals((cur) => cur.filter((x) => x.id !== p.id));
       addNotice({ id: `${p.id}-approved`, tone: "success", text: `${humanizeTool(p.tool_name)} approved and executed.` });
       toast.success("Action approved", `${humanizeTool(p.tool_name)} executed successfully.`);
     } catch (err) {
-      const message = err instanceof ApiException ? err.message : "Approval failed.";
-      fail(p.id, err, "Approval failed.");
-      toast.danger("Approval failed", message);
+      // Desktop-only tool: the proposal stays PENDING. Don't scare the user or
+      // re-enable Approve — show a clear one-liner and keep Reject available.
+      if (err instanceof ApiException && err.code === "UNSUPPORTED_ON_MOBILE") {
+        setDesktopOnly((cur) => new Set(cur).add(p.id));
+        setErrors((cur) => ({ ...cur, [p.id]: DESKTOP_ONLY_NOTICE }));
+      } else {
+        const message = err instanceof ApiException ? err.message : "Approval failed.";
+        fail(p.id, err, "Approval failed.");
+        toast.danger("Approval failed", message);
+      }
     } finally {
       setBusy((cur) => omitKey(cur, p.id));
     }
@@ -233,6 +262,7 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
     setErrors((cur) => omitKey(cur, p.id));
     try {
       await aiApi.rejectProposal(p.id);
+      resolvedIdsRef.current.add(p.id);
       setProposals((cur) => cur.filter((x) => x.id !== p.id));
       addNotice({ id: `${p.id}-rejected`, tone: "danger", text: `${humanizeTool(p.tool_name)} rejected.` });
       toast.info("Action rejected", humanizeTool(p.tool_name));
@@ -284,10 +314,24 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
     }
   };
 
-  if (proposals.length === 0 && notices.length === 0) return null;
+  if (proposals.length === 0 && notices.length === 0 && !loadError) return null;
 
   return (
     <>
+      {loadError && proposals.length === 0 ? (
+        <div className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">
+          <ShieldAlert size={13} className="shrink-0" />
+          <span className="min-w-0 truncate">Couldn&apos;t load pending actions.</span>
+          <button
+            type="button"
+            onClick={() => void loadProposals()}
+            className="ml-auto shrink-0 font-medium underline hover:text-content"
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
       {notices.length ? (
         <div className="mx-3 mb-1.5 space-y-1.5">
           {notices.map((notice) => (
@@ -326,6 +370,7 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
               {proposals.map((p) => {
                 const action = busy[p.id];
                 const risk = (p.risk_level || "").toUpperCase();
+                const isDesktopOnly = desktopOnly.has(p.id);
                 return (
                   <div key={p.id} className="rounded-lg border border-border bg-surface-input px-3 py-2.5">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -350,7 +395,13 @@ export function PendingActionsPanel({ refreshKey }: { refreshKey: number }) {
                     ) : null}
                     {errors[p.id] ? <p className="mt-1.5 text-[11.5px] text-danger">{errors[p.id]}</p> : null}
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <Button size="sm" loading={action === "approve"} disabled={Boolean(action)} onClick={() => void approve(p)}>
+                      <Button
+                        size="sm"
+                        loading={action === "approve"}
+                        disabled={Boolean(action) || isDesktopOnly}
+                        title={isDesktopOnly ? DESKTOP_ONLY_NOTICE : undefined}
+                        onClick={() => void approve(p)}
+                      >
                         Approve
                       </Button>
                       <Button size="sm" variant="ghost" disabled={Boolean(action)} onClick={() => openEdit(p)}>

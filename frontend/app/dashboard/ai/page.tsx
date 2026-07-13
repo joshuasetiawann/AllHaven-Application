@@ -10,7 +10,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { useAppDialog } from "@/components/ui/AppDialog";
 import { ConversationSidebar } from "@/components/ai/ConversationSidebar";
 import { MAX_AGENTS, MultiAgentSelector } from "@/components/ai/MultiAgentSelector";
-import { AgentResponseCard, type AgentCardData } from "@/components/ai/AgentResponseCard";
+import { AgentResponseCard, isSentinel, type AgentCardData } from "@/components/ai/AgentResponseCard";
 import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { PendingActionsPanel } from "@/components/ai/PendingActionsPanel";
 import { MemoryIndicator } from "@/components/ai/MemoryIndicator";
@@ -35,6 +35,10 @@ const MODE_FROM_SETTING: Record<AiChatSettings["default_mode"], ChatMode> = {
 };
 
 const THINKING_MODES: ThinkingMode[] = ["fast", "balance", "thinking", "deep"];
+
+// Shown when a completed assistant/final message body is empty or a bare status
+// sentinel (old/synced rows) instead of a real answer — see isSentinel().
+const SENTINEL_PLACEHOLDER = "_(Tidak ada jawaban — coba kirim ulang.)_";
 
 const ROLE_LABEL: Record<string, string> = { analyst: "Analyst", critic: "Critic", synthesis: "Synthesizer", synthesizer: "Synthesizer" };
 
@@ -601,7 +605,7 @@ export default function AiChatPage() {
             {isUser || isError ? (
               <p className="whitespace-pre-wrap break-words">{m.content}</p>
             ) : (
-              <MarkdownMessage content={m.content} />
+              <MarkdownMessage content={isSentinel(m.content) ? SENTINEL_PLACEHOLDER : m.content} />
             )}
           </div>
           {usedMemory || usedKnowledge || activeTools.length ? (
@@ -698,7 +702,7 @@ export default function AiChatPage() {
           ) : null}
         </div>
         {ok ? (
-          <MarkdownMessage content={m.content} className="text-sm text-content" />
+          <MarkdownMessage content={isSentinel(m.content) ? SENTINEL_PLACEHOLDER : m.content} className="text-sm text-content" />
         ) : (
           <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-warning">{m.content}</p>
         )}
