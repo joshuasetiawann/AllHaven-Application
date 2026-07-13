@@ -13,6 +13,7 @@ from app.core.principal import Principal
 from app.core.responses import success_response
 from app.schemas.knowledge import KnowledgeDocumentOut, KnowledgeSearchResponse
 from app.services import knowledge_service
+from app.services.local_first_sync import sync_after_write
 
 router = APIRouter(prefix="/ai/knowledge", tags=["ai-knowledge"])
 
@@ -43,6 +44,7 @@ async def upload_document(
     )
     db.commit()
     db.refresh(row)
+    sync_after_write(db, principal)
     return success_response(KnowledgeDocumentOut.model_validate(row), "Knowledge document uploaded")
 
 
@@ -65,6 +67,7 @@ def reindex_document(
     row = knowledge_service.reindex_document(db, principal, document_id)
     db.commit()
     db.refresh(row)
+    sync_after_write(db, principal)
     return success_response(KnowledgeDocumentOut.model_validate(row), "Knowledge document re-indexed")
 
 
@@ -76,6 +79,7 @@ def delete_document(
 ) -> dict:
     knowledge_service.delete_document(db, principal, document_id)
     db.commit()
+    sync_after_write(db, principal)
     return success_response({"id": str(document_id)}, "Knowledge document deleted")
 
 

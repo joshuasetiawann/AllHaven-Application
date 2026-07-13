@@ -15,6 +15,7 @@ from app.core.principal import Principal
 from app.core.responses import success_response
 from app.schemas.calendar import CalendarEventCreate, CalendarEventOut, CalendarEventUpdate
 from app.services import calendar_service as svc
+from app.services.local_first_sync import sync_after_write
 
 router = APIRouter(prefix="/routines", tags=["routines"])
 
@@ -37,6 +38,7 @@ def create_routine(
     db: Session = Depends(get_db),
 ) -> dict:
     event = svc.create_event(db, principal, payload.model_dump())
+    sync_after_write(db, principal)
     return success_response(CalendarEventOut.model_validate(event), "Routine created")
 
 
@@ -48,6 +50,7 @@ def update_routine(
     db: Session = Depends(get_db),
 ) -> dict:
     event = svc.update_event(db, principal, event_id, payload.model_dump(exclude_unset=True))
+    sync_after_write(db, principal)
     return success_response(CalendarEventOut.model_validate(event), "Routine updated")
 
 
@@ -58,4 +61,5 @@ def delete_routine(
     db: Session = Depends(get_db),
 ) -> dict:
     svc.delete_event(db, principal, event_id)
+    sync_after_write(db, principal)
     return success_response({"id": str(event_id)}, "Routine deleted")
