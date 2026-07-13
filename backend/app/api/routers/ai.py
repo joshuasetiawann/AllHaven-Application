@@ -48,6 +48,7 @@ from app.services import (
     ai_settings_service,
     ai_tools_registry,
 )
+from app.services.local_first_sync import sync_after_write
 
 
 class AiPolicyUpdate(BaseModel):
@@ -101,6 +102,7 @@ def update_policy(
         allow_external=payload.allow_external,
         default_provider=payload.default_provider,
     )
+    sync_after_write(db, principal)
     return success_response(data, "AI policy updated")
 
 
@@ -136,6 +138,7 @@ def update_provider(
         temperature=payload.temperature,
         enabled=payload.enabled,
     )
+    sync_after_write(db, principal)
     return success_response(view, "AI provider saved")
 
 
@@ -145,7 +148,9 @@ def test_provider(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    return success_response(ai_provider_router.test_provider(db, principal, provider_id), "Provider tested")
+    view = ai_provider_router.test_provider(db, principal, provider_id)
+    sync_after_write(db, principal)
+    return success_response(view, "Provider tested")
 
 
 @router.post("/providers/{provider_id}/enable")
@@ -154,7 +159,9 @@ def enable_provider(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    return success_response(ai_provider_router.set_enabled(db, principal, provider_id, True), "Provider enabled")
+    view = ai_provider_router.set_enabled(db, principal, provider_id, True)
+    sync_after_write(db, principal)
+    return success_response(view, "Provider enabled")
 
 
 @router.post("/providers/{provider_id}/disable")
@@ -163,7 +170,9 @@ def disable_provider(
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    return success_response(ai_provider_router.set_enabled(db, principal, provider_id, False), "Provider disabled")
+    view = ai_provider_router.set_enabled(db, principal, provider_id, False)
+    sync_after_write(db, principal)
+    return success_response(view, "Provider disabled")
 
 
 # --- conversation groups / projects --------------------------------------
@@ -185,6 +194,7 @@ def create_group(
     db: Session = Depends(get_db),
 ) -> dict:
     group = ai_service.create_group(db, principal, payload.name)
+    sync_after_write(db, principal)
     return success_response(GroupOut.model_validate(group), "Group created")
 
 
@@ -196,6 +206,7 @@ def update_group(
     db: Session = Depends(get_db),
 ) -> dict:
     group = ai_service.update_group(db, principal, group_id, payload.name)
+    sync_after_write(db, principal)
     return success_response(GroupOut.model_validate(group), "Group updated")
 
 
@@ -206,6 +217,7 @@ def delete_group(
     db: Session = Depends(get_db),
 ) -> dict:
     ai_service.delete_group(db, principal, group_id)
+    sync_after_write(db, principal)
     return success_response({"id": str(group_id)}, "Group deleted")
 
 
@@ -225,6 +237,7 @@ def create_session(
     db: Session = Depends(get_db),
 ) -> dict:
     session = ai_service.create_session(db, principal, payload.title, payload.group_id)
+    sync_after_write(db, principal)
     return success_response(SessionOut.model_validate(session), "Session created")
 
 
@@ -238,6 +251,7 @@ def update_session(
     session = ai_service.update_session(
         db, principal, session_id, payload.model_dump(exclude_unset=True)
     )
+    sync_after_write(db, principal)
     return success_response(SessionOut.model_validate(session), "Session updated")
 
 
@@ -248,6 +262,7 @@ def delete_session(
     db: Session = Depends(get_db),
 ) -> dict:
     ai_service.delete_session(db, principal, session_id)
+    sync_after_write(db, principal)
     return success_response({"id": str(session_id)}, "Session deleted")
 
 
@@ -294,6 +309,7 @@ def chat(
         provider_id=result.get("provider_id"),
         blocked=result.get("blocked", False),
     )
+    sync_after_write(db, principal)
     return success_response(data, "Message processed")
 
 
@@ -324,6 +340,7 @@ def chat_multi(
         section_key=payload.section_key or "general",
         response_language=payload.response_language,
     )
+    sync_after_write(db, principal)
     return success_response(_multi_view(result), "Multi-agent run processed")
 
 
@@ -346,6 +363,7 @@ def chat_debate(
         section_key=payload.section_key or "general",
         response_language=payload.response_language,
     )
+    sync_after_write(db, principal)
     return success_response(_multi_view(result), "Debate run processed")
 
 
@@ -367,6 +385,7 @@ def chat_reason(
         section_key=payload.section_key or "general",
         response_language=payload.response_language,
     )
+    sync_after_write(db, principal)
     return success_response(_multi_view(result), "Reasoning run processed")
 
 
@@ -398,6 +417,7 @@ def reject_proposal(
     db: Session = Depends(get_db),
 ) -> dict:
     proposal = ai_service.reject_proposal(db, principal, proposal_id)
+    sync_after_write(db, principal)
     return success_response(ProposalOut.model_validate(proposal), "Proposal rejected")
 
 
@@ -409,6 +429,7 @@ def approve_proposal(
 ) -> dict:
     """Human approval: executes the proposed action via the Tool Registry."""
     outcome = ai_tools_registry.approve_proposal(db, principal, proposal_id)
+    sync_after_write(db, principal)
     return success_response(
         {"proposal": ProposalOut.model_validate(outcome["proposal"]), "result": outcome["result"]},
         "Proposal approved and executed",
@@ -424,6 +445,7 @@ def edit_proposal(
 ) -> dict:
     """Edit a pending proposal's payload before approving it."""
     proposal = ai_tools_registry.edit_proposal(db, principal, proposal_id, payload.tool_payload)
+    sync_after_write(db, principal)
     return success_response(ProposalOut.model_validate(proposal), "Proposal updated")
 
 
@@ -452,6 +474,7 @@ def set_tool_enabled(
         raise NotFoundError(f"Unknown tool '{tool_name}'.")
     ai_settings_service.set_tool_enabled(db, principal, tool_name, payload.enabled)
     view = next(t for t in ai_tools_registry.list_tools_view(db, principal) if t["name"] == tool_name)
+    sync_after_write(db, principal)
     return success_response(view, "Tool updated")
 
 
@@ -473,7 +496,9 @@ def update_chat_settings(
     db: Session = Depends(get_db),
 ) -> dict:
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
-    return success_response(ai_settings_service.set_chat_settings(db, principal, updates), "Chat settings saved")
+    settings = ai_settings_service.set_chat_settings(db, principal, updates)
+    sync_after_write(db, principal)
+    return success_response(settings, "Chat settings saved")
 
 
 # --- model slots -------------------------------------------------------------
@@ -487,4 +512,5 @@ def update_model_slots(
     db: Session = Depends(get_db),
 ) -> dict:
     view = ai_provider_router.set_model_slots(db, principal, provider_id, payload.slots)
+    sync_after_write(db, principal)
     return success_response(view, "Model slots saved")

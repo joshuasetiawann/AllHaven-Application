@@ -1,6 +1,6 @@
 [project]
 name = "allhaven-backend"
-version = "3.3.1"
+version = "3.4.0"
 description = "AllHaven Command Center — FastAPI backend (local MVP)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,6 +13,7 @@ dependencies = [
     "pydantic-settings>=2.7.0",
     "psycopg[binary]>=3.2.3",
     "httpx>=0.28.1",
+    "defusedxml>=0.7.1",
 ]
 
 [project.optional-dependencies]

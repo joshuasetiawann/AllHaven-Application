@@ -7,8 +7,15 @@ import io
 import os
 import re
 import uuid
+import zipfile
 from datetime import datetime, timezone
 from typing import Iterable, List
+from xml.etree.ElementTree import ParseError as XmlParseError
+
+# defusedxml refuses DTDs and entity expansion by default, so a malicious
+# uploaded OOXML file cannot trigger XXE or billion-laughs entity expansion.
+from defusedxml.ElementTree import fromstring as xml_fromstring
+from defusedxml.common import DefusedXmlException
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -25,6 +32,7 @@ SUPPORTED_TEXT_EXTENSIONS = {
     ".php", ".sql", ".sh", ".bash", ".zsh", ".ps1", ".bat", ".env", ".ini", ".toml",
     ".cfg", ".conf", ".log", ".dockerfile", ".gitignore", ".gitattributes",
 }
+SUPPORTED_DOCUMENT_EXTENSIONS = {".pdf", ".doc", ".docx"}
 CHUNK_SIZE = 1200
 CHUNK_OVERLAP = 160
 MAX_SEARCH_CANDIDATES = 500
@@ -90,8 +98,161 @@ def _metadata_text(filename: str, mime_type: str, size_bytes: int, reason: str) 
     )
 
 
+def _decode_pdf_literal(raw: str) -> str:
+    out = []
+    i = 0
+    while i < len(raw):
+        ch = raw[i]
+        if ch != "\\":
+            out.append(ch)
+            i += 1
+            continue
+        i += 1
+        if i >= len(raw):
+            break
+        esc = raw[i]
+        if esc in "nrtbf":
+            out.append({"n": "\n", "r": "\r", "t": "\t", "b": "\b", "f": "\f"}[esc])
+            i += 1
+        elif esc in "\\()":
+            out.append(esc)
+            i += 1
+        elif esc in "\n\r":
+            while i < len(raw) and raw[i] in "\n\r":
+                i += 1
+        elif esc.isdigit():
+            octal = esc
+            i += 1
+            for _ in range(2):
+                if i < len(raw) and raw[i].isdigit():
+                    octal += raw[i]
+                    i += 1
+            try:
+                out.append(chr(int(octal, 8)))
+            except ValueError:
+                pass
+        else:
+            out.append(esc)
+            i += 1
+    return "".join(out)
+
+
+def _simple_pdf_extract(data: bytes) -> str:
+    """Best-effort PDF text extraction without native dependencies.
+
+    Real-world PDFs vary a lot. If pypdf is unavailable, this handles common
+    unencrypted PDFs with literal text streams and keeps the fallback honest.
+    """
+    import zlib
+
+    candidates = [data]
+    for match in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", data, re.DOTALL):
+        stream = match.group(1).strip()
+        candidates.append(stream)
+        try:
+            candidates.append(zlib.decompress(stream))
+        except zlib.error:
+            pass
+
+    parts: list[str] = []
+    literal_re = re.compile(r"\((?:\\.|[^\\)])*\)")
+    for blob in candidates:
+        text = blob.decode("latin-1", errors="ignore")
+        for match in re.finditer(r"(\((?:\\.|[^\\)])*\))\s*Tj", text, re.DOTALL):
+            parts.append(_decode_pdf_literal(match.group(1)[1:-1]))
+        for match in re.finditer(r"\[(.*?)\]\s*TJ", text, re.DOTALL):
+            pieces = [m.group(0)[1:-1] for m in literal_re.finditer(match.group(1))]
+            if pieces:
+                parts.append("".join(_decode_pdf_literal(piece) for piece in pieces))
+    return "\n".join(part.strip() for part in parts if part.strip())
+
+
+def _extract_pdf(data: bytes) -> tuple[str | None, str | None]:
+    try:
+        from pypdf import PdfReader  # type: ignore
+
+        reader = PdfReader(io.BytesIO(data))
+        text = "\n".join((page.extract_text() or "").strip() for page in reader.pages)
+        if text.strip():
+            return text, None
+    except Exception:
+        pass
+
+    text = _simple_pdf_extract(data)
+    if text.strip():
+        return text, None
+    return None, "PDF text could not be extracted. The file is stored and searchable by metadata only."
+
+
+def _extract_docx(data: bytes) -> tuple[str | None, str | None]:
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            names = [
+                "word/document.xml",
+                *[name for name in archive.namelist() if name.startswith("word/header") and name.endswith(".xml")],
+                *[name for name in archive.namelist() if name.startswith("word/footer") and name.endswith(".xml")],
+            ]
+            parts: list[str] = []
+            for name in names:
+                if name not in archive.namelist():
+                    continue
+                root = xml_fromstring(archive.read(name))
+                for node in root.iter():
+                    tag = node.tag.rsplit("}", 1)[-1]
+                    if tag == "t" and node.text:
+                        parts.append(node.text)
+                    elif tag in {"tab", "br", "cr"}:
+                        parts.append("\n")
+            text = " ".join(part.strip() for part in parts if part and part.strip())
+            if text.strip():
+                return text, None
+    except (XmlParseError, DefusedXmlException, OSError, KeyError, zipfile.BadZipFile):
+        pass
+    return None, "DOCX text could not be extracted. The file is stored and searchable by metadata only."
+
+
+def _extract_legacy_doc(data: bytes) -> tuple[str | None, str | None]:
+    if _looks_like_text(data):
+        return _decode_text(data), None
+    # Old .doc is an OLE binary format. This fallback extracts readable runs so
+    # simple documents still become searchable without shelling out to antiword.
+    sample = data.replace(b"\x00", b" ")
+    words = [
+        chunk.decode("latin-1", errors="ignore").strip()
+        for chunk in re.findall(rb"[A-Za-z0-9][A-Za-z0-9,.;:!?@#%&()\[\]{}'\"/\-_\s]{3,}", sample)
+    ]
+    text = "\n".join(chunk for chunk in words if len(chunk.split()) >= 2)
+    if text.strip():
+        return text, None
+    return None, "Legacy DOC text could not be extracted. The file is stored and searchable by metadata only."
+
+
 def _extract_text(filename: str, mime_type: str, data: bytes) -> tuple[str | None, str | None]:
     ext = os.path.splitext(filename.lower())[1]
+    if ext == ".pdf" or mime_type == "application/pdf":
+        text, note = _extract_pdf(data)
+        if text and _contains_secret(text):
+            reason = "Secret-like content was detected; only metadata was indexed for safety."
+            return _metadata_text(filename, mime_type, len(data), reason), reason
+        if text:
+            return text, note
+        return _metadata_text(filename, mime_type, len(data), note or "PDF parser could not extract text."), note
+    if ext == ".docx" or mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        text, note = _extract_docx(data)
+        if text and _contains_secret(text):
+            reason = "Secret-like content was detected; only metadata was indexed for safety."
+            return _metadata_text(filename, mime_type, len(data), reason), reason
+        if text:
+            return text, note
+        return _metadata_text(filename, mime_type, len(data), note or "DOCX parser could not extract text."), note
+    if ext == ".doc" or mime_type == "application/msword":
+        text, note = _extract_legacy_doc(data)
+        if text and _contains_secret(text):
+            reason = "Secret-like content was detected; only metadata was indexed for safety."
+            return _metadata_text(filename, mime_type, len(data), reason), reason
+        if text:
+            return text, note
+        return _metadata_text(filename, mime_type, len(data), note or "DOC parser could not extract text."), note
     if ext == ".csv" or mime_type == "text/csv":
         text = _decode_text(data)
         if _contains_secret(text):
