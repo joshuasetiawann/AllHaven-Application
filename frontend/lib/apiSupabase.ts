@@ -820,11 +820,54 @@ async function supaListProposals(): Promise<ToolProposal[]> {
   return (data ?? []) as ToolProposal[];
 }
 
+function _pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** Expand a create_routine_schedule payload into timed calendar_events across N days
+ * (mobile analogue of backend _h_create_routine_schedule). Naive local ISO strings,
+ * matching the existing mobile inserts so times aren't shifted by a timezone. */
+async function _executeScheduleProposal(payload: Record<string, unknown>): Promise<unknown> {
+  const blocks = (payload.blocks as Array<Record<string, unknown>>) ?? [];
+  if (!blocks.length) {
+    throw new ApiException("Jadwal kosong — tidak ada kegiatan untuk dibuat.", "EMPTY_SCHEDULE", 422);
+  }
+  let days = Math.max(1, Math.min(14, Number(payload.repeat_days) || 7));
+  if (days * blocks.length > 50) days = Math.max(1, Math.floor(50 / blocks.length));
+  const now = new Date();
+  const defaultStart = `${now.getFullYear()}-${_pad2(now.getMonth() + 1)}-${_pad2(now.getDate())}`;
+  const [sy, sm, sd] = String(payload.start_date || defaultStart).slice(0, 10).split("-").map((n) => parseInt(n, 10));
+
+  const items: Record<string, unknown>[] = [];
+  for (let offset = 0; offset < days; offset++) {
+    const day = new Date(sy, (sm || 1) - 1, sd || 1);
+    day.setDate(day.getDate() + offset);
+    const y = day.getFullYear(), mo = day.getMonth() + 1, dd = day.getDate();
+    for (const b of blocks) {
+      const [bh, bm] = String(b.start_time ?? "09:00").split(":").map((n) => parseInt(n, 10) || 0);
+      const dur = Math.max(5, Math.min(240, Number(b.duration_min) || 60));
+      const startMins = Math.min(bh * 60 + bm, 23 * 60 + 30);
+      const endMins = Math.min(startMins + dur, 23 * 60 + 59);
+      const iso = (mins: number) => `${y}-${_pad2(mo)}-${_pad2(dd)}T${_pad2(Math.floor(mins / 60))}:${_pad2(mins % 60)}:00`;
+      items.push({
+        title: (String(b.title ?? "Kegiatan").trim() || "Kegiatan").slice(0, 255),
+        start_at: iso(startMins),
+        end_at: iso(endMins),
+        all_day: false,
+        time_period: b.time_period ?? null,
+        repeat_rule: "once",
+      });
+    }
+  }
+  return routinesApi.createBatch(items);
+}
+
 /** Execute a proposal's write directly against Supabase, by tool name. */
 async function _executeProposal(tool: string, payload: Record<string, unknown>): Promise<unknown> {
   if (tool.startsWith("create_transaction")) return financeApi.createTransaction(payload);
-  if (tool === "create_task") return tasksApi.create(payload);
-  if (tool === "create_note") return notesApi.create(payload as Partial<Note>);
+  if (tool.startsWith("create_task")) return tasksApi.create(payload);
+  if (tool.startsWith("create_note")) return notesApi.create(payload as Partial<Note>);
+  if (tool === "create_routine_schedule") return _executeScheduleProposal(payload);
   if (tool === "create_event" || tool === "create_routine") return routinesApi.create(payload);
   if (tool === "create_automation") return automationsApi.create(payload);
   throw new ApiException(
