@@ -26,7 +26,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import AppException, NotFoundError, ValidationAppError
+from app.core.exceptions import AppException, ConflictError, NotFoundError, ValidationAppError
 from app.core.principal import Principal
 from app.domain.ai import AiToolCall, AiToolProposal, ChatMessage, ChatSession
 from app.services import ai_settings_service
@@ -1299,6 +1299,20 @@ def run_tool_call(db: Session, principal: Principal, name: str, args: dict, *, s
     return {"status": "executed", "tool": name, "result": result}
 
 
+def _result_entity_id(result) -> "uuid.UUID | None":
+    """Best-effort id of the entity an approval produced (transaction/event/task/note),
+    for the audit trail + the cross-device executed marker. None for batch/no-entity
+    results (e.g. create_routine_schedule, which makes many rows)."""
+    if isinstance(result, dict):
+        for value in result.values():
+            if isinstance(value, dict) and value.get("id"):
+                try:
+                    return uuid.UUID(str(value["id"]))
+                except (ValueError, TypeError):
+                    return None
+    return None
+
+
 def approve_proposal(db: Session, principal: Principal, proposal_id: uuid.UUID) -> dict:
     """Execute a PENDING proposal after explicit human approval."""
     # FOR UPDATE: serialize concurrent approvals of the same row so two clicks/devices
@@ -1309,6 +1323,19 @@ def approve_proposal(db: Session, principal: Principal, proposal_id: uuid.UUID) 
     ).with_for_update())
     if not proposal:
         raise NotFoundError("Tool proposal not found.")
+    # Cross-device idempotency: if this already executed here OR — after LWW sync —
+    # on the other device, NEVER run it again. executed_at converges across desktop
+    # (Postgres) and mobile (Supabase), so the slower device sees it and is blocked
+    # with a clear 409 instead of creating a duplicate finance/routine record.
+    if proposal.status == "EXECUTED" or proposal.executed_at is not None:
+        raise ConflictError(
+            "Aksi ini sudah dieksekusi di perangkat lain.",
+            error_code="ALREADY_EXECUTED",
+            details={
+                "executed_at": proposal.executed_at.isoformat() if proposal.executed_at else None,
+                "target_entity_id": str(proposal.target_entity_id) if proposal.target_entity_id else None,
+            },
+        )
     # Retryable while still open (a prior failure left it NEEDS_EDIT/FAILED, not terminal).
     if proposal.status not in ("PENDING", "NEEDS_EDIT", "FAILED"):
         raise ValidationAppError(f"This proposal is already {proposal.status.lower()}.")
@@ -1332,6 +1359,8 @@ def approve_proposal(db: Session, principal: Principal, proposal_id: uuid.UUID) 
     proposal.status = "EXECUTED"
     proposal.error_message = None
     proposal.executed_at = datetime.now(timezone.utc)
+    proposal.executed_by = principal.user_id
+    proposal.target_entity_id = _result_entity_id(result)
     db.flush()
     _audit_call(db, principal, proposal.tool_name, dict(proposal.tool_payload or {}),
                 "approved_executed", {"proposal_id": str(proposal.id)})

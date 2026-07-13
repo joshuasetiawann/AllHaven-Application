@@ -158,6 +158,11 @@ class AiToolProposal(UUIDPrimaryKeyMixin, Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Cross-device idempotency: a non-null executed_at is the authoritative "already
+    # executed" signal (it converges across desktop/mobile via LWW sync); these record
+    # who ran it and the entity it produced.
+    executed_by: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    target_entity_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
