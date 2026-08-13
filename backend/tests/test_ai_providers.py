@@ -5,18 +5,31 @@ import json
 from tests.conftest import API
 
 
-def test_provider_list_has_five_apis_plus_ollama(auth_client):
+def test_provider_list_has_external_apis_plus_ollama(auth_client):
     data = auth_client.get(f"{API}/ai/providers").json()["data"]["providers"]
     ids = {p["id"] for p in data}
-    # Five single external providers + three OpenRouter slots + local Ollama.
+    # Eight direct external providers + six OpenRouter slots + local Ollama.
     assert {
-        "openai", "anthropic", "gemini", "grok", "blackbox",
-        "openrouter_1", "openrouter_2", "openrouter_3", "ollama",
+        "openai", "anthropic", "gemini", "grok", "blackbox", "cursor", "deepseek", "qwen",
+        "openrouter_1", "openrouter_2", "openrouter_3",
+        "openrouter_4", "openrouter_5", "openrouter_6", "ollama",
     }.issubset(ids)
-    assert len(data) == 9
+    assert len(data) == 15
     ollama = next(p for p in data if p["id"] == "ollama")
     assert ollama["external"] is False
     assert ollama["api_key_required"] is False
+    # GPT Agent display name
+    assert next(p for p in data if p["id"] == "openai")["name"] == "GPT Agent"
+    # Every provider exposes selectable model slots: OpenRouter agents are
+    # single-slot; every other provider has two (slot 2 optional/secondary).
+    openrouter_4 = next(p for p in data if p["id"] == "openrouter_4")
+    assert len(openrouter_4["model_slots"]) == 1
+    anthropic = next(p for p in data if p["id"] == "anthropic")
+    assert [s["slot"] for s in anthropic["model_slots"]] == [1, 2]
+    assert anthropic["model_slots"][1]["configured"] is False  # no secondary model yet
+    cursor = next(p for p in data if p["id"] == "cursor")
+    assert [s["slot"] for s in cursor["model_slots"]] == [1, 2]
+    assert cursor["configured"] is False  # needs an explicit compatible base URL + key
 
 
 def test_ollama_configurable_without_api_key(auth_client):
@@ -88,6 +101,36 @@ def test_local_ollama_not_blocked_by_external_gate(auth_client):
     assert data["blocked"] is False
     assert data["ai_configured"] is False
     assert "not configured" in data["reply"]["content"].lower()
+
+
+def test_configured_local_provider_is_enabled_before_any_row_exists(auth_client, monkeypatch):
+    """A fresh workspace must treat a configured local provider as enabled.
+
+    The row default in _get_or_create_row is `enabled=not spec.external`, so the
+    no-row path has to agree. It used to hardcode False, which made a working
+    Ollama answer "configured but disabled" until the user saved any setting.
+    """
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434", raising=False)
+
+    ollama = next(p for p in auth_client.get(f"{API}/ai/providers").json()["data"]["providers"]
+                  if p["id"] == "ollama")
+    assert ollama["configured"] is True
+    assert ollama["enabled"] is True
+
+    # External providers stay off until the user turns them on, row or not.
+    openai = next(p for p in auth_client.get(f"{API}/ai/providers").json()["data"]["providers"]
+                  if p["id"] == "openai")
+    assert openai["enabled"] is False
+
+
+def test_db_status_names_the_engine_actually_connected(auth_client):
+    """Never claim "PostgreSQL — Connected" for a different engine (tests: SQLite)."""
+    integrations = auth_client.get(f"{API}/settings/integrations").json()["data"]["integrations"]
+    pg = next(i for i in integrations if i["key"] == "postgresql")
+    assert pg["status"] == "online"
+    assert "sqlite" in pg["detail"].lower()
 
 
 def test_provider_disable_sets_disabled(auth_client):

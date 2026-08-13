@@ -35,11 +35,16 @@ class _FakeClient:
 
 def test_private_integration_urls_default_to_local_only():
     assert Settings(APP_ENV="local").integration_private_urls_allowed is True
-    assert Settings(APP_ENV="production", SECRET_KEY="x" * 48).integration_private_urls_allowed is False
+    assert Settings(
+        APP_ENV="production",
+        SECRET_KEY="x" * 48,
+        SETTINGS_ENCRYPTION_KEY="y" * 48,
+    ).integration_private_urls_allowed is False
     assert (
         Settings(
             APP_ENV="production",
             SECRET_KEY="x" * 48,
+            SETTINGS_ENCRYPTION_KEY="y" * 48,
             ALLOW_PRIVATE_INTEGRATION_URLS=True,
         ).integration_private_urls_allowed
         is True

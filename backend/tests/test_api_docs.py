@@ -16,6 +16,7 @@ def test_api_docs_disabled_in_production_by_default(monkeypatch):
     prod_settings = Settings(
         APP_ENV="production",
         SECRET_KEY="x" * 48,
+        SETTINGS_ENCRYPTION_KEY="y" * 48,
         DATABASE_URL="sqlite+pysqlite:///:memory:",
     )
     monkeypatch.setattr(main_module, "settings", prod_settings)
@@ -32,6 +33,7 @@ def test_api_docs_can_be_explicitly_enabled_in_production(monkeypatch):
     prod_settings = Settings(
         APP_ENV="production",
         SECRET_KEY="x" * 48,
+        SETTINGS_ENCRYPTION_KEY="y" * 48,
         API_DOCS_ENABLED=True,
         DATABASE_URL="sqlite+pysqlite:///:memory:",
     )

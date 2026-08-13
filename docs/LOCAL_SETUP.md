@@ -11,19 +11,27 @@ Run the whole app (backend + frontend + PostgreSQL) on your machine.
 ### Linux / macOS
 ```bash
 # One command: sets up + runs backend and frontend.
-./scripts/start.sh          # (delegates to ./allhaven.sh run)
+./setup/linux-macos/start.sh          # (delegates to ./allhaven.sh run)
 # Stop:
-./scripts/stop.sh
+./setup/linux-macos/stop.sh
 # Health check (backend, frontend, database):
-./scripts/healthcheck.sh
+./setup/linux-macos/healthcheck.sh
 ```
 The start script prints both a `localhost` URL and your **LAN URL**, so phones/tablets
 on the same Wi-Fi can open it too (the API auto-follows the host — no rebuild).
 
 ### Windows
 ```bat
-scripts\start.bat
-scripts\stop.bat
+AllHaven.bat
+```
+The control panel starts, stops, and inspects the whole stack in Docker — no
+Python or Node needed on the machine. `AllHaven-Setup.exe` does the same and
+also installs Docker Desktop for you.
+
+Developing on Windows and want the servers running natively instead?
+```bat
+setup\windows\dev-start.bat
+setup\windows\dev-stop.bat
 ```
 
 ## Manual path (any OS)
@@ -49,7 +57,7 @@ npm run dev                 # http://localhost:3000
 ## Configuring providers & integrations
 Everything is configured in the web UI (encrypted, server-side):
 - **Settings → AI Providers** — Ollama / OpenAI / Claude / Gemini / Grok / Blackbox /
-  OpenRouter 1-3. Paste a key, **Test Connection** → Online (only after a real check).
+  OpenRouter 1-6. Paste a key, **Test Connection** → Online (only after a real check).
 - **Settings → Connected Tools** — PostgreSQL, Supabase, n8n, Google, Weather, Drive.
 - **Settings → Privacy & Safety** — turn ON *Allow external AI providers* to chat with
   cloud models (OFF by default for privacy).

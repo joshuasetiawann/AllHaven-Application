@@ -121,13 +121,11 @@ export default function SystemControl() {
   if (error && !status) return <ErrorState message={error} onRetry={refresh} />;
   if (!status) return <Loading label="Loading system status…" />;
 
-  const agentDown = !status.agent.running;
+  const agentDown = status.control_enabled && !status.agent.running;
   const totalServices = status.services.length;
   const runningServices = status.services.filter((s) => s.status === "running").length;
   const stoppedServices = status.services.filter((s) => s.status === "stopped").length;
-  const attentionServices = status.services.filter(
-    (s) => s.status === "error" || s.status === "unavailable" || s.status === "unknown",
-  ).length;
+  const attentionServices = status.services.filter((s) => s.status !== "running").length;
 
   return (
     <div className="space-y-5">
@@ -171,13 +169,26 @@ export default function SystemControl() {
         <div className="glass-tile p-[18px]">
           <div className="mb-2.5 flex items-center justify-between">
             <span className="label-mono">Control agent</span>
-            <Terminal size={15} className={status.agent.running ? "text-success-soft" : "text-warning"} />
+            <Terminal
+              size={15}
+              className={status.agent.running ? "text-success-soft" : status.control_enabled ? "text-warning" : "text-content-subtle"}
+            />
           </div>
           <p className="text-[22px] font-semibold leading-none text-content">
-            {status.agent.running ? "Online" : "Offline"}
+            {status.agent.running ? "Online" : status.control_enabled ? "Offline" : "Not used"}
           </p>
-          <p className={cn("mt-3 truncate text-[11.5px]", status.agent.running ? "text-success-soft" : "text-warning")} title={status.agent.message}>
-            {status.agent.running ? "Start / Stop / Restart available" : "Launcher not detected"}
+          <p
+            className={cn(
+              "mt-3 truncate text-[11.5px]",
+              status.agent.running ? "text-success-soft" : status.control_enabled ? "text-warning" : "text-content-subtle",
+            )}
+            title={status.agent.message}
+          >
+            {status.agent.running
+              ? "Start / Stop / Restart available"
+              : status.control_enabled
+                ? "Launcher not detected"
+                : "Read-only deployment"}
           </p>
         </div>
       </div>

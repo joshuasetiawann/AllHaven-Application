@@ -1,5 +1,18 @@
 import type { Metadata, Viewport } from "next";
+import { connection } from "next/server";
+import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { PreferenceHydrator } from "@/components/layout/PreferenceHydrator";
+import { AppDialogProvider } from "@/components/ui/AppDialog";
+import { ToastProvider } from "@/components/ui/Toast";
 import "./globals.css";
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+  display: "swap",
+});
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
   title: "AllHaven Command Center",
@@ -11,22 +24,27 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#0a0b0e",
+  themeColor: "#06070E",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Nonces are per request, so the web production build must render documents
+  // dynamically. The Capacitor target remains a fully static export and has no
+  // HTTP response headers/middleware to nonce.
+  if (process.env.NODE_ENV === "production" && process.env.BUILD_TARGET !== "mobile") {
+    await connection();
+  }
+
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* Inter for UI, Geist / Geist Mono for technical labels (graceful fallback). */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body>{children}</body>
+    <html lang="en" className={`${geist.variable} ${geistMono.variable} ${inter.variable}`}>
+      <body>
+        <ToastProvider>
+          <AppDialogProvider>
+            <PreferenceHydrator />
+            {children}
+          </AppDialogProvider>
+        </ToastProvider>
+      </body>
     </html>
   );
 }

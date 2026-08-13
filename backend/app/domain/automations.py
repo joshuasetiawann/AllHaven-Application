@@ -7,8 +7,9 @@ disabled-safe drafts. n8n connection status is reported honestly via Settings.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Boolean, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, JSONType, TimestampMixin, UUIDPrimaryKeyMixin
@@ -17,8 +18,12 @@ from app.domain.base import GUID, Base, JSONType, TimestampMixin, UUIDPrimaryKey
 class Automation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "automations"
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False
+    )
 
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -29,3 +34,4 @@ class Automation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

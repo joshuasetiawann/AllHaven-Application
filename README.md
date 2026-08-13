@@ -1,230 +1,500 @@
+<div align="center">
+
+![AllHaven Command Center](docs/assets/banner.svg)
+
 # AllHaven Command Center
 
-A modular **AI command center dashboard** for personal and company productivity.
+**A local-first AI command center for personal productivity, workspace memory, finance tracking, routines, notes, and human-approved AI actions.**
 
-> AllHaven is **not** an operating system. It is a local-first web application (FastAPI + Next.js)
-> that combines tasks, notes, finance tracking, and an AI assistant — where **the AI proposes and
-> humans approve** every write action.
+The desktop app owns the private backend. The Android APK is the mobile companion: it can run core workspace features through Supabase, and only uses the desktop bridge for local services such as Ollama and n8n.
 
-This repository is a complete, runnable **local MVP**.
+[![Version](https://img.shields.io/badge/version-4.3.0%20%7C%20AllHaven%204.3-18E0D6?style=flat-square)](CHANGELOG.md)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
+![Next.js 15](https://img.shields.io/badge/Next.js%2015-000000?style=flat-square&logo=nextdotjs&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-mobile%20data-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
+![Android](https://img.shields.io/badge/Android-APK-3DDC84?style=flat-square&logo=android&logoColor=white)
 
-**Version:** see [`VERSION`](VERSION) · what changed each release: [`CHANGELOG.md`](CHANGELOG.md)
-· how versions work: [`docs/VERSIONING.md`](docs/VERSIONING.md) · per-release notes: [`docs/releases/`](docs/releases/)
+[Quick Start](#quick-start) | [Mobile APK](#mobile-apk) | [Features](#features) | [Docs](#documentation) | [Changelog](CHANGELOG.md)
 
----
-
-## Highlights
-
-- **FastAPI** backend with a clean layered architecture (api → schemas → services → domain → core)
-- **PostgreSQL** + **SQLAlchemy 2.x** + **Alembic** migration
-- Standard success/error response envelopes and centralized exception handling
-- Local MVP **auth boundary** (register / login / me) — replaceable by Supabase Auth
-- **Workspace-scoped** business data, **soft deletes**, and **audit logging**
-- Tasks, Notes, Finance (categories, transactions, monthly summary) CRUD
-- **Multi-agent AI chat**: run up to **3 agents concurrently**, each answering in its own card
-- **9 AI providers**: Ollama (local) + GPT, Claude, Gemini, Grok, Blackbox, and **3 independent OpenRouter slots**
-- **Human-in-the-loop AI**: honest "not configured" responses, no fake execution
-- Honest **integration status** & **real verification** (online only after a successful test; no faked connections, no secret leakage)
-- **Local `.env` mirror**: web Settings persist to the DB and mirror allowed keys to `.env` (allowlist + backup + atomic write)
-- **MVP modules**: Drive (local files), Calendar (local events), Weather (honest fetch), Automations (disabled-safe drafts)
-- **Next.js (App Router)** + **TypeScript** + **Tailwind** premium dark UI, responsive, wired to the API
+</div>
 
 ---
 
-## Project structure
+## Status
 
+**Current release:** `v4.3.0`
+
+AllHaven is not an operating system. It is a complete web application with:
+
+- a **FastAPI** backend;
+- a **Next.js** frontend;
+- a **PostgreSQL** local database;
+- an optional **Supabase** cloud data layer for mobile;
+- a **Capacitor Android APK** build;
+- local/remote AI provider integrations with honest status checks.
+
+### What changed in 4.3
+
+- A full application audit found ten issues. All ten are fixed and retested, along with the extra defects an adversarial closure review turned up.
+- Secrets are re-encrypted with versioned AES-256-GCM envelopes, and a CLI rotates them (`python -m app.cli.rotate_secrets`).
+- Uploads and document parsers now enforce their limits *before* allocating memory — DOCX and PDF can no longer be used to exhaust the backend.
+- Mobile credentials live in the iOS Keychain / Android Keystore instead of plain preferences, migrated automatically on upgrade.
+- Script CSP dropped `unsafe-inline`; logout actually revokes bearer tokens; session refresh can't be replayed.
+- Fake status signals removed: System Control no longer reports healthy containers as stopped, and no screen claims success on a failed or disabled operation.
+- Deleting a task now asks first, and `127.0.0.1` works as a login origin again.
+- Repository structure tidied — audit reports out of the root, `docs/v4/` dissolved, `docs/deploy/` renamed to `docs/sql/`.
+
+Read more: [release notes](docs/releases/v4.3.0.md). **Run `alembic upgrade head`** before starting 4.3.0.
+
+---
+
+## Product Model
+
+| Surface | Purpose | Data path |
+| --- | --- | --- |
+| **Desktop web app** | Full command center, local backend, local PostgreSQL, provider settings, system controls. | Browser -> FastAPI -> PostgreSQL/local services |
+| **Android APK** | Mobile workspace for tasks, notes, finance, routines, approvals, memory, and AI chat UI. | APK -> Supabase for core data; optional bridge to desktop backend |
+| **Backend Bridge** | Lets mobile reach desktop-only/local resources. | APK -> LAN/Tailscale/Serve URL -> FastAPI |
+| **Ollama / n8n** | Remain desktop/local services by design. | Requires LAN or Tailscale bridge from mobile |
+
+The mobile target is intentionally different from desktop: core workspace data should work without Tailscale, while local-only services use the bridge only when needed.
+
+---
+
+## Preview
+
+<div align="center">
+
+![AllHaven dashboard](docs/assets/screenshot-dashboard.png)
+
+<sub>Dashboard: workspace status, finance, tasks, notes, approvals, and integration health.</sub>
+
+![Multi-agent AI chat](docs/assets/screenshot-ai-chat.png)
+
+<sub>AI Chat: multi-agent runs, memory context, human approvals, and honest provider status.</sub>
+
+</div>
+
+---
+
+## Features
+
+### Workspace
+
+- Dashboard overview with monthly cashflow, pending work, and integration status.
+- Tasks with checklist support, completion/reopen flow, and AI-generated drafts.
+- Notes and knowledge entries with edit/save support.
+- Routine planner for daily schedules and recurring plans.
+- Finance tracking for categories, transactions, summaries, and reports.
+- Approval center for AI-proposed write actions.
+
+### AI
+
+- Multi-agent chat with up to **10 agents**.
+- Modes: single, parallel, debate, and reasoning.
+- Providers: Ollama, OpenAI/GPT, Claude, Gemini, Grok, Blackbox, Cursor-compatible gateways, DeepSeek, Qwen, and six OpenRouter agents.
+- AI Memory with controlled current facts and memory suggestions.
+- AI Knowledge document upload/search for local context.
+- Tool registry with human approval for risky writes.
+
+### Mobile
+
+- Android APK built from the same AllHaven UI through Capacitor.
+- Supabase Auth/data mode for core mobile workflows.
+- Backend Bridge URL can be changed inside the app; no rebuild required.
+- Supports LAN, Tailscale private IP, MagicDNS, or Tailscale Serve.
+- Ollama and n8n are optional bridge features, not requirements for login/core data.
+
+### Safety
+
+- No fake online states: integrations are online only after real test calls.
+- Risky AI writes require human approval.
+- API keys stay server-side and are shown masked.
+- User content uses workspace scoping and soft-delete patterns.
+- Local `.env` mirroring is allowlisted and writes atomically with backups.
+
+---
+
+## Architecture
+
+```text
+AllHaven-Application/
+|-- backend/                  FastAPI, SQLAlchemy, Alembic, services, tests
+|-- frontend/                 Next.js app, Capacitor Android project
+|-- docs/                     living guides: setup, mobile, deployment, security
+|   |-- releases/             per-version release notes (vX.Y.Z.md)
+|   `-- reports/              audits, QA, and remediation records
+|-- installer/                cross-platform install/start helpers (Python)
+|-- setup/
+|   |-- linux-macos/          start, stop, doctor, healthcheck
+|   `-- windows/              setup wizard + control panel, .exe and installer builds
+|-- deploy/                   Caddyfile and server deploy script
+|-- docker-compose.yml            local PostgreSQL only (native backend/frontend)
+|-- docker-compose.local.yml      full stack in Docker Desktop
+|-- docker-compose.prod.yml       full stack + Caddy auto-HTTPS (needs a domain)
+|-- docker-compose.prod.local.yml production stack on localhost, no domain
+|-- install.sh / install.bat      first-time setup (Linux+macOS / Windows)
+|-- allhaven.sh / AllHaven.bat    everyday launcher / control panel
+`-- README.md
 ```
-CORE-OS-APPLICATION/
-├── README.md
-├── .env.example
-├── docker-compose.yml          # PostgreSQL (optional services documented only)
-├── docs/                       # ARCHITECTURE, MVP_SCOPE, SECURITY_MODEL, AI_TOOL_POLICY
-├── backend/                    # FastAPI app, Alembic, tests
-│   ├── app/
-│   │   ├── api/                # routers + dependencies
-│   │   ├── core/               # config, db, security, responses, exceptions
-│   │   ├── domain/             # SQLAlchemy models
-│   │   ├── schemas/            # Pydantic contracts
-│   │   └── services/           # business logic + audit + integrations
-│   ├── alembic/                # migration environment + versions
-│   └── tests/                  # pytest suite (SQLite, no external services)
-└── frontend/                   # Next.js App Router UI
-    ├── app/                    # routes (login, dashboard/*)
-    ├── components/             # ui/ + layout/
-    ├── lib/                    # api client, auth, formatting
-    └── types/
+
+`docs/` holds the living guides at its root, plus `releases/` for per-version
+release notes, `reports/` for point-in-time audits and QA records, `sql/` for
+Supabase SQL editor scripts, `assets/` for screenshots, and `design/` for design
+handoffs.
+
+```text
+Data layout — three supported modes, chosen during setup:
+  both      local PostgreSQL is the database, mirrored to Supabase every 15s
+  local     local PostgreSQL only, nothing leaves the machine
+  supabase  the Supabase project IS the database; nothing to mirror
+```
+
+Runtime overview:
+
+```text
+Desktop browser -> Next.js dev/server -> FastAPI -> PostgreSQL
+Android APK     -> static Next.js bundle -> Supabase
+Android bridge  -> LAN/Tailscale/Serve URL -> FastAPI -> Ollama/n8n/local tools
 ```
 
 ---
 
-## Prerequisites
+## Quick Start
 
-- **Python** 3.11+
-- **Node.js** 18+ (tested on 22)
-- **PostgreSQL** 14+ — via Docker Compose **or** a local install
+### Requirements
+
+- Python `3.11+`
+- Node.js `18+` for desktop; Node `22+` recommended for Capacitor 8 APK builds
+- PostgreSQL `14+` or Docker
+- Optional: Ollama, n8n, Supabase project, Android SDK/JDK 21 for APK builds
+
+### One-command local install
+
+```bash
+git clone https://github.com/joshuasetiawann/AllHaven-Application.git
+cd AllHaven-Application
+./install.sh
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+### Daily commands
+
+| Task | Command |
+| --- | --- |
+| Start everything in background | `./allhaven.sh start` |
+| Run in foreground | `./allhaven.sh run` |
+| Restart everything | `./allhaven.sh restart` |
+| Restart one service | `./allhaven.sh restart backend` or `./allhaven.sh restart frontend` |
+| Stop app services | `./allhaven.sh stop` |
+| Check status | `./allhaven.sh status` |
+| Diagnose setup | `./setup/linux-macos/doctor.sh` |
+
+Full guide: [Desktop setup](docs/DESKTOP_SETUP.md) and [Local setup](docs/LOCAL_SETUP.md).
 
 ---
 
-## Quick start
+## Run everything in Docker (Docker Desktop)
 
-> **Fastest:** `./scripts/start.sh` (Linux/macOS) or `scripts\start.bat` (Windows) starts
-> backend + frontend. `./scripts/healthcheck.sh` verifies them. Full guide:
-> [`docs/LOCAL_SETUP.md`](./docs/LOCAL_SETUP.md). Deploy: [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
-> Release status: [`docs/RELEASE_CHECKLIST.md`](./docs/RELEASE_CHECKLIST.md).
+Whole stack in containers — Postgres, backend, frontend. No Python or Node needed
+on the host. Migrations run automatically on backend start.
 
-### Manual
+```bash
+cp .env.example .env      # then set SECRET_KEY and SETTINGS_ENCRYPTION_KEY
+docker compose -f docker-compose.local.yml up -d --build
+```
 
-### 1) Configure environment
+Open `http://localhost:3000` (API at `http://localhost:8000/api/v1`).
+
+| Task | Command |
+| --- | --- |
+| Status | `docker compose -f docker-compose.local.yml ps` |
+| Logs | `docker compose -f docker-compose.local.yml logs -f backend` |
+| Stop | `docker compose -f docker-compose.local.yml down` |
+| Reset the database | `docker compose -f docker-compose.local.yml down -v` |
+| Rebuild after code changes | `docker compose -f docker-compose.local.yml up -d --build` |
+
+Notes:
+
+- Port 5432 busy? Set `POSTGRES_HOST_PORT=5433` in `.env`.
+- Ollama stays on the host; the backend reaches it at `host.docker.internal:11434`.
+- `SYSTEM_CONTROL_ENABLED` is forced off — the Start/Stop controls in Settings
+  need the host agent, which does not exist inside a container. Use the
+  `docker compose` commands above instead.
+- This is the local profile (HTTP, no domain). For a server with a real domain
+  and auto-HTTPS use `docker-compose.prod.yml` — see [Deployment](docs/DEPLOYMENT.md).
+
+---
+
+## Manual Setup
+
+Use this only when you do not want the installer.
 
 ```bash
 cp .env.example .env
-# Edit .env and set a strong SECRET_KEY.
-```
-
-The backend also reads `.env` from the `backend/` directory. The simplest setup is to copy
-the same file there:
-
-```bash
-cp .env backend/.env
-```
-
-### 2) Start PostgreSQL
-
-**Option A — Docker (recommended):**
-
-```bash
 docker compose up -d postgres
 ```
 
-**Option B — Local PostgreSQL:** create a database/user that matches your `.env`
-(default user `allhaven`, password `allhaven`, database `allhaven`).
-
-### 3) Backend
+Backend:
 
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
-
-# Apply the database schema
 alembic upgrade head
-
-# Run the API (http://localhost:8000, docs at /docs)
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Health check: <http://localhost:8000/api/v1/health>
-
-### 4) Frontend
-
-In a second terminal:
+Frontend:
 
 ```bash
 cd frontend
-cp .env.local.example .env.local   # points at http://localhost:8000/api/v1
+cp .env.local.example .env.local
 npm install
-npm run dev                        # http://localhost:3000
+npm run dev
 ```
 
-Open <http://localhost:3000>, register an account, and you're in.
-
----
-
-## Testing & verification
+Health check:
 
 ```bash
-# Backend tests (uses in-memory SQLite — no external services needed)
-cd backend && source .venv/bin/activate && pytest
-
-# Frontend production build
-cd frontend && npm run build
+curl http://localhost:8000/api/v1/health
 ```
 
 ---
 
-## API overview (prefix `/api/v1`)
+## Mobile APK
 
-| Area     | Endpoints |
-|----------|-----------|
-| Health   | `GET /health` |
-| Auth     | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
-| Tasks    | `GET/POST /tasks`, `GET/PATCH/DELETE /tasks/{id}` |
-| Notes    | `GET/POST /notes`, `GET/PATCH/DELETE /notes/{id}` |
-| Finance  | `GET/POST /finance/categories`, `PATCH/DELETE /finance/categories/{id}`, `GET/POST /finance/transactions`, `GET/PATCH/DELETE /finance/transactions/{id}`, `GET /finance/summary` |
-| AI       | `GET/POST /ai/sessions`, `GET /ai/sessions/{id}`, `GET /ai/sessions/{id}/messages`, `POST /ai/chat`, **`POST /ai/chat/multi`**, **`GET /ai/runs/{id}`**, `GET /ai/proposals`, `POST /ai/proposals/{id}/reject` |
-| AI config| `GET /ai/providers`, `PUT /ai/providers/{id}`, `POST /ai/providers/{id}/test\|enable\|disable`, `GET/PUT /ai/policy` |
-| Settings | `GET /settings/integrations`, `PUT /settings/integrations/{id}`, `POST /settings/integrations/{id}/test\|enable\|disable` |
-| Calendar | `GET/POST /calendar/events`, `PUT/DELETE /calendar/events/{id}` |
-| Drive    | `GET/POST /drive/files`, `GET /drive/files/{id}/download`, `DELETE /drive/files/{id}` |
-| Automations | `GET/POST /automations`, `PUT/DELETE /automations/{id}` |
-| Weather  | `GET/POST /weather/locations`, `DELETE /weather/locations/{id}`, `GET /weather/current` |
+The APK is the existing AllHaven UI packaged with Capacitor. It is not a separate redesign.
 
-All endpoints (except health and auth register/login) require a bearer token.
-
----
-
-## Multi-agent AI, modules & `.env` sync
-
-- **Multi-agent chat** (`POST /ai/chat/multi`): send one message to up to **3 agents** at once
-  (`provider_ids: [...]`, max 3 — more returns HTTP 422). Agents run concurrently; one agent
-  failing never fails the others. Each result is persisted (`ai_multi_agent_runs` /
-  `ai_agent_responses`) with an honest per-agent status: `completed`, `error`, `not_configured`,
-  `disabled`, or `blocked` (external disabled by policy).
-- **Three OpenRouter agents** (`openrouter_1/2/3`): each has its own API key, default model,
-  status, and `OPENROUTER_{1,2,3}_API_KEY` / `_DEFAULT_MODEL` env keys.
-- **Real verification**: saving a key sets status `configured` — never `online`. `online`
-  requires a successful Test Connection. Random/invalid keys fail; OpenRouter is verified via its
-  authenticated `/key` endpoint (its `/models` is public); Blackbox stays `configured` (no honest
-  verification endpoint); Ollama is `online` only when `/api/tags` responds.
-- **`.env` mirror**: the database is the runtime source of truth. In local mode, saving allowed
-  keys in the web UI also mirrors them to the repo-root `.env` (timestamped `.env.bak.<ts>` backup,
-  atomic write, `chmod 600`). Only an **allowlist** of keys is ever written — arbitrary keys are
-  rejected. Each save response includes an `env_sync` status (`success` / `failed` / `skipped`).
-  Inspect with `cat .env` and `ls -lh .env.bak.*`.
-- **Modules**: Drive stores file bytes under a local storage root (metadata in `drive_files`,
-  path-traversal blocked); Calendar/Automations/Weather-locations persist in PostgreSQL; Weather
-  returns `setup_required` until a Weather API key is configured (never faked data). AllHaven does
-  **not** execute automations — they are disabled-safe drafts.
-
-### Ollama (local AI) setup
+### Build debug APK
 
 ```bash
-# Install from https://ollama.com, then:
-ollama serve                 # starts the local server on :11434
-ollama pull llama3.1         # pull a model (only when you choose to)
-curl http://localhost:11434/api/tags   # verify; this is what Test Connection calls
+cd frontend
+NEXT_PUBLIC_API_BASE_URL=http://<desktop-ip>:8000/api/v1 \
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co \
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key> \
+npm run build:mobile
+
+npx cap sync android
+cd android
+./gradlew assembleDebug
 ```
-Set `OLLAMA_BASE_URL=http://localhost:11434` (and optionally `OLLAMA_DEFAULT_MODEL`) in `.env`,
-or configure it in **Settings → AI Providers**.
 
-### Known limitations
+Output:
 
-- The `.env` mirror is process/host-global; with multiple workspaces, the last save wins for a
-  given key (the DB remains per-workspace and authoritative).
-- Changing process-level settings (DB URL, CORS) still needs a backend restart; live provider keys
-  use the DB immediately.
-- Multi-agent fan-out uses a thread pool (sync provider adapters); agents share a per-run timeout.
-- Automations are never executed; n8n/Google statuses are reported honestly but no workflow runs.
+```text
+frontend/android/app/build/outputs/apk/debug/app-debug.apk
+```
 
----
+### Mobile connection rules
 
-## Trust & safety model
+- Login/core data use Supabase in the mobile build.
+- If the bridge is unreachable, tasks/notes/finance/routines that are Supabase-backed should still work.
+- Ollama and n8n require the desktop bridge.
+- If `http://100.x.y.z:8000/api/v1/health` fails in Chrome on the phone, the APK cannot reach that backend either.
+- Prefer Tailscale Serve (`https://name.tailnet.ts.net`) when raw `100.x` IP access is blocked.
 
-- The AI **never** creates, updates, or deletes data on its own. It can only propose; a human approves.
-- Approval/execution of AI proposals is **intentionally not implemented** in this MVP.
-- Finance is **cashflow tracking only** — never financial advice, never money movement.
-- Integrations show an honest **"not configured"** state instead of faking a connection.
-- Business data is always **workspace-scoped**; the client can never supply its own `workspace_id`.
-- User content is **soft-deleted**; meaningful actions are written to an append-only **audit log**.
-
-See [`docs/`](./docs) for architecture, scope, security model, and AI tool policy.
+Full guide: [Mobile APK guide](docs/MOBILE.md) and [Tailscale setup](docs/TAILSCALE_SETUP.md).
 
 ---
 
-## Notes on the local auth implementation
+## Configuration
 
-For a reliable one-shot local build, password hashing (PBKDF2-HMAC-SHA256) and JWT (HS256)
-are implemented with the Python standard library in `backend/app/core/security.py`. They are
-isolated behind the auth boundary and documented as replaceable by bcrypt / Supabase Auth in
-production (see `docs/SECURITY_MODEL.md`).
+Most local settings live in `.env`.
+
+Important keys:
+
+| Key | Purpose |
+| --- | --- |
+| `APP_ENV=local` | Enables local/private development behavior. |
+| `DATABASE_URL` | PostgreSQL connection string. |
+| `SECRET_KEY` | Backend auth signing secret. |
+| `SUPABASE_URL` | Supabase project URL. |
+| `SUPABASE_ANON_KEY` | Public anon key for Supabase clients. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase admin/sync key. Never expose in frontend. |
+| `SUPABASE_JWT_SECRET` | Lets desktop backend verify Supabase bearer tokens. |
+| `OLLAMA_BASE_URL` | Local/Tailscale Ollama endpoint. |
+| `N8N_BASE_URL` | Local/Tailscale n8n endpoint. |
+
+See [.env.example](.env.example) for the full template.
+
+---
+
+## AI Providers
+
+AllHaven supports:
+
+| Provider | Notes |
+| --- | --- |
+| Ollama | Local/private models on your machine. |
+| OpenAI / GPT | Cloud models through OpenAI-compatible APIs. |
+| Claude | Anthropic models. |
+| Gemini | Google models. |
+| Grok | xAI models. |
+| Blackbox | Coding-focused provider. |
+| Cursor-compatible | OpenAI-compatible gateway slot. |
+| DeepSeek | Chat/coding/reasoning models. |
+| Qwen | Alibaba DashScope/OpenAI-compatible models. |
+| OpenRouter 1-6 | Six independent agents with separate keys/models. |
+
+Provider status is honest:
+
+- `configured` means credentials/settings are saved.
+- `online` means Test Connection actually succeeded.
+- invalid keys stay offline.
+- Ollama is online only when `/api/tags` responds.
+
+---
+
+## API Overview
+
+All API routes use the `/api/v1` prefix.
+
+| Area | Examples |
+| --- | --- |
+| Health | `GET /health` |
+| Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
+| Tasks | `GET/POST /tasks`, `PATCH/DELETE /tasks/{id}` |
+| Notes | `GET/POST /notes`, `PATCH/DELETE /notes/{id}` |
+| Finance | categories, transactions, summaries, reports |
+| Routine | `GET/POST /routines/events`, `PUT/DELETE /routines/events/{id}` |
+| AI Chat | sessions, messages, multi-agent runs |
+| AI Memory | memories, settings, suggestions |
+| AI Knowledge | documents, indexing, search |
+| Settings | integrations, AI providers, bridge/system controls |
+| Drive | file metadata, upload, download, delete |
+| Automations | local draft workflows and n8n bridge status |
+
+Interactive API docs are enabled only in local mode.
+
+---
+
+## Testing
+
+Backend:
+
+```bash
+cd backend
+source .venv/bin/activate
+pytest
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm run build
+```
+
+Mobile export:
+
+```bash
+cd frontend
+npm run build:mobile
+```
+
+Security and setup checks:
+
+```bash
+./setup/linux-macos/doctor.sh
+./setup/linux-macos/healthcheck.sh
+```
+
+---
+
+## Troubleshooting
+
+### Mobile login says "Something went wrong"
+
+Rebuild the APK with:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_DATA_MODE=supabase` (already set by `npm run build:mobile`)
+
+Then uninstall the old APK or clear app data before installing the new build.
+
+### Phone cannot open backend URL
+
+If Chrome on the phone cannot open:
+
+```text
+http://<desktop-ip>:8000/api/v1/health
+```
+
+the APK cannot open it either. Check:
+
+- backend is running with `--host 0.0.0.0`;
+- phone and desktop are on the same Wi-Fi or same tailnet;
+- firewall allows port `8000`;
+- Tailscale is connected on both devices;
+- the selected URL includes `/api/v1` or lets AllHaven append it.
+
+### Port 5432 is already in use
+
+AllHaven can reuse a native/local PostgreSQL. To run its container on another host port:
+
+```bash
+POSTGRES_HOST_PORT=5433 docker compose up -d postgres
+```
+
+Then update `.env` accordingly.
+
+### Broken Python venv
+
+```bash
+cd backend
+mv .venv ".venv.broken.$(date +%s)"
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/alembic upgrade head
+```
+
+---
+
+## Documentation
+
+| Document | Purpose |
+| --- | --- |
+| [Desktop setup](docs/DESKTOP_SETUP.md) | Beginner install and launcher guide. |
+| [Mobile guide](docs/MOBILE.md) | APK build, Backend Bridge, and Android notes. |
+| [Tailscale setup](docs/TAILSCALE_SETUP.md) | Private bridge setup for phone to desktop. |
+| [Deployment](docs/DEPLOYMENT.md) | Production hosting notes. |
+| [Architecture](docs/ARCHITECTURE.md) | System architecture and module boundaries. |
+| [Security model](docs/SECURITY_MODEL.md) | Auth, secrets, approvals, and trust boundaries. |
+| [AI tool policy](docs/AI_TOOL_POLICY.md) | Tool registry and human approval rules. |
+| [Supabase migration](docs/SUPABASE_MIGRATION.md) | Applying migrations to a hosted Supabase project. |
+| [Versioning & downloads](docs/DOWNLOADS.md) | Where the version lives and how artifacts are named. |
+| [Release notes 4.3](docs/releases/v4.3.0.md) | Current release details. |
+| [Audits & reports](docs/reports/) | Security audits, feature audits, QA and remediation records. |
+
+---
+
+## Branches
+
+| Branch | Role |
+| --- | --- |
+| `main` | Current primary release branch. |
+| `master` | Kept aligned with `main` for compatibility. |
+| `mobile` | Kept aligned with `main`; useful for APK/mobile-focused workflows. |
+
+All three release branches should point at AllHaven 4.3 content.
+
+---
+
+## License
+
+Copyright (c) 2026 Joshua Setiawan. All rights reserved.
+
+AllHaven Command Center, including its source code, design, and documentation, is the intellectual property of Joshua Setiawan. See [LICENSE](LICENSE) for terms.
+
+<div align="center">
+<sub>Built with FastAPI, Next.js, PostgreSQL, Supabase, and Capacitor.</sub>
+</div>

@@ -1,43 +1,53 @@
-// Single source of truth for the AllHaven backend base URL (the REST API root,
-// which ends in /api/v1). The value is resolved PER REQUEST so a user can
-// repoint the *installed* app at their desktop without a rebuild — this is what
-// makes the mobile APK usable. Inside the Capacitor WebView the page origin is
-// always https://localhost (the phone itself), so a baked-in or derived URL can
-// never reach the desktop; the user must be able to set it at runtime.
+// Single source of truth for the REST API root. Resolution happens per request
+// so an installed app can be repointed at a desktop without rebuilding.
 //
-// Resolution order (highest priority first):
-//   1. User-saved override (Settings → Backend Bridge), kept in localStorage.
-//      This is a NON-SECRET URL only — never a token or key. lib/auth.ts only
-//      scrubs its own keys, so this value survives login/logout. The bearer
-//      token stays in native @capacitor/preferences (see lib/mobileAuth.ts).
-//   2. NEXT_PUBLIC_API_BASE_URL baked at build time (CI APK / hosted web).
-//   3. Browser-derived: same scheme+host as the page on :8000 (desktop dev/LAN).
-//   4. http://localhost:8000/api/v1 (SSR / final fallback).
+// Web/cookie resolution:
+//   saved override -> build-time env -> same-host derived -> localhost fallback
+// Mobile/bearer resolution:
+//   saved non-loopback override -> build-time non-loopback env -> not configured
+//
+// A Capacitor page is served from https://localhost on the phone. Deriving or
+// accepting a loopback backend there would target the phone, not the desktop,
+// and could expose the bearer token to an unrelated local listener.
 
 import { BEARER_MODE } from "@/lib/mobileAuth";
+import {
+  cookieBackendMatchesPage,
+  isPrivateBridgeHostname,
+  isLoopbackHostname,
+  rewriteLoopbackBackendForPage,
+} from "@/lib/backendUrlPolicy";
 
 const OVERRIDE_KEY = "allhaven.backend_base_url";
 
 export type BackendUrlSource = "override" | "env" | "derived" | "fallback" | "not_configured";
 
-/**
- * Normalise whatever the user typed into a usable API root:
- *  - trims and drops trailing slashes,
- *  - tolerates a bare host (no scheme) by assuming http:// (Tailscale IPs),
- *  - ensures it ends in /api/v1 if no /api[/vN] segment is present,
- *  - leaves scheme/host/port intact (http or https, Tailscale IP or MagicDNS).
- * Returns "" for empty input.
- */
-export function normalizeBackendUrl(raw: string): string {
-  let s = (raw || "").trim();
-  if (!s) return "";
-  if (!/^https?:\/\//i.test(s)) s = `http://${s}`;
-  s = s.replace(/\/+$/, "");
-  if (!/\/api(\/v\d+)?$/i.test(s)) s = `${s}/api/v1`;
-  return s;
+export interface BackendUrlResolution {
+  url: string;
+  source: BackendUrlSource;
 }
 
-/** The raw saved override, or "" if none. (Already normalised when saved.) */
+/**
+ * Normalise a user-entered host into an absolute HTTP(S) API root. Network-path
+ * and backslash forms are rejected because browsers can interpret them as a
+ * different host than their text suggests.
+ */
+export function normalizeBackendUrl(raw: string): string {
+  let value = (raw || "").trim();
+  if (!value) return "";
+  if (value.includes("\\") || value.startsWith("/")) return "";
+  if (!/^https?:\/\//i.test(value)) value = `http://${value}`;
+  const parsed = parseAbsoluteHttpUrl(value);
+  if (!parsed || parsed.search || parsed.hash) return "";
+  let pathname = parsed.pathname.replace(/\/+$/, "");
+  if (!/\/api(\/v\d+)?$/i.test(pathname)) {
+    pathname = `${pathname}/api/v1`;
+  }
+  parsed.pathname = pathname;
+  return parsed.href;
+}
+
+/** The raw saved override, or "" if none. */
 export function getBackendOverride(): string {
   if (typeof window === "undefined") return "";
   try {
@@ -47,10 +57,7 @@ export function getBackendOverride(): string {
   }
 }
 
-/**
- * Persist (or clear, when given an empty/whitespace value) the override.
- * Returns the normalised value actually stored ("" when cleared).
- */
+/** Persist an override, or clear it when the input is empty/invalid. */
 export function setBackendOverride(raw: string): string {
   const normalized = normalizeBackendUrl(raw);
   if (typeof window !== "undefined") {
@@ -58,13 +65,12 @@ export function setBackendOverride(raw: string): string {
       if (normalized) window.localStorage.setItem(OVERRIDE_KEY, normalized);
       else window.localStorage.removeItem(OVERRIDE_KEY);
     } catch {
-      /* private-mode / disabled storage — fall back to env/derived resolution */
+      /* private-mode / disabled storage: fall through to env/derived resolution */
     }
   }
   return normalized;
 }
 
-/** Remove the override so resolution falls back to env/derived/localhost. */
 export function clearBackendOverride(): void {
   if (typeof window === "undefined") return;
   try {
@@ -75,78 +81,120 @@ export function clearBackendOverride(): void {
 }
 
 function fromEnv(): string {
-  const v = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (!v || !v.trim()) return "";
-  if (BEARER_MODE && isMobileLocalBackend(v)) return "";
-  return v.trim();
+  const value = process.env.NEXT_PUBLIC_API_BASE_URL;
+  return value && value.trim() ? value.trim() : "";
 }
 
-function derived(): string {
-  // Mobile is served from a local WebView asset server. Deriving from that
-  // origin would point backend calls at the phone, not the desktop. Mobile must
-  // use a saved/built Tailscale bridge URL for REST-only features.
-  if (BEARER_MODE) return "";
-  if (typeof window !== "undefined" && window.location?.hostname) {
-    const { protocol, hostname, port } = window.location;
-    // Dev: the Next server on :3000 talks to the backend on :8000 of the SAME
-    // host (same-site, so the session cookie is sent).
-    if (port === "3000") return `${protocol}//${hostname}:8000/api/v1`;
-    // Otherwise the app is served behind a reverse proxy (e.g. Tailscale Serve,
-    // which routes /api on the SAME origin to the backend). Keep the API base
-    // same-origin so the SameSite=Lax session cookie travels and the dashboard
-    // doesn't bounce back to /login.
-    return `${protocol}//${hostname}${port ? `:${port}` : ""}/api/v1`;
-  }
-  return "";
-}
-
-function isMobileLocalBackend(url: string): boolean {
+function parseAbsoluteHttpUrl(raw: string): URL | null {
+  const value = String(raw || "").trim();
+  if (!/^https?:\/\//i.test(value) || value.includes("\\")) return null;
   try {
-    const host = new URL(normalizeBackendUrl(url)).hostname.toLowerCase();
-    return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host === "::1" || host === "[::1]";
+    const parsed = new URL(value);
+    if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || parsed.username || parsed.password) {
+      return null;
+    }
+    return parsed;
   } catch {
-    return false;
+    return null;
   }
 }
 
-// In COOKIE (web/desktop) mode the HttpOnly session cookie is SameSite=Lax, so the
-// browser only sends it to a SAME-SITE backend. A cross-site base — e.g. the app
-// opened at http://localhost:3000 but pointed (via a saved override OR a baked-in
-// localhost env) at https://host.ts.net — makes /auth/me 401 forever: login
-// succeeds, then the dashboard bounces straight back to /login. Reject any base
-// whose host differs from the page host so resolution falls through to a same-origin
-// derived URL; misconfiguration can then never produce a silent login loop. BEARER
-// (mobile) builds send no cookie, so a cross-origin base is exactly how they reach
-// the desktop and is always kept.
-function sameSiteUsable(url: string): boolean {
-  if (!url) return false;
-  if (BEARER_MODE) return true;
-  if (typeof window === "undefined") return true;
+function safeRootRelativeUrl(raw: string): string {
+  const value = String(raw || "").trim();
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "";
   try {
-    return new URL(url).hostname === window.location.hostname;
+    const sentinel = new URL("http://allhaven.invalid/");
+    const parsed = new URL(value, sentinel);
+    if (parsed.origin !== sentinel.origin || parsed.search || parsed.hash) return "";
+    // The API client appends paths beginning with `/`. A bare `/` base would
+    // produce `//auth/login`, which browsers interpret as a network-path URL to
+    // host `auth`. Require an actual base path and strip trailing separators.
+    return parsed.pathname.replace(/\/+$/, "");
   } catch {
-    return true; // relative / same-origin URL
+    return "";
   }
 }
 
-/** The active API root, resolved fresh on every call (override → env → derived → localhost). */
+function mobileConfiguredUrl(raw: string): string {
+  const parsed = parseAbsoluteHttpUrl(raw);
+  if (!parsed || parsed.search || parsed.hash || isLoopbackHostname(parsed.hostname)) return "";
+  // A native request carries a bearer credential. Permit cleartext only across
+  // the documented private LAN/Tailscale bridge; public and unclassifiable
+  // targets must use HTTPS so the token cannot leave the device in plaintext.
+  if (parsed.protocol === "http:") {
+    // WHATWG URL parsing canonicalises ambiguous IPv4 spellings (`10.1`, hex,
+    // octal) before this point. Require the user/config to have supplied either
+    // a conventional dotted-decimal literal or a trusted tailnet DNS name so a
+    // visually surprising address can never become bearer-eligible.
+    const authority = String(raw).match(/^http:\/\/([^/?#]+)/i)?.[1] || "";
+    const rawHost = authority.replace(/^[^@]*@/, "").replace(/:\d+$/, "").toLowerCase();
+    const explicitDottedDecimal = (
+      /^\d{1,3}(?:\.\d{1,3}){3}$/.test(rawHost)
+      && parsed.hostname === rawHost
+    );
+    const explicitPrivateHost = explicitDottedDecimal
+      || /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+ts\.net\.?$/.test(rawHost);
+    if (!explicitPrivateHost || !isPrivateBridgeHostname(parsed.hostname)) return "";
+  }
+  parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+  return parsed.href;
+}
+
+function cookieConfiguredUrl(raw: string): string {
+  const value = String(raw || "").trim();
+  if (!value) return "";
+
+  const absolute = parseAbsoluteHttpUrl(value);
+  const relative = safeRootRelativeUrl(value);
+  if (absolute && (absolute.search || absolute.hash)) return "";
+  if (!absolute && !relative) return "";
+  const candidate = relative || value;
+  if (typeof window === "undefined") return candidate;
+
+  if (cookieBackendMatchesPage(candidate, window.location)) return candidate;
+
+  // Production-local Docker bakes `localhost:<configured backend port>`, but
+  // users can open the frontend as 127.0.0.1. Rewrite only this explicit
+  // loopback-alias case, retaining the configured port and path.
+  return absolute ? rewriteLoopbackBackendForPage(value, window.location) : "";
+}
+
+function configuredUrl(raw: string): string {
+  return BEARER_MODE ? mobileConfiguredUrl(raw) : cookieConfiguredUrl(raw);
+}
+
+/** Apply the active authentication policy to a user-entered backend URL. */
+export function resolveBackendCandidateUrl(raw: string): string {
+  const normalized = normalizeBackendUrl(raw);
+  return normalized ? configuredUrl(normalized) : "";
+}
+
+function derivedWebUrl(): string {
+  if (BEARER_MODE || typeof window === "undefined" || !window.location?.hostname) return "";
+  const { protocol, hostname, port } = window.location;
+  if (port === "3000") return `${protocol}//${hostname}:8000/api/v1`;
+  return `${protocol}//${hostname}${port ? `:${port}` : ""}/api/v1`;
+}
+
+/** Resolve URL and source atomically so status UI cannot describe another URL. */
+export function getBackendResolution(): BackendUrlResolution {
+  const override = configuredUrl(getBackendOverride());
+  if (override) return { url: override, source: "override" };
+
+  const env = configuredUrl(fromEnv());
+  if (env) return { url: env, source: "env" };
+
+  if (BEARER_MODE) return { url: "", source: "not_configured" };
+
+  const derived = derivedWebUrl();
+  if (derived) return { url: derived, source: "derived" };
+  return { url: "http://localhost:8000/api/v1", source: "fallback" };
+}
+
 export function getApiBaseUrl(): string {
-  const override = getBackendOverride();
-  if (sameSiteUsable(override)) return override;
-  const env = fromEnv();
-  if (sameSiteUsable(env)) return env;
-  const sameOrigin = derived();
-  if (sameOrigin) return sameOrigin;
-  return BEARER_MODE ? "" : "http://localhost:8000/api/v1";
+  return getBackendResolution().url;
 }
 
-/** Which source is currently in effect — for honest status display in Settings. */
 export function getApiBaseUrlSource(): BackendUrlSource {
-  // Mirror getApiBaseUrl(): a cross-site override/env is rejected in cookie mode,
-  // so report the source that's ACTUALLY in effect, not merely what's configured.
-  if (sameSiteUsable(getBackendOverride())) return "override";
-  if (sameSiteUsable(fromEnv())) return "env";
-  if (derived()) return "derived";
-  if (BEARER_MODE) return "not_configured";
-  return "fallback";
+  return getBackendResolution().source;
 }

@@ -165,6 +165,7 @@ def _get_item(db: Session, principal: Principal, task_id: uuid.UUID, item_id: uu
             TaskChecklistItem.id == item_id,
             TaskChecklistItem.task_id == task_id,
             TaskChecklistItem.workspace_id == principal.workspace_id,
+            TaskChecklistItem.is_deleted.is_(False),
         )
     )
     if not item:
@@ -219,7 +220,8 @@ def delete_checklist_item(
 ) -> Task:
     task = get_task(db, principal, task_id)
     item = _get_item(db, principal, task_id, item_id)
-    db.delete(item)
+    item.is_deleted = True
+    item.deleted_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(task)
     return task

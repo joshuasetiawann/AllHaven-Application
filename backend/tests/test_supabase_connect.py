@@ -26,3 +26,23 @@ def test_connect_supabase_wrong_password(auth_client):
     resp = auth_client.post(f"{API}/settings/supabase/connect", json={"password": "WRONG"})
     assert resp.status_code in (400, 422), resp.text
     assert resp.status_code != 401  # must not log the user out
+
+
+def test_connect_supabase_remote_failure_is_not_reported_as_success(auth_client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://proj.supabase.co", raising=False)
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_ROLE_KEY", "svc", raising=False)
+
+    with patch("app.services.supabase_auth_service.create_user", return_value=None):
+        resp = auth_client.post(
+            f"{API}/settings/supabase/connect",
+            json={"password": "password123"},
+        )
+
+    assert resp.status_code == 502, resp.text
+    body = resp.json()
+    assert body["status"] == "error"
+    assert body["error_code"] == "SUPABASE_CONNECT_FAILED"
+    assert "connected" not in body
+    assert "connected" not in body["message"].lower()

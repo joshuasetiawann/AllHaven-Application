@@ -20,6 +20,7 @@ from app.schemas.tasks import (
     TaskUpdate,
 )
 from app.services import task_service
+from app.services.local_first_sync import sync_after_write
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -43,6 +44,7 @@ def create_task(
     db: Session = Depends(get_db),
 ) -> dict:
     task = task_service.create_task(db, principal, payload)
+    sync_after_write(db, principal)
     return success_response(TaskOut.model_validate(task), "Task created")
 
 
@@ -64,6 +66,7 @@ def update_task(
     db: Session = Depends(get_db),
 ) -> dict:
     task = task_service.update_task(db, principal, task_id, payload)
+    sync_after_write(db, principal)
     return success_response(TaskOut.model_validate(task), "Task updated")
 
 
@@ -74,6 +77,7 @@ def delete_task(
     db: Session = Depends(get_db),
 ) -> dict:
     task_service.delete_task(db, principal, task_id)
+    sync_after_write(db, principal)
     return success_response({"id": str(task_id)}, "Task deleted")
 
 
@@ -84,6 +88,7 @@ def complete_task(
     db: Session = Depends(get_db),
 ) -> dict:
     task = task_service.set_completion(db, principal, task_id, done=True)
+    sync_after_write(db, principal)
     return success_response(TaskOut.model_validate(task), "Task completed")
 
 
@@ -94,6 +99,7 @@ def reopen_task(
     db: Session = Depends(get_db),
 ) -> dict:
     task = task_service.set_completion(db, principal, task_id, done=False)
+    sync_after_write(db, principal)
     return success_response(TaskOut.model_validate(task), "Task reopened")
 
 
@@ -105,6 +111,7 @@ def add_checklist_item(
     db: Session = Depends(get_db),
 ) -> dict:
     task = task_service.add_checklist_item(db, principal, task_id, payload)
+    sync_after_write(db, principal)
     return success_response(TaskOut.model_validate(task), "Checklist item added")
 
 
@@ -117,6 +124,7 @@ def update_checklist_item(
     db: Session = Depends(get_db),
 ) -> dict:
     task = task_service.update_checklist_item(db, principal, task_id, item_id, payload)
+    sync_after_write(db, principal)
     return success_response(TaskOut.model_validate(task), "Checklist item updated")
 
 
@@ -128,4 +136,5 @@ def delete_checklist_item(
     db: Session = Depends(get_db),
 ) -> dict:
     task = task_service.delete_checklist_item(db, principal, task_id, item_id)
+    sync_after_write(db, principal)
     return success_response(TaskOut.model_validate(task), "Checklist item deleted")

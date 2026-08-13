@@ -74,6 +74,18 @@ export class ApiException extends Error {
   }
 }
 
+function requireApiBaseUrl(): string {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) {
+    throw new ApiException(
+      "Connect the Backend Bridge with a non-loopback desktop URL to use this feature from mobile.",
+      "BRIDGE_REQUIRED",
+      501,
+    );
+  }
+  return baseUrl;
+}
+
 interface ApiEnvelope<T> {
   status: "success" | "error";
   data?: T;
@@ -132,6 +144,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // Mobile: make sure the persisted bearer token is loaded before the first
   // call, so a cold start can't fire requests with no Authorization header.
   if (BEARER_MODE) await ensureBearerHydrated();
+  // Resolve and validate before constructing the Authorization header. In a
+  // Capacitor WebView an empty base would otherwise become a relative request
+  // to https://localhost and could disclose the bearer to a phone-local server.
+  const baseUrl = requireApiBaseUrl();
   const { headers, credentials } = authFetchInit(method, {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
@@ -140,15 +156,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const baseUrl = getApiBaseUrl();
-    if (!baseUrl) {
-      throw new ApiException(
-        "Connect the Backend Bridge with your desktop Tailscale URL to use this feature from mobile.",
-        "BRIDGE_REQUIRED",
-        501,
-      );
-    }
-
     let res: Response;
     try {
       res = await fetch(`${baseUrl}${path}`, {
@@ -212,13 +219,13 @@ export const authApi = {
     if (BEARER_MODE && data?.access_token) await setBearerToken(data.access_token);
     return data;
   },
-  // Revokes the server-side session (web) and clears the local bearer token (mobile).
+  // Clear the local credential only after the backend confirms revocation. If
+  // the request fails, retain auth state so the UI cannot pretend a still-live
+  // HttpOnly/bearer session was signed out.
   logout: async () => {
-    try {
-      return await request<{ logged_out: boolean }>("/auth/logout", { method: "POST" });
-    } finally {
-      if (BEARER_MODE) await clearBearerToken();
-    }
+    const result = await request<{ logged_out: boolean }>("/auth/logout", { method: "POST" });
+    if (BEARER_MODE) await clearBearerToken();
+    return result;
   },
   me: () => request<Me>("/auth/me"),
   updateMe: (payload: { full_name?: string; workspace_name?: string }) =>
@@ -436,11 +443,23 @@ export const settingsApi = {
     request<Integration>(`/settings/integrations/${id}/disable`, { method: "POST" }),
   clearIntegration: (id: string) =>
     request<Integration>(`/settings/integrations/${id}`, { method: "DELETE" }),
-  connectSupabase: (password: string) =>
-    request<{ connected: boolean }>("/settings/supabase/connect", {
+  connectSupabase: async (password: string) => {
+    const result = await request<{ connected: boolean }>("/settings/supabase/connect", {
       method: "POST",
       body: json({ password }),
-    }),
+    });
+    // Defense in depth for an older/misconfigured backend that returns HTTP 200
+    // with `{connected:false}`. Callers must enter their success branch only
+    // after a positive link result.
+    if (result?.connected !== true) {
+      throw new ApiException(
+        "Supabase Auth could not create or link this account.",
+        "SUPABASE_CONNECT_FAILED",
+        502,
+      );
+    }
+    return result;
+  },
 };
 
 // --- Google OAuth foundation ---
@@ -531,12 +550,14 @@ export const driveApi = {
   config: () => request<DriveConfig>("/drive/config"),
   list: () => request<DriveFile[]>("/drive/files"),
   upload: async (file: File): Promise<DriveFile> => {
+    if (BEARER_MODE) await ensureBearerHydrated();
+    const baseUrl = requireApiBaseUrl();
     const form = new FormData();
     form.append("file", file);
     const { headers, credentials } = authFetchInit("POST");
     let res: Response;
     try {
-      res = await fetch(`${getApiBaseUrl()}/drive/files`, {
+      res = await fetch(`${baseUrl}/drive/files`, {
         method: "POST",
         headers,
         body: form,
@@ -556,10 +577,12 @@ export const driveApi = {
   // an <a href> cannot carry the Authorization header, so callers must go
   // through this instead of building the download URL themselves.
   download: async (id: string): Promise<Blob> => {
+    if (BEARER_MODE) await ensureBearerHydrated();
+    const baseUrl = requireApiBaseUrl();
     const { headers, credentials } = authFetchInit("GET");
     let res: Response;
     try {
-      res = await fetch(`${getApiBaseUrl()}/drive/files/${id}/download`, { headers, credentials });
+      res = await fetch(`${baseUrl}/drive/files/${id}/download`, { headers, credentials });
     } catch {
       throw new ApiException("Cannot reach the AllHaven API. Is the backend running?", "NETWORK_ERROR", 0);
     }
@@ -577,13 +600,15 @@ export const driveApi = {
 export const knowledgeApi = {
   listDocuments: () => request<KnowledgeDocument[]>("/ai/knowledge/documents"),
   uploadDocument: async (file: File, title?: string): Promise<KnowledgeDocument> => {
+    if (BEARER_MODE) await ensureBearerHydrated();
+    const baseUrl = requireApiBaseUrl();
     const form = new FormData();
     form.append("file", file);
     const { headers, credentials } = authFetchInit("POST");
     const qs = title?.trim() ? `?title=${encodeURIComponent(title.trim())}` : "";
     let res: Response;
     try {
-      res = await fetch(`${getApiBaseUrl()}/ai/knowledge/documents${qs}`, {
+      res = await fetch(`${baseUrl}/ai/knowledge/documents${qs}`, {
         method: "POST",
         headers,
         body: form,

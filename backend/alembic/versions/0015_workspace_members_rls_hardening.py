@@ -34,7 +34,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def _enabled() -> bool:
-    return os.getenv("ALLHAVEN_DB_TARGET", "").lower() == "supabase"
+    # Explicit opt-in, or implied by DATABASE_URL already pointing at Supabase.
+    # Without the second check a Supabase-primary install silently skips RLS, and
+    # the anon key handed to the mobile app can then read every row.
+    if os.getenv("ALLHAVEN_DB_TARGET", "").lower() == "supabase":
+        return True
+    return ".supabase." in os.getenv("DATABASE_URL", "")
 
 
 def upgrade() -> None:

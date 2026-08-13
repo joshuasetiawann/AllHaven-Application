@@ -29,7 +29,9 @@ export function DesktopBridgePanel() {
 
   useEffect(() => {
     // Best-effort: /health is public and returns the deployment profile.
-    fetch(`${getApiBaseUrl()}/health`)
+    const baseUrl = getApiBaseUrl();
+    if (!baseUrl) return;
+    fetch(`${baseUrl}/health`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         const p = j?.data?.deployment_profile;

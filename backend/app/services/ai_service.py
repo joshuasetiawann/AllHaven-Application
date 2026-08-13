@@ -197,6 +197,9 @@ def chat(
     message: str,
     session_id: Optional[uuid.UUID] = None,
     provider_id: Optional[str] = None,
+    section_key: Optional[str] = "general",
+    thinking_mode: str = "balance",
+    response_language: Optional[str] = None,
 ) -> dict:
     """Persist the user message, route to the AI provider, persist the reply.
 
@@ -211,41 +214,79 @@ def chat(
             workspace_id=principal.workspace_id,
             created_by=principal.user_id,
             title=_auto_title(message),
+            section_key=section_key or "general",
         )
         db.add(session)
         db.flush()
     # Auto-title an untitled conversation from its first user message.
     if not (session.title or "").strip():
         session.title = _auto_title(message)
+    session.section_key = section_key or "general"
 
     user_message = ChatMessage(
         workspace_id=principal.workspace_id,
         session_id=session.id,
         role="user",
         content=message,
+        section_key=section_key or "general",
+        meta={"chat_mode": "single", "thinking_mode": thinking_mode, "section_key": section_key or "general"},
     )
     db.add(user_message)
     db.flush()
 
-    result = ai_provider_router.run_chat(
-        db, principal, messages=[{"role": "user", "content": message}], provider_id=provider_id
+    # Build a real context packet (memory, section, mode, summary, knowledge).
+    from app.services import ai_context_builder, ai_orchestrator, memory_extraction_service
+
+    context_packet = ai_context_builder.build(
+        db, principal, message=message, session_id=session.id,
+        section_key=section_key or "general", thinking_mode=thinking_mode,
+        response_language=response_language,
     )
+
+    # Orchestrated chat: history-aware, with a safe tool loop on tool-capable
+    # providers (reads execute; writes become pending approvals — never silent).
+    result = ai_orchestrator.run_with_tools(
+        db, principal, message=message, session_id=session.id,
+        provider_id=provider_id, extra_context=context_packet.get("context"),
+        section_key=section_key or "general", thinking_mode=thinking_mode,
+        user_message_id=user_message.id,
+        response_language=response_language,
+    )
+    meta = {
+        "source": "provider" if result["ok"] else "system",
+        "provider_id": result.get("provider_id"),
+        "blocked": result.get("blocked", False),
+        "ok": result["ok"],
+        "error": result.get("error") or None,
+        **context_packet.get("meta", {}),
+    }
+    if result.get("tool_calls"):
+        meta["tool_calls"] = result["tool_calls"]
+    if result.get("proposal_ids"):
+        meta["proposal_ids"] = result["proposal_ids"]
+    if result.get("quality"):
+        meta["quality"] = result["quality"]
     assistant_message = ChatMessage(
         workspace_id=principal.workspace_id,
         session_id=session.id,
         role="assistant",
         content=result["content"],
-        meta={
-            "source": "provider" if result["ok"] else "system",
-            "provider_id": result.get("provider_id"),
-            "blocked": result.get("blocked", False),
-            "ok": result["ok"],
-            "error": result.get("error") or None,
-        },
+        section_key=section_key or "general",
+        meta=meta,
     )
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
+
+    # Trigger hybrid memory extraction (rule-based inline, LLM in background).
+    # On failure the content is a system error explainer — noise to the LLM
+    # extractor — so extract from the user message only (early-exit convention).
+    memory_extraction_service.extract_and_commit(
+        db, principal,
+        user_msg=message,
+        assistant_msg=result["content"] if result["ok"] else "",
+        session_id=session.id,
+    )
 
     return {
         "session_id": session.id,
@@ -257,11 +298,14 @@ def chat(
 
 
 def list_proposals(db: Session, principal: Principal) -> List[AiToolProposal]:
+    # Open = PENDING/NEEDS_EDIT/FAILED — failed/needs-edit approvals must not vanish.
+    from app.domain.ai import PROPOSAL_OPEN_STATUSES
+
     stmt = (
         select(AiToolProposal)
         .where(
             AiToolProposal.workspace_id == principal.workspace_id,
-            AiToolProposal.status == "PENDING",
+            AiToolProposal.status.in_(PROPOSAL_OPEN_STATUSES),
         )
         .order_by(AiToolProposal.created_at.desc())
     )

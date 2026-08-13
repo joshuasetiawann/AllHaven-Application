@@ -9,9 +9,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
-
-from app.domain.base import GUID
+from app.domain.base import GUID, JSONType
 
 revision: str = "0008_ai_workspace_tools"
 down_revision: Union[str, None] = "0007_ai_memories"
@@ -20,7 +18,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def _json_col(nullable: bool = True):
-    return sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=nullable)
+    return sa.Column("metadata", JSONType, nullable=nullable)
 
 
 def upgrade() -> None:
@@ -39,8 +37,8 @@ def upgrade() -> None:
         sa.Column("status", sa.String(length=40), nullable=False),
         sa.Column("risk_level", sa.String(length=20), nullable=True),
         sa.Column("access", sa.String(length=20), nullable=True),
-        sa.Column("arguments", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("result_preview", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("arguments", JSONType, nullable=True),
+        sa.Column("result_preview", JSONType, nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("proposal_id", GUID(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),

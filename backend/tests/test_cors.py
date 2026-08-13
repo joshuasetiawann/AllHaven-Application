@@ -1,5 +1,10 @@
 """CORS policy regressions."""
 
+from fastapi.testclient import TestClient
+
+from app.core.config import settings
+from app.main import create_app
+
 
 def _preflight(client, origin: str):
     return client.options(
@@ -32,3 +37,24 @@ def test_local_cors_rejects_public_origins(client):
 
     assert resp.status_code == 400
     assert "access-control-allow-origin" not in resp.headers
+
+
+def test_production_local_cors_allows_both_loopback_aliases_on_frontend_port(monkeypatch):
+    monkeypatch.setattr(settings, "APP_ENV", "production")
+    monkeypatch.setattr(settings, "BACKEND_CORS_ALLOW_ALL", False)
+    monkeypatch.setattr(
+        settings,
+        "BACKEND_CORS_ORIGINS",
+        "http://localhost:3210,http://127.0.0.1:3210,https://localhost,capacitor://localhost",
+    )
+
+    with TestClient(create_app()) as production_client:
+        for origin in ("http://localhost:3210", "http://127.0.0.1:3210"):
+            resp = _preflight(production_client, origin)
+            assert resp.status_code == 200
+            assert resp.headers["access-control-allow-origin"] == origin
+
+        for rejected in ("http://127.0.0.1:3211", "https://evil.example"):
+            resp = _preflight(production_client, rejected)
+            assert resp.status_code == 400
+            assert "access-control-allow-origin" not in resp.headers

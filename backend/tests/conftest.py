@@ -17,6 +17,7 @@ os.environ["SETTINGS_ENCRYPTION_KEY"] = "test-encryption-key"
 os.environ["BACKEND_CORS_ORIGINS"] = "http://localhost:3000"
 os.environ["AI_ALLOW_EXTERNAL_PROVIDERS"] = "false"
 os.environ["AI_DEFAULT_PROVIDER"] = "ollama"
+os.environ["SYNC_INTERVAL_SECONDS"] = "0"  # no background Supabase sync loop in tests
 # Redirect the .env mirror and Drive storage to temp dirs so tests never touch
 # the real repo .env or pollute the working tree.
 _TMP = tempfile.mkdtemp(prefix="allhaven-test-")
@@ -39,6 +40,13 @@ for _placeholder in (
     "GEMINI_API_KEY",
     "GROK_API_KEY",
     "BLACKBOX_API_KEY",
+    "CURSOR_API_KEY",
+    "CURSOR_DEFAULT_MODEL",
+    "CURSOR_BASE_URL",
+    "DEEPSEEK_API_KEY",
+    "DEEPSEEK_DEFAULT_MODEL",
+    "QWEN_API_KEY",
+    "QWEN_DEFAULT_MODEL",
     "OPENROUTER_API_KEY",
     "OPENROUTER_1_API_KEY",
     "OPENROUTER_1_DEFAULT_MODEL",
@@ -48,6 +56,7 @@ for _placeholder in (
     "OPENROUTER_3_DEFAULT_MODEL",
     "N8N_API_KEY",
     "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_JWT_SECRET",
     "GOOGLE_CALENDAR_CLIENT_SECRET",
     "WEATHER_PROVIDER",
 ):

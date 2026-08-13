@@ -26,6 +26,7 @@ class SessionOut(ORMModel):
     id: uuid.UUID
     title: Optional[str] = None
     group_id: Optional[uuid.UUID] = None
+    section_key: str = "general"
     created_at: datetime
     updated_at: datetime
 
@@ -50,6 +51,7 @@ class MessageOut(ORMModel):
     session_id: Optional[uuid.UUID] = None
     role: str
     content: str
+    section_key: str = "general"
     meta: Optional[dict] = None
     created_at: datetime
 
@@ -58,6 +60,9 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     session_id: Optional[uuid.UUID] = None
     provider_id: Optional[str] = None
+    section_key: Optional[str] = Field(default="general", max_length=50)
+    thinking_mode: Literal["fast", "balance", "thinking", "deep"] = "balance"
+    response_language: Optional[str] = Field(default=None, max_length=24)
 
 
 class ChatResponse(BaseModel):
@@ -68,21 +73,48 @@ class ChatResponse(BaseModel):
     blocked: bool = False
 
 
+# Up to 4 image data URLs (data:image/...;base64,...) attached to a chat turn.
+ImageList = Optional[List[str]]
+# Thinking Mode: reasoning depth + sampling, separate from the chat mode.
+ThinkingMode = Literal["fast", "balance", "thinking", "deep"]
+
+
 class MultiChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     session_id: Optional[uuid.UUID] = None
-    # 1–3 agents. >3 fails validation (HTTP 422: "Maximum 3 agents per run").
-    provider_ids: List[str] = Field(min_length=1, max_length=3)
+    # 1-10 agents. Higher values fail validation before any provider call starts.
+    provider_ids: List[str] = Field(min_length=1, max_length=10)
+    images: ImageList = Field(default=None, max_length=4)
+    thinking_mode: ThinkingMode = "balance"
+    section_key: Optional[str] = Field(default="general", max_length=50)
+    response_language: Optional[str] = Field(default=None, max_length=24)
 
 
 class DebateChatRequest(BaseModel):
-    """Multi-agent debate: 2–3 agents argue across rounds, then one synthesizes."""
+    """Multi-agent debate: up to 10 agents argue across rounds, then one synthesizes."""
 
     message: str = Field(min_length=1, max_length=8000)
     session_id: Optional[uuid.UUID] = None
-    provider_ids: List[str] = Field(min_length=1, max_length=3)
+    provider_ids: List[str] = Field(min_length=1, max_length=10)
     # Round 1 opening + rebuttal rounds. Bounded so a run can't explode in calls.
     rounds: int = Field(default=2, ge=1, le=4)
+    images: ImageList = Field(default=None, max_length=4)
+    thinking_mode: ThinkingMode = "balance"
+    section_key: Optional[str] = Field(default="general", max_length=50)
+    response_language: Optional[str] = Field(default=None, max_length=24)
+
+
+class ReasoningChatRequest(BaseModel):
+    """Reasoning council: Analyst -> Critic -> Synthesizer with a quality gate."""
+
+    message: str = Field(min_length=1, max_length=8000)
+    session_id: Optional[uuid.UUID] = None
+    provider_ids: List[str] = Field(min_length=1, max_length=10)
+    images: ImageList = Field(default=None, max_length=4)
+    # Depth + sampling: fast (1 pass), balance (analyst+synth), thinking/deep (+critic).
+    thinking_mode: ThinkingMode = "balance"
+    section_key: Optional[str] = Field(default="general", max_length=50)
+    response_language: Optional[str] = Field(default=None, max_length=24)
 
 
 class AgentResponseOut(ORMModel):
@@ -112,4 +144,7 @@ class ProposalOut(ORMModel):
     status: str
     risk_level: str
     requires_confirmation: bool
+    error_message: Optional[str] = None
+    executed_at: Optional[datetime] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None

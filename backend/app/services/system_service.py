@@ -26,6 +26,7 @@ import urllib.request
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from app.core.config import settings
 from app.core.exceptions import ValidationAppError
@@ -133,12 +134,80 @@ def _port_for(name: str, env: dict | None = None) -> int | None:
     return spec["default"]
 
 
-def _port_open(port: int | None) -> bool:
+def _port_open_at(host: str, port: int | None) -> bool:
     if not port:
         return False
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(0.3)
-        return s.connect_ex((_AGENT_HOST, int(port))) == 0
+    try:
+        with socket.create_connection((host, int(port)), timeout=0.3):
+            return True
+    except (OSError, ValueError):
+        return False
+
+
+def _port_open(port: int | None) -> bool:
+    return _port_open_at(_AGENT_HOST, port)
+
+
+def _in_container() -> bool:
+    """Return whether fallback probes run inside a container namespace.
+
+    Docker creates ``/.dockerenv`` for the supported Compose deployments.  The
+    explicit override is useful for compatible container runtimes and tests.
+    """
+    explicit = (os.environ.get("ALLHAVEN_CONTAINERIZED") or "").strip().lower()
+    if explicit:
+        return explicit in {"1", "true", "yes", "on"}
+    return Path("/.dockerenv").exists()
+
+
+def _url_target(raw_url: str, default_port: int) -> tuple[str, int] | None:
+    try:
+        parsed = urlsplit(raw_url)
+        if not parsed.hostname:
+            return None
+        return parsed.hostname, parsed.port or default_port
+    except (TypeError, ValueError):
+        return None
+
+
+def _container_probe_target(name: str) -> tuple[str, int] | None:
+    """Return a target observable from the backend's Docker network.
+
+    Host-published ports are deliberately not used here: ``127.0.0.1`` inside
+    the backend container is the backend container itself, not the Docker host
+    or a sibling service.
+    """
+    if name == "frontend":
+        return "frontend", 3000
+    if name == "postgres":
+        return _url_target(settings.DATABASE_URL, 5432) or ("db", 5432)
+    if name == "redis":
+        return "redis", 6379
+    if name == "n8n":
+        return _url_target(settings.N8N_BASE_URL, 5678) or ("n8n", 5678)
+    if name == "ollama":
+        return _url_target(settings.OLLAMA_BASE_URL, 11434)
+    return None
+
+
+def _fallback_runtime_state(name: str, displayed_port: int | None) -> tuple[str, str]:
+    """Observe a service without turning an unobservable probe into `stopped`."""
+    if not _in_container():
+        running = _port_open(displayed_port)
+        return ("running" if running else "stopped"), ""
+
+    # A request executing this code proves that the backend process is running.
+    if name == "backend":
+        return "running", ""
+
+    target = _container_probe_target(name)
+    if target and _port_open_at(*target):
+        return "running", ""
+
+    return (
+        "unknown",
+        "Not reachable from the backend container; the service state cannot be determined.",
+    )
 
 
 def _valid_port(value: object) -> bool:
@@ -211,6 +280,33 @@ def get_status() -> dict:
         if code == 200 and isinstance(body, dict) and "services" in body:
             body["control_enabled"] = enabled
             body.setdefault("agent", {"running": True, "message": ""})
+            if not enabled:
+                # The host agent may still be installed/running on a production
+                # machine, but this deployment deliberately does not expose its
+                # control surface. Never forward the agent's actionable flags:
+                # the UI would otherwise render Start/Stop/Restart/Logs controls
+                # that every corresponding endpoint is guaranteed to reject.
+                body["agent"] = {
+                    "running": False,
+                    "message": (
+                        "The control agent is not used on this deployment. "
+                        "Service status is read-only."
+                    ),
+                }
+                read_only_services = []
+                for service in body.get("services", []):
+                    if not isinstance(service, dict):
+                        continue
+                    normalized = {
+                        **service,
+                        "controllable": False,
+                        "actions": [],
+                    }
+                    normalized["message"] = (
+                        "Read-only status; service controls are disabled on this deployment."
+                    )
+                    read_only_services.append(normalized)
+                body["services"] = read_only_services
             return body
     except (urllib.error.URLError, OSError, ValueError, TimeoutError):
         pass
@@ -222,26 +318,43 @@ def _fallback_status(enabled: bool) -> dict:
     services = []
     for name, spec in SERVICES.items():
         port = _port_for(name, env)
-        running = _port_open(port)
-        if spec.get("optional") and not running:
+        state, observation_message = _fallback_runtime_state(name, port)
+        if spec.get("optional") and state != "running":
             continue  # hide optional services that aren't up
+        if observation_message:
+            message = observation_message
+        elif enabled:
+            message = "Start Haven with ./allhaven.sh run (or start) to enable controls."
+        else:
+            message = "Read-only status; service controls are disabled on this deployment."
         services.append({
             "name": name,
             "label": spec["label"],
             "kind": spec["kind"],
-            "status": "running" if running else "stopped",
+            "status": state,
             "port": port,
             "controllable": False,
             "actions": [],
-            "message": "Start Haven with ./allhaven.sh run (or start) to enable controls.",
+            "message": message,
             "last_checked": _now(),
         })
+    if not enabled:
+        agent_message = "The control agent is not used on this deployment. Service status is read-only."
+    elif _in_container():
+        agent_message = (
+            "The host control agent is not reachable from the backend container. "
+            "Service status is read-only."
+        )
+    else:
+        agent_message = (
+            "Haven Agent is not running. Start Haven with ./allhaven.sh run "
+            "(or ./allhaven.sh start) to enable Start/Stop/Restart and logs. "
+            "Status below is read-only."
+        )
     return {
         "agent": {
             "running": False,
-            "message": "Haven Agent is not running. Start Haven with ./allhaven.sh run "
-                       "(or ./allhaven.sh start) to enable Start/Stop/Restart and logs. "
-                       "Status below is read-only.",
+            "message": agent_message,
         },
         "control_enabled": enabled,
         "services": services,
@@ -251,11 +364,12 @@ def _fallback_status(enabled: bool) -> dict:
 def _one_status(name: str) -> dict:
     spec = SERVICES[name]
     port = _port_for(name)
+    state, message = _fallback_runtime_state(name, port)
     return {
         "name": name, "label": spec["label"], "kind": spec["kind"],
-        "status": "running" if _port_open(port) else "stopped",
+        "status": state,
         "port": port, "controllable": False, "actions": [],
-        "message": "", "last_checked": _now(),
+        "message": message, "last_checked": _now(),
     }
 
 

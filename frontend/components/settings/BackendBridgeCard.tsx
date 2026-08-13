@@ -17,8 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import {
   clearBackendOverride,
-  getApiBaseUrl,
-  getApiBaseUrlSource,
+  getBackendResolution,
   getBackendOverride,
   setBackendOverride,
   type BackendUrlSource,
@@ -68,17 +67,26 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
   // Read the current resolution on mount (client-only → no hydration mismatch).
   useEffect(() => {
     const override = getBackendOverride();
-    setActiveUrl(getApiBaseUrl());
-    setSource(getApiBaseUrlSource());
+    const effective = getBackendResolution();
+    setActiveUrl(effective.url);
+    setSource(effective.source);
     setHasOverride(Boolean(override));
     setDraft(override);
-    setStatus(override ? "configured" : getApiBaseUrl() ? "unknown" : "not_configured");
+    setStatus(
+      !effective.url
+        ? "not_configured"
+        : override && effective.source === "override"
+          ? "configured"
+          : "unknown",
+    );
   }, []);
 
   const refreshActive = () => {
-    setActiveUrl(getApiBaseUrl());
-    setSource(getApiBaseUrlSource());
+    const effective = getBackendResolution();
+    setActiveUrl(effective.url);
+    setSource(effective.source);
     setHasOverride(Boolean(getBackendOverride()));
+    return effective;
   };
 
   const applyResult = (r: BackendTestResult) => {
@@ -106,13 +114,37 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
     setSaving(true);
     try {
       const normalized = setBackendOverride(draft);
-      refreshActive();
-      setStatus(normalized ? "configured" : "unknown");
+      const effective = refreshActive();
+      setStatus(effective.url ? "configured" : "not_configured");
+      if (!effective.url) {
+        applyResult({
+          ok: false,
+          status: "not_configured",
+          message: "This device needs a non-loopback Backend Bridge URL, such as a Tailscale IP or HTTPS MagicDNS address.",
+          testedUrl: "",
+        });
+        return;
+      }
       if (normalized) {
-        const r = await testBackendConnection(normalized);
+        // Probe the URL the application accepted, not merely the text that was
+        // saved. Cookie mode may rewrite a loopback alias or reject a cross-site
+        // override; bearer mode rejects phone-loopback bridges entirely.
+        const tested = await testBackendConnection(effective.url);
+        const r =
+          effective.source === "override"
+            ? tested
+            : {
+                ...tested,
+                message: `The saved URL is not usable with this authentication mode. Tested the active ${SOURCE_LABEL[effective.source]} instead. ${tested.message}`,
+              };
         applyResult(r);
       } else {
-        setResult(null);
+        applyResult({
+          ok: false,
+          status: "error",
+          message: "Enter a valid HTTP(S) backend host. Network-path and backslash URLs are not accepted.",
+          testedUrl: "",
+        });
       }
     } finally {
       setSaving(false);
@@ -123,8 +155,8 @@ export function BackendBridgeCard({ onConnected }: { onConnected?: () => void })
   const handleReset = () => {
     clearBackendOverride();
     setDraft("");
-    refreshActive();
-    setStatus(getApiBaseUrl() ? "unknown" : "not_configured");
+    const effective = refreshActive();
+    setStatus(effective.url ? "unknown" : "not_configured");
     setResult(null);
     setLastCheckedAt(null);
   };

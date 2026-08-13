@@ -25,9 +25,15 @@ export function StatusDot({
   return (
     <span className={cn("relative inline-flex h-2.5 w-2.5", className)}>
       {pulse && live ? (
-        <span className={cn("absolute inline-flex h-full w-full animate-pulse-soft rounded-full opacity-60", color)} />
+        <span className={cn("absolute inline-flex h-full w-full animate-pulse-glow rounded-full opacity-60", color)} />
       ) : null}
-      <span className={cn("relative inline-flex h-2.5 w-2.5 rounded-full", color)} />
+      <span
+        className={cn(
+          "relative inline-flex h-2.5 w-2.5 rounded-full",
+          color,
+          live && "shadow-[0_0_10px_2px] shadow-current",
+        )}
+      />
     </span>
   );
 }

@@ -18,9 +18,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
-
-from app.domain.base import GUID, StringArray
+from app.domain.base import GUID, JSONType, StringArray
 
 revision: str = "0004_modules_and_multi_agent"
 down_revision: Union[str, None] = "0003_task_checklist_items"
@@ -56,7 +54,7 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("latency_ms", sa.Integer(), nullable=True),
-        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("metadata", JSONType, nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_ai_agent_responses"),
     )
@@ -106,7 +104,7 @@ def upgrade() -> None:
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("trigger_type", sa.String(length=60), server_default=sa.text("'manual'"), nullable=False),
         sa.Column("action_type", sa.String(length=60), server_default=sa.text("'noop'"), nullable=False),
-        sa.Column("config", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb"), nullable=False),
+        sa.Column("config", JSONType, server_default=sa.text("'{}'"), nullable=False),
         sa.Column("enabled", sa.Boolean(), server_default=sa.text("false"), nullable=False),
         sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),

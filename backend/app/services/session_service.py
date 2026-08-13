@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import Response
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -66,14 +66,40 @@ def validate_session(db: Session, raw: Optional[str]) -> Optional[UserSession]:
     return row
 
 
-def rotate_session(db: Session, row: UserSession) -> str:
-    """Rotate the session + CSRF secrets and extend expiry. Returns new raw."""
+def rotate_session(
+    db: Session,
+    current_raw: Optional[str],
+    current_csrf: str,
+) -> Optional[tuple[str, str]]:
+    """Atomically consume the old cookie and return the new secret pair.
+
+    Validation and rotation happen in one compare-and-swap UPDATE. If two
+    requests present the same cookie, only the first update can match.
+    """
+    if not current_raw or not current_csrf:
+        return None
+
     raw = secrets.token_urlsafe(32)
-    row.token_hash = _hash(raw)
-    row.csrf_token = secrets.token_urlsafe(24)
-    row.expires_at = _expiry()
-    db.flush()
-    return raw
+    csrf = secrets.token_urlsafe(24)
+    now = _now()
+    result = db.execute(
+        update(UserSession)
+        .where(
+            UserSession.token_hash == _hash(current_raw),
+            UserSession.csrf_token == current_csrf,
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at >= now,
+        )
+        .values(
+            token_hash=_hash(raw),
+            csrf_token=csrf,
+            expires_at=now + timedelta(days=settings.SESSION_TTL_DAYS),
+        )
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1:
+        return None
+    return raw, csrf
 
 
 def revoke_session(db: Session, row: UserSession) -> None:

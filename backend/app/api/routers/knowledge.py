@@ -11,6 +11,7 @@ from app.api.dependencies import get_current_principal
 from app.core.database import get_db
 from app.core.principal import Principal
 from app.core.responses import success_response
+from app.core.uploads import read_limited_fileobj
 from app.schemas.knowledge import KnowledgeDocumentOut, KnowledgeSearchResponse
 from app.services import knowledge_service
 from app.services.local_first_sync import sync_after_write
@@ -28,13 +29,20 @@ def list_documents(
 
 
 @router.post("/documents")
-async def upload_document(
+def upload_document(
     file: UploadFile = File(...),
     title: str | None = Query(default=None, max_length=255),
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    data = await file.read()
+    max_bytes = knowledge_service.upload_limit_bytes()
+    data = read_limited_fileobj(
+        file.file,
+        max_bytes=max_bytes,
+        too_large_message=(
+            f"Knowledge document exceeds the {knowledge_service.upload_limit_mb()} MB upload limit."
+        ),
+    )
     row = knowledge_service.create_document_from_upload(
         db, principal,
         filename=file.filename or "document",

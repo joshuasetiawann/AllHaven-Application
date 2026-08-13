@@ -16,9 +16,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
-
-from app.domain.base import GUID
+from app.domain.base import GUID, JSONType
 
 revision: str = "0007_ai_memories"
 down_revision: Union[str, None] = "0006_user_sessions"
@@ -42,7 +40,7 @@ def upgrade() -> None:
         sa.Column("relevance_score", sa.Float(), server_default=sa.text("0.5"), nullable=False),
         sa.Column("last_used_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("source_session_id", GUID(), nullable=True),
-        sa.Column("metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("metadata", JSONType, nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_ai_memories"),

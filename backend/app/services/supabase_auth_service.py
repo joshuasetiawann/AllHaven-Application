@@ -46,7 +46,12 @@ def get_service_credentials(
 
                     raw = row.encrypted_secrets.get("service_role_key")
                     if raw:
-                        key = decrypt_secret(raw)
+                        from app.services.config_common import secret_storage_context
+
+                        key = decrypt_secret(
+                            raw,
+                            context=secret_storage_context(row, "service_role_key"),
+                        )
                 except Exception:  # pragma: no cover - defensive
                     key = ""
             if url and key:
@@ -91,41 +96,17 @@ def create_user(
         sb_id = body.get("id")
         return str(sb_id) if sb_id else None
     except urllib.error.HTTPError as exc:
-        # User already exists (409/422): locate it and reset its password so login
-        # works, then return its id so the caller links the profile (idempotent).
-        # Without this, a pre-existing auth user (e.g. created in the dashboard)
-        # leaves profiles.supabase_user_id unset and mobile login can't resolve it.
+        # An email collision does not prove this caller owns the existing remote
+        # identity. Never look it up, reset its password, or return its id from an
+        # account-creation attempt; an explicitly authenticated link is required.
         if exc.code in (409, 422):
-            uid = _find_user_id_by_email(url, service_role_key, email)
-            if uid:
-                _set_user_password(url, service_role_key, uid, password)
-                return uid
+            log.debug("Supabase create_user conflict")
+            return None
         log.debug("Supabase create_user HTTP %s", exc.code)
         return None
     except Exception as exc:  # pragma: no cover - network defensive
         log.debug("Supabase create_user failed: %s", type(exc).__name__)
         return None
-
-
-def _find_user_id_by_email(url: str, service_role_key: str, email: str) -> Optional[str]:
-    """GET the admin users list and return the id whose email matches, or None."""
-    req = urllib.request.Request(
-        f"{url.rstrip('/')}/auth/v1/admin/users",
-        headers={"apikey": service_role_key, "Authorization": f"Bearer {service_role_key}"},
-        method="GET",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 (fixed admin URL)
-            data = json.loads(resp.read().decode() or "{}")
-    except Exception as exc:  # pragma: no cover - network defensive
-        log.debug("Supabase list users failed: %s", type(exc).__name__)
-        return None
-    users = data.get("users", []) if isinstance(data, dict) else []
-    for u in users:
-        if (u.get("email") or "").lower() == email.lower():
-            uid = u.get("id")
-            return str(uid) if uid else None
-    return None
 
 
 def _set_user_password(url: str, service_role_key: str, user_id: str, password: str) -> None:
@@ -149,7 +130,7 @@ def _set_user_password(url: str, service_role_key: str, user_id: str, password: 
 
 def connect(db: Session, principal, password: str) -> dict:
     """Re-verify the user's password, then provision their Supabase Auth user."""
-    from app.core.exceptions import ValidationAppError
+    from app.core.exceptions import AppException, ValidationAppError
     from app.services import auth_service
 
     user = auth_service.authenticate(db, email=principal.email, password=password)
@@ -165,14 +146,39 @@ def connect(db: Session, principal, password: str) -> dict:
     sb_id = create_user(
         url, key, email=principal.email, password=password, full_name=principal.full_name
     )
-    if sb_id:
-        from app.domain.users import Profile
+    if not sb_id:
+        # `create_user` intentionally hides remote response details so neither
+        # credentials nor account-enumeration signals reach the client. This is
+        # an explicit user action, however, so best-effort `None` must not be
+        # wrapped in a successful API envelope.
+        raise AppException(
+            "Supabase Auth could not create or link this account. Verify the "
+            "project URL and service role key, then try again.",
+            status_code=502,
+            error_code="SUPABASE_CONNECT_FAILED",
+        )
 
-        profile = db.get(Profile, principal.user_id)
-        if profile is not None:
-            profile.supabase_user_id = sb_id
-            db.commit()
-    return {"connected": bool(sb_id)}
+    from app.domain.users import Profile
+
+    profile = db.get(Profile, principal.user_id)
+    if profile is None:
+        raise AppException(
+            "The local profile could not be linked to Supabase Auth.",
+            status_code=500,
+            error_code="SUPABASE_LINK_FAILED",
+        )
+    profile.supabase_user_id = sb_id
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        log.debug("Supabase profile link commit failed: %s", type(exc).__name__)
+        raise AppException(
+            "The Supabase account was created but the local profile link could not be saved.",
+            status_code=500,
+            error_code="SUPABASE_LINK_FAILED",
+        ) from exc
+    return {"connected": True}
 
 
 def sync_password_now(db: Session, *, user_id, email: str, full_name, password: str) -> Optional[str]:
@@ -220,3 +226,30 @@ def sync_password_async(user_id, email: str, full_name, password: str) -> None:
         threading.Thread(target=_worker, daemon=True).start()
     except Exception:  # pragma: no cover - defensive
         pass
+
+
+# --- Bridge auth: asymmetric (ES256) access tokens --------------------------
+# Supabase projects created with asymmetric JWT signing keys sign user access
+# tokens with ES256, which the stdlib-only HS256 verifier in core.security cannot
+# check ("Unsupported token algorithm"). Rather than take on a native crypto
+# dependency to validate JWKS, ask Supabase — it is authoritative for its own
+# tokens and additionally rejects ones invalidated by a sign-out.
+def verify_access_token(url: str, api_key: str, token: str) -> Optional[str]:
+    """Return the Supabase user id for *token*, or None if Supabase rejects it.
+
+    The token is never logged. Verification is authoritative on every request so
+    a provider-side sign-out/revocation is honored immediately.
+    """
+    req = urllib.request.Request(
+        f"{url.rstrip('/')}/auth/v1/user",
+        headers={"apikey": api_key, "Authorization": f"Bearer {token}"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 (fixed auth URL)
+            user_id = json.loads(resp.read().decode() or "{}").get("id")
+    except Exception as exc:
+        log.debug("Supabase token verification failed: %s", exc)
+        return None
+
+    return str(user_id) if user_id else None

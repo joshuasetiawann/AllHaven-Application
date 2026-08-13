@@ -7,14 +7,15 @@
 // token the backend already issues alongside the cookie on login/register
 // (backend/app/api/routers/auth.py: "cookie session + bearer token").
 //
-// The token is kept in NATIVE storage via @capacitor/preferences — NOT
-// localStorage, which lib/auth.ts deliberately scrubs ("nothing sensitive in
-// localStorage"). An in-memory mirror lets lib/api.ts read the token
+// On native platforms the token is kept in iOS Keychain / Android
+// Keystore-backed encrypted storage. An in-memory mirror lets lib/api.ts read it
 // synchronously while building request headers; hydrateBearerToken() refills it
-// from native storage on a cold start (call it before the first API request).
+// from secure storage on a cold start (call it before the first API request).
 //
 // Everything here is a no-op unless NEXT_PUBLIC_AUTH_MODE === "bearer", so the
-// desktop build is completely unaffected and never loads @capacitor/preferences.
+// desktop build is completely unaffected.
+
+import { credentialStorage } from "@/lib/credentialStorage";
 
 export const BEARER_MODE = process.env.NEXT_PUBLIC_AUTH_MODE === "bearer";
 
@@ -22,24 +23,6 @@ const TOKEN_KEY = "allhaven_bearer_token";
 
 // Synchronous source of truth for request() headers. Mirrors native storage.
 let memToken: string | null = null;
-
-type PreferencesApi = Pick<
-  typeof import("@capacitor/preferences").Preferences,
-  "get" | "set" | "remove"
->;
-
-// Lazily load the native plugin only in mobile builds (keeps it out of the
-// desktop bundle entirely). Do not return the plugin object itself from an
-// async function: Capacitor web plugins expose a `then` trap, so promise
-// resolution treats the plugin as a thenable and throws `Preferences.then()`.
-async function preferences(): Promise<PreferencesApi> {
-  const { Preferences } = await import("@capacitor/preferences");
-  return {
-    get: Preferences.get.bind(Preferences),
-    set: Preferences.set.bind(Preferences),
-    remove: Preferences.remove.bind(Preferences),
-  };
-}
 
 /** Token for the Authorization header, or null. Synchronous (in-memory). */
 export function getBearerToken(): string | null {
@@ -50,9 +33,7 @@ export function getBearerToken(): string | null {
 export async function hydrateBearerToken(): Promise<void> {
   if (!BEARER_MODE) return;
   try {
-    const Preferences = await preferences();
-    const { value } = await Preferences.get({ key: TOKEN_KEY });
-    memToken = value ?? null;
+    memToken = await credentialStorage.getItem(TOKEN_KEY);
   } catch {
     memToken = null;
   }
@@ -75,8 +56,7 @@ export async function setBearerToken(token: string): Promise<void> {
   memToken = token;
   if (!BEARER_MODE) return;
   try {
-    const Preferences = await preferences();
-    await Preferences.set({ key: TOKEN_KEY, value: token });
+    await credentialStorage.setItem(TOKEN_KEY, token);
   } catch {
     /* memory copy still lets the current session work */
   }
@@ -87,8 +67,7 @@ export async function clearBearerToken(): Promise<void> {
   memToken = null;
   if (!BEARER_MODE) return;
   try {
-    const Preferences = await preferences();
-    await Preferences.remove({ key: TOKEN_KEY });
+    await credentialStorage.removeItem(TOKEN_KEY);
   } catch {
     /* memory already cleared */
   }

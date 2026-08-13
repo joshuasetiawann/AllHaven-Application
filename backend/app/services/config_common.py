@@ -12,12 +12,20 @@ from app.services.integration_status_service import is_configured_value
 from app.services.provider_registry import ProviderSpec
 
 
+def secret_storage_context(row, field: str) -> str:
+    """Stable AEAD context preventing ciphertext swaps across rows/fields."""
+    row_id = getattr(row, "id", None)
+    if row_id is None:
+        raise ValueError("Secret-bearing row must be flushed before encryption")
+    return f"{row.__table__.name}:{row_id}:{field}"
+
+
 def get_secret_value(row, field: str) -> str | None:
     token = (row.encrypted_secrets or {}).get(field)
     if not token:
         return None
     try:
-        return decrypt_secret(token)
+        return decrypt_secret(token, context=secret_storage_context(row, field))
     except Exception:  # noqa: BLE001 - corrupted/old token: treat as not set
         return None
 
@@ -41,7 +49,9 @@ def apply_secret_updates(row, spec: ProviderSpec, provided: dict) -> None:
         if value == "" or not is_configured_value(value):
             enc.pop(field, None)
         else:
-            enc[field] = encrypt_secret(value)
+            enc[field] = encrypt_secret(
+                value, context=secret_storage_context(row, field)
+            )
     row.encrypted_secrets = enc
 
 

@@ -1,0 +1,73 @@
+# AllHaven — full stack in Docker Desktop (Postgres + backend + frontend).
+# No Caddy, no domain, no TLS: everything on localhost.
+#
+#   cp .env.example .env      (lalu isi SECRET_KEY & SETTINGS_ENCRYPTION_KEY)
+#   docker compose -f docker-compose.local.yml up -d --build
+#   http://localhost:3000
+#
+# Untuk dev harian (backend/frontend jalan native, cuma DB di Docker) tetap
+# pakai `docker compose up -d postgres` dari docker-compose.yml.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: allhaven-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-allhaven}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-allhaven}
+      POSTGRES_DB: ${POSTGRES_DB:-allhaven}
+    ports:
+      # Kalau 5432 sudah dipakai PostgreSQL native, set POSTGRES_HOST_PORT=5433.
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - allhaven_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-allhaven} -d ${POSTGRES_DB:-allhaven}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: allhaven-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # Pakai .env yang sudah ada (API key AI, Google OAuth, dst).
+    env_file:
+      - .env
+    environment:
+      # Wajib override: di dalam container "localhost" bukan host Windows.
+      APP_ENV: local
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-allhaven}:${POSTGRES_PASSWORD:-allhaven}@db:5432/${POSTGRES_DB:-allhaven}
+      BACKEND_CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-3000},http://127.0.0.1:${FRONTEND_PORT:-3000}
+      # Ollama tetap jalan di host — jangan install ulang di container.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL_DOCKER:-http://host.docker.internal:11434}
+      # Kontrol start/stop service dari web UI butuh agent di host, tidak ada di container.
+      SYSTEM_CONTROL_ENABLED: "false"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - allhaven_drive:/data/drive
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # NEXT_PUBLIC_* di-bake saat build. Browser memanggil API lewat host,
+        # jadi ini harus localhost — bukan nama service "backend".
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:${BACKEND_PORT:-8000}/api/v1
+    container_name: allhaven-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+
+volumes:
+  allhaven_pgdata:
+  allhaven_drive:

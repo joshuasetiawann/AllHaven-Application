@@ -56,20 +56,32 @@ INTEGRATIONS: tuple[ProviderSpec, ...] = (
         id="ollama",
         name="Ollama Local AI",
         provider_type="local_ai",
-        purpose="Local LLM inference",
+        purpose="Local LLM inference (desktop-local; reach from mobile via Desktop Bridge)",
         fields=(
-            FieldSpec("base_url", "Base URL", required=True, placeholder="http://localhost:11434"),
+            FieldSpec("base_url", "Local URL", required=True, placeholder="http://localhost:11434"),
             FieldSpec("default_model", "Default model", placeholder="llama3.1"),
+            # --- Desktop Bridge (v4.0) ---
+            FieldSpec("connection_mode", "Connection mode", placeholder="local_desktop", default="local_desktop"),
+            FieldSpec("tailscale_url", "Tailscale Private URL", placeholder="http://100.x.y.z:11434"),
+            FieldSpec("serve_url", "Tailscale Serve URL", placeholder="https://desktop.tailnet.ts.net/ollama"),
+            FieldSpec("funnel_url", "Tailscale Funnel URL (public)", placeholder="https://...ts.net (disabled by default)"),
+            FieldSpec("funnel_enabled", "Funnel enabled", placeholder="false", default="false"),
         ),
     ),
     ProviderSpec(
         id="n8n",
         name="n8n Automation",
         provider_type="automation",
-        purpose="Workflow automation and webhooks",
+        purpose="Workflow automation (desktop-local; reach from mobile via Desktop Bridge)",
         fields=(
-            FieldSpec("base_url", "Base URL", required=True, placeholder="http://localhost:5678"),
+            FieldSpec("base_url", "Local URL", required=True, placeholder="http://localhost:5678"),
             FieldSpec("api_key", "API key (optional)", secret=True),
+            # --- Desktop Bridge (v4.0) ---
+            FieldSpec("connection_mode", "Connection mode", placeholder="local_desktop", default="local_desktop"),
+            FieldSpec("tailscale_url", "Tailscale Private URL", placeholder="http://100.x.y.z:5678"),
+            FieldSpec("serve_url", "Tailscale Serve URL", placeholder="https://desktop.tailnet.ts.net/n8n"),
+            FieldSpec("funnel_url", "Tailscale Funnel URL (public)", placeholder="https://...ts.net (disabled by default)"),
+            FieldSpec("funnel_enabled", "Funnel enabled", placeholder="false", default="false"),
         ),
     ),
     ProviderSpec(
@@ -92,17 +104,6 @@ INTEGRATIONS: tuple[ProviderSpec, ...] = (
             FieldSpec("client_id", "Client ID", required=True),
             FieldSpec("redirect_uri", "Redirect URI", required=True, placeholder="http://localhost:3000/oauth/callback"),
             FieldSpec("client_secret", "Client secret (server-side only)", secret=True),
-        ),
-    ),
-    ProviderSpec(
-        id="weather_api",
-        name="Weather API",
-        provider_type="weather",
-        purpose="Local weather and forecast context",
-        fields=(
-            FieldSpec("provider", "Provider", placeholder="openweathermap", default="openweathermap"),
-            FieldSpec("default_location", "Default location (optional)", placeholder="Jakarta"),
-            FieldSpec("api_key", "API key", secret=True, required=True),
         ),
     ),
     ProviderSpec(
@@ -141,19 +142,25 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
         id="ollama",
         name="Ollama Local Agent",
         provider_type="local",
-        purpose="Local, private LLM inference",
+        purpose="Local, private LLM inference (reach from another machine via Desktop Bridge)",
         external=False,
         api_key_required=False,
         fields=(
-            FieldSpec("base_url", "Base URL", required=True, placeholder="http://localhost:11434"),
+            FieldSpec("base_url", "Local URL", required=True, placeholder="http://localhost:11434"),
             FieldSpec("default_model", "Default model", placeholder="llama3.1"),
+            # --- Desktop Bridge (v4.0): chat inference resolves the URL by mode ---
+            FieldSpec("connection_mode", "Connection mode", placeholder="local_desktop", default="local_desktop"),
+            FieldSpec("tailscale_url", "Tailscale Private URL", placeholder="http://100.x.y.z:11434"),
+            FieldSpec("serve_url", "Tailscale Serve URL", placeholder="https://desktop.tailnet.ts.net/ollama"),
+            FieldSpec("funnel_url", "Tailscale Funnel URL (public)", placeholder="https://...ts.net (disabled by default)"),
+            FieldSpec("funnel_enabled", "Funnel enabled", placeholder="false", default="false"),
         ),
     ),
     ProviderSpec(
         id="openai",
-        name="OpenAI Agent",
+        name="GPT Agent",
         provider_type="api_key",
-        purpose="OpenAI / OpenAI-compatible models",
+        purpose="OpenAI / GPT models",
         external=True,
         api_key_required=True,
         default_model="gpt-4.1-mini",
@@ -170,10 +177,10 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
         purpose="Anthropic Claude models",
         external=True,
         api_key_required=True,
-        default_model="claude-sonnet-4-6",
+        default_model="claude-sonnet-4-5",
         fields=(
             FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-ant-…"),
-            FieldSpec("default_model", "Default model", placeholder="claude-sonnet-4-6"),
+            FieldSpec("default_model", "Default model", placeholder="claude-sonnet-4-5"),
         ),
     ),
     ProviderSpec(
@@ -217,7 +224,58 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
             FieldSpec("base_url", "Base URL (optional)", placeholder="https://api.blackbox.ai/v1"),
         ),
     ),
-    # Three independent OpenRouter agents, each with its own key + default model,
+    ProviderSpec(
+        id="cursor",
+        name="Cursor AI Agent",
+        provider_type="api_key",
+        purpose="Cursor/OpenAI-compatible coding gateway for chat agents",
+        external=True,
+        api_key_required=True,
+        default_model="",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True),
+            FieldSpec("default_model", "Default model", placeholder="cursor-agent or gateway model name"),
+            FieldSpec(
+                "base_url",
+                "Base URL",
+                required=True,
+                placeholder="https://your-openai-compatible-gateway/v1",
+            ),
+        ),
+    ),
+    ProviderSpec(
+        id="deepseek",
+        name="DeepSeek Agent",
+        provider_type="api_key",
+        purpose="DeepSeek chat, coding, and reasoning models",
+        external=True,
+        api_key_required=True,
+        default_model="deepseek-chat",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True),
+            FieldSpec("default_model", "Default model", placeholder="deepseek-chat"),
+            FieldSpec("base_url", "Base URL (optional)", placeholder="https://api.deepseek.com/v1"),
+        ),
+    ),
+    ProviderSpec(
+        id="qwen",
+        name="Qwen Agent",
+        provider_type="api_key",
+        purpose="Alibaba Qwen / DashScope OpenAI-compatible models",
+        external=True,
+        api_key_required=True,
+        default_model="qwen-plus",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True),
+            FieldSpec("default_model", "Default model", placeholder="qwen-plus"),
+            FieldSpec(
+                "base_url",
+                "Base URL (optional)",
+                placeholder="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            ),
+        ),
+    ),
+    # Six independent OpenRouter agents, each with its own key + default model,
     # so users can run several OpenRouter-backed models side by side. Defaults are
     # LIGHT models. Free models exist on OpenRouter (look for the ":free" suffix at
     # openrouter.ai/models) — they rotate, so set the current one in the UI.
@@ -264,14 +322,59 @@ AI_PROVIDERS: tuple[ProviderSpec, ...] = (
             FieldSpec("base_url", "Base URL (optional)", placeholder="https://openrouter.ai/api/v1"),
         ),
     ),
+    ProviderSpec(
+        id="openrouter_4",
+        name="OpenRouter Agent 4",
+        provider_type="api_key",
+        purpose="OpenRouter model marketplace (slot 4)",
+        external=True,
+        api_key_required=True,
+        default_model="",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-or-…"),
+            FieldSpec("default_model", "Default model", placeholder="e.g. anthropic/claude-3.5-haiku"),
+            FieldSpec("base_url", "Base URL (optional)", placeholder="https://openrouter.ai/api/v1"),
+        ),
+    ),
+    ProviderSpec(
+        id="openrouter_5",
+        name="OpenRouter Agent 5",
+        provider_type="api_key",
+        purpose="OpenRouter model marketplace (slot 5)",
+        external=True,
+        api_key_required=True,
+        default_model="",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-or-…"),
+            FieldSpec("default_model", "Default model", placeholder="e.g. deepseek/deepseek-chat"),
+            FieldSpec("base_url", "Base URL (optional)", placeholder="https://openrouter.ai/api/v1"),
+        ),
+    ),
+    ProviderSpec(
+        id="openrouter_6",
+        name="OpenRouter Agent 6",
+        provider_type="api_key",
+        purpose="OpenRouter model marketplace (slot 6)",
+        external=True,
+        api_key_required=True,
+        default_model="",
+        fields=(
+            FieldSpec("api_key", "API key", secret=True, required=True, placeholder="sk-or-…"),
+            FieldSpec("default_model", "Default model", placeholder="e.g. qwen/qwen-2.5-72b-instruct"),
+            FieldSpec("base_url", "Base URL (optional)", placeholder="https://openrouter.ai/api/v1"),
+        ),
+    ),
 )
 
-# AI providers that share an adapter class with a base provider id (e.g. the three
+# AI providers that share an adapter class with a base provider id (e.g. the six
 # OpenRouter slots all use the OpenRouter adapter).
 ADAPTER_ALIASES = {
     "openrouter_1": "openrouter",
     "openrouter_2": "openrouter",
     "openrouter_3": "openrouter",
+    "openrouter_4": "openrouter",
+    "openrouter_5": "openrouter",
+    "openrouter_6": "openrouter",
 }
 
 _INTEGRATIONS_BY_ID = {p.id: p for p in INTEGRATIONS}

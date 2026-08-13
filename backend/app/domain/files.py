@@ -7,8 +7,9 @@ table stores metadata only. Path traversal is prevented in the service layer.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, String
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -16,9 +17,16 @@ from app.domain.base import GUID, Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 class DriveFile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "drive_files"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_drive_files_workspace_id_id"),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False
+    )
 
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     content_type: Mapped[str] = mapped_column(String(127), nullable=False, default="application/octet-stream")
@@ -27,3 +35,4 @@ class DriveFile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -5,7 +5,18 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, JSONType, TimestampMixin, UUIDPrimaryKeyMixin
@@ -26,8 +37,19 @@ class AiMemory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """A persistent user memory, scoped to a workspace."""
 
     __tablename__ = "ai_memories"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_ai_memories_workspace_id_id"),
+        ForeignKeyConstraint(
+            ["workspace_id", "source_session_id"],
+            ["chat_sessions.workspace_id", "chat_sessions.id"],
+            name="fk_ai_memories_workspace_source_session_id_chat_sessions",
+            ondelete="NO ACTION",
+        ),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     category: Mapped[str] = mapped_column(String(50), nullable=False, default="Profile")
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -38,7 +60,9 @@ class AiMemory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
     relevance_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    source_session_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    source_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True
+    )
     meta: Mapped[dict | None] = mapped_column("metadata", JSONType, nullable=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -52,13 +76,33 @@ class AiMemorySuggestion(UUIDPrimaryKeyMixin, Base):
     """
 
     __tablename__ = "ai_memory_suggestions"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "memory_id"],
+            ["ai_memories.workspace_id", "ai_memories.id"],
+            name="fk_ai_memory_suggestions_workspace_memory_id_ai_memories",
+            ondelete="NO ACTION",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "source_session_id"],
+            ["chat_sessions.workspace_id", "chat_sessions.id"],
+            name="fk_ai_memory_suggestions_workspace_source_session_id_c_8fef89cb",
+            ondelete="NO ACTION",
+        ),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    memory_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    memory_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("ai_memories.id", ondelete="SET NULL"), nullable=True
+    )
     category: Mapped[str] = mapped_column(String(50), nullable=False, default="Profile")
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    source_session_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    source_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True
+    )
     source_snippet: Mapped[str | None] = mapped_column(String(500), nullable=True)
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.8)
     sensitivity: Mapped[str] = mapped_column(String(10), nullable=False, default="LOW")
@@ -76,8 +120,20 @@ class AiConversationSummary(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Cached conversation summary, regenerated when message count grows significantly."""
 
     __tablename__ = "ai_conversation_summaries"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "session_id"],
+            ["chat_sessions.workspace_id", "chat_sessions.id"],
+            name="fk_ai_conversation_summaries_workspace_session_id_chat_sessions",
+            ondelete="CASCADE",
+        ),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    session_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, unique=True, index=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     message_count_at_summary: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

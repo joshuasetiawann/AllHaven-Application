@@ -1,4 +1,4 @@
-"""Tests for the unlocked MVP modules: calendar, drive, weather, automations."""
+"""Tests for the unlocked MVP modules: calendar, drive, automations."""
 
 import io
 
@@ -25,6 +25,41 @@ def test_calendar_event_crud_persists(auth_client):
 
     auth_client.delete(f"{API}/calendar/events/{event_id}")
     listed = auth_client.get(f"{API}/calendar/events").json()["data"]
+    assert not any(e["id"] == event_id for e in listed)
+
+
+def test_routine_alias_crud_persists(auth_client):
+    created = auth_client.post(
+        f"{API}/routines/events",
+        json={
+            "title": "Morning review",
+            "start_at": "2026-06-10T07:30:00Z",
+            "time_period": "morning",
+            "repeat_rule": "daily",
+            "repeat_days": ["mon", "tue", "wed"],
+            "icon": "star",
+            "color": "violet",
+        },
+    )
+    assert created.status_code == 200, created.text
+    event_id = created.json()["data"]["id"]
+    assert created.json()["data"]["time_period"] == "morning"
+    assert created.json()["data"]["repeat_rule"] == "daily"
+    assert created.json()["data"]["repeat_days"] == ["mon", "tue", "wed"]
+
+    listed = auth_client.get(f"{API}/routines/events").json()["data"]
+    assert any(e["id"] == event_id for e in listed)
+
+    updated = auth_client.put(
+        f"{API}/routines/events/{event_id}",
+        json={"title": "Morning planning", "time_period": "afternoon", "repeat_rule": "weekly"},
+    )
+    assert updated.json()["data"]["title"] == "Morning planning"
+    assert updated.json()["data"]["time_period"] == "afternoon"
+    assert updated.json()["data"]["repeat_rule"] == "weekly"
+
+    auth_client.delete(f"{API}/routines/events/{event_id}")
+    listed = auth_client.get(f"{API}/routines/events").json()["data"]
     assert not any(e["id"] == event_id for e in listed)
 
 
@@ -57,20 +92,6 @@ def test_drive_path_traversal_blocked(auth_client):
     assert up.status_code == 200, up.text
     assert "/" not in up.json()["data"]["filename"]
     assert ".." not in up.json()["data"]["filename"]
-
-
-# --- Weather --------------------------------------------------------------
-
-def test_weather_setup_required_when_unconfigured(auth_client):
-    resp = auth_client.get(f"{API}/weather/current?location=Jakarta")
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["data"]["status"] == "setup_required"
-
-
-def test_weather_location_persists(auth_client):
-    auth_client.post(f"{API}/weather/locations", json={"name": "Jakarta", "is_default": True})
-    rows = auth_client.get(f"{API}/weather/locations").json()["data"]
-    assert any(r["name"] == "Jakarta" and r["is_default"] for r in rows)
 
 
 # --- Automations ----------------------------------------------------------

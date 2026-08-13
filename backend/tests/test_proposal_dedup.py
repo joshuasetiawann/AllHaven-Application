@@ -14,6 +14,8 @@ from app.core.principal import Principal
 from app.domain.ai import AiToolProposal
 from app.domain.calendar import CalendarEvent
 from app.domain.finance import Transaction
+from app.domain.users import Profile
+from app.domain.workspaces import Workspace
 from app.services import sync_engine, sync_registry
 from app.services.ai_tools_registry import approve_proposal
 from app.core.database import SessionLocal
@@ -74,8 +76,12 @@ def test_lww_apply_skips_row_whose_dedup_key_already_exists_locally():
     NOT create a second calendar_event when device A's row is already present."""
     db = SessionLocal()
     try:
-        ws = uuid.uuid4()
         user = uuid.uuid4()
+        db.add(Profile(id=user, email=f"dedup-{user}@example.com"))
+        db.flush()
+        ws = uuid.uuid4()
+        db.add(Workspace(id=ws, name="Dedup test", owner_id=user))
+        db.flush()
         proposal_id = uuid.uuid4()
         dedup = f"{proposal_id}:0"
         local = CalendarEvent(
@@ -94,7 +100,12 @@ def test_lww_apply_skips_row_whose_dedup_key_already_exists_locally():
             "is_deleted": False, "created_at": "2026-06-22T00:00:00+00:00",
             "updated_at": "2026-06-22T00:00:01+00:00",
         }
-        applied = sync_engine.lww_apply(db, spec, peer_row)
+        applied = sync_engine.lww_apply(
+            db,
+            spec,
+            peer_row,
+            workspace_id=ws,
+        )
         db.commit()
 
         assert applied is None  # skipped, not inserted

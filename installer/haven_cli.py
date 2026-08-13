@@ -168,7 +168,7 @@ def _final_summary(pg: int, be: int, fe: int, venv_status: str, migration_ok: bo
     line("Frontend", f"http://localhost:{fe}  " + ("up" if frontend_ok else "not up yet"), frontend_ok)
     if not (db_ok and backend_ok):
         say(_c("  Next: ensure PostgreSQL is running, then re-run ./install.sh (idempotent) "
-               "or ./allhaven.sh restart. Diagnose anytime with ./scripts/doctor.sh.", "dim"))
+               "or ./allhaven.sh restart. Diagnose anytime with ./setup/linux-macos/doctor.sh.", "dim"))
 
 
 _TOTAL = 6

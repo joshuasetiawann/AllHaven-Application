@@ -15,3 +15,8 @@ class DriveFileOut(ORMModel):
     size_bytes: int
     created_at: datetime
     updated_at: datetime
+
+
+class DriveConfigOut(ORMModel):
+    max_upload_bytes: int
+    max_upload_mb: int
