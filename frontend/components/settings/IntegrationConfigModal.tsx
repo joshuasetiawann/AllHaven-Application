@@ -204,7 +204,16 @@ export function IntegrationConfigModal({
               setBusy("connect");
               setError(null);
               try {
-                await settingsApi.connectSupabase(connectPassword);
+                const result = await settingsApi.connectSupabase(connectPassword);
+                if (!result.connected) {
+                  throw new ApiException(
+                    "Supabase Auth could not create or link this account.",
+                    "SUPABASE_CONNECT_FAILED",
+                    502,
+                  );
+                }
+                // Clear the password only after the backend positively confirms
+                // both remote creation and the local profile link.
                 setConnectPassword("");
               } catch (err) {
                 setError(err instanceof ApiException ? err.message : "Action failed.");

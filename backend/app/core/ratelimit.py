@@ -8,6 +8,8 @@ gateway (see docs/DEPLOYMENT.md). Disabled when AUTH_RATE_LIMIT_PER_MINUTE is 0.
 
 from __future__ import annotations
 
+import ipaddress
+import socket
 import threading
 import time
 from collections import deque
@@ -41,15 +43,48 @@ def _allow(key: str, limit: int) -> bool:
         return True
 
 
+def _trusted_proxy(peer: str) -> bool:
+    """Return True only for an explicitly configured direct proxy peer."""
+    configured = [
+        value.strip()
+        for value in (settings.AUTH_TRUSTED_PROXY_HOSTS or "").split(",")
+        if value.strip()
+    ]
+    for value in configured:
+        if peer == value:
+            return True
+        try:
+            addresses = {item[4][0] for item in socket.getaddrinfo(value, None)}
+        except OSError:
+            continue
+        if peer in addresses:
+            return True
+    return False
+
+
+def _client_ip(request: Request) -> str:
+    peer = request.client.host if request.client else "unknown"
+    if not _trusted_proxy(peer):
+        return peer
+    forwarded = request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
+    try:
+        return str(ipaddress.ip_address(forwarded))
+    except ValueError:
+        return peer
+
+
 async def auth_rate_limit_middleware(request: Request, call_next):
     """Reject auth bursts with 429. Reads the limit per request (testable)."""
     limit = settings.AUTH_RATE_LIMIT_PER_MINUTE
+    path = request.url.path
     if (
         limit > 0
         and request.method == "POST"
-        and request.url.path.startswith(f"{settings.API_V1_PREFIX}/auth/")
+        and path.startswith(f"{settings.API_V1_PREFIX}/auth/")
+        # Failed login/register attempts must never consume the emergency exit.
+        and path != f"{settings.API_V1_PREFIX}/auth/logout"
     ):
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _client_ip(request)
         if not _allow(client_ip, limit):
             return JSONResponse(
                 status_code=429,

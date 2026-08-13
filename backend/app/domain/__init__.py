@@ -23,7 +23,7 @@ from app.domain.files import DriveFile
 from app.domain.finance import FinanceCategory, Transaction
 from app.domain.integrations import AiAgentConfig, IntegrationConfig
 from app.domain.notes import Note
-from app.domain.sessions import UserSession
+from app.domain.sessions import BearerTokenRevocation, UserSession
 from app.domain.tasks import Task, TaskChecklistItem
 from app.domain.weather import WeatherLocation
 from app.domain.users import LocalUser, Profile
@@ -34,6 +34,7 @@ __all__ = [
     "Base",
     "LocalUser",
     "UserSession",
+    "BearerTokenRevocation",
     "Profile",
     "Workspace",
     "WorkspaceMember",

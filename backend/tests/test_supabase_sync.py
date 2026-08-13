@@ -108,8 +108,9 @@ def test_get_credentials_enabled_row(auth_client, db_session):
 
 def test_get_credentials_with_encrypted_service_role_key(auth_client, db_session):
     """If only encrypted service_role_key is present (no public anon_key), it is used."""
+    from app.services import config_common
+
     principal = _make_principal(auth_client)
-    encrypted_key = encrypt_secret("service-role-secret")
     row = IntegrationConfig(
         workspace_id=principal.workspace_id,
         provider_id="supabase",
@@ -118,10 +119,17 @@ def test_get_credentials_with_encrypted_service_role_key(auth_client, db_session
         enabled=True,
         status="configured",
         public_config={"url": "https://xyz.supabase.co"},
-        encrypted_secrets={"service_role_key": encrypted_key},
+        encrypted_secrets={},
         created_by=principal.user_id,
     )
     db_session.add(row)
+    db_session.flush()
+    row.encrypted_secrets = {
+        "service_role_key": encrypt_secret(
+            "service-role-secret",
+            context=config_common.secret_storage_context(row, "service_role_key"),
+        )
+    }
     db_session.commit()
 
     url, key = supabase_sync_service._get_credentials(db_session, principal)
@@ -219,6 +227,30 @@ def test_sync_all_with_creds_starts_thread(auth_client, db_session):
 # ---------------------------------------------------------------------------
 
 
+def test_serialization_never_exports_or_imports_encrypted_secrets():
+    row = IntegrationConfig(
+        id=uuid.uuid4(),
+        workspace_id=uuid.uuid4(),
+        provider_id="supabase",
+        provider_type="auth_storage",
+        display_name="Supabase",
+        encrypted_secrets={"service_role_key": "must-never-leave-this-backend"},
+    )
+
+    serialized = supabase_sync_service._serialize(row)
+    assert "encrypted_secrets" not in serialized
+
+    deserialized = supabase_sync_service._deserialize(
+        IntegrationConfig,
+        {
+            "id": str(row.id),
+            "workspace_id": str(row.workspace_id),
+            "encrypted_secrets": {"service_role_key": "remote-ciphertext"},
+        },
+    )
+    assert "encrypted_secrets" not in deserialized
+
+
 def test_serialize_primitives_and_none(auth_client, db_session):
     """_serialize on a real ORM row handles primitives, datetime, UUID, and None correctly.
 
@@ -290,7 +322,7 @@ def test_serialize_metadata_column(auth_client, db_session):
     getattr(row, "metadata") to resolve to SQLAlchemy's MetaData registry object,
     silently replacing the real dict with the string "MetaData()".
     """
-    from app.domain.ai import ChatMessage
+    from app.domain.ai import ChatMessage, ChatSession
     from app.domain.ai_memory import AiMemory
 
     principal = _make_principal(auth_client)
@@ -306,11 +338,17 @@ def test_serialize_metadata_column(auth_client, db_session):
     )
     db_session.add(mem)
 
-    # Use a real session_id UUID for the ChatMessage
-    import uuid as _uuid
+    # Use a real parent session so referential-integrity checks stay enabled.
+    parent_session = ChatSession(
+        workspace_id=principal.workspace_id,
+        created_by=principal.user_id,
+        title="Metadata parent",
+    )
+    db_session.add(parent_session)
+    db_session.flush()
     msg = ChatMessage(
         workspace_id=principal.workspace_id,
-        session_id=_uuid.uuid4(),
+        session_id=parent_session.id,
         role="user",
         content="hello",
         meta={"msg_key": "msg_val"},

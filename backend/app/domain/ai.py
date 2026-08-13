@@ -12,7 +12,17 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, JSONType, StringArray, TimestampMixin, UUIDPrimaryKeyMixin
@@ -51,29 +61,64 @@ class ChatGroup(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """A project/group that conversations can be organized into."""
 
     __tablename__ = "chat_groups"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_chat_groups_workspace_id_id"),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False
+    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
 
 
 class ChatSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "chat_sessions"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_chat_sessions_workspace_id_id"),
+        ForeignKeyConstraint(
+            ["workspace_id", "group_id"],
+            ["chat_groups.workspace_id", "chat_groups.id"],
+            name="fk_chat_sessions_workspace_group_id_chat_groups",
+            ondelete="NO ACTION",
+        ),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False
+    )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Optional project/group the conversation belongs to.
-    group_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
+    group_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("chat_groups.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     # Last active workspace section for this conversation (general/tasks/notes/...).
     section_key: Mapped[str] = mapped_column(String(50), nullable=False, default="general")
 
 
 class ChatMessage(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "chat_messages"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_chat_messages_workspace_id_id"),
+        ForeignKeyConstraint(
+            ["workspace_id", "session_id"],
+            ["chat_sessions.workspace_id", "chat_sessions.id"],
+            name="fk_chat_messages_workspace_session_id_chat_sessions",
+            ondelete="CASCADE",
+        ),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    session_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     section_key: Mapped[str] = mapped_column(String(50), nullable=False, default="general", index=True)
@@ -93,11 +138,39 @@ class AiToolCall(UUIDPrimaryKeyMixin, Base):
     """
 
     __tablename__ = "ai_tool_calls"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "session_id"],
+            ["chat_sessions.workspace_id", "chat_sessions.id"],
+            name="fk_ai_tool_calls_workspace_session_id_chat_sessions",
+            ondelete="NO ACTION",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "message_id"],
+            ["chat_messages.workspace_id", "chat_messages.id"],
+            name="fk_ai_tool_calls_workspace_message_id_chat_messages",
+            ondelete="NO ACTION",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "proposal_id"],
+            ["ai_tool_proposals.workspace_id", "ai_tool_proposals.id"],
+            name="fk_ai_tool_calls_workspace_proposal_id_ai_tool_proposals",
+            ondelete="NO ACTION",
+        ),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    session_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
-    message_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    message_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True
+    )
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     risk_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -105,7 +178,9 @@ class AiToolCall(UUIDPrimaryKeyMixin, Base):
     arguments: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     result_preview: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    proposal_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
+    proposal_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("ai_tool_proposals.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -115,22 +190,59 @@ class AiMultiAgentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """A single user message fanned out to up to 10 AI agents concurrently."""
 
     __tablename__ = "ai_multi_agent_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "id", name="uq_ai_multi_agent_runs_workspace_id_id"
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "session_id"],
+            ["chat_sessions.workspace_id", "chat_sessions.id"],
+            name="fk_ai_multi_agent_runs_workspace_session_id_chat_sessions",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "user_message_id"],
+            ["chat_messages.workspace_id", "chat_messages.id"],
+            name="fk_ai_multi_agent_runs_workspace_user_message_id_chat_messages",
+            ondelete="NO ACTION",
+        ),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    session_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
-    user_message_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    user_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True
+    )
     provider_ids: Mapped[list[str]] = mapped_column(StringArray, nullable=False, default=list)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
-    created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False
+    )
 
 
 class AiAgentResponse(UUIDPrimaryKeyMixin, Base):
     """One agent's result within a multi-agent run. A failure here is isolated."""
 
     __tablename__ = "ai_agent_responses"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "run_id"],
+            ["ai_multi_agent_runs.workspace_id", "ai_multi_agent_runs.id"],
+            name="fk_ai_agent_responses_workspace_run_id_ai_multi_agent_runs",
+            ondelete="CASCADE",
+        ),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    run_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("ai_multi_agent_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     provider_id: Mapped[str] = mapped_column(String(50), nullable=False)
     provider_name: Mapped[str] = mapped_column(String(120), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
@@ -145,9 +257,18 @@ class AiAgentResponse(UUIDPrimaryKeyMixin, Base):
 
 class AiToolProposal(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "ai_tool_proposals"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "id", name="uq_ai_tool_proposals_workspace_id_id"
+        ),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False
+    )
 
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
     tool_payload: Mapped[dict] = mapped_column(JSONType, nullable=False)
@@ -161,7 +282,9 @@ class AiToolProposal(UUIDPrimaryKeyMixin, Base):
     # Cross-device idempotency: a non-null executed_at is the authoritative "already
     # executed" signal (it converges across desktop/mobile via LWW sync); these record
     # who ran it and the entity it produced.
-    executed_by: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    executed_by: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True
+    )
     target_entity_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

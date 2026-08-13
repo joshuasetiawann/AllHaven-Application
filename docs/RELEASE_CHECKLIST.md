@@ -6,7 +6,7 @@ Status of every release-readiness item. Run the commands, tick the boxes.
 - [x] Backend tests pass — `cd backend && pytest tests/` (full suite green)
 - [x] Frontend builds — `cd frontend && npm run build` (no type errors)
 - [x] DB migrations clean — `cd backend && alembic upgrade head` (verified on PostgreSQL 16, no drift)
-- [x] Health check — `scripts/healthcheck.sh`
+- [x] Health check — `setup/linux-macos/healthcheck.sh`
 
 ## App shell & UI
 - [x] One consistent shell (sidebar + topbar + content)

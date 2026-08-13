@@ -26,7 +26,7 @@ from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.principal import Principal
 from app.core.security import decode_access_token, decode_supabase_token
 from app.domain.users import LocalUser, Profile
-from app.services import session_service
+from app.services import session_service, token_revocation_service
 from app.services.auth_service import get_default_workspace
 
 # Diagnostics for mobile Backend Bridge auth. Only fires for Supabase-token
@@ -86,6 +86,8 @@ def get_current_principal(
     # 1) Bearer token (programmatic clients, tools, and the mobile app).
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization.split(" ", 1)[1].strip()
+        if not token or token_revocation_service.is_revoked(db, token):
+            raise UnauthorizedError("Invalid or expired token.")
 
         # 1a) Desktop-issued token (signed with our SECRET_KEY).
         try:
@@ -108,12 +110,23 @@ def get_current_principal(
         # system). Disabled unless SUPABASE_JWT_SECRET is configured.
         if settings.SUPABASE_JWT_SECRET:
             try:
-                sb_payload = decode_supabase_token(token)
+                sb_subject = decode_supabase_token(token).get("sub")
             except ValueError as exc:
-                log.info("bridge-auth: supabase token REJECTED (%s) for %s %s",
-                         exc, request.method, request.url.path)
-                raise UnauthorizedError("Invalid or expired token.") from exc
-            sb_subject = sb_payload.get("sub")
+                # Projects using asymmetric JWT signing keys issue ES256 tokens, which
+                # the stdlib HS256 verifier cannot check. Supabase is authoritative for
+                # its own tokens, so ask it instead of adding a crypto dependency.
+                from app.services import supabase_auth_service
+
+                sb_url, sb_key = supabase_auth_service.get_service_credentials(db, None)
+                sb_subject = (
+                    supabase_auth_service.verify_access_token(sb_url, sb_key, token)
+                    if sb_url and sb_key
+                    else None
+                )
+                if sb_subject is None:
+                    log.info("bridge-auth: supabase token REJECTED (%s) for %s %s",
+                             exc, request.method, request.url.path)
+                    raise UnauthorizedError("Invalid or expired token.") from exc
             try:
                 supabase_user_id = uuid.UUID(str(sb_subject))
             except (ValueError, TypeError) as exc:

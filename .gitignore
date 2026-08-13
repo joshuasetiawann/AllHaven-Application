@@ -39,3 +39,10 @@ var/
 
 # v4 release artifacts (ZIPs/APK kept local, not committed)
 release/
+
+# Playwright MCP session artifacts (snapshots/console logs)
+.playwright-mcp/
+
+# Windows build artefacts (AllHaven-Setup.exe / AllHaven-Installer-*.exe)
+dist/
+/AllHaven-Setup.exe

@@ -1,0 +1,62 @@
+{
+  "audit": {
+    "application": "AllHaven",
+    "version": "4.2.0",
+    "date": "2026-08-13",
+    "fixes_applied": true,
+    "verdict": "REMEDIATED - CLEAN INSTALL STATE",
+    "final_migration_head": "0029_ci_email_unique",
+    "runtime_running": false
+  },
+  "summary": {
+    "baseline_findings": 10,
+    "baseline_findings_closed": 10,
+    "known_reproducible_blockers": 0,
+    "backend_tests_passed": 659,
+    "installer_tests_passed": 18,
+    "frontend_policy_tests_passed": 22
+  },
+  "automated_evidence": {
+    "backend_suite": "PASS",
+    "installer_suite": "PASS",
+    "frontend_typescript": "PASS",
+    "frontend_production_build": "PASS",
+    "mobile_static_build": "PASS - 20 HTML files / 340 CSP hashes",
+    "npm_audit_complete": "0 vulnerabilities",
+    "npm_audit_production": "0 vulnerabilities",
+    "python_pip_audit": "No known vulnerabilities",
+    "sqlite_migration": "PASS to 0029_ci_email_unique",
+    "postgresql_migration": "PASS to 0029_ci_email_unique",
+    "compose_configuration": "PASS"
+  },
+  "findings": [
+    {"id": "ALL-001", "status": "CLOSED", "title": "System Control status truthfulness"},
+    {"id": "ALL-002", "status": "CLOSED", "title": "Pre-parser and streaming upload limits"},
+    {"id": "ALL-003", "status": "CLOSED", "title": "Native secure credential storage"},
+    {"id": "ALL-004", "status": "CLOSED", "title": "Relational and tenant integrity"},
+    {"id": "ALL-005", "status": "CLOSED", "title": "Task deletion confirmation"},
+    {"id": "ALL-006", "status": "CLOSED", "title": "Frontend dependency vulnerabilities"},
+    {"id": "ALL-007", "status": "CLOSED", "title": "Authenticated secret encryption and rotation"},
+    {"id": "ALL-008", "status": "CLOSED", "title": "Bounded DOCX/PDF parsing"},
+    {"id": "ALL-009", "status": "CLOSED", "title": "Production-local loopback CORS"},
+    {"id": "ALL-010", "status": "CLOSED", "title": "Nonce/hash Content Security Policy"}
+  ],
+  "clean_reset": {
+    "backups_retained": 0,
+    "local_compose_projects": 0,
+    "local_allhaven_containers": 0,
+    "local_allhaven_volumes": 0,
+    "local_database_artifacts": 0,
+    "active_environment_files": 0,
+    "remote_supabase_application_rows": 0,
+    "remote_supabase_auth_users": 0,
+    "remote_supabase_storage_buckets": 0,
+    "dependencies_and_build_outputs_removed": true,
+    "source_and_lockfiles_preserved": true
+  },
+  "verification_limits": [
+    "Physical Android and iOS device validation",
+    "Live third-party OAuth, automation, and paid AI-provider validation",
+    "Externally hosted TLS and outage testing"
+  ]
+}

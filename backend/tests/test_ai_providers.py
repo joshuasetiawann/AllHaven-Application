@@ -103,6 +103,36 @@ def test_local_ollama_not_blocked_by_external_gate(auth_client):
     assert "not configured" in data["reply"]["content"].lower()
 
 
+def test_configured_local_provider_is_enabled_before_any_row_exists(auth_client, monkeypatch):
+    """A fresh workspace must treat a configured local provider as enabled.
+
+    The row default in _get_or_create_row is `enabled=not spec.external`, so the
+    no-row path has to agree. It used to hardcode False, which made a working
+    Ollama answer "configured but disabled" until the user saved any setting.
+    """
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434", raising=False)
+
+    ollama = next(p for p in auth_client.get(f"{API}/ai/providers").json()["data"]["providers"]
+                  if p["id"] == "ollama")
+    assert ollama["configured"] is True
+    assert ollama["enabled"] is True
+
+    # External providers stay off until the user turns them on, row or not.
+    openai = next(p for p in auth_client.get(f"{API}/ai/providers").json()["data"]["providers"]
+                  if p["id"] == "openai")
+    assert openai["enabled"] is False
+
+
+def test_db_status_names_the_engine_actually_connected(auth_client):
+    """Never claim "PostgreSQL — Connected" for a different engine (tests: SQLite)."""
+    integrations = auth_client.get(f"{API}/settings/integrations").json()["data"]["integrations"]
+    pg = next(i for i in integrations if i["key"] == "postgresql")
+    assert pg["status"] == "online"
+    assert "sqlite" in pg["detail"].lower()
+
+
 def test_provider_disable_sets_disabled(auth_client):
     auth_client.put(
         f"{API}/ai/providers/anthropic",

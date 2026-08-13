@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, JSONType, TimestampMixin, UUIDPrimaryKeyMixin
@@ -26,7 +26,9 @@ class IntegrationConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "integration_configs"
     __table_args__ = (UniqueConstraint("workspace_id", "provider_id", name="uq_integration_workspace_provider"),)
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     provider_id: Mapped[str] = mapped_column(String(50), nullable=False)
     provider_type: Mapped[str] = mapped_column(String(50), nullable=False)
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -39,8 +41,12 @@ class IntegrationConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
-    updated_by: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False
+    )
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True
+    )
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -51,7 +57,9 @@ class AiAgentConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "ai_agent_configs"
     __table_args__ = (UniqueConstraint("workspace_id", "provider_id", name="uq_ai_agent_workspace_provider"),)
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     provider_id: Mapped[str] = mapped_column(String(50), nullable=False)
     provider_type: Mapped[str] = mapped_column(String(50), default="ai_provider", nullable=False)
     agent_name: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -69,7 +77,11 @@ class AiAgentConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
-    updated_by: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False
+    )
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True
+    )
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

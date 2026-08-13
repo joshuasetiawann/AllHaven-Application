@@ -81,7 +81,9 @@ def mark_oauth_connected(db: Session, principal: Principal, provider_id: str, to
     enc = dict(row.encrypted_secrets or {})
     for key in ("access_token", "refresh_token"):
         if tokens.get(key):
-            enc[key] = encrypt_secret(str(tokens[key]))
+            enc[key] = encrypt_secret(
+                str(tokens[key]), context=cc.secret_storage_context(row, key)
+            )
     row.encrypted_secrets = enc
     pub = dict(row.public_config or {})
     if tokens.get("scope"):
@@ -264,7 +266,8 @@ def _view(db: Session, principal: Principal, spec: ProviderSpec, row: Optional[I
     if spec.id == "postgresql":
         status, _ = _verify(db, spec, {}, {})
         return _base_view(spec, group, enabled=True, status=status, public={}, secrets={},
-                          last_verified_at=None, last_error=None)
+                          last_verified_at=None, last_error=None,
+                          dialect=db.get_bind().dialect.name)
 
     if row is not None:
         status = row.status
@@ -286,11 +289,15 @@ def _view(db: Session, principal: Principal, spec: ProviderSpec, row: Optional[I
                       secrets=secrets, last_verified_at=None, last_error=None)
 
 
-def _base_view(spec, group, *, enabled, status, public, secrets, last_verified_at, last_error, source="db") -> dict:
+def _base_view(spec, group, *, enabled, status, public, secrets, last_verified_at, last_error,
+               source="db", dialect="") -> dict:
     configured = status in cc.HAS_CONFIG_STATUSES
     detail = cc.STATUS_DETAIL.get(status, "Not configured")
     if spec.id == "postgresql" and status == "online":
-        detail = "Connected"
+        # Name the engine we actually reached. `SELECT 1` succeeds on any database,
+        # so a flat "Connected" under the PostgreSQL card would be the same fake
+        # status this project rules out everywhere else.
+        detail = "Connected" if dialect == "postgresql" else f"Connected to {dialect}, not PostgreSQL"
     return {
         # Backward-compatible fields used by existing UI:
         "key": spec.id,

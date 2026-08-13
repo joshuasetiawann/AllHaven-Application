@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { APP_VERSION, MODULE_NAV, PRIMARY_NAV, SETTINGS_NAV } from "@/components/layout/nav";
 import type { NavItem } from "@/components/layout/nav";
-import { authApi } from "@/lib/api";
+import { ApiException, authApi } from "@/lib/api";
 import { clearAuth, getStoredUser } from "@/lib/auth";
 import { cn, initials } from "@/lib/format";
 
@@ -36,6 +36,8 @@ export function Sidebar({
   // Mobile drawer only: keep the secondary "Modules" group collapsed so the drawer
   // isn't a wall of 14 links. Always expanded on desktop (md+) via `md:block`.
   const [showModules, setShowModules] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   // Collect every href in the nav so we can detect a more-specific match.
   const allHrefs = [
@@ -62,10 +64,23 @@ export function Sidebar({
   };
 
   const signOut = async () => {
-    // Revoke the server-side session + clear cookies, then drop the local cache.
-    await authApi.logout().catch(() => {});
-    clearAuth();
-    router.replace("/login");
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      // Only leave the authenticated UI after the server/provider confirms
+      // revocation. A network/429/5xx response must remain visible and retryable.
+      await authApi.logout();
+      clearAuth();
+      router.replace("/login");
+    } catch (error) {
+      setSignOutError(
+        error instanceof ApiException
+          ? error.message
+          : "Could not sign out. Your session may still be active; please try again.",
+      );
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   const renderItem = (item: NavItem) => {
@@ -212,7 +227,7 @@ export function Sidebar({
         ) : null}
 
         <a
-          href="https://code.claude.com/docs"
+          href="https://github.com/joshuasetiawann/AllHaven-Application#readme"
           target="_blank"
           rel="noreferrer"
           title={collapsed ? "Support" : undefined}
@@ -226,6 +241,7 @@ export function Sidebar({
         </a>
         <button
           onClick={signOut}
+          disabled={signingOut}
           title={collapsed ? "Sign Out" : undefined}
           className={cn(
             "flex w-full items-center gap-3 rounded-xl py-2 text-sm text-content-muted transition-colors hover:bg-danger/10 hover:text-danger focus-ring",
@@ -233,8 +249,13 @@ export function Sidebar({
           )}
         >
           <LogOut size={18} className="shrink-0" />
-          {collapsed ? null : "Sign Out"}
+          {collapsed ? null : signingOut ? "Signing Outâ€¦" : "Sign Out"}
         </button>
+        {signOutError && !collapsed ? (
+          <p role="alert" className="px-3 text-[11px] leading-relaxed text-danger">
+            {signOutError}
+          </p>
+        ) : null}
 
         {canToggle && onToggleCollapse ? (
           <button

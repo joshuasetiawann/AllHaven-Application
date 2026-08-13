@@ -144,6 +144,18 @@ def _get_or_create_row(db: Session, principal: Principal, spec: ProviderSpec) ->
     return row
 
 
+def _default_enabled(spec: ProviderSpec) -> bool:
+    """Enabled state for a workspace that has no saved row yet.
+
+    Must stay in step with the row default in ``_get_or_create_row``: a local
+    provider is usable as soon as it is configured, an external one stays off
+    until the user turns it on. Reading ``False`` here instead made a fresh
+    workspace report a configured Ollama as "disabled" until the user happened
+    to save something in Settings, which created the row.
+    """
+    return not spec.external
+
+
 def _effective_config(row: Optional[AiAgentConfig], spec: ProviderSpec) -> tuple[dict, dict]:
     public = dict(_env_public(spec))
     secrets = dict(_env_secrets(spec))
@@ -175,7 +187,7 @@ def _view(spec: ProviderSpec, row: Optional[AiAgentConfig]) -> dict:
         env_sec = _env_secrets(spec)
         configured_by_env = bool(env_sec) if spec.api_key_required else bool(env_pub.get("base_url"))
         status = "configured" if configured_by_env else "not_configured"
-        enabled = False
+        enabled = _default_enabled(spec) and configured_by_env
         public = env_pub
         secrets = {f: {"configured": bool(env_sec.get(f)), "preview": ""} for f in spec.secret_fields()}
         default_model = env_pub.get("default_model") or spec.default_model
@@ -460,7 +472,7 @@ def plan_chat(
     row = _get_row(db, principal, pid)
     public, secrets = _effective_config(row, spec)
     configured = adapter.is_configured(public, secrets)
-    enabled = bool(row.enabled) if row is not None else False
+    enabled = bool(row.enabled) if row is not None else (_default_enabled(spec) and configured)
     model = row.default_model if row is not None else None
     cfg = dict(row.public_config or {}) if row is not None else {}
     slot_role = str(cfg.get(f"slot{slot}_role") or "")

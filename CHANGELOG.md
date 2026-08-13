@@ -11,13 +11,40 @@ Full, detailed notes for every release live in [`docs/releases/`](docs/releases/
 
 - _Nothing yet._
 
+## [4.3.0] - 2026-08-13 — Full audit closure, security hardening & repo cleanup
+
+Detailed notes: [`docs/releases/v4.3.0.md`](docs/releases/v4.3.0.md) · audit trail: [`docs/reports/`](docs/reports/)
+
+- **Secret encryption replaced** with versioned AES-256-GCM envelopes, context-bound AAD,
+  previous-key reads, and a rotation CLI (`python -m app.cli.rotate_secrets`).
+- **Upload and parser limits enforced before allocation.** ASGI body ceiling, canonical
+  chunked 413, streaming Drive writes, bounded DOCX/ZIP extraction with defused XML, and
+  cumulative decode/structural budgets for PDF (a 3 MB reproduction: 9.45 s → 0.22 s).
+- **Mobile credentials moved to iOS Keychain / Android Keystore** via secure storage, with
+  write-first migration off `Preferences` and no insecure fallback.
+- **Script CSP no longer allows `unsafe-inline`** — per-request nonces on web, route-specific
+  script hashes for the mobile static build.
+- **Bearer logout is enforceable** through stored SHA-256 revocation identifiers; session
+  refresh is an atomic compare-and-swap; registration never adopts an account by email alone.
+- **Supabase sync is tenant-safe**: filtered fetch/apply, rejected cross-workspace key
+  collisions, stable `(timestamp, id)` cursors, and no skipped unsent local rows. RLS,
+  tenant foreign keys, and `SECURITY DEFINER` owners reconciled in migrations `0021`–`0029`.
+- **Fixed fake operational signals.** System Control reported healthy containers as stopped;
+  Supabase Connect, System Control, and logout showed success on failed or disabled operations.
+- **Fixed `127.0.0.1` login** on production-local deployments; hostile origins stay denied.
+- **Task deletion now confirms first** with an accessible dialog.
+- **Repository structure tidied.** Audit reports moved out of the root into `docs/reports/`;
+  `docs/v4/` dissolved into `docs/releases/`, `docs/reports/`, and `docs/`; `docs/deploy/`
+  renamed to `docs/sql/` to stop colliding with the root `deploy/`. All internal links updated.
+- Migration head is now `0029_ci_email_unique` — run `alembic upgrade head` before starting.
+
 ## [4.2.0] - 2026-07-02 — Aurora Glass UI, AI brain completion & security hardening
 
-Detailed notes: [`docs/v4/RELEASE_NOTES_v4.2.0.md`](docs/v4/RELEASE_NOTES_v4.2.0.md)
+Detailed notes: [`docs/releases/v4.2.0.md`](docs/releases/v4.2.0.md)
 
 - **Aurora Glass redesign.** Every page and component restyled on a shared token/primitive
   system (glass surfaces, aurora accents). Visual-only — no behavior or API changes. Design
-  handoff bundle lives in [`design_handoff_allhaven_aurora/`](design_handoff_allhaven_aurora/).
+  handoff bundle lives in [`docs/design/aurora/`](docs/design/aurora/).
 - **v4.0 AI-brain audit closed (P2–P6).** Greetings/smalltalk short-circuit to a warm instant
   reply instead of running the full pipeline; a reply quality gate blocks robotic
   "completed"-style output; **ROUTINE** is a first-class intent; Indonesian "dapat 50rb"
@@ -32,12 +59,12 @@ Detailed notes: [`docs/v4/RELEASE_NOTES_v4.2.0.md`](docs/v4/RELEASE_NOTES_v4.2.0
 - **Launcher robustness.** Stale port listeners are cleared on start/restart, backend startup
   checks are repaired, and native (non-Docker) Postgres status is reported correctly.
 - ⚠️ **Requires Supabase migrations 0018–0020** for cross-device approval idempotency and
-  memory soft-delete sync — apply [`docs/deploy/supabase_0018_0020.sql`](docs/deploy/supabase_0018_0020.sql)
+  memory soft-delete sync — apply [`docs/sql/supabase_0018_0020.sql`](docs/sql/supabase_0018_0020.sql)
   (idempotent) or run `alembic upgrade head` against Supabase.
 
 ## [4.1.0] - 2026-06-27 — Dashboard chart, Notes edit, and memory correction
 
-Detailed notes: [`docs/v4/RELEASE_NOTES_v4.1.0.md`](docs/v4/RELEASE_NOTES_v4.1.0.md)
+Detailed notes: [`docs/releases/v4.1.0.md`](docs/releases/v4.1.0.md)
 
 - **Finance chart rendering fixed.** Cashflow charts now show visible bars with a stable baseline
   and an honest empty-period state.
@@ -51,7 +78,7 @@ Detailed notes: [`docs/v4/RELEASE_NOTES_v4.1.0.md`](docs/v4/RELEASE_NOTES_v4.1.0
 
 ## [4.0.0] - 2026-06-20 — Full Mobile Parity + Tailscale Bridge + Release-Grade Stability
 
-Detailed notes: [`docs/v4/RELEASE_NOTES_v4.0.0.md`](docs/v4/RELEASE_NOTES_v4.0.0.md) · plan: [`docs/v4/`](docs/v4/)
+Detailed notes: [`docs/releases/v4.0.0.md`](docs/releases/v4.0.0.md) · plan: [`docs/reports/V4_RELEASE_PLAN.md`](docs/reports/V4_RELEASE_PLAN.md)
 
 - **Full mobile parity + setup-required states.** Every active desktop module is reachable
   from mobile; backend/bridge-dependent features (Drive, AI Knowledge, integration & AI-provider
@@ -457,7 +484,7 @@ Detailed notes: [`docs/releases/v0.8.0.md`](docs/releases/v0.8.0.md)
 
 ## [0.7.0] - 2026-06-10 — Public-launch auth: cookie sessions, CSRF, rate limiting
 
-Detailed notes: [`docs/releases/v0.7.0.md`](docs/releases/v0.7.0.md) · Audit: [`LAUNCH_SECURITY_REPORT.md`](LAUNCH_SECURITY_REPORT.md)
+Detailed notes: [`docs/releases/v0.7.0.md`](docs/releases/v0.7.0.md)
 
 ### Security
 - **HttpOnly cookie sessions replace localStorage tokens** (browser): hashed (SHA-256) server-side session records, `SameSite=Lax`, `Secure` outside local dev; **rotation** via `POST /auth/refresh`; **server-side revocation** via `POST /auth/logout`. Bearer JWT stays available for API clients/tools. A legacy-key scrub removes previously stored tokens from upgraders' browsers.
@@ -471,7 +498,7 @@ Detailed notes: [`docs/releases/v0.7.0.md`](docs/releases/v0.7.0.md) · Audit: [
 
 ## [0.6.0] - 2026-06-10 — Launch hardening: security headers, safe downloads & dep patches
 
-Detailed notes: [`docs/releases/v0.6.0.md`](docs/releases/v0.6.0.md) · Audit: [`LAUNCH_SECURITY_REPORT.md`](LAUNCH_SECURITY_REPORT.md)
+Detailed notes: [`docs/releases/v0.6.0.md`](docs/releases/v0.6.0.md)
 
 ### Security
 - **Security headers** on every backend response (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`) and on the frontend via `next.config.js`, including a production **Content-Security-Policy** (`frame-ancestors 'none'`, `object-src 'none'`, no `unsafe-eval`).
@@ -549,7 +576,35 @@ Detailed notes: [`docs/releases/v0.1.0.md`](docs/releases/v0.1.0.md)
 - **AI**: 9 providers (Ollama, OpenAI, Anthropic, Gemini, Grok, Blackbox, OpenRouter ×3), parallel multi-agent chat, honest provider verification (no fake "online"), Settings with secure `.env` sync.
 - **Deploy**: Docker / docker-compose (dev + prod with Caddy HTTPS), `allhaven.sh` helper.
 
-[Unreleased]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v4.2.0...HEAD
+[4.2.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v4.1.0...v4.2.0
+[4.1.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v4.0.0...v4.1.0
+[4.0.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v3.8.0...v4.0.0
+[3.8.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v3.7.0...v3.8.0
+[3.7.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v3.6.0...v3.7.0
+[3.6.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v3.5.0...v3.6.0
+[3.5.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v3.4.0...v3.5.0
+[3.4.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v3.3.1...v3.4.0
+[3.3.1]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v3.3.0...v3.3.1
+[3.3.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v3.2.0...v3.3.0
+[3.2.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v3.1.0...v3.2.0
+[3.1.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v3.0.0...v3.1.0
+[3.0.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.17.0...v3.0.0
+[0.17.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.16.0...v0.17.0
+[0.16.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.15.0...v0.16.0
+[0.15.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.13.0...v0.14.0
+[0.13.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.12.0...v0.13.0
+[0.12.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.5.1...v0.6.0
+[0.5.1]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/joshuasetiawann/AllHaven-Application/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/joshuasetiawann/AllHaven-Application/releases/tag/v0.1.0

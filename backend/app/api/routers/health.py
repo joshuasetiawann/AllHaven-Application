@@ -25,6 +25,10 @@ def health() -> dict:
             "app_version": get_app_version(),
             "deployment_profile": settings.DEPLOYMENT_PROFILE,
             "env": settings.APP_ENV,
+            # Which database the app writes to, and how often it mirrors to Supabase
+            # (0 = not mirroring; either unconfigured or Supabase is already primary).
+            "primary_db": settings.primary_db,
+            "sync_interval_seconds": settings.sync_interval_seconds,
         },
         "Service is healthy",
     )

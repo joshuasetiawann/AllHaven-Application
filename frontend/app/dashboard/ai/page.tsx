@@ -15,9 +15,7 @@ import { MarkdownMessage } from "@/components/ai/MarkdownMessage";
 import { PendingActionsPanel } from "@/components/ai/PendingActionsPanel";
 import { MemoryIndicator } from "@/components/ai/MemoryIndicator";
 import { SectionMemoryBar } from "@/components/ai/SectionMemoryBar";
-import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { aiApi, ApiException, knowledgeApi } from "@/lib/api";
-import { isBackendUnreachable } from "@/lib/connection";
 import { cn } from "@/lib/format";
 import { aiPrefsExist, loadAiPrefs, resolveSelection, saveAiPrefs, type ChatModePref } from "@/lib/aiPrefs";
 import { loadPrefs } from "@/lib/prefs";
@@ -173,7 +171,6 @@ export default function AiChatPage() {
   const [chatSettings, setChatSettings] = useState<AiChatSettings | null>(null);
   const [proposalRefresh, setProposalRefresh] = useState(0);
   const [memoryRefreshKey, setMemoryRefreshKey] = useState(0);
-  const [bridgeNeeded, setBridgeNeeded] = useState(false);
   // Active chat "section" (each keeps its own local memory) + model-availability notice.
   const [section, setSection] = useState<string>(DEFAULT_SECTION_KEY);
   const [availabilityWarn, setAvailabilityWarn] = useState<string | null>(null);
@@ -227,15 +224,11 @@ export default function AiChatPage() {
     [thread],
   );
 
-  const handleBackendIssue = (err: unknown) => {
-    if (isBackendUnreachable(err)) setBridgeNeeded(true);
-  };
-
   const refreshSessions = async () => {
-    try { setSessions(await aiApi.listSessions()); } catch (err) { handleBackendIssue(err); }
+    try { setSessions(await aiApi.listSessions()); } catch { /* non-blocking */ }
   };
   const refreshGroups = async () => {
-    try { setGroups(await aiApi.listGroups()); } catch (err) { handleBackendIssue(err); }
+    try { setGroups(await aiApi.listGroups()); } catch { /* non-blocking */ }
   };
 
   useEffect(() => {
@@ -261,7 +254,7 @@ export default function AiChatPage() {
         setAvailabilityWarn(status.kind === "ok" ? null : status.message);
         if (status.selected.length) saveAiPrefs({ selected_agent_ids: status.selected });
       })
-      .catch((err) => handleBackendIssue(err));
+      .catch(() => {});
 
     // Chat behavior settings: debate-flow/tool-activity visibility + default mode.
     aiApi.getChatSettings()
@@ -274,7 +267,7 @@ export default function AiChatPage() {
           saveAiPrefs({ chat_mode: m });
         }
       })
-      .catch((err) => handleBackendIssue(err));
+      .catch(() => {});
   }, []);
 
   // Load the active conversation's messages.
@@ -321,7 +314,6 @@ export default function AiChatPage() {
       setError(null);
       setDrawerOpen(false);
     } catch (e) {
-      handleBackendIssue(e);
       setError(e instanceof ApiException ? e.message : "Could not create chat.");
     }
   };
@@ -622,7 +614,6 @@ export default function AiChatPage() {
       setMessages(msgs);
       void refreshSessions();
     } catch (err) {
-      handleBackendIssue(err);
       setError(err instanceof ApiException ? err.message : "Failed to send message.");
     } finally {
       setSending(false);
@@ -828,24 +819,6 @@ export default function AiChatPage() {
     onRenameChat: renameChat, onDeleteChat: deleteChat, onMoveChat: moveChat,
     onRenameGroup: renameGroup, onDeleteGroup: deleteGroup,
   };
-
-  if (bridgeNeeded) {
-    return (
-      <AppShell>
-        <SetupRequiredState
-          feature="AI Chat"
-          needs="backend"
-          reason="AI Chat, provider settings, Ollama, and n8n run through the desktop backend. On mobile, connect Backend Bridge with your desktop Tailscale URL first."
-          onRetry={() => {
-            setBridgeNeeded(false);
-            setError(null);
-            void refreshSessions();
-            void refreshGroups();
-          }}
-        />
-      </AppShell>
-    );
-  }
 
   return (
     <AppShell>

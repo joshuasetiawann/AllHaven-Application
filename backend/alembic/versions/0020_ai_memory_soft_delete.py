@@ -31,7 +31,10 @@ def upgrade() -> None:
             "ai_memories",
             sa.Column("is_deleted", sa.Boolean(), server_default=sa.false(), nullable=False),
         )
-        op.alter_column("ai_memories", "is_deleted", server_default=None)
+        # SQLite cannot DROP DEFAULT with ALTER COLUMN. Keeping the false default
+        # there matches the ORM behavior and preserves portable fresh installs.
+        if op.get_bind().dialect.name != "sqlite":
+            op.alter_column("ai_memories", "is_deleted", server_default=None)
     if not _has_column("ai_memories", "deleted_at"):
         op.add_column("ai_memories", sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True))
 

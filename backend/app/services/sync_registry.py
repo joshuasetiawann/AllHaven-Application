@@ -30,7 +30,6 @@ from app.domain.automations import Automation
 from app.domain.calendar import CalendarEvent
 from app.domain.files import DriveFile
 from app.domain.finance import FinanceCategory, Transaction
-from app.domain.integrations import AiAgentConfig, IntegrationConfig
 from app.domain.notes import Note
 from app.domain.tasks import Task, TaskChecklistItem
 from app.domain.users import Profile
@@ -62,11 +61,12 @@ def _spec(model, watermark: str = "updated_at", append_only: bool = False, user_
 
 
 # Parents before children (FK-safe apply order).
-# Excluded: sync_state (local bookkeeping), local_users, user_sessions (auth/secret).
+# Excluded: sync_state (local bookkeeping), local_users, user_sessions (auth/secret),
+# integration_configs and ai_agent_configs (may contain encrypted credentials).
 SYNCED_TABLES: list[SyncSpec] = [
+    _spec(Profile, user_scoped=True),
     _spec(Workspace),
     _spec(WorkspaceMember),
-    _spec(Profile, user_scoped=True),
     _spec(Task),
     _spec(TaskChecklistItem),
     _spec(Note),
@@ -76,8 +76,6 @@ SYNCED_TABLES: list[SyncSpec] = [
     _spec(DriveFile),
     _spec(Automation),
     _spec(WeatherLocation),
-    _spec(IntegrationConfig),
-    _spec(AiAgentConfig),
     _spec(ChatGroup),
     _spec(ChatSession),
     _spec(ChatMessage, watermark="created_at", append_only=True),

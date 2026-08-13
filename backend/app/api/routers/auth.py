@@ -27,7 +27,7 @@ from app.schemas.auth import (
     UserOut,
     WorkspaceOut,
 )
-from app.services import auth_service, session_service
+from app.services import auth_service, session_service, token_revocation_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -89,32 +89,47 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
     neither read the CSRF cookie nor set the header, so it can't keep a victim's
     session alive or harvest fresh cookies.
     """
-    session = session_service.validate_session(
-        db, request.cookies.get(session_service.SESSION_COOKIE)
-    )
-    if session is None:
-        raise UnauthorizedError("Session expired. Sign in again.")
+    current_raw = request.cookies.get(session_service.SESSION_COOKIE)
     sent = request.headers.get(session_service.CSRF_HEADER, "")
-    if not sent or sent != session.csrf_token:
+    rotated = session_service.rotate_session(db, current_raw, sent)
+    if rotated is None:
+        db.rollback()
         raise UnauthorizedError("Session refresh failed. Sign in again.")
-    raw = session_service.rotate_session(db, session)
+    raw, csrf = rotated
     db.commit()
-    session_service.set_session_cookies(response, raw, session.csrf_token)
+    session_service.set_session_cookies(response, raw, csrf)
     return success_response({"rotated": True}, "Session refreshed")
 
 
 @router.post("/logout")
 def logout(request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
-    """Revoke the server-side session and clear both cookies.
+    """Revoke cookie and/or bearer credentials, then clear browser cookies.
 
     Deliberately tolerant (no CSRF requirement): the worst a forged logout can
     do is sign the user out, and a reliable "get me out" matters more.
     """
+    changed = False
     session = session_service.validate_session(
         db, request.cookies.get(session_service.SESSION_COOKIE)
     )
     if session is not None:
         session_service.revoke_session(db, session)
+        changed = True
+
+    authorization = request.headers.get("authorization", "")
+    if authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+        try:
+            # Validate before inserting so this deliberately CSRF-free escape
+            # hatch cannot fill the database with arbitrary attacker input.
+            get_current_principal(request, authorization, db)
+        except UnauthorizedError:
+            pass  # expired/already-revoked logout stays safely idempotent
+        else:
+            token_revocation_service.revoke(db, token)
+            changed = True
+
+    if changed:
         db.commit()
     session_service.clear_session_cookies(response)
     return success_response({"logged_out": True}, "Logged out")

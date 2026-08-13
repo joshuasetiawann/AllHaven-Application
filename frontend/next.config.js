@@ -1,15 +1,7 @@
 /** @type {import('next').NextConfig} */
-const isProd = process.env.NODE_ENV === "production";
 // Mobile build target (Capacitor): emit a static export in `out/` that the
 // Android WebView serves locally. Toggle with `BUILD_TARGET=mobile`.
 const isMobile = process.env.BUILD_TARGET === "mobile";
-// Deployment profile shapes how strict the web CSP's connect-src is. In the
-// default `private` (local-first / personal) profile the user may point the app
-// at their own desktop over Tailscale using a plain-HTTP address
-// (http://100.x.y.z:8000), so connect-src must allow `http:`. Hosted profiles
-// (client_portal / public_demo) keep it strict: localhost + HTTPS only.
-const deploymentProfile = process.env.NEXT_PUBLIC_DEPLOYMENT_PROFILE || "private";
-const isPrivateProfile = deploymentProfile === "private";
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -20,30 +12,9 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "geolocation=(), microphone=(self), camera=()" },
 ];
 
-// CSP only in production: dev needs 'unsafe-eval' for Fast Refresh/HMR, which we
-// don't want to allow in the shipped app. Styles use 'unsafe-inline' (Tailwind/
-// Next inject <style>). connect-src: HTTPS is always allowed (Tailscale Serve,
-// hosted backends); plain http:// is allowed only in the private profile so a
-// user-configured Tailscale-IP bridge works without weakening hosted deployments.
-if (isProd) {
-  const connectSrc = isPrivateProfile
-    ? "connect-src 'self' http: https:"
-    : "connect-src 'self' http://localhost:8000 https:";
-  securityHeaders.push({
-    key: "Content-Security-Policy",
-    value: [
-      "default-src 'self'",
-      "base-uri 'self'",
-      "object-src 'none'",
-      "frame-ancestors 'none'",
-      "img-src 'self' data: blob:",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "script-src 'self' 'unsafe-inline'",
-      "font-src 'self' data: https://fonts.gstatic.com",
-      connectSrc,
-    ].join("; "),
-  });
-}
+// The production CSP is request-scoped in middleware.ts so every Next.js
+// bootstrap/streaming script receives a fresh nonce. A static headers() policy
+// cannot safely permit those inline scripts without `unsafe-inline`.
 
 const nextConfig = isMobile
   ? {

@@ -1,0 +1,43 @@
+# Production profile without a domain — an overlay on docker-compose.prod.yml.
+#
+# Same images and same production settings (APP_ENV=production, strong secrets,
+# API docs off, Supabase sync on), but reachable on localhost over plain HTTP.
+# Caddy is simply not started: the services are named explicitly on the command
+# line, so nothing here has to disable it.
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.prod.local.yml \
+#     --env-file .env.prod up -d --build db backend frontend
+#
+# When you get a domain, drop this file and the service list — plain
+# `docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build`
+# starts Caddy and serves everything over HTTPS on one origin.
+
+# All three compose files live in the same directory, so they would otherwise
+# share one Compose project name — and therefore one `allhaven_pgdata` volume.
+# The production stack must never reuse the dev database (Postgres only applies
+# POSTGRES_PASSWORD when it initialises an empty data dir, so a shared volume
+# also breaks auth with a "password authentication failed" loop).
+name: allhaven-prod
+
+# Host ports are configurable (the Windows setup wizard asks, and writes them to
+# .env.prod) so AllHaven can coexist with whatever already owns 3000 or 8000.
+# Only the host side moves — inside the network the containers keep their own
+# ports, so nothing else has to change.
+services:
+  backend:
+    environment:
+      # No reverse proxy in front, so the browser calls the API cross-origin
+      # (frontend port -> backend port). Same-site, so the SameSite=Lax session
+      # cookie still rides along.
+      BACKEND_CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-3000},http://127.0.0.1:${FRONTEND_PORT:-3000},https://localhost,capacitor://localhost
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+
+  frontend:
+    build:
+      args:
+        # Baked in at build time, so changing the port needs a rebuild — which is
+        # exactly what the control panel does when you change it.
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:${BACKEND_PORT:-8000}/api/v1
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"

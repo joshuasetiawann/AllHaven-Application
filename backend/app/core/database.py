@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -24,13 +24,26 @@ def make_engine(url: str) -> Engine:
 
         connect_args = {"check_same_thread": False}
         if ":memory:" in url or url.endswith(":memory:"):
-            return create_engine(
+            db_engine = create_engine(
                 url,
                 future=True,
                 connect_args=connect_args,
                 poolclass=StaticPool,
             )
-        return create_engine(url, future=True, connect_args=connect_args)
+        else:
+            db_engine = create_engine(url, future=True, connect_args=connect_args)
+
+        # SQLite disables FK enforcement by default. Tests and supported local
+        # tooling must exercise the same fail-closed relationships as Postgres.
+        @event.listens_for(db_engine, "connect")
+        def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
+            cursor = dbapi_connection.cursor()
+            try:
+                cursor.execute("PRAGMA foreign_keys=ON")
+            finally:
+                cursor.close()
+
+        return db_engine
 
     return create_engine(url, future=True, pool_pre_ping=True)
 

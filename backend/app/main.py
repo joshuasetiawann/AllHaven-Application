@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.ratelimit import auth_rate_limit_middleware
 from app.core.responses import success_response
+from app.core.uploads import UploadBodyLimitMiddleware
 
 
 from app.core.version import get_app_version as _app_version  # single source of truth
@@ -43,10 +44,11 @@ def create_app() -> FastAPI:
     async def lifespan(_app: FastAPI):
         # Run the two-way Supabase sync continuously so phone-side changes are
         # pulled even while the desktop is idle (the per-write trigger only fires
-        # on desktop writes). No-op when Supabase isn't configured.
+        # on desktop writes). No-op when Supabase isn't configured, and off entirely
+        # when Supabase IS the primary database (see Settings.sync_interval_seconds).
         from app.services import sync_scheduler
 
-        sync_scheduler.start(settings.SYNC_INTERVAL_SECONDS)
+        sync_scheduler.start(settings.sync_interval_seconds)
         try:
             yield
         finally:
@@ -61,6 +63,11 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json" if settings.api_docs_enabled else None,
         lifespan=lifespan,
     )
+
+    # Must sit below the response-header/CORS middleware but above routing so an
+    # oversized multipart body is rejected before Starlette creates UploadFile
+    # spools. The limiter also covers chunked requests without Content-Length.
+    app.add_middleware(UploadBodyLimitMiddleware)
 
     # Security headers on every response (defense in depth). No CSP here so the
     # Swagger UI at /docs keeps working; the frontend sets its own CSP.

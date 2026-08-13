@@ -8,7 +8,6 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Modal } from "@/components/ui/Modal";
-import { useAppDialog } from "@/components/ui/AppDialog";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { notesApi, ApiException } from "@/lib/api";
 import { cn, formatDateTime, relativeTime } from "@/lib/format";
@@ -42,7 +41,6 @@ function tagTint(tag?: string) {
 }
 
 export default function NotesPage() {
-  const dialog = useAppDialog();
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -139,14 +137,6 @@ export default function NotesPage() {
   };
 
   const remove = async (note: Note) => {
-    const ok = await dialog.confirm({
-      title: "Anda yakin ingin menghapus?",
-      message: `Hapus note "${note.title}"?`,
-      confirmLabel: "Hapus",
-      cancelLabel: "Batal",
-      tone: "danger",
-    });
-    if (!ok) return;
     setNotes((prev) => prev?.filter((n) => n.id !== note.id) ?? prev);
     if (selectedId === note.id) setSelectedId(null);
     try {

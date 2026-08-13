@@ -207,7 +207,8 @@ export const authApi = {
   login: (email: string, password: string): Promise<AuthToken> => supabaseSignIn(email, password),
   logout: async (): Promise<{ logged_out: boolean }> => {
     const sb = await getSupabase();
-    await sb.auth.signOut();
+    const { error } = await supabaseTimeout(sb.auth.signOut(), "Sign out");
+    if (error) throw toApiException(error);
     setWorkspaceId(null);
     setAppUserId(null);
     return { logged_out: true };

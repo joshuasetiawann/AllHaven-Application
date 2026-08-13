@@ -59,9 +59,9 @@ const config: Config = {
         magenta: "rgb(var(--color-magenta) / <alpha-value>)",
       },
       fontFamily: {
-        sans: ["Geist", "Inter", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
-        label: ["Geist", "Inter", "system-ui", "sans-serif"],
-        mono: ["Geist Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+        sans: ["var(--font-geist)", "var(--font-inter)", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+        label: ["var(--font-geist)", "var(--font-inter)", "system-ui", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       // Aurora radii — cards 18–20, tiles 16, buttons 11–14, icon tiles 9–13.
       borderRadius: {

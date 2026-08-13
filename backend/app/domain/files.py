@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, String
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -17,9 +17,16 @@ from app.domain.base import GUID, Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 class DriveFile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "drive_files"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_drive_files_workspace_id_id"),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False
+    )
 
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     content_type: Mapped[str] = mapped_column(String(127), nullable=False, default="application/octet-stream")

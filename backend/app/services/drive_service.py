@@ -68,12 +68,8 @@ def upload_limit_mb() -> int:
     return max(1, int(upload_limit_bytes() / (1024 * 1024)))
 
 
-def save_file(db: Session, principal: Principal, *, filename: str, content_type: str, data: bytes) -> DriveFile:
-    if not data:
-        raise ValidationAppError("Uploaded file is empty.")
-    if len(data) > upload_limit_bytes():
-        raise ValidationAppError(f"File exceeds the configured {upload_limit_mb()} MB limit.")
-
+def prepare_upload_path(principal: Principal, filename: str) -> tuple[Path, Path, str]:
+    """Return an in-root temp/destination path for a streamed upload."""
     root = _storage_root()
     ws_dir = (root / str(principal.workspace_id)).resolve()
     # Defense in depth: the workspace dir must remain inside the storage root.
@@ -86,21 +82,84 @@ def save_file(db: Session, principal: Principal, *, filename: str, content_type:
     dest = (ws_dir / stored_name).resolve()
     if os.path.commonpath([str(root), str(dest)]) != str(root):
         raise ValidationAppError("Invalid storage path.")
-    dest.write_bytes(data)
+    temp = (ws_dir / f".{stored_name}.uploading").resolve()
+    if os.path.commonpath([str(root), str(temp)]) != str(root):
+        raise ValidationAppError("Invalid storage path.")
+    return temp, dest, safe
 
-    rel = os.path.relpath(str(dest), str(root))
+
+def save_streamed_file(
+    db: Session,
+    principal: Principal,
+    *,
+    filename: str,
+    content_type: str,
+    size_bytes: int,
+    temp_path: Path,
+    destination: Path,
+) -> DriveFile:
+    """Atomically publish streamed bytes, then persist their metadata."""
+    if size_bytes < 1:
+        raise ValidationAppError("Uploaded file is empty.")
+    if size_bytes > upload_limit_bytes():
+        raise ValidationAppError(f"File exceeds the configured {upload_limit_mb()} MB limit.")
+
+    root = _storage_root()
+    workspace_dir = (root / str(principal.workspace_id)).resolve()
+    for path in (temp_path.resolve(), destination.resolve()):
+        if (
+            os.path.commonpath([str(root), str(path)]) != str(root)
+            or path.parent != workspace_dir
+        ):
+            raise ValidationAppError("Invalid storage path.")
+    os.replace(temp_path, destination)
+
+    rel = os.path.relpath(str(destination), str(root))
+    safe = _safe_basename(filename)
     row = DriveFile(
         workspace_id=principal.workspace_id,
         created_by=principal.user_id,
         filename=safe,
         content_type=content_type or "application/octet-stream",
-        size_bytes=len(data),
+        size_bytes=size_bytes,
         storage_path=rel,
     )
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return row
+    try:
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        return row
+    except Exception:
+        db.rollback()
+        try:
+            destination.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
+def save_file(db: Session, principal: Principal, *, filename: str, content_type: str, data: bytes) -> DriveFile:
+    """Compatibility helper for small internal/test payloads."""
+    if not data:
+        raise ValidationAppError("Uploaded file is empty.")
+    if len(data) > upload_limit_bytes():
+        raise ValidationAppError(f"File exceeds the configured {upload_limit_mb()} MB limit.")
+    temp, destination, safe = prepare_upload_path(principal, filename)
+    try:
+        with temp.open("xb") as stream:
+            stream.write(data)
+        return save_streamed_file(
+            db,
+            principal,
+            filename=safe,
+            content_type=content_type,
+            size_bytes=len(data),
+            temp_path=temp,
+            destination=destination,
+        )
+    except Exception:
+        temp.unlink(missing_ok=True)
+        raise
 
 
 def resolve_path(db: Session, principal: Principal, file_id: uuid.UUID) -> tuple[DriveFile, str]:

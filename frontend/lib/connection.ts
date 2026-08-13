@@ -5,7 +5,7 @@
 // a SetupRequiredState instead of a raw error or a "use desktop app" message.
 
 import { ApiException, getApiBaseUrl } from "@/lib/api";
-import { normalizeBackendUrl } from "@/lib/backendUrl";
+import { resolveBackendCandidateUrl } from "@/lib/backendUrl";
 
 /** True when an error means the backend/bridge is unreachable (vs a real app error). */
 export function isBackendUnreachable(err: unknown): boolean {
@@ -65,7 +65,7 @@ export async function testBackendConnection(
   rawUrl?: string,
   timeoutMs = 6000,
 ): Promise<BackendTestResult> {
-  const base = rawUrl !== undefined ? normalizeBackendUrl(rawUrl) : getApiBaseUrl();
+  const base = rawUrl !== undefined ? resolveBackendCandidateUrl(rawUrl) : getApiBaseUrl();
   if (!base) {
     return { ok: false, status: "not_configured", message: "Enter a backend URL first.", testedUrl: "" };
   }

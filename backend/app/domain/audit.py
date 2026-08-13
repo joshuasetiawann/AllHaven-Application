@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, JSONType, UUIDPrimaryKeyMixin
@@ -14,8 +14,12 @@ from app.domain.base import GUID, Base, JSONType, UUIDPrimaryKeyMixin
 class AuditLog(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "audit_logs"
 
-    workspace_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True, index=True)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True
+    )
 
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     entity_name: Mapped[str] = mapped_column(String(100), nullable=False)

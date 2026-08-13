@@ -22,7 +22,6 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Modal } from "@/components/ui/Modal";
 import { Tabs } from "@/components/ui/Tabs";
-import { useAppDialog } from "@/components/ui/AppDialog";
 import { PriorityBadge, TaskStatusLabel } from "@/components/ui/meta";
 import { ErrorState, Loading, EmptyState } from "@/components/ui/States";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
@@ -34,12 +33,14 @@ const PRIORITIES: TaskPriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
 const MAX_ITEMS = 5;
 
 export default function TasksPage() {
-  const dialog = useAppDialog();
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState("ALL");
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Task | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [aiBanner, setAiBanner] = useState(true);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [form, setForm] = useState({
@@ -112,20 +113,25 @@ export default function TasksPage() {
     }
   };
 
-  const remove = async (task: Task) => {
-    const ok = await dialog.confirm({
-      title: "Anda yakin ingin menghapus?",
-      message: `Hapus task "${task.title}"?`,
-      confirmLabel: "Hapus",
-      cancelLabel: "Batal",
-      tone: "danger",
-    });
-    if (!ok) return;
-    setTasks((prev) => prev?.filter((t) => t.id !== task.id) ?? prev);
+  const closeDeleteModal = () => {
+    if (deleting) return;
+    setPendingDelete(null);
+    setDeleteError(null);
+  };
+
+  const remove = async () => {
+    if (!pendingDelete) return;
+    const task = pendingDelete;
+    setDeleting(true);
+    setDeleteError(null);
     try {
       await tasksApi.remove(task.id);
-    } catch {
-      void load();
+      setTasks((prev) => prev?.filter((item) => item.id !== task.id) ?? prev);
+      setPendingDelete(null);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete task.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -279,7 +285,10 @@ export default function TasksPage() {
                       )}
                     </Button>
                     <button
-                      onClick={() => remove(task)}
+                      onClick={() => {
+                        setDeleteError(null);
+                        setPendingDelete(task);
+                      }}
                       className="flex h-8 w-8 items-center justify-center rounded-sm text-content-subtle transition-colors hover:bg-danger/10 hover:text-danger"
                       aria-label="Delete task"
                     >
@@ -310,6 +319,34 @@ export default function TasksPage() {
           </div>
         </div>
       ) : null}
+
+      <Modal
+        open={pendingDelete !== null}
+        onClose={closeDeleteModal}
+        title="Delete command?"
+        description="This permanently deletes the task and its checklist."
+        footer={
+          <>
+            <Button variant="ghost" onClick={closeDeleteModal} disabled={deleting} autoFocus>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={() => void remove()} loading={deleting}>
+              <Trash2 size={15} /> Delete command
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-[13px] text-content-muted">
+            You are about to delete <span className="font-semibold text-content">{pendingDelete?.title}</span>.
+          </p>
+          {deleteError ? (
+            <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[13px] text-danger">
+              {deleteError}
+            </p>
+          ) : null}
+        </div>
+      </Modal>
 
       <Modal
         open={open}

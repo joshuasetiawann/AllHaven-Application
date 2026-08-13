@@ -29,17 +29,21 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Everything documented in .env.prod.example reaches the container. Without
+    # this, settings like API_DOCS_ENABLED / SESSION_TTL_DAYS / SUPABASE_* are
+    # only used for compose substitution and silently ignored by the app.
+    env_file:
+      - .env.prod
     environment:
+      # Values below are computed or must not be overridable from the file.
       APP_ENV: production
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      SECRET_KEY: ${SECRET_KEY}
-      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY}
       # Same-origin via Caddy, so list your domain explicitly (no wildcard in prod).
       # The extra localhost origins let the Capacitor Android app (WebView origin
       # https://localhost) call this API; the web app is same-origin and unaffected.
       BACKEND_CORS_ORIGINS: https://${DOMAIN},https://localhost,capacitor://localhost
-      # Optional provider/integration defaults (the web UI can also set these):
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      # Trust only the direct private Caddy peer for auth-limiter client IPs.
+      AUTH_TRUSTED_PROXY_HOSTS: caddy
     volumes:
       - allhaven_drive:/data/drive
 

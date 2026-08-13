@@ -82,6 +82,9 @@ class Settings(BaseSettings):
     # Per-IP request cap per minute on /auth/* (login/register/refresh).
     # 0 disables (local dev / behind an already rate-limited gateway).
     AUTH_RATE_LIMIT_PER_MINUTE: int = 0
+    # Comma-separated direct proxy peers (IP addresses or resolvable internal
+    # hostnames) allowed to supply X-Forwarded-For to the auth limiter.
+    AUTH_TRUSTED_PROXY_HOSTS: str = ""
 
     # --- Database ---
     POSTGRES_USER: str = "allhaven"
@@ -120,6 +123,9 @@ class Settings(BaseSettings):
     DRIVE_STORAGE_DIR: str = ""
     # Upload cap shown and enforced by both backend and frontend.
     DRIVE_MAX_UPLOAD_MB: int = 250
+    # AI Knowledge is parsed/indexed in-process, so it has a deliberately lower
+    # bounded-memory budget than streamed Drive storage.
+    KNOWLEDGE_MAX_UPLOAD_MB: int = 10
     # Override the .env mirror path (tests point this at a temp file so the real
     # repo .env is never touched).
     ENV_SYNC_PATH: str = ""
@@ -129,9 +135,11 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:3000/oauth/google/callback"
 
-    # --- Secret storage (encryption at rest for web-configured credentials) ---
-    # MVP scheme; document as replaceable by a KMS/Fernet in production.
+    # --- Secret storage (AES-256-GCM for web-configured credentials) ---
     SETTINGS_ENCRYPTION_KEY: str = "change-me-32-byte-development-key"
+    # Comma-separated, decryption-only old keys. Keep these during rotation until
+    # the data migration has rewritten every envelope with the current key.
+    SETTINGS_ENCRYPTION_KEY_PREVIOUS: str = ""
 
     # --- Multi-provider AI system ---
     AI_DEFAULT_PROVIDER: str = "ollama"
@@ -188,6 +196,21 @@ class Settings(BaseSettings):
         return (self.APP_ENV or "").strip().lower() in ("local", "dev", "development")
 
     @property
+    def primary_db(self) -> str:
+        """Which database the app actually writes to: ``"supabase"`` or ``"local"``.
+
+        Derived from DATABASE_URL rather than stored separately, so the two can never
+        disagree. With Supabase as the primary there is nothing to mirror — the sync
+        engine would copy that database onto itself — so the scheduler stays off.
+        """
+        return "supabase" if ".supabase." in (self.DATABASE_URL or "") else "local"
+
+    @property
+    def sync_interval_seconds(self) -> int:
+        """Effective mirror interval; always 0 when Supabase is already the primary."""
+        return 0 if self.primary_db == "supabase" else self.SYNC_INTERVAL_SECONDS
+
+    @property
     def api_docs_enabled(self) -> bool:
         """Expose Swagger/OpenAPI only in local mode unless explicitly enabled."""
         if self.API_DOCS_ENABLED is not None:
@@ -229,7 +252,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _require_strong_secret_in_production(self) -> "Settings":
-        """Fail startup in production with the dev default or a weak SECRET_KEY."""
+        """Fail production startup when signing/encryption keys are weak."""
         env = (self.APP_ENV or "").strip().lower()
         if env in ("production", "prod", "staging"):
             if self.SECRET_KEY == "dev-insecure-secret-change-me" or len(self.SECRET_KEY) < 32:
@@ -237,6 +260,14 @@ class Settings(BaseSettings):
                     "Refusing to start: SECRET_KEY must be a strong random value "
                     "(>= 32 chars) when APP_ENV is production. Generate one with: "
                     "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+                )
+            if (
+                self.SETTINGS_ENCRYPTION_KEY == "change-me-32-byte-development-key"
+                or len(self.SETTINGS_ENCRYPTION_KEY) < 32
+            ):
+                raise ValueError(
+                    "Refusing to start: SETTINGS_ENCRYPTION_KEY must be a strong random value "
+                    "(>= 32 chars) when APP_ENV is production."
                 )
         return self
 

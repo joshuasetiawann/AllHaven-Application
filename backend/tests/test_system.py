@@ -39,6 +39,66 @@ def test_status_uses_agent_when_up(auth_client, monkeypatch):
     assert data["services"][0]["controllable"] is True
 
 
+def test_status_strips_agent_actions_when_control_is_disabled(auth_client, monkeypatch):
+    """An installed agent must not make a read-only deployment look actionable."""
+    fake = {
+        "agent": {"running": True, "message": ""},
+        "control_enabled": True,
+        "services": [{
+            "name": "postgres", "label": "PostgreSQL", "kind": "docker",
+            "status": "running", "port": 5432, "controllable": True,
+            "actions": ["start", "stop", "restart", "logs"], "message": "",
+            "last_checked": "now",
+        }],
+    }
+    monkeypatch.setattr(sysmod.settings, "APP_ENV", "production")
+    monkeypatch.setattr(sysmod, "_agent", lambda *a, **k: (200, fake))
+
+    data = auth_client.get(f"{API}/system/status").json()["data"]
+
+    assert data["control_enabled"] is False
+    assert data["agent"]["running"] is False
+    assert "not used" in data["agent"]["message"].lower()
+    assert data["services"][0]["status"] == "running"
+    assert data["services"][0]["controllable"] is False
+    assert data["services"][0]["actions"] == []
+    assert "read-only" in data["services"][0]["message"].lower()
+
+
+def test_container_fallback_probes_compose_services_not_its_own_loopback(monkeypatch):
+    monkeypatch.setattr(sysmod, "_in_container", lambda: True)
+    monkeypatch.setattr(sysmod, "_read_env", lambda: {})
+    monkeypatch.setattr(sysmod.settings, "DATABASE_URL", "postgresql+psycopg://u:p@db:5432/allhaven")
+    observed = []
+
+    def fake_open(host, port):
+        observed.append((host, port))
+        return (host, port) in {("frontend", 3000), ("db", 5432)}
+
+    monkeypatch.setattr(sysmod, "_port_open_at", fake_open)
+    data = sysmod._fallback_status(enabled=False)
+    states = {service["name"]: service["status"] for service in data["services"]}
+
+    assert states == {"backend": "running", "frontend": "running", "postgres": "running"}
+    assert ("frontend", 3000) in observed
+    assert ("db", 5432) in observed
+    assert all(host != "127.0.0.1" for host, _ in observed)
+
+
+def test_container_fallback_reports_failed_cross_container_probe_as_unknown(monkeypatch):
+    monkeypatch.setattr(sysmod, "_in_container", lambda: True)
+    monkeypatch.setattr(sysmod, "_read_env", lambda: {})
+    monkeypatch.setattr(sysmod, "_port_open_at", lambda *args: False)
+    data = sysmod._fallback_status(enabled=False)
+    services = {service["name"]: service for service in data["services"]}
+
+    assert services["backend"]["status"] == "running"
+    assert services["frontend"]["status"] == "unknown"
+    assert services["postgres"]["status"] == "unknown"
+    assert "cannot be determined" in services["frontend"]["message"]
+    assert "not used" in data["agent"]["message"].lower()
+
+
 # --- allowlists ----------------------------------------------------------- #
 
 

@@ -12,7 +12,7 @@ from app.schemas.common import ORMModel, normalize_email
 
 
 class RegisterRequest(BaseModel):
-    email: str
+    email: str = Field(max_length=320)
     password: str = Field(min_length=8, max_length=128)
     full_name: Optional[str] = Field(default=None, max_length=255)
 
@@ -23,7 +23,7 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: str
+    email: str = Field(max_length=320)
     password: str = Field(min_length=1, max_length=128)
 
     @field_validator("email")

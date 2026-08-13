@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, String
+from sqlalchemy import Boolean, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import Base, GUID, TimestampMixin, UUIDPrimaryKeyMixin
@@ -24,6 +24,10 @@ class LocalUser(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    __table_args__ = (
+        Index("uq_local_users_email_ci", func.lower(email), unique=True),
+    )
+
 
 class Profile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Public profile linked 1:1 with a user id."""
@@ -35,4 +39,8 @@ class Profile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     supabase_user_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), unique=True, nullable=True, index=True
+    )
+
+    __table_args__ = (
+        Index("uq_profiles_email_ci", func.lower(email), unique=True),
     )

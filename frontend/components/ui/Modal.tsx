@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/format";
 
@@ -22,6 +22,9 @@ export function Modal({
   footer?: ReactNode;
   size?: "md" | "lg";
 }) {
+  const titleId = useId();
+  const descriptionId = useId();
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     if (open) {
@@ -42,6 +45,8 @@ export function Modal({
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         className={cn(
           "relative z-10 w-full animate-scale-in rounded-t-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(18,20,34,0.96),rgba(10,11,20,0.98))] shadow-glow backdrop-blur-[22px] sm:rounded-2xl",
           size === "lg" ? "max-w-2xl" : "max-w-lg",
@@ -49,8 +54,8 @@ export function Modal({
       >
         <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div>
-            <h3 className="text-[15px] font-semibold text-content">{title}</h3>
-            {description ? <p className="mt-0.5 text-[13px] text-content-muted">{description}</p> : null}
+            <h3 id={titleId} className="text-[15px] font-semibold text-content">{title}</h3>
+            {description ? <p id={descriptionId} className="mt-0.5 text-[13px] text-content-muted">{description}</p> : null}
           </div>
           <button
             onClick={onClose}

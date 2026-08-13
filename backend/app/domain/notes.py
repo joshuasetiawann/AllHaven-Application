@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, StringArray, TimestampMixin, UUIDPrimaryKeyMixin
@@ -14,9 +14,15 @@ from app.domain.base import GUID, Base, StringArray, TimestampMixin, UUIDPrimary
 class Note(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "notes"
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    created_by: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False)
-    updated_by: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False
+    )
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True
+    )
 
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -6,6 +6,8 @@ import urllib.error
 import uuid
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.services import supabase_auth_service
 
 
@@ -73,30 +75,17 @@ def test_create_user_returns_none_on_http_error():
         )
 
 
-def test_create_user_links_existing_user_when_already_exists():
-    """If the auth user already exists, create_user locates it (GET), resets its
-    password (PUT), and returns the existing id so the caller can link the profile."""
-    existing_id = "22222222-2222-2222-2222-222222222222"
+@pytest.mark.parametrize("status_code", [409, 422])
+def test_create_user_conflict_never_looks_up_or_resets_existing_user(status_code):
+    """An email collision cannot authorize claiming the remote identity."""
     calls: list[str] = []
 
     def fake_urlopen(req, timeout=None):
         method = req.get_method()
         calls.append(method)
-        if method == "POST":
-            raise urllib.error.HTTPError(req.get_full_url(), 422, "user already exists", {}, None)
-        resp = MagicMock()
-        resp.__enter__ = lambda s: s
-        resp.__exit__ = MagicMock(return_value=False)
-        if method == "GET":
-            resp.read = lambda: json.dumps(
-                {"users": [
-                    {"id": "other", "email": "y@example.com"},
-                    {"id": existing_id, "email": "X@Example.com"},
-                ]}
-            ).encode()
-        else:  # PUT (password reset)
-            resp.read = lambda: b"{}"
-        return resp
+        raise urllib.error.HTTPError(
+            req.get_full_url(), status_code, "user already exists", {}, None
+        )
 
     with patch("urllib.request.urlopen", side_effect=fake_urlopen):
         sb_id = supabase_auth_service.create_user(
@@ -107,11 +96,40 @@ def test_create_user_links_existing_user_when_already_exists():
             full_name=None,
         )
 
-    assert sb_id == existing_id
-    assert calls[0] == "POST"      # attempted create
-    assert "GET" in calls          # looked up the existing user
-    assert "PUT" in calls          # reset its password
+    assert sb_id is None
+    assert calls == ["POST"]
 
+
+def test_access_token_verifier_immediately_honors_authoritative_rejection():
+    """A provider-revoked token must not survive in a local acceptance cache."""
+    user_id = "11111111-1111-1111-1111-111111111111"
+    calls = 0
+
+    def accept_then_reject(req, timeout=None):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise urllib.error.URLError("revoked")
+        response = MagicMock()
+        response.__enter__ = lambda value: value
+        response.__exit__ = MagicMock(return_value=False)
+        response.read = lambda: json.dumps({"id": user_id}).encode()
+        return response
+
+    with patch("urllib.request.urlopen", side_effect=accept_then_reject):
+        assert (
+            supabase_auth_service.verify_access_token(
+                "https://proj.supabase.co", "key", "redacted-token"
+            )
+            == user_id
+        )
+        assert (
+            supabase_auth_service.verify_access_token(
+                "https://proj.supabase.co", "key", "redacted-token"
+            )
+            is None
+        )
+    assert calls == 2
 
 def _seed_user(db_session, *, email, supabase_user_id=None):
     from app.core.security import hash_password

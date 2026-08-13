@@ -11,7 +11,8 @@ Security:
 - This module never raises to its callers.
 - Auth password hashes and browser session token hashes are intentionally not
   mirrored. Workspace/product data is local-first; Supabase is an optional copy.
-  Integration/provider secrets are mirrored only as already-encrypted DB blobs.
+- Integration/provider configuration rows and encrypted secret blobs are never
+  mirrored. A service-role credential must remain local to the trusted backend.
 """
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ from app.core.principal import Principal
 log = logging.getLogger(__name__)
 
 SUPABASE_PROVIDER_ID = "supabase"
+_NEVER_SYNC_COLUMNS = frozenset({"encrypted_secrets"})
 
 
 # ---------------------------------------------------------------------------
@@ -47,6 +49,8 @@ def _serialize(row) -> dict:
     result = {}
     for attr in sqlalchemy.inspect(row).mapper.column_attrs:
         col_name = attr.columns[0].name  # actual DB column name (e.g. "metadata")
+        if col_name in _NEVER_SYNC_COLUMNS:
+            continue
         val = getattr(row, attr.key)      # Python attribute name (e.g. "meta")
         if hasattr(val, "isoformat"):
             val = val.isoformat()
@@ -107,6 +111,8 @@ def _deserialize(model, row: dict) -> dict:
 
     kwargs: dict = {}
     for col_name, val in row.items():
+        if col_name in _NEVER_SYNC_COLUMNS:
+            continue
         meta = col_meta.get(col_name)
         if meta is None:
             continue  # unknown/extra column from Supabase — ignore
@@ -165,10 +171,16 @@ def _get_credentials(db: Session, principal: Principal) -> tuple[Optional[str], 
     if not anon_key and row.encrypted_secrets:
         try:
             from app.core.secrets import decrypt_secret
+            from app.services import config_common
 
             raw = row.encrypted_secrets.get("service_role_key")
             if raw:
-                anon_key = decrypt_secret(raw)
+                anon_key = decrypt_secret(
+                    raw,
+                    context=config_common.secret_storage_context(
+                        row, "service_role_key"
+                    ),
+                )
         except Exception:
             pass
 
@@ -264,7 +276,6 @@ def _do_sync(db: Session, url: str, key: str, workspace_id: str) -> None:
     from app.domain.calendar import CalendarEvent
     from app.domain.files import DriveFile
     from app.domain.finance import FinanceCategory, Transaction
-    from app.domain.integrations import AiAgentConfig, IntegrationConfig
     from app.domain.notes import Note
     from app.domain.tasks import Task, TaskChecklistItem
     from app.domain.users import Profile
@@ -274,6 +285,8 @@ def _do_sync(db: Session, url: str, key: str, workspace_id: str) -> None:
     ws = _uuid.UUID(workspace_id)
 
     workspace_tables = [
+        # Profiles are inserted below after membership scoping, then pushed
+        # before workspaces so owner_id foreign keys are always satisfiable.
         (Workspace, Workspace.id == ws),
         (WorkspaceMember, WorkspaceMember.workspace_id == ws),
         (Task, Task.workspace_id == ws),
@@ -285,8 +298,6 @@ def _do_sync(db: Session, url: str, key: str, workspace_id: str) -> None:
         (DriveFile, DriveFile.workspace_id == ws),
         (Automation, Automation.workspace_id == ws),
         (WeatherLocation, WeatherLocation.workspace_id == ws),
-        (IntegrationConfig, IntegrationConfig.workspace_id == ws),
-        (AiAgentConfig, AiAgentConfig.workspace_id == ws),
         (ChatGroup, ChatGroup.workspace_id == ws),
         (ChatSession, ChatSession.workspace_id == ws),
         (ChatMessage, ChatMessage.workspace_id == ws),
@@ -310,7 +321,7 @@ def _do_sync(db: Session, url: str, key: str, workspace_id: str) -> None:
         ).all()
     ]
     if member_user_ids:
-        workspace_tables.append((Profile, Profile.id.in_(member_user_ids)))
+        workspace_tables.insert(0, (Profile, Profile.id.in_(member_user_ids)))
 
     for model, clause in workspace_tables:
         rows = list(db.scalars(select(model).where(clause)).all())

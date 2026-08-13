@@ -6,6 +6,7 @@ import csv
 import io
 import os
 import re
+import threading
 import uuid
 import zipfile
 from datetime import datetime, timezone
@@ -36,6 +37,54 @@ SUPPORTED_DOCUMENT_EXTENSIONS = {".pdf", ".doc", ".docx"}
 CHUNK_SIZE = 1200
 CHUNK_OVERLAP = 160
 MAX_SEARCH_CANDIDATES = 500
+MAX_INDEXED_TEXT_CHARS = 2_000_000
+MAX_INDEXED_CHUNKS = 2_000
+MAX_CONCURRENT_INGESTIONS = 2
+
+# Parser work runs in FastAPI's worker pool and is separately capped so a burst
+# of compressed documents cannot consume all process memory at once.
+_INGESTION_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_INGESTIONS)
+# pypdf exposes several process-global decoder ceilings, and the structural
+# parser uses mutable Python classes. Serialize the guarded section so two
+# ingestion workers cannot observe a partially-installed parser guard.
+_PYPDF_PARSE_LOCK = threading.Lock()
+
+PDF_MAX_PAGES = 250
+PDF_MAX_PAGE_TREE_DEPTH = 64
+PDF_MAX_PAGE_TREE_KIDS = PDF_MAX_PAGES + 1
+PDF_MAX_PAGE_TREE_NODES = (PDF_MAX_PAGES * 4) + PDF_MAX_PAGE_TREE_DEPTH
+# pypdf's ArrayObject parser otherwise appends every token before AllHaven can
+# inspect `/Kids`. A compact array of repeated indirect references can therefore
+# allocate tens of MiB before a later page-count check. Apply both a per-array
+# ceiling and a document-wide item budget: many individually-small nested arrays
+# must not bypass the parser bound. These ceilings are intentionally above normal
+# font/content arrays but still small compared with the upload limit.
+PDF_MAX_PARSED_ARRAY_ITEMS = 4_096
+PDF_MAX_TOTAL_PARSED_ARRAY_ITEMS = 16_384
+PDF_MAX_STREAM_COMPRESSED_BYTES = 4 * 1024 * 1024
+PDF_MAX_STREAM_EXPANDED_BYTES = 8 * 1024 * 1024
+PDF_MAX_TOTAL_EXPANDED_BYTES = 16 * 1024 * 1024
+PDF_MAX_COMPRESSION_RATIO = 100.0
+
+# DOCX is a ZIP container. Only these bounded amounts of XML are eligible for
+# extraction; embedded media is never decompressed by this parser.
+DOCX_MAX_XML_ENTRIES = 64
+DOCX_MAX_XML_ENTRY_COMPRESSED_BYTES = 8 * 1024 * 1024
+DOCX_MAX_XML_ENTRY_EXPANDED_BYTES = 8 * 1024 * 1024
+DOCX_MAX_XML_TOTAL_COMPRESSED_BYTES = 8 * 1024 * 1024
+DOCX_MAX_XML_TOTAL_EXPANDED_BYTES = 16 * 1024 * 1024
+DOCX_MAX_XML_COMPRESSION_RATIO = 200.0
+DOCX_XML_READ_CHUNK_BYTES = 64 * 1024
+
+_DOCX_SAFETY_NOTE = (
+    "DOCX content exceeded safe extraction limits. "
+    "The file is stored and searchable by metadata only."
+)
+
+_PDF_PAGE_TREE_SAFETY_NOTE = (
+    "PDF exceeds safe structural parsing, page-count, or page-tree traversal limits. "
+    "The file is searchable by metadata only."
+)
 
 _WORD_RE = re.compile(r"[A-Za-z0-9_\-]{3,}")
 _SECRET_PATTERNS: list[re.Pattern] = [
@@ -46,6 +95,14 @@ _SECRET_PATTERNS: list[re.Pattern] = [
     re.compile(r"\beyJ[A-Za-z0-9._-]{20,}\b"),
     re.compile(r"\b(api[_-]?key|secret|token|password|passwd|pwd|authorization)\b\s*[:=]\s*\S+", re.IGNORECASE),
 ]
+
+
+class _UnsafeDocxError(Exception):
+    """Raised when a DOCX member would exceed safe extraction bounds."""
+
+
+class _UnsafePdfError(Exception):
+    """Raised before pypdf can flatten an unsafe or excessively large page tree."""
 
 
 def _safe_basename(filename: str) -> str:
@@ -63,9 +120,13 @@ def _decode_text(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def _knowledge_upload_limit_bytes() -> int:
-    mb = max(1, int(getattr(settings, "DRIVE_MAX_UPLOAD_MB", 250) or 250))
+def upload_limit_bytes() -> int:
+    mb = max(1, int(getattr(settings, "KNOWLEDGE_MAX_UPLOAD_MB", 10) or 10))
     return mb * 1024 * 1024
+
+
+def upload_limit_mb() -> int:
+    return max(1, upload_limit_bytes() // (1024 * 1024))
 
 
 def _looks_like_text(data: bytes) -> bool:
@@ -145,68 +206,397 @@ def _simple_pdf_extract(data: bytes) -> str:
     """
     import zlib
 
-    candidates = [data]
-    for match in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", data, re.DOTALL):
-        stream = match.group(1).strip()
-        candidates.append(stream)
-        try:
-            candidates.append(zlib.decompress(stream))
-        except zlib.error:
-            pass
-
     parts: list[str] = []
+    extracted_chars = 0
     literal_re = re.compile(r"\((?:\\.|[^\\)])*\)")
-    for blob in candidates:
+
+    def collect(blob: bytes) -> None:
+        nonlocal extracted_chars
+        if extracted_chars >= MAX_INDEXED_TEXT_CHARS:
+            return
         text = blob.decode("latin-1", errors="ignore")
         for match in re.finditer(r"(\((?:\\.|[^\\)])*\))\s*Tj", text, re.DOTALL):
-            parts.append(_decode_pdf_literal(match.group(1)[1:-1]))
+            value = _decode_pdf_literal(match.group(1)[1:-1])
+            remaining = MAX_INDEXED_TEXT_CHARS - extracted_chars
+            value = value[:remaining]
+            if value:
+                parts.append(value)
+                extracted_chars += len(value)
+            if extracted_chars >= MAX_INDEXED_TEXT_CHARS:
+                return
         for match in re.finditer(r"\[(.*?)\]\s*TJ", text, re.DOTALL):
             pieces = [m.group(0)[1:-1] for m in literal_re.finditer(match.group(1))]
             if pieces:
-                parts.append("".join(_decode_pdf_literal(piece) for piece in pieces))
+                value = "".join(_decode_pdf_literal(piece) for piece in pieces)
+                remaining = MAX_INDEXED_TEXT_CHARS - extracted_chars
+                value = value[:remaining]
+                if value:
+                    parts.append(value)
+                    extracted_chars += len(value)
+            if extracted_chars >= MAX_INDEXED_TEXT_CHARS:
+                return
+
+    collect(data)
+    total_expanded = 0
+    for match in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", data, re.DOTALL):
+        if extracted_chars >= MAX_INDEXED_TEXT_CHARS:
+            break
+        stream = match.group(1).strip()
+        collect(stream)
+        if not stream or len(stream) > PDF_MAX_STREAM_COMPRESSED_BYTES:
+            continue
+        remaining = PDF_MAX_TOTAL_EXPANDED_BYTES - total_expanded
+        if remaining <= 0:
+            raise _UnsafePdfError("PDF aggregate fallback stream limit exceeded")
+        output_limit = min(PDF_MAX_STREAM_EXPANDED_BYTES, remaining)
+        try:
+            decompressor = zlib.decompressobj()
+            expanded = decompressor.decompress(stream, output_limit + 1)
+            # unconsumed input means the bounded output ceiling was reached.
+            if len(expanded) > output_limit or decompressor.unconsumed_tail:
+                raise _UnsafePdfError("PDF fallback stream limit exceeded")
+            total_expanded += len(expanded)
+            if len(expanded) / max(1, len(stream)) > PDF_MAX_COMPRESSION_RATIO:
+                raise _UnsafePdfError("PDF fallback compression-ratio limit exceeded")
+        except zlib.error:
+            continue
+        collect(expanded)
     return "\n".join(part.strip() for part in parts if part.strip())
+
+
+def _pdf_page_tree_identity(value: object) -> tuple[str, int, int] | tuple[str, int]:
+    """Return a stable identity without resolving an indirect PDF object."""
+    from pypdf.generic import IndirectObject  # type: ignore
+
+    reference = value if isinstance(value, IndirectObject) else getattr(
+        value, "indirect_reference", None
+    )
+    if isinstance(reference, IndirectObject):
+        return ("indirect", int(reference.idnum), int(reference.generation))
+    return ("direct", id(value))
+
+
+def _bounded_pdf_page_count(reader: object) -> int:
+    """Count pages iteratively while bounding every page-tree resource.
+
+    Accessing ``len(reader.pages)`` asks pypdf to recursively flatten the whole
+    attacker-controlled tree first. This preflight resolves at most a fixed
+    number of unique nodes, rejects shared/cyclic references, caps fan-out and
+    depth, and stops as soon as the application page limit is crossed.
+    """
+    from pypdf.generic import ArrayObject, DictionaryObject, NullObject  # type: ignore
+
+    def resolve(value: object) -> object:
+        try:
+            getter = getattr(value, "get_object", None)
+            return getter() if callable(getter) else value
+        except Exception as exc:
+            raise _UnsafePdfError("unresolvable page-tree object") from exc
+
+    try:
+        catalog = getattr(reader, "root_object")
+        pages_root = catalog.raw_get("/Pages")
+    except Exception as exc:
+        raise _UnsafePdfError("missing page-tree root") from exc
+
+    scheduled = {_pdf_page_tree_identity(pages_root)}
+    stack: list[tuple[object, int]] = [(pages_root, 0)]
+    page_count = 0
+
+    while stack:
+        raw_node, depth = stack.pop()
+        if depth > PDF_MAX_PAGE_TREE_DEPTH:
+            raise _UnsafePdfError("page-tree depth limit exceeded")
+
+        node = resolve(raw_node)
+        if not isinstance(node, DictionaryObject):
+            raise _UnsafePdfError("page-tree child is not a dictionary")
+
+        if "/Type" in node:
+            node_type = str(resolve(node.raw_get("/Type")))
+        else:
+            # Match pypdf's compatibility behavior for damaged-but-readable PDFs.
+            node_type = "/Page" if "/Kids" not in node else "/Pages"
+
+        if node_type == "/Page":
+            page_count += 1
+            if page_count > PDF_MAX_PAGES:
+                raise _UnsafePdfError("page-count limit exceeded")
+            continue
+        if node_type != "/Pages":
+            raise _UnsafePdfError("invalid page-tree node type")
+
+        if "/Count" in node:
+            try:
+                declared_count = int(resolve(node.raw_get("/Count")))
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise _UnsafePdfError("invalid page-tree count") from exc
+            if declared_count < 0 or declared_count > PDF_MAX_PAGES:
+                raise _UnsafePdfError("declared page-count limit exceeded")
+
+        if "/Kids" not in node:
+            kids: object = ArrayObject()
+        else:
+            kids = resolve(node.raw_get("/Kids"))
+        if isinstance(kids, NullObject):
+            kids = ArrayObject()
+        if not isinstance(kids, ArrayObject):
+            raise _UnsafePdfError("page-tree kids is not an array")
+        if len(kids) > PDF_MAX_PAGE_TREE_KIDS:
+            raise _UnsafePdfError("page-tree fan-out limit exceeded")
+        if len(scheduled) + len(kids) > PDF_MAX_PAGE_TREE_NODES:
+            raise _UnsafePdfError("page-tree node limit exceeded")
+        if kids and depth >= PDF_MAX_PAGE_TREE_DEPTH:
+            raise _UnsafePdfError("page-tree depth limit exceeded")
+
+        pending: list[tuple[object, int]] = []
+        for child in kids:
+            identity = _pdf_page_tree_identity(child)
+            if identity in scheduled:
+                raise _UnsafePdfError("cyclic or shared page-tree reference")
+            scheduled.add(identity)
+            pending.append((child, depth + 1))
+        stack.extend(reversed(pending))
+
+    return page_count
 
 
 def _extract_pdf(data: bytes) -> tuple[str | None, str | None]:
     try:
-        from pypdf import PdfReader  # type: ignore
+        with _PYPDF_PARSE_LOCK:
+            from pypdf import PdfReader  # type: ignore
+            from pypdf import filters as pypdf_filters  # type: ignore
+            from pypdf.generic import ArrayObject  # type: ignore
 
-        reader = PdfReader(io.BytesIO(data))
-        text = "\n".join((page.extract_text() or "").strip() for page in reader.pages)
-        if text.strip():
-            return text, None
+            # pypdf has separate 75 MB defaults for each expanding decoder.
+            # Bind every decoder and aggregate stream ceiling before parsing.
+            for limit_name in (
+                "ZLIB_MAX_OUTPUT_LENGTH",
+                "RUN_LENGTH_MAX_OUTPUT_LENGTH",
+                "LZW_MAX_OUTPUT_LENGTH",
+                "JBIG2_MAX_OUTPUT_LENGTH",
+                "MAX_ARRAY_BASED_STREAM_OUTPUT_LENGTH",
+                "MAX_DECLARED_STREAM_LENGTH",
+                "FLATE_MAX_BUFFER_SIZE",
+            ):
+                if hasattr(pypdf_filters, limit_name):
+                    setattr(pypdf_filters, limit_name, PDF_MAX_STREAM_EXPANDED_BYTES)
+
+            # `PdfReader` resolves the Catalog's direct `/Kids [...]` object before
+            # our page-tree walker can inspect its length. Guard ArrayObject.append
+            # at parse time so the attacker cannot first materialize a million-item
+            # list. The lock above makes this temporary class patch thread-safe.
+            inherited_append = ArrayObject.append
+            had_own_append = "append" in ArrayObject.__dict__
+            inherited_decode_stream_data = pypdf_filters.decode_stream_data
+            array_item_limit_hit = False
+            stream_budget_hit = False
+            parsed_array_items = 0
+            total_decoded_stream_bytes = 0
+
+            def bounded_array_append(array: list, value: object) -> None:
+                nonlocal array_item_limit_hit, parsed_array_items
+                if (
+                    len(array) >= PDF_MAX_PARSED_ARRAY_ITEMS
+                    or parsed_array_items >= PDF_MAX_TOTAL_PARSED_ARRAY_ITEMS
+                ):
+                    array_item_limit_hit = True
+                    raise _UnsafePdfError("PDF object array item limit exceeded")
+                inherited_append(array, value)
+                parsed_array_items += 1
+
+            def bounded_decode_stream_data(stream: object) -> bytes:
+                nonlocal stream_budget_hit, total_decoded_stream_bytes
+                if stream_budget_hit:
+                    raise _UnsafePdfError("PDF aggregate decoded-stream limit exceeded")
+                value = inherited_decode_stream_data(stream)
+                total_decoded_stream_bytes += len(value)
+                if total_decoded_stream_bytes > PDF_MAX_TOTAL_EXPANDED_BYTES:
+                    stream_budget_hit = True
+                    raise _UnsafePdfError("PDF aggregate decoded-stream limit exceeded")
+                return value
+
+            ArrayObject.append = bounded_array_append
+            pypdf_filters.decode_stream_data = bounded_decode_stream_data
+            try:
+                try:
+                    reader = PdfReader(io.BytesIO(data))
+                    _bounded_pdf_page_count(reader)
+                    parts: list[str] = []
+                    chars = 0
+                    for page in reader.pages:
+                        value = (page.extract_text() or "").strip()
+                        # Some pypdf extraction paths log and swallow decoder
+                        # exceptions. Stop the document immediately when our
+                        # out-of-band aggregate signal was raised.
+                        if stream_budget_hit:
+                            raise _UnsafePdfError(
+                                "PDF aggregate decoded-stream limit exceeded"
+                            )
+                        remaining = MAX_INDEXED_TEXT_CHARS - chars
+                        if remaining <= 0:
+                            break
+                        value = value[:remaining]
+                        if value:
+                            parts.append(value)
+                            chars += len(value)
+                    text = "\n".join(parts)
+                    if text.strip():
+                        return text, None
+                except Exception as exc:
+                    # pypdf currently logs and converts some exceptions raised by
+                    # object readers. Preserve our out-of-band signal so a parser
+                    # structural-limit hit can never fall through as an ordinary
+                    # malformed PDF or into the regex content fallback.
+                    if array_item_limit_hit:
+                        raise _UnsafePdfError(
+                            "PDF object array item limit exceeded"
+                        ) from exc
+                    if stream_budget_hit:
+                        raise _UnsafePdfError(
+                            "PDF aggregate decoded-stream limit exceeded"
+                        ) from exc
+                    raise
+                if array_item_limit_hit:
+                    raise _UnsafePdfError("PDF object array item limit exceeded")
+                if stream_budget_hit:
+                    raise _UnsafePdfError("PDF aggregate decoded-stream limit exceeded")
+            finally:
+                pypdf_filters.decode_stream_data = inherited_decode_stream_data
+                if had_own_append:
+                    ArrayObject.append = inherited_append
+                else:
+                    delattr(ArrayObject, "append")
+    except _UnsafePdfError:
+        return None, _PDF_PAGE_TREE_SAFETY_NOTE
     except Exception:
         pass
 
-    text = _simple_pdf_extract(data)
+    try:
+        text = _simple_pdf_extract(data)
+    except _UnsafePdfError:
+        return None, _PDF_PAGE_TREE_SAFETY_NOTE
     if text.strip():
         return text, None
     return None, "PDF text could not be extracted. The file is stored and searchable by metadata only."
 
 
+def _is_docx_text_xml(name: str) -> bool:
+    return (
+        name == "word/document.xml"
+        or (name.startswith("word/header") and name.endswith(".xml"))
+        or (name.startswith("word/footer") and name.endswith(".xml"))
+    )
+
+
+def _docx_text_infos(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
+    infos = [
+        info
+        for info in archive.infolist()
+        if not info.is_dir() and _is_docx_text_xml(info.filename)
+    ]
+    infos.sort(key=lambda info: (info.filename != "word/document.xml", info.filename))
+    if len(infos) > DOCX_MAX_XML_ENTRIES:
+        raise _UnsafeDocxError("too many DOCX XML entries")
+
+    names: set[str] = set()
+    total_compressed = 0
+    total_expanded = 0
+    for info in infos:
+        if info.filename in names:
+            raise _UnsafeDocxError("duplicate DOCX XML entry")
+        names.add(info.filename)
+        if info.flag_bits & 0x1:
+            raise _UnsafeDocxError("encrypted DOCX XML entry")
+        if info.compress_size > DOCX_MAX_XML_ENTRY_COMPRESSED_BYTES:
+            raise _UnsafeDocxError("compressed DOCX XML entry is too large")
+        if info.file_size > DOCX_MAX_XML_ENTRY_EXPANDED_BYTES:
+            raise _UnsafeDocxError("expanded DOCX XML entry is too large")
+        if info.file_size and not info.compress_size:
+            raise _UnsafeDocxError("invalid DOCX XML compression metadata")
+        if info.file_size / max(1, info.compress_size) > DOCX_MAX_XML_COMPRESSION_RATIO:
+            raise _UnsafeDocxError("DOCX XML entry compression ratio is too high")
+        total_compressed += info.compress_size
+        total_expanded += info.file_size
+
+    if total_compressed > DOCX_MAX_XML_TOTAL_COMPRESSED_BYTES:
+        raise _UnsafeDocxError("compressed DOCX XML content is too large")
+    if total_expanded > DOCX_MAX_XML_TOTAL_EXPANDED_BYTES:
+        raise _UnsafeDocxError("expanded DOCX XML content is too large")
+    if total_expanded / max(1, total_compressed) > DOCX_MAX_XML_COMPRESSION_RATIO:
+        raise _UnsafeDocxError("aggregate DOCX XML compression ratio is too high")
+    return infos
+
+
+def _read_docx_xml_entry(
+    archive: zipfile.ZipFile,
+    info: zipfile.ZipInfo,
+    *,
+    total_expanded: int,
+) -> tuple[bytes, int]:
+    chunks: list[bytes] = []
+    entry_expanded = 0
+    with archive.open(info, "r") as source:
+        while True:
+            entry_remaining = DOCX_MAX_XML_ENTRY_EXPANDED_BYTES - entry_expanded
+            total_remaining = DOCX_MAX_XML_TOTAL_EXPANDED_BYTES - total_expanded - entry_expanded
+            read_size = min(DOCX_XML_READ_CHUNK_BYTES, entry_remaining + 1, total_remaining + 1)
+            chunk = source.read(max(1, read_size))
+            if not chunk:
+                break
+            entry_expanded += len(chunk)
+            if entry_expanded > DOCX_MAX_XML_ENTRY_EXPANDED_BYTES:
+                raise _UnsafeDocxError("expanded DOCX XML entry is too large")
+            if total_expanded + entry_expanded > DOCX_MAX_XML_TOTAL_EXPANDED_BYTES:
+                raise _UnsafeDocxError("expanded DOCX XML content is too large")
+            chunks.append(chunk)
+
+    if entry_expanded / max(1, info.compress_size) > DOCX_MAX_XML_COMPRESSION_RATIO:
+        raise _UnsafeDocxError("actual DOCX XML compression ratio is too high")
+    return b"".join(chunks), entry_expanded
+
+
 def _extract_docx(data: bytes) -> tuple[str | None, str | None]:
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            names = [
-                "word/document.xml",
-                *[name for name in archive.namelist() if name.startswith("word/header") and name.endswith(".xml")],
-                *[name for name in archive.namelist() if name.startswith("word/footer") and name.endswith(".xml")],
-            ]
+            infos = _docx_text_infos(archive)
             parts: list[str] = []
-            for name in names:
-                if name not in archive.namelist():
-                    continue
-                root = xml_fromstring(archive.read(name))
+            total_expanded = 0
+            total_compressed = sum(info.compress_size for info in infos)
+            for info in infos:
+                xml_data, expanded = _read_docx_xml_entry(
+                    archive,
+                    info,
+                    total_expanded=total_expanded,
+                )
+                total_expanded += expanded
+                root = xml_fromstring(xml_data)
                 for node in root.iter():
                     tag = node.tag.rsplit("}", 1)[-1]
                     if tag == "t" and node.text:
                         parts.append(node.text)
                     elif tag in {"tab", "br", "cr"}:
                         parts.append("\n")
+            if total_expanded / max(1, total_compressed) > DOCX_MAX_XML_COMPRESSION_RATIO:
+                raise _UnsafeDocxError("aggregate actual DOCX XML compression ratio is too high")
             text = " ".join(part.strip() for part in parts if part and part.strip())
             if text.strip():
                 return text, None
-    except (XmlParseError, DefusedXmlException, OSError, KeyError, zipfile.BadZipFile):
+    except _UnsafeDocxError:
+        return None, _DOCX_SAFETY_NOTE
+    except (
+        XmlParseError,
+        DefusedXmlException,
+        OSError,
+        EOFError,
+        KeyError,
+        NotImplementedError,
+        OverflowError,
+        RuntimeError,
+        ValueError,
+        zipfile.BadZipFile,
+        zipfile.LargeZipFile,
+    ):
         pass
     return None, "DOCX text could not be extracted. The file is stored and searchable by metadata only."
 
@@ -354,7 +744,7 @@ def create_document_from_upload(
 ) -> AiKnowledgeDocument:
     if not data:
         raise ValidationAppError("Uploaded knowledge document is empty.")
-    limit = _knowledge_upload_limit_bytes()
+    limit = upload_limit_bytes()
     if len(data) > limit:
         mb = max(1, limit // (1024 * 1024))
         raise ValidationAppError(f"Knowledge document exceeds the {mb} MB upload limit.")
@@ -374,14 +764,19 @@ def create_document_from_upload(
     db.add(row)
     db.flush()
 
-    text, error = _extract_text(safe, row.mime_type, data)
+    with _INGESTION_SLOTS:
+        text, error = _extract_text(safe, row.mime_type, data)
     if not text or not text.strip():
         row.status = "failed"
         row.error_message = "No readable text could be extracted from this document."
         db.flush()
         return row
 
-    pieces = list(_chunks(text))
+    truncated = len(text) > MAX_INDEXED_TEXT_CHARS
+    if truncated:
+        text = text[:MAX_INDEXED_TEXT_CHARS]
+    pieces = list(_chunks(text))[:MAX_INDEXED_CHUNKS]
+    truncated = truncated or len(pieces) >= MAX_INDEXED_CHUNKS
     if not pieces:
         row.status = "failed"
         row.error_message = "No indexable chunks were produced from this document."
@@ -399,10 +794,13 @@ def create_document_from_upload(
     row.status = "uploaded" if error else "indexed"
     row.chunk_count = len(pieces)
     row.last_indexed_at = datetime.now(timezone.utc) if not error else None
-    row.error_message = error
+    row.error_message = error or (
+        "Document text was truncated at the safe indexing limit." if truncated else None
+    )
     row.meta = {
         "indexable": not bool(error),
         "metadata_only": bool(error),
+        "truncated": truncated,
         "upload_limit_mb": max(1, limit // (1024 * 1024)),
     }
     db.flush()

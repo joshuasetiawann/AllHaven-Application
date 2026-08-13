@@ -12,6 +12,8 @@ from app.api.dependencies import get_current_principal
 from app.core.database import get_db
 from app.core.principal import Principal
 from app.core.responses import success_response
+from app.core.exceptions import ValidationAppError
+from app.core.uploads import UPLOAD_READ_CHUNK_BYTES
 from app.schemas.drive import DriveConfigOut, DriveFileOut
 from app.services import drive_service as svc
 from app.services.local_first_sync import sync_after_write
@@ -44,18 +46,38 @@ def list_files(
 
 
 @router.post("/files")
-async def upload_file(
+def upload_file(
     file: UploadFile = File(...),
     principal: Principal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> dict:
-    data = await file.read()
-    row = svc.save_file(
-        db, principal,
-        filename=file.filename or "file",
-        content_type=file.content_type or "application/octet-stream",
-        data=data,
-    )
+    max_bytes = svc.upload_limit_bytes()
+    temp, destination, safe_name = svc.prepare_upload_path(principal, file.filename or "file")
+    size = 0
+    try:
+        with temp.open("xb") as output:
+            while True:
+                chunk = file.file.read(min(UPLOAD_READ_CHUNK_BYTES, max_bytes - size + 1))
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > max_bytes:
+                    raise ValidationAppError(
+                        f"File exceeds the configured {svc.upload_limit_mb()} MB limit."
+                    )
+                output.write(chunk)
+        row = svc.save_streamed_file(
+            db,
+            principal,
+            filename=safe_name,
+            content_type=file.content_type or "application/octet-stream",
+            size_bytes=size,
+            temp_path=temp,
+            destination=destination,
+        )
+    except Exception:
+        temp.unlink(missing_ok=True)
+        raise
     sync_after_write(db, principal)
     return success_response(DriveFileOut.model_validate(row), "File uploaded")
 

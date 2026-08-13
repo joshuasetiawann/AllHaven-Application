@@ -1,8 +1,10 @@
 // frontend/lib/supabaseClient.ts — lazy supabase-js singleton + DATA_MODE flag.
-// Session is persisted via Capacitor Preferences so it survives app restarts.
+// Native sessions are persisted in iOS Keychain / Android Keystore-backed
+// encrypted storage so they survive app restarts without plaintext credentials.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiException } from "@/lib/apiRest";
 import { setBearerToken, clearBearerToken } from "@/lib/mobileAuth";
+import { credentialStorage } from "@/lib/credentialStorage";
 
 export const DATA_MODE = process.env.NEXT_PUBLIC_DATA_MODE === "supabase";
 
@@ -15,22 +17,6 @@ let appUserId: string | null = null;
 
 export function getAppUserId(): string | null { return appUserId; }
 export function setAppUserId(id: string | null): void { appUserId = id; }
-
-// Async storage backed by Capacitor Preferences so the session survives app restarts.
-const capacitorStorage = {
-  getItem: async (key: string) => {
-    const { Preferences } = await import("@capacitor/preferences");
-    return (await Preferences.get({ key })).value;
-  },
-  setItem: async (key: string, value: string) => {
-    const { Preferences } = await import("@capacitor/preferences");
-    await Preferences.set({ key, value });
-  },
-  removeItem: async (key: string) => {
-    const { Preferences } = await import("@capacitor/preferences");
-    await Preferences.remove({ key });
-  },
-};
 
 export async function getSupabase(): Promise<SupabaseClient> {
   if (client) return client;
@@ -46,7 +32,7 @@ export async function getSupabase(): Promise<SupabaseClient> {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      storage: capacitorStorage,
+      storage: credentialStorage,
       storageKey: "allhaven_supabase_session",
     },
   });

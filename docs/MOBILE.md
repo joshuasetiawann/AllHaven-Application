@@ -5,7 +5,6 @@ shell with [Capacitor](https://capacitorjs.com/). There is **no UI rewrite** —
 same React app is exported as a static bundle, packaged into an `.apk`, and it
 talks to the AllHaven backend over the network.
 
-Design spec: [`docs/superpowers/specs/2026-06-17-mobile-apk-design.md`](superpowers/specs/2026-06-17-mobile-apk-design.md).
 
 ---
 
@@ -23,8 +22,11 @@ Design spec: [`docs/superpowers/specs/2026-06-17-mobile-apk-design.md`](superpow
   the API host, so cross-origin cookies are unreliable. The mobile build instead
   uses the bearer token the backend already issues on login. This is enabled by
   `NEXT_PUBLIC_AUTH_MODE=bearer`, which the `build:mobile` script **sets for you**.
-  The token is stored natively via `@capacitor/preferences`
-  (see `frontend/lib/mobileAuth.ts`). **No backend code change is required.**
+  On native platforms the token and Supabase session are stored through
+  `@aparajita/capacitor-secure-storage`: iOS Keychain and Android AES-GCM with
+  its key held by Android Keystore. Upgrades migrate legacy Preferences values
+  into the secure vault and remove the old plaintext entries (see
+  `frontend/lib/credentialStorage.ts`). **No backend code change is required.**
 - **API URL has a build-time default _and_ a runtime override.** The build bakes
   `NEXT_PUBLIC_API_BASE_URL` as the default, but the installed app can be repointed
   at runtime in **Settings → Backend Bridge** (see below) — essential because
@@ -73,7 +75,7 @@ authenticates with a bearer token (no cookies), so there's no SameSite issue.
 already encrypts traffic between your devices at the WireGuard layer, and these
 addresses are only reachable inside your own tailnet. For HTTPS end-to-end (and
 no cleartext at all), prefer **Tailscale Serve** — see
-[`docs/v4/TAILSCALE_SETUP.md`](v4/TAILSCALE_SETUP.md).
+[`docs/TAILSCALE_SETUP.md`](TAILSCALE_SETUP.md).
 
 ---
 

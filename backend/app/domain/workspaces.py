@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import String
+from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.base import GUID, Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -19,12 +19,23 @@ class Workspace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "workspaces"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    owner_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
 
 
 class WorkspaceMember(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "workspace_members"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "user_id", name="uq_workspace_members_workspace_user"
+        ),
+    )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(GUID(), nullable=False, index=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     role: Mapped[str] = mapped_column(String(50), nullable=False, default="owner")

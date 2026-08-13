@@ -15,6 +15,12 @@ httpx>=0.28.1
 python-multipart>=0.0.9
 # Safe XML parsing for DOCX/OOXML ingestion (refuses XXE / entity expansion).
 defusedxml>=0.7.1
+# PDF text extraction for AI Knowledge. knowledge_service falls back to a naive
+# in-house parser without it, so every install would silently index PDFs worse.
+# Pure Python, so it adds no native build.
+pypdf>=5.1.0
+# Vetted authenticated encryption for saved provider/integration credentials.
+cryptography>=46.0.7
 
 # Testing
 pytest>=8.3.4
