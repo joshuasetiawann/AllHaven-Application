@@ -139,7 +139,15 @@ function handleUnauthorized(status: number): void {
 // unreachable from the phone — fail those fast so they don't freeze the UI.
 const REQUEST_TIMEOUT_MS = BEARER_MODE ? 6000 : 20000;
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// AI runs are the exception: a parallel fan-out, a 2–3 round debate or the
+// reasoning council take as long as they take. The generic guard above aborted
+// them mid-thought, which killed the "thinking…" spinner and showed a false
+// "server took too long" error while the backend kept going and saved the reply.
+// Pass this to opt a request out of the clock entirely and just wait, the way a
+// normal chat UI does.
+const NO_TIMEOUT = 0;
+
+async function request<T>(path: string, options: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const method = (options.method || "GET").toUpperCase();
   // Mobile: make sure the persisted bearer token is loaded before the first
   // call, so a cold start can't fire requests with no Authorization header.
@@ -154,7 +162,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  // A caller-supplied signal (the chat's Stop button) cancels this request too.
+  // Chained rather than AbortSignal.any() — old Android WebViews lack that.
+  const external = options.signal;
+  const cancel = () => controller.abort();
+  if (external?.aborted) cancel();
+  external?.addEventListener("abort", cancel, { once: true });
   try {
     let res: Response;
     try {
@@ -165,12 +179,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
         signal: controller.signal,
       });
     } catch (err) {
-      const timedOut = err instanceof DOMException && err.name === "AbortError";
+      const aborted = err instanceof DOMException && err.name === "AbortError";
+      // The user pressing Stop is not a failure — callers key off CANCELLED to
+      // stay silent instead of showing a misleading timeout banner.
+      if (aborted && external?.aborted) throw new ApiException("Request cancelled.", "CANCELLED", 0);
       throw new ApiException(
-        timedOut
+        aborted
           ? "The server took too long to respond. Check your connection and try again."
           : "Cannot reach the AllHaven API. Is the backend running?",
-        timedOut ? "TIMEOUT" : "NETWORK_ERROR",
+        aborted ? "TIMEOUT" : "NETWORK_ERROR",
         0,
       );
     }
@@ -194,7 +211,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
     return (body?.data ?? null) as T;
   } finally {
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
+    external?.removeEventListener("abort", cancel);
   }
 }
 
@@ -322,26 +340,29 @@ export const aiApi = {
     request<ChatResponse>("/ai/chat", {
       method: "POST",
       body: json({ message, session_id: sessionId || null, provider_id: providerId || null, section_key: sectionKey, thinking_mode: thinkingMode, response_language: responseLanguage || null }),
-    }),
+    }, NO_TIMEOUT),
   // Fan a message out to up to 10 agents concurrently. `images` are data URLs;
   // `thinkingMode` controls reasoning depth + sampling.
-  multiChat: (message: string, providerIds: string[], sessionId?: string, images?: string[], thinkingMode = "balance", sectionKey = "general", responseLanguage?: string) =>
+  multiChat: (message: string, providerIds: string[], sessionId?: string, images?: string[], thinkingMode = "balance", sectionKey = "general", responseLanguage?: string, signal?: AbortSignal) =>
     request<MultiChatResponse>("/ai/chat/multi", {
       method: "POST",
       body: json({ message, provider_ids: providerIds, session_id: sessionId || null, images: images?.length ? images : null, thinking_mode: thinkingMode, section_key: sectionKey, response_language: responseLanguage || null }),
-    }),
+      signal,
+    }, NO_TIMEOUT),
   // Run a multi-agent debate: agents argue across `rounds`, then one synthesizes.
-  debateChat: (message: string, providerIds: string[], sessionId?: string, rounds = 2, images?: string[], thinkingMode = "balance", sectionKey = "general", responseLanguage?: string) =>
+  debateChat: (message: string, providerIds: string[], sessionId?: string, rounds = 2, images?: string[], thinkingMode = "balance", sectionKey = "general", responseLanguage?: string, signal?: AbortSignal) =>
     request<MultiChatResponse>("/ai/chat/debate", {
       method: "POST",
       body: json({ message, provider_ids: providerIds, session_id: sessionId || null, rounds, images: images?.length ? images : null, thinking_mode: thinkingMode, section_key: sectionKey, response_language: responseLanguage || null }),
-    }),
+      signal,
+    }, NO_TIMEOUT),
   // Run the reasoning council (Analyst -> Critic -> Synthesizer + quality gate).
-  reasonChat: (message: string, providerIds: string[], sessionId?: string, thinkingMode = "balance", images?: string[], sectionKey = "general", responseLanguage?: string) =>
+  reasonChat: (message: string, providerIds: string[], sessionId?: string, thinkingMode = "balance", images?: string[], sectionKey = "general", responseLanguage?: string, signal?: AbortSignal) =>
     request<MultiChatResponse>("/ai/chat/reason", {
       method: "POST",
       body: json({ message, provider_ids: providerIds, session_id: sessionId || null, thinking_mode: thinkingMode, images: images?.length ? images : null, section_key: sectionKey, response_language: responseLanguage || null }),
-    }),
+      signal,
+    }, NO_TIMEOUT),
   getRun: (runId: string) => request<MultiChatResponse>(`/ai/runs/${runId}`),
   listProposals: () => request<ToolProposal[]>("/ai/proposals"),
   rejectProposal: (id: string) =>

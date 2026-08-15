@@ -87,6 +87,11 @@ type KnowledgeAttachment = {
   chunk_count: number;
 };
 
+// Unsent composer content belonging to one conversation.
+type Draft = { input: string; images: string[]; docs: KnowledgeAttachment[] };
+const EMPTY_DRAFT: Draft = { input: "", images: [], docs: [] };
+const isEmptyDraft = (d: Draft) => !d.input && !d.images.length && !d.docs.length;
+
 type VoiceStatus = "idle" | "checking" | "listening" | "error";
 type SpeechRecognitionLike = {
   lang: string;
@@ -160,6 +165,9 @@ export default function AiChatPage() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [pendingUser, setPendingUser] = useState<string | null>(null);
+  // Conversation the in-flight send belongs to, so its bubble/spinner/reply/error
+  // never land in a chat the user switched to meanwhile.
+  const [pendingSession, setPendingSession] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [images, setImages] = useState<string[]>([]);
@@ -181,6 +189,22 @@ export default function AiChatPage() {
   const voiceBaseRef = useRef("");
   // Sessions+sections we've already seeded with section memory (inject once per thread).
   const prefacedRef = useRef<Set<string>>(new Set());
+  // Current conversation readable from inside an awaited send.
+  const activeIdRef = useRef<string | null>(null);
+  // Unsent composer content per conversation ("new" = the not-yet-created chat),
+  // so a draft stays with the chat it was written in instead of following the
+  // user around. Kept in memory only — image data URLs would blow localStorage.
+  const draftsRef = useRef<Map<string, Draft>>(new Map());
+  const draftKeyRef = useRef("new");
+  // Live composer values, readable from the chat-switch effect without making it
+  // re-run on every keystroke.
+  const composerRef = useRef<Draft>(EMPTY_DRAFT);
+  composerRef.current = { input, images, docs: knowledgeAttachments };
+  // Aborts the in-flight AI run when the user presses Stop. AI runs have no
+  // timeout (they can legitimately take minutes), so this is the only way out
+  // of a request that hangs — which matters most on mobile, where the phone can
+  // silently lose its route to the desktop backend.
+  const abortRef = useRef<AbortController | null>(null);
 
   // --- persisted selection (Part 4): never make the user re-pick on nav/refresh ---
   const changeSelected = (ids: string[]) => {
@@ -216,6 +240,8 @@ export default function AiChatPage() {
   const visionMissing = images.length > 0 && selected.some((ref) => { const p = providerOfRef(ref); return p && !p.capabilities?.image; });
   const visionOk = images.length > 0 && !visionMissing;
   const activeSession = sessions.find((s) => s.id === activeId) || null;
+  // Only the conversation that fired the send shows its pending bubble + spinner.
+  const showPending = sending && pendingSession === activeId;
   const thread = useMemo(() => buildThread(messages), [messages]);
   const showDebateFlow = chatSettings?.show_debate_flow !== false;
   const showToolActivity = chatSettings?.show_tool_activity !== false;
@@ -272,6 +298,19 @@ export default function AiChatPage() {
 
   // Load the active conversation's messages.
   useEffect(() => {
+    activeIdRef.current = activeId;
+    // Park the composer with the chat being left, restore the one being opened.
+    const nextKey = activeId ?? "new";
+    if (draftKeyRef.current !== nextKey) {
+      const leaving = composerRef.current;
+      if (isEmptyDraft(leaving)) draftsRef.current.delete(draftKeyRef.current);
+      else draftsRef.current.set(draftKeyRef.current, leaving);
+      draftKeyRef.current = nextKey;
+      const opening = draftsRef.current.get(nextKey) ?? EMPTY_DRAFT;
+      setInput(opening.input);
+      setImages(opening.images);
+      setKnowledgeAttachments(opening.docs);
+    }
     if (!activeId) { setMessages([]); return; }
     let on = true;
     aiApi.listMessages(activeId)
@@ -341,7 +380,10 @@ export default function AiChatPage() {
     });
     if (!ok) return;
     await aiApi.deleteSession(s.id).catch(() => {});
-    if (activeId === s.id) { setActiveId(null); setMessages([]); }
+    draftsRef.current.delete(s.id);
+    // Clear the composer too, or the switch effect would re-park the deleted
+    // chat's draft under its id on the way out.
+    if (activeId === s.id) { setActiveId(null); setMessages([]); setInput(""); setImages([]); setKnowledgeAttachments([]); }
     void refreshSessions();
   };
   const moveChat = async (s: ChatSession, groupId: string | null) => {
@@ -576,8 +618,10 @@ export default function AiChatPage() {
     if ((!text && imgs.length === 0 && docs.length === 0) || sending || uploadingKnowledge) return;
     if (selected.length === 0) { setError("Select at least one AI agent."); return; }
     const msg = text || (docs.length ? "Baca dan gunakan file yang saya lampirkan." : "Describe the attached image(s).");
+    const owner = activeId;
     setError(null);
     setSending(true);
+    setPendingSession(owner);
     setPendingUser(msg);
     setPendingImages(imgs);
     setInput("");
@@ -602,20 +646,42 @@ export default function AiChatPage() {
       preface || knowledgeNote ? `User message:\n${msg}` : msg,
     ].filter(Boolean).join("\n\n");
     const responseLanguage = loadPrefs().language;
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const run = mode === "debate"
-        ? await aiApi.debateChat(sendText, selected, activeId ?? undefined, rounds, imgs, thinking, section, responseLanguage)
+        ? await aiApi.debateChat(sendText, selected, activeId ?? undefined, rounds, imgs, thinking, section, responseLanguage, controller.signal)
         : mode === "reason"
-          ? await aiApi.reasonChat(sendText, selected, activeId ?? undefined, thinking, imgs, section, responseLanguage)
-          : await aiApi.multiChat(sendText, selected, activeId ?? undefined, imgs, thinking, section, responseLanguage);
-      setActiveId(run.session_id);
+          ? await aiApi.reasonChat(sendText, selected, activeId ?? undefined, thinking, imgs, section, responseLanguage, controller.signal)
+          : await aiApi.multiChat(sendText, selected, activeId ?? undefined, imgs, thinking, section, responseLanguage, controller.signal);
       prefacedRef.current.add(`${run.session_id}:${section}`);
-      const msgs = await aiApi.listMessages(run.session_id);
-      setMessages(msgs);
       void refreshSessions();
+      // User moved to another conversation while this ran — leave their view alone;
+      // the reply is saved and loads when they open that chat again.
+      if (activeIdRef.current !== owner) return;
+      activeIdRef.current = run.session_id;
+      setActiveId(run.session_id);
+      setPendingSession(run.session_id);
+      setMessages(await aiApi.listMessages(run.session_id));
     } catch (err) {
+      // The failed message, its attachments and the banner all belong to the
+      // chat that fired it. If the user moved on, restoring them into the live
+      // composer would drop this text into whichever conversation they're
+      // reading now — so park it in the owning chat's draft instead.
+      if (activeIdRef.current !== owner) {
+        const key = owner ?? "new";
+        if (!draftsRef.current.has(key)) draftsRef.current.set(key, { input: text, images: imgs, docs });
+        return;
+      }
+      // Don't eat the user's message — put it back so they can retry.
+      setInput((cur) => cur || text);
+      setImages((cur) => (cur.length ? cur : imgs));
+      setKnowledgeAttachments((cur) => (cur.length ? cur : docs));
+      // Pressing Stop is a choice, not a failure — restore the draft, no banner.
+      if (err instanceof ApiException && err.code === "CANCELLED") return;
       setError(err instanceof ApiException ? err.message : "Failed to send message.");
     } finally {
+      abortRef.current = null;
       setSending(false);
       setPendingUser(null);
       setPendingImages([]);
@@ -978,7 +1044,7 @@ export default function AiChatPage() {
               void addKnowledgeFiles(files);
             }}
           >
-            {messages.length === 0 && !pendingUser ? (
+            {messages.length === 0 && !showPending ? (
               <div className="flex h-full animate-fade-in flex-col items-center justify-center text-center">
                 <span className="grad-primary mb-3 flex h-12 w-12 items-center justify-center rounded-xl text-primary-fg shadow-glow-primary">
                   <Bot size={22} />
@@ -1040,7 +1106,7 @@ export default function AiChatPage() {
                   return <div key={item.key} className="animate-fade-in">{renderBubble(item.message)}</div>;
                 })}
 
-                {pendingUser ? (
+                {showPending && pendingUser ? (
                   <div className="flex animate-fade-in flex-row-reverse gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border-strong bg-white/[0.06] text-content"><User size={15} /></span>
                     <div className="max-w-[86%] rounded-[16px_16px_4px_16px] border border-primary/30 bg-[linear-gradient(135deg,rgb(var(--color-primary)/0.16),rgb(var(--color-secondary)/0.1))] px-3.5 py-2.5 text-sm text-content sm:max-w-[82%]">
@@ -1056,7 +1122,7 @@ export default function AiChatPage() {
                     </div>
                   </div>
                 ) : null}
-                {sending ? (
+                {showPending ? (
                   <div className="flex animate-fade-in gap-3">
                     <span className="grad-primary flex h-8 w-8 shrink-0 items-center justify-center rounded text-primary-fg shadow-[0_0_14px_rgb(var(--color-primary)/0.4)]"><Bot size={15} /></span>
                     <div className="rounded-[4px_16px_16px_16px] border border-border bg-white/[0.035] px-3.5 py-2.5 text-sm text-content-subtle">
@@ -1220,16 +1286,29 @@ export default function AiChatPage() {
               >
                 {listening ? <Square size={15} /> : voiceChecking ? <Loader2 size={17} className="animate-spin" /> : <Mic size={17} />}
               </button>
-              <Button
-                type="submit"
-                size="icon"
-                loading={sending}
-                disabled={(!input.trim() && images.length === 0 && knowledgeAttachments.length === 0) || selected.length === 0 || uploadingKnowledge}
-                aria-label="Send message"
-                className="h-[38px] w-[38px] shrink-0 rounded-md"
-              >
-                {!sending ? <SendHorizonal size={16} /> : null}
-              </Button>
+              {showPending ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={() => abortRef.current?.abort()}
+                  aria-label="Stop generating"
+                  title="Stop generating"
+                  className="h-[38px] w-[38px] shrink-0 rounded-md"
+                >
+                  <Square size={14} />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  size="icon"
+                  loading={sending}
+                  disabled={(!input.trim() && images.length === 0 && knowledgeAttachments.length === 0) || selected.length === 0 || uploadingKnowledge}
+                  aria-label="Send message"
+                  className="h-[38px] w-[38px] shrink-0 rounded-md"
+                >
+                  {!sending ? <SendHorizonal size={16} /> : null}
+                </Button>
+              )}
             </form>
             <p className="mt-2 text-center text-[11px] text-content-faint">
               AllHaven never fabricates AI output · risky writes require approval
