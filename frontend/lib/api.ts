@@ -23,8 +23,11 @@ export const automationsApi = impl.automationsApi;
 // stay REST. (On desktop impl=rest, so these are the full REST impls.)
 export const aiApi = impl.aiApi;
 export const memoryApi = impl.memoryApi;
+// knowledgeApi is HYBRID too: documents and their index state are database rows,
+// so listing/deleting them works from the phone with the desktop off. Uploading
+// and reindexing stay REST — extraction and embedding run on the backend.
+export const knowledgeApi = impl.knowledgeApi;
 // remaining compute/file groups always come from REST (hidden on mobile UI)
-export const knowledgeApi = rest.knowledgeApi;
 export const driveApi = rest.driveApi;
 export const systemApi = rest.systemApi;
 export const n8nApi = rest.n8nApi;

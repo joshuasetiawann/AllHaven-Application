@@ -1,12 +1,13 @@
 // frontend/lib/apiSupabase.ts — Supabase-backed seam. Groups are replaced with real
 // Supabase impls task-by-task in later pairs; until then they passthrough to REST.
 //
-// Compute/file groups (knowledge/drive/system/n8n/google/settings) stay REST-only
-// (hidden on mobile UI). aiApi + memoryApi are HYBRID (defined at the bottom of this
-// file): proposal/suggestion reads + accept/reject/edit go Supabase-direct so mobile
-// sees and acts on the same pending list as desktop; chat/providers stay REST.
+// Compute/file groups (drive/system/n8n/google/settings) stay REST-only — they
+// drive desktop-local services. aiApi, memoryApi and knowledgeApi are HYBRID
+// (defined at the bottom of this file): anything that is just a database row
+// goes Supabase-direct so the phone sees the same data as the desktop with the
+// PC off. Only work that needs the backend — the model call, file extraction,
+// embedding — stays REST.
 export {
-  knowledgeApi,
   driveApi,
   systemApi,
   n8nApi,
@@ -234,7 +235,14 @@ export const authApi = {
 
 import type { Task } from "@/types";
 
-const TASK_SELECT = "*, checklist_items:task_checklist_items(*)";
+// task_checklist_items has TWO foreign keys back to tasks — a plain task_id one
+// and a composite (workspace_id, task_id) one — so an unqualified embed makes
+// PostgREST fail with PGRST201 "more than one relationship was found", and every
+// task query on mobile dies. Name the constraint to disambiguate. The plain
+// task_id FK is the parent link and can never drop a row whose workspace_id
+// disagrees; RLS is what scopes rows to the workspace.
+const TASK_SELECT =
+  "*, checklist_items:task_checklist_items!fk_task_checklist_items_task_id_tasks(*)";
 
 // DB rows for task_checklist_items include is_deleted; the frontend ChecklistItem
 // type omits it. Use this extended type locally and strip the field before returning.
@@ -853,8 +861,17 @@ export const automationsApi = {
 // Reads + accept/reject/edit run Supabase-direct so mobile sees and acts on the SAME
 // pending list as desktop (the rows are two-way synced on updated_at). Chat, providers,
 // and other compute stay on the REST backend.
-import { aiApi as restAiApi, memoryApi as restMemoryApi } from "@/lib/apiRest";
-import type { AiMemory, AiProvider, MemorySuggestion, ToolProposal } from "@/types";
+import { aiApi as restAiApi, knowledgeApi as restKnowledgeApi, memoryApi as restMemoryApi } from "@/lib/apiRest";
+import type {
+  AiMemory,
+  AiProvider,
+  ChatGroup,
+  ChatMessage,
+  ChatSession,
+  KnowledgeDocument,
+  MemorySuggestion,
+  ToolProposal,
+} from "@/types";
 
 const _PROPOSAL_OPEN = ["PENDING", "NEEDS_EDIT", "FAILED"];
 
@@ -1008,13 +1025,162 @@ async function supaListProviders(): Promise<{ providers: AiProvider[] }> {
   return { ...res, providers: (res.providers ?? []).filter((p) => p.external) };
 }
 
+// --- Chat history, read straight from Supabase -----------------------------
+// Conversations live in the same database the phone already talks to, so
+// browsing history never needed the desktop backend. Routing these through REST
+// meant the whole archive vanished whenever the PC was off. Sending a message
+// still goes through the backend — that is where the model call happens.
+//
+// The DB column is "metadata"; the API and UI call it "meta" (SQLAlchemy
+// reserves `metadata`, so the model maps meta -> "metadata"). Alias it here or
+// every message loses its debate/tool/image structure.
+const _SESSION_COLS = "id,title,group_id,section_key,created_at,updated_at";
+const _MESSAGE_COLS = "id,session_id,role,content,section_key,meta:metadata,created_at";
+
+async function supaListGroups(): Promise<ChatGroup[]> {
+  const sb = await getSupabase();
+  const ws = getWorkspaceId();
+  if (!ws) return [];
+  const { data, error } = await sb
+    .from("chat_groups")
+    .select("id,name,created_at,updated_at")
+    .eq("workspace_id", ws)
+    .order("created_at", { ascending: true });
+  if (error) throw toApiException(error);
+  return (data ?? []) as ChatGroup[];
+}
+
+async function supaListSessions(): Promise<ChatSession[]> {
+  const sb = await getSupabase();
+  const ws = getWorkspaceId();
+  if (!ws) return [];
+  const { data, error } = await sb
+    .from("chat_sessions")
+    .select(_SESSION_COLS)
+    .eq("workspace_id", ws)
+    .order("updated_at", { ascending: false });
+  if (error) throw toApiException(error);
+  return (data ?? []) as ChatSession[];
+}
+
+async function supaListMessages(sessionId: string): Promise<ChatMessage[]> {
+  const sb = await getSupabase();
+  const ws = getWorkspaceId();
+  if (!ws) return [];
+  const { data, error } = await sb
+    .from("chat_messages")
+    .select(_MESSAGE_COLS)
+    .eq("workspace_id", ws)
+    .eq("session_id", sessionId)
+    .order("created_at", { ascending: true });
+  if (error) throw toApiException(error);
+  return (data ?? []) as ChatMessage[];
+}
+
+async function supaCreateSession(groupId?: string | null, title?: string): Promise<ChatSession> {
+  const sb = await getSupabase();
+  const { data, error } = await sb
+    .from("chat_sessions")
+    .insert({ title: title ?? null, group_id: groupId ?? null, section_key: "general", ...newRow() })
+    .select(_SESSION_COLS)
+    .single();
+  if (error) throw toApiException(error);
+  return data as ChatSession;
+}
+
+async function supaUpdateSession(
+  id: string,
+  payload: { title?: string; group_id?: string | null },
+): Promise<ChatSession> {
+  const sb = await getSupabase();
+  const { data, error } = await sb
+    .from("chat_sessions").update(payload).eq("id", id)
+    .select(_SESSION_COLS).single();
+  if (error) throw toApiException(error);
+  return data as ChatSession;
+}
+
+async function supaDeleteSession(id: string): Promise<{ id: string }> {
+  const sb = await getSupabase();
+  const { error } = await sb.from("chat_sessions").delete().eq("id", id);
+  if (error) throw toApiException(error);
+  return { id };
+}
+
+async function supaCreateGroup(name: string): Promise<ChatGroup> {
+  const sb = await getSupabase();
+  const { data, error } = await sb
+    .from("chat_groups").insert({ name, ...newRow() })
+    .select("id,name,created_at,updated_at").single();
+  if (error) throw toApiException(error);
+  return data as ChatGroup;
+}
+
+async function supaRenameGroup(id: string, name: string): Promise<ChatGroup> {
+  const sb = await getSupabase();
+  const { data, error } = await sb
+    .from("chat_groups").update({ name }).eq("id", id)
+    .select("id,name,created_at,updated_at").single();
+  if (error) throw toApiException(error);
+  return data as ChatGroup;
+}
+
+async function supaDeleteGroup(id: string): Promise<{ id: string }> {
+  const sb = await getSupabase();
+  const { error } = await sb.from("chat_groups").delete().eq("id", id);
+  if (error) throw toApiException(error);
+  return { id };
+}
+
 export const aiApi = {
   ...restAiApi,
   listProviders: supaListProviders,
+  listGroups: supaListGroups,
+  listSessions: supaListSessions,
+  listMessages: supaListMessages,
+  createSession: supaCreateSession,
+  updateSession: supaUpdateSession,
+  deleteSession: supaDeleteSession,
+  createGroup: supaCreateGroup,
+  renameGroup: supaRenameGroup,
+  deleteGroup: supaDeleteGroup,
   listProposals: supaListProposals,
   approveProposal: supaApproveProposal,
   rejectProposal: supaRejectProposal,
   editProposal: supaEditProposal,
+};
+
+// --- AI Knowledge, read straight from Supabase -----------------------------
+// The documents and their index state are database rows, so listing them never
+// needed the backend either. Uploading still does: extraction and embedding run
+// there. Reads work with the PC off; uploads report honestly when it is.
+const _KNOWLEDGE_COLS =
+  "id,title,filename,mime_type,size_bytes,status,chunk_count,last_indexed_at,error_message,meta:metadata,created_at,updated_at";
+
+async function supaListDocuments(): Promise<KnowledgeDocument[]> {
+  const sb = await getSupabase();
+  const ws = getWorkspaceId();
+  if (!ws) return [];
+  const { data, error } = await sb
+    .from("ai_knowledge_documents")
+    .select(_KNOWLEDGE_COLS)
+    .eq("workspace_id", ws)
+    .order("created_at", { ascending: false });
+  if (error) throw toApiException(error);
+  return (data ?? []) as KnowledgeDocument[];
+}
+
+async function supaDeleteDocument(id: string): Promise<{ id: string }> {
+  const sb = await getSupabase();
+  const { error } = await sb.from("ai_knowledge_documents").delete().eq("id", id);
+  if (error) throw toApiException(error);
+  return { id };
+}
+
+export const knowledgeApi = {
+  ...restKnowledgeApi,
+  listDocuments: supaListDocuments,
+  remove: supaDeleteDocument,
 };
 
 async function supaListSuggestions(): Promise<MemorySuggestion[]> {

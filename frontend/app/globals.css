@@ -2,8 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Accessibility: honour the OS "reduce motion" setting — animations and
-   transitions collapse to near-instant, and smooth-scroll is disabled. */
+/* Accessibility: honour the OS "reduce motion" setting — decorative animations
+   and transitions collapse to near-instant, and smooth-scroll is disabled.
+   Loading indicators are deliberately exempt below: reduce-motion targets
+   non-essential motion, and a frozen spinner reads as "the app hung" rather
+   than "please wait". Android battery saver and Windows "animation effects off"
+   both set this, so without the exemption every spinner and skeleton shimmer
+   stops dead on a perfectly healthy request. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -12,6 +17,13 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Essential progress feedback keeps moving, just calmer. */
+  .animate-spin,
+  .skeleton::after {
+    animation-duration: 1.6s !important;
+    animation-iteration-count: infinite !important;
   }
 }
 

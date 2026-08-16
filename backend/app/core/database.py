@@ -19,6 +19,15 @@ from app.core.config import settings
 
 def make_engine(url: str) -> Engine:
     """Create a SQLAlchemy engine with sensible defaults for the given URL."""
+    # Supabase (and most hosts) hand out a driver-less "postgresql://…" URL, but
+    # only psycopg 3 is installed — SQLAlchemy would default to psycopg2 and fail
+    # at import with a confusing ModuleNotFoundError. Pin the driver we ship so a
+    # pasted connection string just works.
+    if url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url[len("postgresql://") :]
+    elif url.startswith("postgres://"):  # legacy scheme some dashboards still emit
+        url = "postgresql+psycopg://" + url[len("postgres://") :]
+
     if url.startswith("sqlite"):
         from sqlalchemy.pool import StaticPool
 
