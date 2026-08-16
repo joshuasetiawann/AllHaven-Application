@@ -124,6 +124,13 @@
   body {
     @apply bg-bg text-content font-sans antialiased;
     min-width: 320px;
+    /* Keep content clear of the status bar, navigation bar and notch. Android 15+
+       forces edge-to-edge for apps targeting SDK 35+ (the APK targets 36), so the
+       WebView draws under the system bars and only these insets hold content back.
+       Position:fixed layers (the aurora backdrop) ignore this padding and stay
+       full-bleed, which is what we want. Zero everywhere else. */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+      env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 
   ::selection {

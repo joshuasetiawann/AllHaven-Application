@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
+import { AppLoadingSkeleton } from "@/components/layout/AppLoadingSkeleton";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { BackendBridgeCard } from "@/components/settings/BackendBridgeCard";
-import { ErrorState, Loading } from "@/components/ui/States";
+import { ErrorState } from "@/components/ui/States";
 import { ApiException, authApi } from "@/lib/api";
 import { clearAuth, setStoredUser } from "@/lib/auth";
 import { ensureBearerHydrated } from "@/lib/mobileAuth";
@@ -117,21 +118,23 @@ export function AppShell({ children }: { children: ReactNode }) {
   const rail = !isXl || collapsed;
 
   if (!ready) {
+    // The session check is the first thing every page waits on, and in a static
+    // export it is also the ONLY loading state: route-level loading.tsx never
+    // fires for a client-gated prerendered route, so this stood in for the
+    // skeleton on every navigation. A bare centered line of text made the app
+    // look broken while the check ran — show the real skeleton instead.
+    if (!authError) return <AppLoadingSkeleton scope="dashboard" />;
+    // The session check couldn't reach the server (network/timeout — not a 401).
+    // On mobile that's usually the wrong backend URL, so offer the Backend Bridge
+    // config right here; a successful test re-runs the check.
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
-        {authError ? (
-          // The session check couldn't reach the server (network/timeout — not a
-          // 401). On mobile that's usually the wrong backend URL, so offer the
-          // Backend Bridge config right here; a successful test re-runs the check.
-          <div className="w-full max-w-md">
-            <ErrorState message={authError} onRetry={() => setAuthNonce((n) => n + 1)} />
-            <div className="mt-5">
-              <BackendBridgeCard onConnected={() => setAuthNonce((n) => n + 1)} />
-            </div>
+        <div className="w-full max-w-md">
+          <ErrorState message={authError} onRetry={() => setAuthNonce((n) => n + 1)} />
+          <div className="mt-5">
+            <BackendBridgeCard onConnected={() => setAuthNonce((n) => n + 1)} />
           </div>
-        ) : (
-          <Loading label="Checking your session…" />
-        )}
+        </div>
       </div>
     );
   }
@@ -148,7 +151,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Persistent sidebar — full rail on md+, hidden on mobile (drawer instead) */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-40 hidden transition-[width] duration-200 ease-out md:block",
+          "fixed inset-y-0 left-0 z-40 hidden pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)] transition-[width] duration-200 ease-out md:block",
           rail ? "md:w-[80px]" : "md:w-[280px]",
         )}
       >
@@ -169,9 +172,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
           onClick={() => setMobileOpen(false)}
         />
+        {/* position:fixed ignores the body safe-area padding, so the drawer
+            carries its own insets or its header sits under the status bar. */}
         <div
           className={cn(
-            "absolute inset-y-0 left-0 w-[min(86vw,280px)] transition-transform duration-200",
+            "absolute inset-y-0 left-0 w-[min(86vw,280px)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)] transition-transform duration-200",
             mobileOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >

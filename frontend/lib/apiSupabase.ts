@@ -854,7 +854,7 @@ export const automationsApi = {
 // pending list as desktop (the rows are two-way synced on updated_at). Chat, providers,
 // and other compute stay on the REST backend.
 import { aiApi as restAiApi, memoryApi as restMemoryApi } from "@/lib/apiRest";
-import type { AiMemory, MemorySuggestion, ToolProposal } from "@/types";
+import type { AiMemory, AiProvider, MemorySuggestion, ToolProposal } from "@/types";
 
 const _PROPOSAL_OPEN = ["PENDING", "NEEDS_EDIT", "FAILED"];
 
@@ -998,8 +998,19 @@ async function supaEditProposal(id: string, toolPayload: Record<string, unknown>
   return data as ToolProposal;
 }
 
+// Mobile runs API-only: every provider reachable over the internet is offered,
+// desktop-local ones are not. Ollama is the only provider with external=false —
+// it runs on the PC, so offering it on the phone would just produce an agent
+// that is unreachable whenever the desktop is off. Filtered here rather than in
+// the UI so every caller of listProviders gets the same list.
+async function supaListProviders(): Promise<{ providers: AiProvider[] }> {
+  const res = await restAiApi.listProviders();
+  return { ...res, providers: (res.providers ?? []).filter((p) => p.external) };
+}
+
 export const aiApi = {
   ...restAiApi,
+  listProviders: supaListProviders,
   listProposals: supaListProposals,
   approveProposal: supaApproveProposal,
   rejectProposal: supaRejectProposal,
