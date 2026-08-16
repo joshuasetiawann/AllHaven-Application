@@ -1,0 +1,53 @@
+# Fly.io deployment for the AllHaven backend, so the app keeps working when the
+# desktop is off. Only Ollama (and other desktop-local services such as n8n) stay
+# on the PC — this backend reaches them over Tailscale, see
+# app/services/connection_resolver.py.
+#
+#   cd backend
+#   fly launch --no-deploy --copy-config   # first time: creates the app
+#   fly volumes create allhaven_data --region sin --size 3
+#   fly secrets set DATABASE_URL=... SECRET_KEY=... (see docs/DEPLOYMENT.md)
+#   fly deploy
+#
+# Secrets are NEVER written here — this file is committed. Use `fly secrets set`.
+
+app = "allhaven-api"
+primary_region = "sin" # Singapore: closest Fly region to Indonesia
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  APP_ENV = "production"
+  DRIVE_STORAGE_DIR = "/data/drive"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # An idle machine suspends and wakes on the next request, so the API is always
+  # available without paying for a machine that sits doing nothing. Safe here
+  # because the only background job (the Supabase mirror) disables itself when
+  # Supabase is the primary database — see config.py sync_interval_seconds.
+  # Set min_machines_running = 1 if you later add work that must fire on a
+  # schedule while nobody is using the app.
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/v1/health"
+    interval = "30s"
+    timeout = "5s"
+    # The image runs `alembic upgrade head` before uvicorn, so first boot needs
+    # room for migrations before the check counts as failing.
+    grace_period = "30s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+
+# Drive uploads and AI Knowledge files must survive a redeploy.
+[[mounts]]
+  source = "allhaven_data"
+  destination = "/data"
