@@ -864,7 +864,6 @@ export const automationsApi = {
 import { aiApi as restAiApi, knowledgeApi as restKnowledgeApi, memoryApi as restMemoryApi } from "@/lib/apiRest";
 import type {
   AiMemory,
-  AiProvider,
   ChatGroup,
   ChatMessage,
   ChatSession,
@@ -1015,15 +1014,12 @@ async function supaEditProposal(id: string, toolPayload: Record<string, unknown>
   return data as ToolProposal;
 }
 
-// Mobile runs API-only: every provider reachable over the internet is offered,
-// desktop-local ones are not. Ollama is the only provider with external=false —
-// it runs on the PC, so offering it on the phone would just produce an agent
-// that is unreachable whenever the desktop is off. Filtered here rather than in
-// the UI so every caller of listProviders gets the same list.
-async function supaListProviders(): Promise<{ providers: AiProvider[] }> {
-  const res = await restAiApi.listProviders();
-  return { ...res, providers: (res.providers ?? []).filter((p) => p.external) };
-}
+// Providers are NOT filtered on mobile. Ollama is the only external=false
+// provider and it runs on the desktop, but hiding it would be the one place the
+// app pretends a capability does not exist. The backend already reports it
+// honestly — ollama_provider.is_configured() is false when no bridge URL is set
+// for the connection mode, so the phone shows it as unavailable with the PC off
+// and it simply works when the PC is on.
 
 // --- Chat history, read straight from Supabase -----------------------------
 // Conversations live in the same database the phone already talks to, so
@@ -1134,7 +1130,6 @@ async function supaDeleteGroup(id: string): Promise<{ id: string }> {
 
 export const aiApi = {
   ...restAiApi,
-  listProviders: supaListProviders,
   listGroups: supaListGroups,
   listSessions: supaListSessions,
   listMessages: supaListMessages,
