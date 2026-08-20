@@ -40,6 +40,11 @@ const QUERIES = {
   chat_messages: "id,session_id,role,content,section_key,meta:metadata,created_at",
   ai_knowledge_documents:
     "id,title,filename,mime_type,size_bytes,status,chunk_count,last_indexed_at,error_message,meta:metadata,created_at,updated_at",
+  // Same two-FK trap as tasks: chunks reach documents by both a plain
+  // document_id and a composite workspace+document_id constraint.
+  ai_knowledge_chunks:
+    "content,chunk_index,ai_knowledge_documents!fk_ai_knowledge_chunks_document_id_ai_knowledge_documents!inner(title,filename,status)",
+  ai_memories: "category,title,content,relevance_score,last_used_at",
   ai_tool_proposals:
     "id,tool_name,tool_payload,status,risk_level,requires_confirmation,error_message,executed_at,created_at,updated_at",
 };

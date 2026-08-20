@@ -92,9 +92,9 @@ export function OnDeviceKeysCard() {
       <p className="mb-4 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[11.5px] leading-relaxed text-warning">
         <AlertTriangle size={12} className="mt-0.5 shrink-0" />
         <span>
-          A key on a phone can be read by anyone who controls that phone. Direct calls also skip
-          tools, approvals, memory, AI Knowledge, and the audit trail — you get plain text back.
-          Prefer the backend whenever it&apos;s reachable, and use keys scoped to what the phone needs.
+          A key on a phone can be read by anyone who controls that phone — use keys scoped to what
+          the phone actually needs. Memory, AI Knowledge and the approval queue all still work on this
+          path; multi-agent debate, the reasoning council and Ollama need the desktop.
         </span>
       </p>
 

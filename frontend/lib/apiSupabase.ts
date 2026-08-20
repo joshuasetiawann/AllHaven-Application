@@ -20,6 +20,14 @@ export {
 import type { AuthToken, Me, User, Workspace } from "@/types";
 import { ApiException } from "@/lib/apiRest";
 import { getSupabase, getWorkspaceId, setWorkspaceId, getAppUserId, setAppUserId } from "@/lib/supabaseClient";
+import {
+  buildKnowledgeBlock,
+  buildMemoryBlock,
+  searchChunks,
+  type KnowledgeChunkRow,
+  type MemoryRow,
+} from "@/lib/aiContext";
+import type { DirectMessage, DirectTool } from "@/lib/aiDirect";
 import { toApiException } from "@/lib/supabaseError";
 
 const SUPABASE_TIMEOUT_MS = 12000;
@@ -1131,15 +1139,147 @@ async function supaDeleteGroup(id: string): Promise<{ id: string }> {
 }
 
 // --- Direct-from-device chat, when the backend can't be reached -------------
-// The backend is still the preferred path: it carries tools, approval
-// proposals, section memory, AI Knowledge retrieval, debate/reasoning and the
-// audit trail. This fallback has none of that — it is one turn of plain text
-// against the provider, using a key stored in Android Keystore on this device.
-// It exists so the phone is not dead when the desktop is off, and it says so in
-// the reply's metadata rather than passing itself off as a normal run.
+// The backend stays the preferred path — it still owns multi-agent debate, the
+// reasoning council and the server-side quality gate. Everything else survives
+// without it, because it is all rows in the same Supabase database the phone
+// already reads:
+//
+//   memory     — ai_memories, ranked and formatted by lib/aiContext.ts
+//   knowledge  — ai_knowledge_chunks, scored with the backend's own algorithm
+//   approvals  — tool calls become ai_tool_proposals rows, so the existing queue
+//                reviews them and supaApproveProposal executes them on-device
+//
+// Nothing here executes a tool. The model proposes, a human approves, and the
+// approval path that already exists does the work.
 const _UNREACHABLE = new Set(["BRIDGE_REQUIRED", "NETWORK_ERROR", "TIMEOUT"]);
 const _isUnreachable = (err: unknown) =>
   err instanceof ApiException && _UNREACHABLE.has(err.code);
+
+// Exactly the tools _executeProposal can carry out on this device. Proposing
+// anything else would create an approval the phone can never honour.
+const _DIRECT_TOOLS: DirectTool[] = [
+  {
+    name: "create_task",
+    description: "Propose a new task for the user's task list.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Short imperative title." },
+        description: { type: "string" },
+        due_date: { type: "string", description: "ISO date, e.g. 2026-08-20." },
+        priority: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "create_note",
+    description: "Propose saving a note.",
+    parameters: {
+      type: "object",
+      properties: { title: { type: "string" }, content: { type: "string" } },
+      required: ["title", "content"],
+    },
+  },
+  {
+    name: "create_transaction",
+    description: "Propose recording an income or expense.",
+    parameters: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["INCOME", "EXPENSE"] },
+        amount: { type: "number", description: "Positive amount in the workspace currency." },
+        description: { type: "string" },
+        transaction_date: { type: "string", description: "ISO date." },
+      },
+      required: ["type", "amount"],
+    },
+  },
+  {
+    name: "create_event",
+    description: "Propose a calendar event.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        start_at: { type: "string", description: "ISO datetime." },
+        end_at: { type: "string", description: "ISO datetime." },
+        location: { type: "string" },
+      },
+      required: ["title", "start_at"],
+    },
+  },
+  {
+    name: "create_automation",
+    description: "Propose an automation rule.",
+    parameters: {
+      type: "object",
+      properties: { name: { type: "string" }, description: { type: "string" } },
+      required: ["name"],
+    },
+  },
+];
+const _DIRECT_TOOL_NAMES = new Set(_DIRECT_TOOLS.map((t) => t.name));
+
+type _JoinedChunk = {
+  content: string;
+  chunk_index: number;
+  ai_knowledge_documents: { title: string; filename: string; status: string } | null;
+};
+
+/** Memory + AI Knowledge context for one turn, rebuilt from Supabase. */
+async function _directContext(
+  message: string,
+  sectionKey: string,
+): Promise<{ block: string | null; usedMemory: boolean; usedKnowledge: boolean }> {
+  const sb = await getSupabase();
+  const ws = getWorkspaceId();
+  if (!ws) return { block: null, usedMemory: false, usedKnowledge: false };
+
+  const [memRes, chunkRes] = await Promise.all([
+    sb
+      .from("ai_memories")
+      .select("category,title,content,relevance_score,last_used_at")
+      .eq("workspace_id", ws)
+      .eq("enabled", true)
+      .eq("status", "active")
+      .limit(120),
+    // The backend caps candidates at MAX_SEARCH_CANDIDATES (500) before scoring.
+    sb
+      .from("ai_knowledge_chunks")
+      // Two FKs run chunks -> documents (a plain document_id and a composite
+      // workspace+document one), so an unqualified embed is a PGRST201. Name the
+      // constraint, exactly as the tasks/checklist embed has to.
+      .select(
+        "content,chunk_index,ai_knowledge_documents!fk_ai_knowledge_chunks_document_id_ai_knowledge_documents!inner(title,filename,status)",
+      )
+      .eq("workspace_id", ws)
+      .limit(500),
+  ]);
+
+  const memoryBlock = memRes.error
+    ? null
+    : buildMemoryBlock((memRes.data ?? []) as MemoryRow[], message, sectionKey);
+
+  const candidates: KnowledgeChunkRow[] = chunkRes.error
+    ? []
+    : ((chunkRes.data ?? []) as unknown as _JoinedChunk[])
+        .filter((r) => r.ai_knowledge_documents && ["indexed", "uploaded"].includes(r.ai_knowledge_documents.status))
+        .map((r) => ({
+          content: r.content,
+          chunk_index: r.chunk_index,
+          document_title: r.ai_knowledge_documents!.title,
+          document_filename: r.ai_knowledge_documents!.filename,
+        }));
+  const knowledgeBlock = buildKnowledgeBlock(searchChunks(candidates, message));
+
+  const parts = [memoryBlock, knowledgeBlock].filter(Boolean);
+  return {
+    block: parts.length ? parts.join("\n\n") : null,
+    usedMemory: Boolean(memoryBlock),
+    usedKnowledge: Boolean(knowledgeBlock),
+  };
+}
 
 async function _appendMessage(
   sessionId: string,
@@ -1154,11 +1294,32 @@ async function _appendMessage(
   if (error) throw toApiException(error);
 }
 
+/** Turn the model's tool calls into PENDING proposals. Returns the new ids. */
+async function _fileProposals(calls: { name: string; input: Record<string, unknown> }[]): Promise<string[]> {
+  const usable = calls.filter((c) => _DIRECT_TOOL_NAMES.has(c.name));
+  if (!usable.length) return [];
+  const sb = await getSupabase();
+  const rows = usable.map((c) => ({
+    tool_name: c.name,
+    tool_payload: c.input,
+    status: "PENDING",
+    // Everything the phone can propose writes to the workspace, so it is never
+    // auto-run — a human approves it in the Approvals queue first.
+    risk_level: "MEDIUM",
+    requires_confirmation: true,
+    ...newRow(),
+  }));
+  const { data, error } = await sb.from("ai_tool_proposals").insert(rows).select("id");
+  if (error) throw toApiException(error);
+  return ((data ?? []) as { id: string }[]).map((r) => r.id);
+}
+
 async function directMultiChat(
   message: string,
   providerRefs: string[],
   sessionId?: string,
   images?: string[],
+  sectionKey = "general",
 ): Promise<MultiChatResponse> {
   const { directChat, DirectChatError, supportsDirect } = await import("@/lib/aiDirect");
   // Selected values are slot refs ("anthropic#2"); the provider id precedes "#".
@@ -1166,6 +1327,11 @@ async function directMultiChat(
   const session = sessionId ? { id: sessionId } : await supaCreateSession(null, message.slice(0, 60));
 
   await _appendMessage(session.id, "user", message, images?.length ? { images } : null);
+
+  const ctx = await _directContext(message, sectionKey);
+  const turn: DirectMessage[] = ctx.block
+    ? [{ role: "system", content: ctx.block }, { role: "user", content: message }]
+    : [{ role: "user", content: message }];
 
   const runId = newId();
   const now = () => new Date().toISOString();
@@ -1176,23 +1342,47 @@ async function directMultiChat(
     const base = { id: newId(), run_id: runId, provider_id: id, provider_name: id, created_at: now() };
     if (!supportsDirect(id)) {
       responses.push({
-        ...base, status: "unsupported", content: null, latency_ms: null,
+        ...base,
+        status: "unsupported",
+        content: null,
+        latency_ms: null,
         error_message: `${id} only runs through the desktop backend, which isn't reachable right now.`,
         meta: { direct: true },
       });
       continue;
     }
     try {
-      const text = await directChat(id, [{ role: "user", content: message }], { images });
-      const meta = { direct: true, provider_id: id, provider_name: id };
+      const reply = await directChat(id, turn, { images, tools: _DIRECT_TOOLS });
+      const proposalIds = await _fileProposals(reply.toolCalls);
+      const text = reply.text || (proposalIds.length ? "Proposed an action for your approval." : "");
+      const meta: Record<string, unknown> = {
+        direct: true,
+        provider_id: id,
+        provider_name: id,
+        used_memory: ctx.usedMemory,
+        used_knowledge: ctx.usedKnowledge,
+      };
+      if (proposalIds.length) {
+        meta.proposal_ids = proposalIds;
+        meta.tool_calls = reply.toolCalls
+          .filter((c) => _DIRECT_TOOL_NAMES.has(c.name))
+          .map((c) => ({ tool: c.name, status: "pending_approval" }));
+      }
       responses.push({
-        ...base, status: "completed", content: text, error_message: null,
-        latency_ms: Date.now() - started, meta,
+        ...base,
+        status: "completed",
+        content: text,
+        error_message: null,
+        latency_ms: Date.now() - started,
+        meta,
       });
       await _appendMessage(session.id, "assistant", text, meta);
     } catch (err) {
       responses.push({
-        ...base, status: "error", content: null, latency_ms: Date.now() - started,
+        ...base,
+        status: "error",
+        content: null,
+        latency_ms: Date.now() - started,
         error_message: err instanceof DirectChatError ? err.message : "Direct call failed.",
         meta: { direct: true, provider_id: id, provider_name: id, status: "error" },
       });
@@ -1209,8 +1399,14 @@ async function directMultiChat(
 }
 
 async function supaMultiChat(
-  message: string, providerIds: string[], sessionId?: string, images?: string[],
-  thinkingMode?: string, sectionKey?: string, responseLanguage?: string, signal?: AbortSignal,
+  message: string,
+  providerIds: string[],
+  sessionId?: string,
+  images?: string[],
+  thinkingMode?: string,
+  sectionKey?: string,
+  responseLanguage?: string,
+  signal?: AbortSignal,
 ): Promise<MultiChatResponse> {
   try {
     return await restAiApi.multiChat(
@@ -1220,7 +1416,7 @@ async function supaMultiChat(
     // Only a genuinely unreachable backend falls back. A 4xx/5xx from a backend
     // that answered is a real error and must not be masked by a weaker path.
     if (!_isUnreachable(err)) throw err;
-    return directMultiChat(message, providerIds, sessionId, images);
+    return directMultiChat(message, providerIds, sessionId, images, sectionKey);
   }
 }
 

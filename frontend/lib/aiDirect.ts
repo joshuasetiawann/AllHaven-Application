@@ -6,11 +6,15 @@
 // alternative for the phone: the key lives in Android Keystore on the device
 // and the provider is called directly from the WebView.
 //
-// The trade-off is real and not recoverable here — a direct call is plain text
-// in, plain text out. No tool calling, no approval proposals, no section
-// memory, no AI Knowledge retrieval, no debate or reasoning council, no audit
-// trail, and no quality gate. Anything needing those has to go through the
-// backend. Callers surface that difference rather than hiding it.
+// Tool calling IS supported here: the model may propose actions, and the caller
+// writes them to ai_tool_proposals so the existing approval queue reviews them
+// exactly as it reviews the backend's. Nothing is executed in this module.
+// Memory and AI Knowledge are supplied by the caller as context (lib/aiContext.ts
+// rebuilds both from Supabase), so they work with the desktop off too.
+//
+// What this path still cannot do: multi-agent debate and the reasoning council
+// (both are backend orchestration), the server-side quality gate, and Ollama —
+// which runs on the desktop by definition.
 //
 // Security: a key stored on the device can be extracted by anyone who controls
 // the device. Scope the keys used here to the minimum the phone needs, and
@@ -67,6 +71,28 @@ export class DirectChatError extends Error {
 
 export type DirectMessage = { role: "system" | "user" | "assistant"; content: string };
 
+/** A tool the model may propose. `parameters` is a JSON Schema object. */
+export type DirectTool = { name: string; description: string; parameters: Record<string, unknown> };
+
+/** A tool the model asked for. Nothing is executed here — see directChat's contract. */
+export type DirectToolCall = { name: string; input: Record<string, unknown> };
+
+export type DirectReply = { text: string; toolCalls: DirectToolCall[] };
+
+// Providers hand back tool arguments as either a parsed object or a JSON string.
+function asInput(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === "object") return raw as Record<string, unknown>;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
+    } catch {
+      /* fall through — a tool call we can't parse is one we must not invent */
+    }
+  }
+  return {};
+}
+
 // A data URL splits into the media type and the bare base64 payload; Anthropic
 // and Gemini both want them as separate fields.
 function splitDataUrl(dataUrl: string): { media: string; b64: string } | null {
@@ -84,7 +110,9 @@ async function readBody(res: Response): Promise<string> {
   }
 }
 
-async function callOpenAi(spec: Spec, key: string, model: string, messages: DirectMessage[], images: string[]) {
+async function callOpenAi(
+  spec: Spec, key: string, model: string, messages: DirectMessage[], images: string[], tools: DirectTool[],
+): Promise<DirectReply> {
   // Images ride on the last user turn as image_url parts.
   const body = {
     model,
@@ -100,6 +128,12 @@ async function callOpenAi(spec: Spec, key: string, model: string, messages: Dire
         : m,
     ),
   };
+  if (tools.length) {
+    (body as Record<string, unknown>).tools = tools.map((t) => ({
+      type: "function",
+      function: { name: t.name, description: t.description, parameters: t.parameters },
+    }));
+  }
   const res = await fetch(`${spec.base}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
@@ -107,10 +141,19 @@ async function callOpenAi(spec: Spec, key: string, model: string, messages: Dire
   });
   if (!res.ok) throw new Error(await readBody(res));
   const data = await res.json();
-  return String(data?.choices?.[0]?.message?.content ?? "").trim();
+  const msg = data?.choices?.[0]?.message ?? {};
+  return {
+    text: String(msg.content ?? "").trim(),
+    toolCalls: (msg.tool_calls ?? []).map((c: { function?: { name?: string; arguments?: unknown } }) => ({
+      name: String(c?.function?.name ?? ""),
+      input: asInput(c?.function?.arguments),
+    })).filter((c: DirectToolCall) => c.name),
+  };
 }
 
-async function callAnthropic(spec: Spec, key: string, model: string, messages: DirectMessage[], images: string[]) {
+async function callAnthropic(
+  spec: Spec, key: string, model: string, messages: DirectMessage[], images: string[], tools: DirectTool[],
+): Promise<DirectReply> {
   const system = messages.find((m) => m.role === "system")?.content;
   const convo = messages.filter((m) => m.role !== "system");
   const body: Record<string, unknown> = {
@@ -128,6 +171,9 @@ async function callAnthropic(spec: Spec, key: string, model: string, messages: D
     }),
   };
   if (system) body.system = system;
+  if (tools.length) {
+    body.tools = tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
+  }
   const res = await fetch(`${spec.base}/messages`, {
     method: "POST",
     headers: {
@@ -144,14 +190,19 @@ async function callAnthropic(spec: Spec, key: string, model: string, messages: D
   });
   if (!res.ok) throw new Error(await readBody(res));
   const data = await res.json();
-  const text = (data?.content ?? [])
-    .filter((b: { type?: string }) => b?.type === "text")
-    .map((b: { text?: string }) => b.text ?? "")
-    .join("");
-  return String(text).trim();
+  const blocks: { type?: string; text?: string; name?: string; input?: unknown }[] = data?.content ?? [];
+  return {
+    text: blocks.filter((b) => b?.type === "text").map((b) => b.text ?? "").join("").trim(),
+    toolCalls: blocks
+      .filter((b) => b?.type === "tool_use")
+      .map((b) => ({ name: String(b.name ?? ""), input: asInput(b.input) }))
+      .filter((c) => c.name),
+  };
 }
 
-async function callGemini(spec: Spec, key: string, model: string, messages: DirectMessage[], images: string[]) {
+async function callGemini(
+  spec: Spec, key: string, model: string, messages: DirectMessage[], images: string[], tools: DirectTool[],
+): Promise<DirectReply> {
   const system = messages.find((m) => m.role === "system")?.content;
   const convo = messages.filter((m) => m.role !== "system");
   const contents = convo.map((m, i) => {
@@ -166,6 +217,13 @@ async function callGemini(spec: Spec, key: string, model: string, messages: Dire
   });
   const body: Record<string, unknown> = { contents };
   if (system) body.system_instruction = { parts: [{ text: system }] };
+  if (tools.length) {
+    body.tools = [{
+      function_declarations: tools.map((t) => ({
+        name: t.name, description: t.description, parameters: t.parameters,
+      })),
+    }];
+  }
   const res = await fetch(`${spec.base}/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": key },
@@ -173,14 +231,23 @@ async function callGemini(spec: Spec, key: string, model: string, messages: Dire
   });
   if (!res.ok) throw new Error(await readBody(res));
   const data = await res.json();
-  const text = (data?.candidates?.[0]?.content?.parts ?? [])
-    .map((p: { text?: string }) => p?.text ?? "")
-    .join("");
-  return String(text).trim();
+  const parts: { text?: string; functionCall?: { name?: string; args?: unknown } }[] =
+    data?.candidates?.[0]?.content?.parts ?? [];
+  return {
+    text: parts.map((p) => p?.text ?? "").join("").trim(),
+    toolCalls: parts
+      .filter((p) => p?.functionCall)
+      .map((p) => ({ name: String(p.functionCall?.name ?? ""), input: asInput(p.functionCall?.args) }))
+      .filter((c) => c.name),
+  };
 }
 
 /**
- * Send one turn to a provider from this device and return its reply text.
+ * Send one turn to a provider from this device.
+ *
+ * Returns the reply text plus any tool calls the model asked for. Tool calls are
+ * returned, never executed — the caller turns them into approval proposals so a
+ * human still decides, which is the whole point of the approval queue.
  *
  * Throws DirectChatError when no key is stored, the provider is unsupported, or
  * the provider rejects the call — callers render that verbatim rather than
@@ -189,8 +256,8 @@ async function callGemini(spec: Spec, key: string, model: string, messages: Dire
 export async function directChat(
   providerId: string,
   messages: DirectMessage[],
-  opts: { model?: string; images?: string[] } = {},
-): Promise<string> {
+  opts: { model?: string; images?: string[]; tools?: DirectTool[] } = {},
+): Promise<DirectReply> {
   const spec = PROVIDERS[providerId];
   if (!spec) throw new DirectChatError(`${providerId} can't be called directly from this device.`, providerId);
 
@@ -204,11 +271,15 @@ export async function directChat(
 
   const model = opts.model?.trim() || spec.model;
   const images = opts.images ?? [];
+  const tools = opts.tools ?? [];
   try {
     const call = spec.wire === "anthropic" ? callAnthropic : spec.wire === "gemini" ? callGemini : callOpenAi;
-    const text = await call(spec, key, model, messages, images);
-    if (!text) throw new Error("The provider returned an empty response.");
-    return text;
+    const reply = await call(spec, key, model, messages, images, tools);
+    // A turn that only proposes actions is a valid turn — don't call it empty.
+    if (!reply.text && !reply.toolCalls.length) {
+      throw new Error("The provider returned an empty response.");
+    }
+    return reply;
   } catch (err) {
     throw new DirectChatError(err instanceof Error ? err.message : `${providerId} call failed.`, providerId);
   }
