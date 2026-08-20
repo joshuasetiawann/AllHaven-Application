@@ -863,12 +863,14 @@ export const automationsApi = {
 // and other compute stay on the REST backend.
 import { aiApi as restAiApi, knowledgeApi as restKnowledgeApi, memoryApi as restMemoryApi } from "@/lib/apiRest";
 import type {
+  AgentResponse,
   AiMemory,
   ChatGroup,
   ChatMessage,
   ChatSession,
   KnowledgeDocument,
   MemorySuggestion,
+  MultiChatResponse,
   ToolProposal,
 } from "@/types";
 
@@ -1128,8 +1130,103 @@ async function supaDeleteGroup(id: string): Promise<{ id: string }> {
   return { id };
 }
 
+// --- Direct-from-device chat, when the backend can't be reached -------------
+// The backend is still the preferred path: it carries tools, approval
+// proposals, section memory, AI Knowledge retrieval, debate/reasoning and the
+// audit trail. This fallback has none of that — it is one turn of plain text
+// against the provider, using a key stored in Android Keystore on this device.
+// It exists so the phone is not dead when the desktop is off, and it says so in
+// the reply's metadata rather than passing itself off as a normal run.
+const _UNREACHABLE = new Set(["BRIDGE_REQUIRED", "NETWORK_ERROR", "TIMEOUT"]);
+const _isUnreachable = (err: unknown) =>
+  err instanceof ApiException && _UNREACHABLE.has(err.code);
+
+async function _appendMessage(
+  sessionId: string,
+  role: "user" | "assistant",
+  content: string,
+  meta: Record<string, unknown> | null,
+): Promise<void> {
+  const sb = await getSupabase();
+  const { error } = await sb.from("chat_messages").insert({
+    session_id: sessionId, role, content, section_key: "general", metadata: meta, ...newRow(),
+  });
+  if (error) throw toApiException(error);
+}
+
+async function directMultiChat(
+  message: string,
+  providerRefs: string[],
+  sessionId?: string,
+  images?: string[],
+): Promise<MultiChatResponse> {
+  const { directChat, DirectChatError, supportsDirect } = await import("@/lib/aiDirect");
+  // Selected values are slot refs ("anthropic#2"); the provider id precedes "#".
+  const ids = Array.from(new Set(providerRefs.map((r) => r.split("#")[0])));
+  const session = sessionId ? { id: sessionId } : await supaCreateSession(null, message.slice(0, 60));
+
+  await _appendMessage(session.id, "user", message, images?.length ? { images } : null);
+
+  const runId = newId();
+  const now = () => new Date().toISOString();
+  const responses: AgentResponse[] = [];
+
+  for (const id of ids) {
+    const started = Date.now();
+    const base = { id: newId(), run_id: runId, provider_id: id, provider_name: id, created_at: now() };
+    if (!supportsDirect(id)) {
+      responses.push({
+        ...base, status: "unsupported", content: null, latency_ms: null,
+        error_message: `${id} only runs through the desktop backend, which isn't reachable right now.`,
+        meta: { direct: true },
+      });
+      continue;
+    }
+    try {
+      const text = await directChat(id, [{ role: "user", content: message }], { images });
+      const meta = { direct: true, provider_id: id, provider_name: id };
+      responses.push({
+        ...base, status: "completed", content: text, error_message: null,
+        latency_ms: Date.now() - started, meta,
+      });
+      await _appendMessage(session.id, "assistant", text, meta);
+    } catch (err) {
+      responses.push({
+        ...base, status: "error", content: null, latency_ms: Date.now() - started,
+        error_message: err instanceof DirectChatError ? err.message : "Direct call failed.",
+        meta: { direct: true, provider_id: id, provider_name: id, status: "error" },
+      });
+    }
+  }
+
+  const ok = responses.filter((r) => r.status === "completed").length;
+  return {
+    run_id: runId,
+    session_id: session.id,
+    status: ok === 0 ? "error" : ok === responses.length ? "completed" : "partial",
+    agent_responses: responses,
+  };
+}
+
+async function supaMultiChat(
+  message: string, providerIds: string[], sessionId?: string, images?: string[],
+  thinkingMode?: string, sectionKey?: string, responseLanguage?: string, signal?: AbortSignal,
+): Promise<MultiChatResponse> {
+  try {
+    return await restAiApi.multiChat(
+      message, providerIds, sessionId, images, thinkingMode, sectionKey, responseLanguage, signal,
+    );
+  } catch (err) {
+    // Only a genuinely unreachable backend falls back. A 4xx/5xx from a backend
+    // that answered is a real error and must not be masked by a weaker path.
+    if (!_isUnreachable(err)) throw err;
+    return directMultiChat(message, providerIds, sessionId, images);
+  }
+}
+
 export const aiApi = {
   ...restAiApi,
+  multiChat: supaMultiChat,
   listGroups: supaListGroups,
   listSessions: supaListSessions,
   listMessages: supaListMessages,

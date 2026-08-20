@@ -31,6 +31,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { DesktopBridgePanel } from "@/components/settings/DesktopBridgePanel";
 import { BackendBridgeCard } from "@/components/settings/BackendBridgeCard";
+import { OnDeviceKeysCard } from "@/components/settings/OnDeviceKeysCard";
 import { APP_VERSION } from "@/components/layout/nav";
 import { SetupRequiredState } from "@/components/SetupRequiredState";
 import { Badge } from "@/components/ui/Badge";
@@ -458,6 +459,9 @@ export default function SettingsPage() {
                   reason="AI-provider configuration lives on the backend. Connect via the Backend Bridge to manage providers — Appearance settings work without it."
                   onRetry={load}
                 />
+                {/* This is exactly the state on-device keys exist for: no backend
+                    in reach. Offer them here so the screen isn't a dead end. */}
+                <OnDeviceKeysCard />
               </>
             )
           ) : null}
