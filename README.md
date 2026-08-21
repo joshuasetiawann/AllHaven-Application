@@ -4,21 +4,110 @@
 
 # AllHaven Command Center
 
-**A local-first AI command center for personal productivity, workspace memory, finance tracking, routines, notes, and human-approved AI actions.**
+**A local-first AI command center — tasks, notes, finance, routines, workspace memory, and AI actions that wait for your approval.**
 
-The desktop app owns the private backend. The Android APK is the mobile companion: it can run core workspace features through Supabase, and only uses the desktop bridge for local services such as Ollama and n8n.
-
-[![Version](https://img.shields.io/badge/version-4.3.0%20%7C%20AllHaven%204.3-18E0D6?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.3.0-18E0D6?style=flat-square)](CHANGELOG.md)
+[![License](https://img.shields.io/badge/license-proprietary-1f2937?style=flat-square)](LICENSE)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![Next.js 15](https://img.shields.io/badge/Next.js%2015-000000?style=flat-square&logo=nextdotjs&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase-mobile%20data-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
-![Android](https://img.shields.io/badge/Android-APK-3DDC84?style=flat-square&logo=android&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
+![Android](https://img.shields.io/badge/Android%20APK-3DDC84?style=flat-square&logo=android&logoColor=white)
 
-[Quick Start](#quick-start) | [Mobile APK](#mobile-apk) | [Features](#features) | [Docs](#documentation) | [Changelog](CHANGELOG.md)
+[Install](#which-one-do-i-install) · [Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [Docs](#documentation) · [Changelog](CHANGELOG.md)
+
+![AllHaven Command Center](docs/assets/screenshot-landing.png)
 
 </div>
 
 ---
+
+## Which one do I install?
+
+AllHaven ships as **two different things** built from this one repository. Pick the row you want — installing the wrong one is the most common mistake.
+
+| I want… | Install | How |
+| --- | --- | --- |
+| **The full app on my computer** | Desktop web app | Clone this repo and run `install.sh` / `install.bat` — see [Quick Start](#quick-start) |
+| **A companion app on my Android phone** | `app-debug.apk` | Download it from [Releases](../../releases/tag/mobile-latest) |
+
+> [!IMPORTANT]
+> The APK on the Releases page is **only** the phone companion. It is not the desktop app and cannot replace it. The desktop app is not distributed as a download — you install it from source with one command.
+
+**The phone works on its own** for tasks, notes, finance, calendar, routines, approvals, memory, and AI Knowledge — those read the workspace database directly. It needs the desktop only for Ollama, n8n, multi-agent debate, and the reasoning council. Point it at your backend in **Settings → Backend Bridge**, or add your own provider keys under **Settings → On-device AI keys** to use AI chat with no backend at all.
+
+---
+
+## Product Model
+
+| Surface | Purpose | Data path |
+| --- | --- | --- |
+| **Desktop web app** | Full command center, local backend, local PostgreSQL, provider settings, system controls. | Browser → FastAPI → PostgreSQL / local services |
+| **Android APK** | Mobile workspace: tasks, notes, finance, routines, approvals, memory, AI Knowledge, AI chat. | APK → Supabase for workspace data; optional bridge to the desktop backend |
+| **Backend Bridge** | Lets the phone reach desktop-only services. | APK → LAN / Tailscale / Serve URL → FastAPI |
+| **Ollama / n8n** | Desktop-local by design. | Reachable from the phone only through the bridge |
+
+The mobile target is deliberately different from desktop: workspace data should work without a tunnel, and only genuinely local services go through the bridge.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Desktop["🖥️  Desktop (your machine)"]
+        UI["Next.js web app"] --> API["FastAPI backend"]
+        API --> PG[("PostgreSQL")]
+        API --> OLL["Ollama"]
+        API --> N8N["n8n"]
+    end
+
+    subgraph Cloud["☁️  Supabase"]
+        SB[("Workspace database<br/>tasks · notes · finance · chat<br/>memory · knowledge · approvals")]
+    end
+
+    subgraph Phone["📱  Android APK"]
+        APP["Capacitor WebView"]
+    end
+
+    API <-->|"two-way sync"| SB
+    APP -->|"workspace data,<br/>works with the desktop off"| SB
+    APP -.->|"Backend Bridge —<br/>only for local services"| API
+    APP -.->|"on-device keys,<br/>when there is no backend"| EXT["External AI providers"]
+    API --> EXT
+
+    classDef store fill:#0b3d3a,stroke:#18E0D6,color:#d7fffb
+    class PG,SB store
+```
+
+Full detail in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
+
+## Preview
+
+<div align="center">
+
+![AllHaven dashboard](docs/assets/screenshot-dashboard.png)
+
+<sub><b>Dashboard</b> — workspace status, finance, tasks, notes, approvals, and integration health.</sub>
+
+<br/><br/>
+
+![Multi-agent AI chat](docs/assets/screenshot-ai-chat.png)
+
+<sub><b>AI Chat</b> — multi-agent runs, memory context, human approvals, and honest provider status.</sub>
+
+<br/><br/>
+
+![Sign in](docs/assets/screenshot-login.png)
+
+<sub><b>Sign in</b> — one account across desktop and phone, with the backend address configurable at runtime.</sub>
+
+</div>
+
+---
+
 
 ## Status
 
@@ -45,35 +134,6 @@ AllHaven is not an operating system. It is a complete web application with:
 - Repository structure tidied — audit reports out of the root, `docs/v4/` dissolved, `docs/deploy/` renamed to `docs/sql/`.
 
 Read more: [release notes](docs/releases/v4.3.0.md). **Run `alembic upgrade head`** before starting 4.3.0.
-
----
-
-## Product Model
-
-| Surface | Purpose | Data path |
-| --- | --- | --- |
-| **Desktop web app** | Full command center, local backend, local PostgreSQL, provider settings, system controls. | Browser -> FastAPI -> PostgreSQL/local services |
-| **Android APK** | Mobile workspace for tasks, notes, finance, routines, approvals, memory, and AI chat UI. | APK -> Supabase for core data; optional bridge to desktop backend |
-| **Backend Bridge** | Lets mobile reach desktop-only/local resources. | APK -> LAN/Tailscale/Serve URL -> FastAPI |
-| **Ollama / n8n** | Remain desktop/local services by design. | Requires LAN or Tailscale bridge from mobile |
-
-The mobile target is intentionally different from desktop: core workspace data should work without Tailscale, while local-only services use the bridge only when needed.
-
----
-
-## Preview
-
-<div align="center">
-
-![AllHaven dashboard](docs/assets/screenshot-dashboard.png)
-
-<sub>Dashboard: workspace status, finance, tasks, notes, approvals, and integration health.</sub>
-
-![Multi-agent AI chat](docs/assets/screenshot-ai-chat.png)
-
-<sub>AI Chat: multi-agent runs, memory context, human approvals, and honest provider status.</sub>
-
-</div>
 
 ---
 
@@ -115,7 +175,7 @@ The mobile target is intentionally different from desktop: core workspace data s
 
 ---
 
-## Architecture
+## Repository layout
 
 ```text
 AllHaven-Application/
@@ -292,13 +352,20 @@ Output:
 frontend/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### Mobile connection rules
+### What works without the desktop
 
-- Login/core data use Supabase in the mobile build.
-- If the bridge is unreachable, tasks/notes/finance/routines that are Supabase-backed should still work.
-- Ollama and n8n require the desktop bridge.
-- If `http://100.x.y.z:8000/api/v1/health` fails in Chrome on the phone, the APK cannot reach that backend either.
-- Prefer Tailscale Serve (`https://name.tailnet.ts.net`) when raw `100.x` IP access is blocked.
+The phone reads the workspace database directly, so most of the app does not need a backend at all:
+
+| Works with the desktop off | Needs the desktop |
+| --- | --- |
+| Sign-in, tasks, notes, finance, calendar, routines, automations | Ollama and other local models |
+| Chat history, AI Knowledge, workspace memory | n8n |
+| The approval queue — proposals are created *and* executed on-device | Multi-agent debate and the reasoning council |
+| AI chat, using your own keys under **Settings → On-device AI keys** | Drive file contents (only the file list syncs) |
+
+Point the app at a backend in **Settings → Backend Bridge** when you want the desktop-only features.
+
+**If the bridge will not connect:** open `http://<backend-host>:<port>/api/v1/health` in Chrome on the phone first. If that fails there, the APK cannot reach it either — it is a network problem, not an app problem. Prefer a Tailscale Serve URL (`https://name.tailnet.ts.net`) when raw `100.x` addresses are blocked.
 
 Full guide: [Mobile APK guide](docs/MOBILE.md) and [Tailscale setup](docs/TAILSCALE_SETUP.md).
 
@@ -479,14 +546,19 @@ python3 -m venv .venv
 
 ## Branches
 
-| Branch | Role |
+This repository has **one branch: `main`.** Desktop and mobile are two build targets of the same source, not two branches.
+
+Two earlier branches were retired once their work merged. Nothing was lost — both are preserved as tags:
+
+| Tag | What it holds |
 | --- | --- |
-| `main` | Current primary release branch. |
-| `master` | Kept aligned with `main` for compatibility. |
-| `mobile` | Kept aligned with `main`; useful for APK/mobile-focused workflows. |
+| `archive/flutter-shell-4.3.0` | The previous Flutter WebView shell, superseded by the Capacitor build |
+| `archive/legacy-version-snapshots` | Per-version source snapshots from AllHaven 1.4 through 4.3 |
 
-All three release branches should point at AllHaven 4.3 content.
-
+```bash
+git fetch origin --tags
+git branch mobile archive/flutter-shell-4.3.0   # restore one if ever needed
+```
 ---
 
 ## License

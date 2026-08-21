@@ -31,9 +31,13 @@ jobs:
       run:
         working-directory: frontend
     env:
-      # Priority: manual input → repo variable → harmless placeholder (so a smoke
-      # build still succeeds; the Release step below is skipped for the placeholder).
-      API_URL: ${{ github.event.inputs.api_base_url || vars.MOBILE_API_BASE_URL || 'https://PLACEHOLDER.invalid/api/v1' }}
+      # Empty by default, on purpose. A public APK must not carry anyone's
+      # backend address: publishing it exposes that machine's hostname, and every
+      # installer would have their phone pointed at someone else's computer.
+      # With no address the app asks for one in Settings -> Backend Bridge, and
+      # still works on its own for everything that reads the workspace database.
+      # Pass api_base_url when running the workflow to build a private APK.
+      API_URL: ${{ github.event.inputs.api_base_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -78,14 +82,17 @@ jobs:
           if-no-files-found: error
 
       - name: Publish to "mobile-latest" release (download link)
-        if: ${{ env.API_URL != 'https://PLACEHOLDER.invalid/api/v1' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: mobile-latest
-          name: AllHaven Mobile (latest debug build)
+          name: Android APK - mobile companion (not the desktop app)
           prerelease: true
           files: frontend/android/app/build/outputs/apk/debug/app-debug.apk
           body: |
-            Debug APK of the AllHaven mobile app, built by CI.
-            Points at: `${{ env.API_URL }}`
-            Download `app-debug.apk` below → install on Android (enable "Install unknown apps").
+            **This is the Android companion app.** For AllHaven on a computer, follow the Quick Start in the README instead.
+
+            Download `app-debug.apk` below, enable *Install unknown apps*, and open it.
+
+            The app ships with no backend address - set one in **Settings -> Backend Bridge**, or use it on its own with your own provider keys under **Settings -> On-device AI keys**.
+
+            Debug build, signed with a debug key - for personal and testing use.
