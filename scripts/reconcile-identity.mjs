@@ -116,12 +116,12 @@ async function main() {
     id: NEW_W, name: "Joshua Setiawan's Workspace", owner_id: NEW_P,
     created_at: STAMP, updated_at: STAMP,
   };
-  await call("POST", "/workspaces", [workspace], "resolution=merge-duplicates,return=minimal");
   await call("POST", "/profiles", [{
     id: NEW_P, email: EMAIL, full_name: "Joshua Setiawan",
     created_at: STAMP, updated_at: STAMP,
     supabase_user_id: AUTH, // the phone's login now resolves to THIS profile
   }], "resolution=merge-duplicates,return=minimal");
+  await call("POST", "/workspaces", [workspace], "resolution=merge-duplicates,return=minimal");
   await call("POST", "/workspace_members", [{
     id: "10400ca9-7f96-45a1-9f77-334159f56171",
     workspace_id: NEW_W, user_id: NEW_P, role: "owner",
@@ -133,13 +133,16 @@ async function main() {
     if (rows[t].length) await call("DELETE", `/${t}?workspace_id=eq.${OLD_W}`, undefined, "return=minimal");
   }
   for (const t of ORDER) {
-    if (rows[t].length) await call("POST", `/${t}`, rows[t].map(repoint), "return=minimal");
+    if (rows[t].length) {
+      await call("POST", `/${t}`, rows[t].map(repoint), "resolution=merge-duplicates,return=minimal");
+    }
   }
 
   console.log("\n4. retire the duplicate identity");
+  // workspaces.owner_id -> profiles.id, so the workspace goes before the profile.
   await call("DELETE", `/workspace_members?workspace_id=eq.${OLD_W}`, undefined, "return=minimal");
-  await call("DELETE", `/profiles?id=eq.${OLD_P}`, undefined, "return=minimal");
   await call("DELETE", `/workspaces?id=eq.${OLD_W}`, undefined, "return=minimal");
+  await call("DELETE", `/profiles?id=eq.${OLD_P}`, undefined, "return=minimal");
 
   console.log("\n5. link the desktop profile to the Supabase auth user, locally");
   const sql = `update profiles set supabase_user_id='${AUTH}' where id='${NEW_P}';`;
